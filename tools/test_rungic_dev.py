@@ -249,6 +249,30 @@ class KeptOnBuildHostTests(unittest.TestCase):
         self.assertIn('10.77.0.20 192.168.5.45', scripts[0])
         self.assertIn('sha256sum', scripts[0])
 
+    # covers: delivery.dev-overlay/E6 delivery.build-hosts/E3
+    def test_fetch_does_not_let_ssh_consume_the_remaining_script(self):
+        import hashlib
+        import build_on_device
+        remote = self.pool / 'remote.deb'
+        payload = b'checked package contents\n'
+        remote.write_bytes(payload)
+        ssh = self.pool / 'fake-ssh'
+        # SSH normally reads its stdin. The phone executes the transfer script from
+        # stdin too: enough commands to exceed the shell's read-ahead expose the bug.
+        ssh.write_text('#!/bin/sh\ncat >/dev/null\ncat "$2"\n')
+        ssh.chmod(0o755)
+        destination = self.pool / 'device'
+        destination.mkdir()
+        kept = {f'package-{i:04}_1_arm64.deb': {'path': str(remote), 'size': len(payload),
+                  'sha256': hashlib.sha256(payload).hexdigest()} for i in range(180)}
+        def run(script, level, **kwargs):
+            return subprocess.run(['sh'], input=script, capture_output=True, text=True, check=True)
+        with patch.object(rungic_release, 'run', run), \
+                patch.object(build_on_device.MacMini, 'PHONE_SSH', str(ssh)):
+            rungic_release.fetch_kept(kept, str(destination))
+        self.assertEqual({p.name for p in destination.iterdir()}, set(kept))
+        self.assertTrue(all(p.read_bytes() == payload for p in destination.iterdir()))
+
     # covers: delivery.dev-overlay/E6
     def test_index_has_the_kept_entries(self):
         (self.pool / 'big_1_arm64.deb.remote').write_text(json.dumps(

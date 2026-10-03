@@ -406,7 +406,7 @@ def fetch_kept(kept, device_repo):
     reach each other exchange files directly), checked by size and SHA-256, three tries each."""
     import build_on_device
     lines = ['set -e', f'cd {device_repo}', 'take() {', '  for try in 1 2 3; do',
-             f'    {build_on_device.MacMini.PHONE_SSH} get "$2" > "$1.part" || true',
+             f'    {build_on_device.MacMini.PHONE_SSH} get "$2" </dev/null > "$1.part" || true',
              '    if [ "$(stat -c %s "$1.part")" = "$3" ] && [ "$(sha256sum < "$1.part" | cut -d" " -f1)" = "$4" ]; then',
              '      mv "$1.part" "$1"; return 0; fi', '  done', '  rm -f "$1.part"; echo "$1: not taken from the build host" >&2; return 1', '}']
     lines += [f'take {shlex.quote(name)} {shlex.quote(k["path"])} {k["size"]} {k["sha256"]}'
