@@ -376,7 +376,9 @@ def start(component, mode, jobs, targets=(), lto=True, cmake_args=()):
                  f"cd {work}/src && dpkg-buildpackage {'-B' if arch_only(component) else '-b'} -uc -us")
     else:
         steps = (f"export DEB_BUILD_OPTIONS='nocheck parallel={jobs}' {DEBUG_FLAGS}{maint}; "
-                 f"cd {work}/src && test -d {obj} && make -C {obj} -j{jobs} && debian/rules binary")
+                 f"cd {work}/src && test -d {obj} && "
+                 f"(if test -f {obj}/build.ninja; then ninja -C {obj} -j{jobs}; "
+                 f"else make -C {obj} -j{jobs}; fi) && debian/rules binary")
     host.background(component, steps)
     print(f'started rungic-build-{component} on {host.name} ({mode}, {jobs} jobs); '
           f'follow with: build_on_device.py --host {host.name} {component} status')

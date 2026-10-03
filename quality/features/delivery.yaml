@@ -87,7 +87,7 @@ features:
         evidence:
           - {doc: docs/71-upstream-patch-queue.md, date: 2026-09-27, note: "§构建机：Mac mini"}
       - id: E2
-        text: 增量构建只重编改动的文件：源码树用 rsync --checksum 同步，未改文件保留时间戳，保留上次的 obj 树。
+        text: 增量构建只重编改动的文件：源码树用 rsync --checksum 同步，未改文件保留时间戳，保留上次的 obj 树，并按生成文件选择 make 或 Ninja。
         evidence:
           - {doc: docs/97-local-development-deploy.md, date: 2026-10-01, note: "plasma-mobile 增量 238 秒；ksystemstats 增量 54 秒（2026-10-03）"}
       - id: E3

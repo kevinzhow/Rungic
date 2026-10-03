@@ -181,3 +181,10 @@ python3 tools/rungic_dev.py reset [rungic-design]                     # 回到�
 - 从头构建：`rungic_dev.py deploy 包 --clean`、`rungic_package.py build 包 --clean`。
 
 **实测**（只构建，不部署）：同一个包没有改动时，120 秒（每次全量）→ 112 秒（只加增量，仍是全量的 SSH 开销）→ 36 秒（加连接复用），其中约 12 秒是实测脚本把 deb 拉回 K8；部署时 deb 从 Mac mini 直接送到手机，没有这一段。第二次构建的日志里没有编译输出。
+
+## Mesa 与 Debian Meson 组件的开发构建（2026-10-03）
+
+- USB G100（ZY32M9MRVP）从 `20260930.19` 更新组件时发现两处工具路径不匹配；两次错误均发生在构建阶段、覆盖安装之前。
+- Mesa 配方固定源码 `98f3d622`，只有补丁和 changelog，没有 Debian control/rules。使用既有 `desktop/mesa-meson-options` 和 `desktop/package-mesa.py`，由 `build_mesa.package` 按开发版本打包；不对它调用 `apt-get build-dep .`。测试 `test_mesa_uses_its_meson_packager_and_records_the_development_version` 验证版本、包记录与构建选择。
+- Flatpak `1.16.6` 的 Debian rules 明确使用 `dh --buildsystem=meson`，保留的 obj 树内为 `build.ninja`，原工具却无条件调用 make，实测报“no makefile found”。增量入口先检查 `build.ninja`，有则调用 Ninja，否则使用 make，再执行原有 `debian/rules binary`。这同时适用于 Debian Meson 的 Xwayland，无需新增配方特判。
+- 离线回归用真实 make/Ninja 构建小型源码树，再由打包脚本核验编译结果；第二次修改输入后重跑，检查新内容进入打包结果。测试 `test_incremental_build_compiles_make_and_ninja_trees_before_packaging` 覆盖两种生成器，离线测试不访问手机。

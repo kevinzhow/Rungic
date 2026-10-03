@@ -202,9 +202,38 @@ class IncrementalSyncTests(unittest.TestCase):
 
         build_on_device.start('demo', 'incremental', 2)
         steps = build_on_device.host.steps
-        self.assertIn(f'test -d {src}/obj-aarch64-linux-gnu && make -C {src}/obj-aarch64-linux-gnu -j2', steps)
+        self.assertIn(f'test -d {src}/obj-aarch64-linux-gnu', steps)
         self.assertIn('debian/rules binary', steps)
         self.assertNotIn('dpkg-buildpackage', steps)
+
+    # covers: delivery.build-hosts/E2
+    def test_incremental_build_compiles_make_and_ninja_trees_before_packaging(self):
+        for generator in ('make', 'ninja'):
+            with self.subTest(generator=generator):
+                src = self.base / generator / 'src'
+                obj = src / 'obj-aarch64-linux-gnu'
+                obj.mkdir(parents=True)
+                (src / 'input').write_text('updated source\n')
+                (src / 'debian').mkdir()
+                rules = src / 'debian/rules'
+                rules.write_text('#!/bin/sh\nset -eu\n'
+                                 'test "$1" = binary\n'
+                                 'cmp input obj-aarch64-linux-gnu/output\n'
+                                 'cp obj-aarch64-linux-gnu/output packaged\n')
+                rules.chmod(0o755)
+                if generator == 'make':
+                    (obj / 'Makefile').write_text('output: ../input\n\tcp ../input output\n')
+                else:
+                    (obj / 'build.ninja').write_text('rule copy\n  command = cp $in $out\n'
+                                                   'build output: copy ../input\n')
+                build_on_device.start(generator, 'incremental', 2)
+                build_on_device.host.run(build_on_device.host.steps)
+                self.assertEqual((src / 'packaged').read_text(), 'updated source\n')
+                # Reusing the same tree must compile a subsequent source change too.
+                time.sleep(0.01)
+                (src / 'input').write_text('second revision\n')
+                build_on_device.host.run(build_on_device.host.steps)
+                self.assertEqual((src / 'packaged').read_text(), 'second revision\n')
 
 
 class TransferTests(unittest.TestCase):
