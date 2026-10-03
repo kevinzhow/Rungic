@@ -195,7 +195,7 @@ python3 tools/rungic_dev.py reset [rungic-design]                     # 回到�
 
 ### 源码与更新范围
 
-- 部件构建源码 `6aff36bbee6709e420ec2d9b638f3fe6fc320f4d`，分支 `deploy/g100-components-20261003`：main `331bbdea` 加已安装的 Codex 默认桌面改动和禁用 AgentScreen 时的启动黑窗修复（`38933f6c`）。后续构建/传输工具和验收契约修正不改变这些部件的输入，逐项核对 `identity_paths`。
+- 部件构建源码 `6aff36bbee6709e420ec2d9b638f3fe6fc320f4d`，分支 `deploy/g100-components-20261003`：main `331bbdea` 加已安装的 Codex 默认桌面改动和禁用 AgentScreen 时的启动黑窗修复（`38933f6c`）。截至 `4497127e` 的后续构建/传输工具和验收契约修正不改变这些部件的输入，逐项核对 `identity_paths`。
 - 重建并安装 16 个自有包：agent-screen、cast、codec、design、docker、firefox、flatpak-gl、plasma-bridges、plasma-config、plasma-diagnostics、plasma-input、plasma-recording、plasma-services、plasma-session、snapshot、suggestions，完整包名前缀为 `rungic-`。voice-agent、cua、codex 三个已有覆盖的源码路径与整合版本一致，保留它们的版本。
 - 重建 8 个上游组件，覆盖 20 个二进制包：KWin `6.6.6+rungic9`、Mesa `26.3.0~devel20260824+rungic3`、Plasma Mobile `6.6.5+rungic9`、portal `6.6.6+rungic2`、ksystemstats `6.6.6+rungic1`、Flatpak `1.16.6+rungic1`、Xwayland `24.1.10+rungic2`、Polkit KDE `6.6.4+rungic1`。完整 Debian 版本见部署记录。
 - 已安装开发元包 `20260930.19+dev20261003t130244`，共 39 项覆盖，36 个包本轮更新、3 个保留。Mac mini ARM64 构建，手机直取，大小及 SHA-256 验证；记录 `.work/dev-deploy/20261003-210244-deploy/`，最终 `result=ok`。
@@ -219,3 +219,5 @@ python3 tools/rungic_dev.py reset [rungic-design]                     # 回到�
 - 5 项整合源码的原生系统回归通过：desktop_mode_window、desktop_mode_fullscreen、assistant_app、cua_desktop、phone_session_units。工具相关 31 个用例及 16 个 subtest 通过，另外 Android 文件处理 4 个、真实 Java 契约 4 个通过。Fedora 缺 `dpkg-parsechangelog` 的既有用例单独列为环境限制，不计为通过。
 - 手机离屏渲染 ChoiceRow、ToggleRow、ChoiceSheet 的浅色/深色总览，6 张截图已检查；ChoiceSheet 这一节展示打开入口，未作为实际弹层打开的交互验收。不会在手机屏幕开窗口。
 - 账户保留，SSH socket enabled/active，桌面模式与助理画面开关未改变。原生库/控制器、实际进程、APT/完整性差异和截图证据均在 `.work/verify/20261003-g100-components/`。没有重测通话、微信等完整交互流程；这些只读契约不代替产品使用验收。本轮开发覆盖不发行新 rootfs。
+
+- 提交 PR 前分支同步 main `6cfd7157`（已合并 Codex PR #3 与黑窗 PR #4），工具 31 项及 16 个 subtest、真实 Java 契约 4 项再次通过。此同步没有重新部署手机；main 后续的通话步骤取消（`4514f042`）和 CUA 录音依赖（`4e18c5b3`）不包含在上述设备验收中，设备版本仍以构建源码 `6aff36bb` 和部署记录为准。
