@@ -277,7 +277,13 @@ rm -f {name}''', 600)
         """Remove the files kept for the phone but those named."""
         names = ' '.join(shlex.quote(n) for n in sorted(keep))
         self.run(f'''cd {BASE}/{self.DEV_POOL} 2>/dev/null || exit 0
-for f in *.deb; do [ -e "$f" ] || continue; case " {names} " in *" $f "*) ;; *) rm -f "$f";; esac; done''', 120)
+set -- {names}
+for f in *.deb; do
+  [ -e "$f" ] || continue
+  kept=false
+  for wanted do [ "$f" != "$wanted" ] || {{ kept=true; break; }}; done
+  "$kept" || rm -f -- "$f"
+done''', 120)
 
     def background(self, component, steps):
         work = f'{BASE}/{component}'

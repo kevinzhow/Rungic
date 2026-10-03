@@ -252,6 +252,23 @@ class TransferTests(unittest.TestCase):
         self.script = self.root / 'rungic-transfer'
         self.script.write_text(text.replace('\nBASE=/root/rungic-build\n', f'\nBASE={self.base}\n'))
 
+    # covers: delivery.build-hosts/E4
+    def test_pruning_preserves_exact_kept_names_with_shell_metacharacters(self):
+        pool = self.base / build_on_device.MacMini.DEV_POOL
+        pool.mkdir()
+        keep = {'libegl-mesa0_26.3~devel_arm64.deb', 'with space.deb', 'literal$(touch CANARY).deb'}
+        for name in {*keep, 'obsolete.deb', 'libegl-mesa0_26.2~devel_arm64.deb'}:
+            (pool / name).write_text('package')
+        mac = FakeMac()
+        def run(script, timeout):
+            return subprocess.run(['sh', '-eu', '-c', script], check=True,
+                                  capture_output=True, text=True, cwd=pool)
+        with patch.object(build_on_device, 'BASE', str(self.base)), patch.object(mac, 'run', run):
+            mac.prune_kept(keep)
+            self.assertEqual({p.name for p in pool.iterdir()}, keep)
+            mac.prune_kept(set())
+            self.assertEqual(list(pool.iterdir()), [])
+
     def transfer(self, command, data=b''):
         env = {'PATH': os.environ['PATH'], 'SSH_ORIGINAL_COMMAND': command}
         return subprocess.run(['sh', str(self.script)], input=data, capture_output=True, env=env, cwd=self.root)
