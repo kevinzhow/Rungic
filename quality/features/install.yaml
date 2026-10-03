@@ -439,11 +439,18 @@ features:
         text: 在设备面板改档位立即生效，已经在运行的容器进程连同内存计费一起迁入；容器重启后保持选定的上限。
         evidence:
           - {doc: docs/61-delivery-diagnostics-plan.md, date: 2026-09-27, note: "改为 5 GB 后内核上限 5368709120"}
+      - id: E3
+        text: 换到 swap（zram，压缩后仍在 RAM 里）的部分也算进上限：内存加 swap 最多为档位的 1.25 倍；容器优先回收文件缓存，少把程序内存换出去。
+      - id: E4
+        text: 设备面板除了总用量，还分开显示程序占用、文件缓存（其中内存文件）和已换出的 swap，用户能看出用量里哪些随时可以回收。
     pitfalls:
       - text: Android 的 sh 只有 32 位整数，上限用 M 后缀写给内核；遍历进程只用 shell 内建命令（每个进程一次 grep 要一分钟）。
+      - text: 只设 memory.limit_in_bytes 时，换出到 zram 的页不再计入上限，容器实际吃掉的 RAM 会超过档位（2026-10-03 G100 S：4 GB 上限下有 938 MiB 在 swap）。内核要求任何时刻 memsw 上限不小于内存上限，调低和调高的写入顺序相反。
+        docs: [docs/61-delivery-diagnostics-plan.md]
         docs: [docs/61-delivery-diagnostics-plan.md]
     code:
       - system/rungic-plasma
+      - tools/tests/test_memory_limit.py
     docs:
       - docs/61-delivery-diagnostics-plan.md
       - docs/21-memory-audit.md       # G100 S 的 RAM 实测与工作区的内存需求

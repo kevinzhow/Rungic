@@ -313,3 +313,13 @@ rootfs从目录迁入ext4镜像，升级前自动建立dm-snapshot；btrfs按第
 - 设置入口：Rungic设备面板“内存”分组，显示Linux已用内存、上限与峰值，下拉选择档位（APK 2.5的`container-memory`操作以root调用启动脚本）。
 - Android的`sh`（mksh）只有32位整数：上限用`M`后缀写入，字节换算交给`awk`；遍历进程只用shell内建命令（每个进程调用一次grep要一分钟）。
 - 验证：面板改为5 GB后内核上限为5368709120；容器重启后`lxc-start`与plasmashell都在`/memory:/rungic-plasma`，上限保持4 GB，Linux用量约1.1–2 GB。
+
+#### swap 也计入上限、用量分开显示（2026-10-03）
+
+- **问题**：G100 S（开机约 6.8 天）只读读取 `/dev/memcg/rungic-plasma`：上限 4096 MiB，当前 usage 1638 MiB（程序 rss 598、文件缓存 1039，其中 tmpfs 227），峰值 4096 MiB，`failcnt` 282 968；**容器已有 938 MiB 换出到 swap**，`memory.memsw.limit_in_bytes` 不限，`memory.swappiness` 100。Android 的 swap 是 zram（`/proc/swaps` 只有 zram0，压缩后仍占 RAM），换出的页不再计入 `memory.limit_in_bytes`，容器实际占用的 RAM 会超过档位。面板显示的 usage 又包含文件缓存，重度使用后接近上限，看起来像"占满了"。
+- **修改**（`system/rungic-plasma`）：
+  - 同时写 `memory.memsw.limit_in_bytes`（内存 + swap）：档位的 1.25 倍（`MEMORY_SWAP_SHARE=4`，4 GB 档为 5120 MiB；无上限时两者都是 -1）。内核要求任何时刻 memsw 不小于内存上限：先试写内存上限（调高时会失败，忽略），再写 memsw，最后再写一次内存上限。内核没有 swap 计费（无 memsw 文件）时只写内存上限。
+  - 这个 cgroup 的 `memory.swappiness` 设为 40（Android 全局为 100），先回收文件缓存，少换出程序内存。
+  - `memory-status` 增加 `swap_limit_mib`、`programs_mib`（total_rss）、`cache_mib`（total_cache）、`shmem_mib`（total_shmem）、`swap_mib`（total_swap）。设备面板在总用量下面多一行显示程序、文件缓存（其中内存文件）和 swap；旧启动脚本没有这些字段时只显示原来的一行。
+- **离线验证**：`tools/tests/test_memory_limit.py` 在 sh 里对 cgroup 替身运行启动脚本的内存函数（写入值、无上限、无 swap 计费的内核、状态 JSON 与缺失 memory.stat）；`tools/tests/test_device_panel.py` 覆盖面板的两种显示。替身是普通文件，不模拟内核的写入顺序约束，**实机尚未部署验证**（档位切换的写入顺序、`failcnt` 与容器内 OOM 的变化需上机确认）。
+- **为什么不加磁盘 swap**：同次只读检查，这台内核开了 `CONFIG_SWAP`、/data 为 f2fs，可以挂 swapfile；但 swap 是全局的（不只容器），/data 的按文件加密在换出时被绕过，内存内容可能明文落盘，另有闪存磨损、换入延迟和 lmkd（`swap_free_low_percentage=10`）判断变化。Moto 的 zram 写回属性已开（`persist.sys.zram_wb_enabled=true`、2048M），但内核未编入 `CONFIG_ZRAM_WRITEBACK`，zram0 没有 backing_dev，写回实际不工作。暂不加磁盘 swap。

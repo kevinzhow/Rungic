@@ -46,19 +46,36 @@ MEMCG=/dev/memcg/rungic-plasma
 MEMORY_CHOICE=$BASE/memory-limit
 MEMORY_PRESETS="2048 3072 4096 5120 6144 unlimited"
 MEMORY_DEFAULT=4096
+# Swap counts against the ceiling too (2026-10-03): Android's swap is zram, compressed but still in
+# RAM, and pages swapped out leave memory.limit_in_bytes. On the G100 S, 938 MiB of the container
+# sat in zram under a 4 GiB limit with RAM+swap unlimited. RAM+swap may exceed RAM by a quarter.
+MEMORY_SWAP_SHARE=4
+# Reclaim the container's file cache before its programs' memory (Android sets 100 for zram).
+MEMORY_SWAPPINESS=40
 memory_choice() {
     choice=$(cat "$MEMORY_CHOICE" 2>/dev/null) || choice=
     case " $MEMORY_PRESETS " in *" $choice "*) echo "$choice" ;; *) echo "$MEMORY_DEFAULT" ;; esac
 }
 apply_memory_limit() {
-    [ -d /dev/memcg ] || return 0
+    [ -d "${MEMCG%/*}" ] || return 0
     mkdir -p "$MEMCG" || return 1
     # Pages of adopted processes move with them (cgroup v1; ignored where the kernel dropped it).
     echo 3 > "$MEMCG/memory.move_charge_at_immigrate" 2>/dev/null || true
     choice=$(memory_choice)
-    # Android's sh has 32-bit arithmetic: the kernel takes the unit suffix instead.
-    if [ "$choice" = unlimited ]; then limit=-1; else limit=${choice}M; fi
+    # Android's sh has 32-bit arithmetic: the kernel takes the unit suffix instead (MiB stay small).
+    if [ "$choice" = unlimited ]; then
+        limit=-1 memsw=-1
+    else
+        limit=${choice}M memsw=$((choice + choice / MEMORY_SWAP_SHARE))M
+    fi
+    echo "$MEMORY_SWAPPINESS" > "$MEMCG/memory.swappiness" 2>/dev/null || true
     # Lowering below the current use makes the kernel reclaim first; it refuses (EBUSY) what it cannot free.
+    if [ -e "$MEMCG/memory.memsw.limit_in_bytes" ]; then
+        # The kernel keeps memsw >= limit at every step: lowering takes limit then memsw, raising
+        # memsw then limit. Try the limit first (fails harmlessly when raising), then both.
+        echo "$limit" > "$MEMCG/memory.limit_in_bytes" 2>/dev/null || true
+        echo "$memsw" > "$MEMCG/memory.memsw.limit_in_bytes" || return 1
+    fi
     echo "$limit" > "$MEMCG/memory.limit_in_bytes"
 }
 adopt_container() {
@@ -85,11 +102,25 @@ memory_status() {
     limit=$(cat "$MEMCG/memory.limit_in_bytes" 2>/dev/null) || limit=
     usage=$(cat "$MEMCG/memory.usage_in_bytes" 2>/dev/null) || usage=0
     peak=$(cat "$MEMCG/memory.max_usage_in_bytes" 2>/dev/null) || peak=0
+    memsw=$(cat "$MEMCG/memory.memsw.limit_in_bytes" 2>/dev/null) || memsw=
     total=$(sed -n 's/^MemTotal: *\([0-9]*\) kB/\1/p' /proc/meminfo)
     mib() { awk -v b="$1" 'BEGIN { printf "%d", b / 1048576 }'; }   # sh arithmetic is 32-bit here
     case "$limit" in ''|9223372036854*) limit_mib=null ;; *) limit_mib=$(mib "$limit") ;; esac
-    printf '{"choice":"%s","default":%s,"presets":"%s","limit_mib":%s,"usage_mib":%s,"peak_mib":%s,"total_mib":%s}\n' \
+    case "$memsw" in ''|9223372036854*) memsw_mib=null ;; *) memsw_mib=$(mib "$memsw") ;; esac
+    # What the use is made of (memory.stat): programs' memory, file cache (reclaimable but for its
+    # tmpfs part, shmem) and what sits in swap. "usage" includes the cache, so it nears the ceiling
+    # after heavy use without the programs holding that much.
+    rss=0 cache=0 shmem=0 swap=0
+    { while read -r key value; do
+        case "$key" in
+          total_rss) rss=$value ;; total_cache) cache=$value ;;
+          total_shmem) shmem=$value ;; total_swap) swap=$value ;;
+        esac
+      done < "$MEMCG/memory.stat"; } 2>/dev/null || true
+    printf '{"choice":"%s","default":%s,"presets":"%s","limit_mib":%s,"usage_mib":%s,"peak_mib":%s,"total_mib":%s,' \
         "$(memory_choice)" "$MEMORY_DEFAULT" "$MEMORY_PRESETS" "$limit_mib" "$(mib "$usage")" "$(mib "$peak")" $((total / 1024))
+    printf '"swap_limit_mib":%s,"programs_mib":%s,"cache_mib":%s,"shmem_mib":%s,"swap_mib":%s}\n' \
+        "$memsw_mib" "$(mib "$rss")" "$(mib "$cache")" "$(mib "$shmem")" "$(mib "$swap")"
 }
 # The desktop in front gets what Android gives its top app (docs/49): the desktop session runs on
 # the big cores (uclamp.min 50 %, above the little cores' capacity of 405/1024) with top-app's CPU

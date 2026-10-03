@@ -949,7 +949,7 @@ features:
     summary: “Android 设备”应用显示手机型号、网络、刷新率、电池和 Linux 内存，可设屏幕方向、亮度跟随、内存上限，并打开安卓的系统设置页。
     experience:
       - id: E1
-        text: 设备页显示真实 SSID、IP/DNS、刷新率与提交帧率、电量与温度、充电状态和 Linux 内存用量。
+        text: 设备页显示真实 SSID、IP/DNS、刷新率与提交帧率、电量与温度、充电状态和 Linux 内存用量（及其构成，见 install.memory-limit/E4）。
         evidence:
           - {doc: docs/42-plasma-runtime-acceptance.md, date: 2026-09-23, note: "设备面板真实 SSID 展示"}
       - id: E2

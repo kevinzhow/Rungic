@@ -227,8 +227,13 @@ class DeviceApp(Adw.Application):
         memory=data.get('memory')
         if memory:
             limit=f"{memory['limit_mib']} MB" if memory.get('limit_mib') else pgettext('memory limit', 'none')
-            r['memory'].set_subtitle(_('{usage} MB · limit {limit} · peak {peak} MB (of {total} MB)').format(
-                usage=memory['usage_mib'], limit=limit, peak=memory['peak_mib'], total=memory['total_mib']))
+            text=_('{usage} MB · limit {limit} · peak {peak} MB (of {total} MB)').format(
+                usage=memory['usage_mib'], limit=limit, peak=memory['peak_mib'], total=memory['total_mib'])
+            # What the use is made of; a launcher before 2026-10-03 does not say.
+            if 'programs_mib' in memory:
+                text+='\n'+_('Programs {programs} MB · file cache {cache} MB (in-memory files {shmem} MB) · swap {swap} MB').format(
+                    programs=memory['programs_mib'], cache=memory['cache_mib'], shmem=memory['shmem_mib'], swap=memory['swap_mib'])
+            r['memory'].set_subtitle(text)
             if memory.get('choice') in self.memory_presets:
                 self.changing=True
                 self.memory.set_selected(self.memory_presets.index(memory['choice']))

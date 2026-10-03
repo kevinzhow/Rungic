@@ -273,5 +273,10 @@ msgid "{usage} MB · limit {limit} · peak {peak} MB (of {total} MB)"
 msgstr "{usage} MB · 上限 {limit} · 峰值 {peak} MB（共 {total} MB）"
 
 #: desktop/device-panel.py
+#, python-brace-format
+msgid "Programs {programs} MB · file cache {cache} MB (in-memory files {shmem} MB) · swap {swap} MB"
+msgstr "程序 {programs} MB · 文件缓存 {cache} MB（其中内存文件 {shmem} MB）· 交换 {swap} MB"
+
+#: desktop/device-panel.py
 msgid "Update the Android side (Rungic APK 2.5) to show this"
 msgstr "需要更新 Android 端（Rungic APK 2.5）"

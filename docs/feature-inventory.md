@@ -4,7 +4,7 @@
 
 以产品功能和用户场景为骨架：每条功能是用户能感知的一件事；“体验”是它必须做到的，每条都标明由什么检查（自动测试、实机验收、人工验证或已登记的缺口）。数据在 `quality/`，规则见 [quality/README.md](../quality/README.md)。
 
-共 160 条功能、667 条体验，其中 623 条有检查。
+共 160 条功能、669 条体验，其中 625 条有检查。
 
 ## Agent 能力
 
@@ -2442,7 +2442,7 @@ Agent 不靠点界面就能拿到合并日志、崩溃回溯、追踪、截图�
 
 经由接口：`platform-bridge`
 
-- **E1** 设备页显示真实 SSID、IP/DNS、刷新率与提交帧率、电量与温度、充电状态和 Linux 内存用量。（人工）
+- **E1** 设备页显示真实 SSID、IP/DNS、刷新率与提交帧率、电量与温度、充电状态和 Linux 内存用量（及其构成，见 install.memory-limit/E4）。（单元测试、人工）
 - **E2** 声音、蓝牙、日期、定位、网络和安卓显示设置按钮打开安卓对应的系统页面；测试振动能让手机振动。（单元测试）
 - **E3** 屏幕方向可选跟随安卓、竖屏、横屏，选择立即生效。内存上限的档位见 install.memory-limit。（单元测试）
 - **E4** 安卓侧太旧或连不上时显示明确提示，不显示过期数据；响应过大时报错。（单元测试）
@@ -2715,9 +2715,12 @@ Agent 不靠点界面就能拿到合并日志、崩溃回溯、追踪、截图�
 
 - **E1** Linux 侧有内存上限（默认 4 GB，可选 2–6 GB 或不限）；超限时在容器内回收或结束进程，Android 低内存查杀不去杀 VPN 和 Rungic 应用。（人工）
 - **E2** 在设备面板改档位立即生效，已经在运行的容器进程连同内存计费一起迁入；容器重启后保持选定的上限。（人工）
+- **E3** 换到 swap（zram，压缩后仍在 RAM 里）的部分也算进上限：内存加 swap 最多为档位的 1.25 倍；容器优先回收文件缓存，少把程序内存换出去。（单元测试）
+- **E4** 设备面板除了总用量，还分开显示程序占用、文件缓存（其中内存文件）和已换出的 swap，用户能看出用量里哪些随时可以回收。（单元测试）
 
 注意：
-- Android 的 sh 只有 32 位整数，上限用 M 后缀写给内核；遍历进程只用 shell 内建命令（每个进程一次 grep 要一分钟）。 [docs/61-delivery-diagnostics-plan.md](../docs/61-delivery-diagnostics-plan.md)
+- Android 的 sh 只有 32 位整数，上限用 M 后缀写给内核；遍历进程只用 shell 内建命令（每个进程一次 grep 要一分钟）。
+- 只设 memory.limit_in_bytes 时，换出到 zram 的页不再计入上限，容器实际吃掉的 RAM 会超过档位（2026-10-03 G100 S：4 GB 上限下有 938 MiB 在 swap）。内核要求任何时刻 memsw 上限不小于内存上限，调低和调高的写入顺序相反。 [docs/61-delivery-diagnostics-plan.md](../docs/61-delivery-diagnostics-plan.md)
 
 文档：[docs/61-delivery-diagnostics-plan.md](../docs/61-delivery-diagnostics-plan.md)、[docs/21-memory-audit.md](../docs/21-memory-audit.md)、[docs/76-g100-memory-audit.md](../docs/76-g100-memory-audit.md)
 

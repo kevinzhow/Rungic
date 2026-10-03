@@ -238,6 +238,27 @@ def test_brightness_follows_android_or_the_slider(panel):
         p.wait(lambda s: {'op': 'brightness', 'value': -1} in platform.requests, 'follow Android sent', 5)
 
 
+# covers: desktop.device-panel/E1
+# covers: install.memory-limit/E4
+def test_the_memory_row_says_what_the_use_is_made_of(panel):
+    with Platform() as platform:
+        platform.memory = {**MEMORY, 'swap_limit_mib': 5120, 'programs_mib': 598, 'cache_mib': 1039,
+                           'shmem_mib': 227, 'swap_mib': 938}
+        p = panel(platform)
+        state = p.wait(loaded, 'the page loaded')
+        row = state['rows']['memory']
+        assert '1500 MB' in row and '4096 MB' in row
+        assert '598' in row and '1039' in row and '227' in row and '938' in row, row
+
+
+# covers: install.memory-limit/E4
+def test_a_launcher_without_the_breakdown_shows_the_use_alone(panel):
+    with Platform() as platform:                                  # MEMORY: a launcher from before 2026-10-03
+        p = panel(platform)
+        row = p.wait(loaded, 'the page loaded')['rows']['memory']
+        assert '1500 MB' in row and '\n' not in row, row
+
+
 # covers: desktop.device-panel/E4
 def test_an_old_or_unreachable_android_side_is_said_and_old_data_is_not_shown(panel):
     with Platform() as platform:
