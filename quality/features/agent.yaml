@@ -588,11 +588,11 @@ features:
       - id: E8
         text: 桌面操作默认沿用 Codex 的登录和模型，不隐式调用独立视觉 API；显式 API 备选保留，已有模式选择不被覆盖。
         evidence:
-          - {doc: docs/105-codex-desktop-operation.md, date: 2026-10-03, note: "PR 前补充验证：常驻 Codex 实际看图点击 Kalk，147×31=4,557"}
+          - {doc: docs/106-codex-desktop-operation.md, date: 2026-10-03, note: "PR 前补充验证：常驻 Codex 实际看图点击 Kalk，147×31=4,557"}
       - id: E9
         text: 当前任务或通话未结束时拒绝切换桌面操作方式，保持原模式和工作状态。
         evidence:
-          - {doc: docs/105-codex-desktop-operation.md, date: 2026-10-03, note: "G100：任务中、10000 接通时及空闲静音电话模式均拒绝切换，原 sessionId 保持"}
+          - {doc: docs/106-codex-desktop-operation.md, date: 2026-10-03, note: "G100：任务中、10000 接通时及空闲静音电话模式均拒绝切换，原 sessionId 保持"}
     pitfalls:
       - text: Codex 的命令沙箱连不上 D-Bus 和 Wayland，桌面操作必须做成沙箱外的 MCP 服务；没有注解的 MCP 工具每次都要审批，只读工具要标 readOnlyHint。
         docs: [docs/60-computer-use.md]
@@ -628,7 +628,7 @@ features:
       - tools/test_blocked.py
       - tools/tests/test_cua_tools.py
       - tools/system/tests/cua_desktop.py
-    docs: [docs/68-luna-computer-use.md, docs/60-computer-use.md, docs/103-krita-save-dialog-hang.md, docs/agent-ready-interfaces.md, docs/105-codex-desktop-operation.md]
+    docs: [docs/68-luna-computer-use.md, docs/60-computer-use.md, docs/103-krita-save-dialog-hang.md, docs/agent-ready-interfaces.md, docs/106-codex-desktop-operation.md]
 
   - id: agent.plan-two
     title: 方案二：无障碍树 + OCR + JEV 操作桌面
@@ -1074,6 +1074,7 @@ features:
     code:
       - agent/assistant/call_proxy.py
       - tools/tests/test_call_proxy.py
+      - tools/tests/test_call_hang_up.py
     docs: [docs/63-call-proxy.md]
 
   - id: agent.cellular-call
@@ -1098,7 +1099,7 @@ features:
         text: 挂断以 Telecom 回到空闲为准（正在挂断 → 通话结束），不把控制请求当作挂断确认，结束后没有残留通话。
         evidence:
           - {doc: docs/research/cellular-call-agent.md, date: 2026-09-29, note: "calls=[]、phoneState/audioMode=0"}
-          - {doc: docs/105-codex-desktop-operation.md, date: 2026-10-03, note: "10000 实际 connected 后 hang-up，call-ended，phoneState=0、calls=[]；不宣称双向音频通过"}
+          - {doc: docs/106-codex-desktop-operation.md, date: 2026-10-03, note: "10000 实际 connected 后 hang-up，call-ended，phoneState=0、calls=[]；不宣称双向音频通过"}
       - id: E5
         text: 通话音频握手不丢第一段 PCM，错误不会被当成音频播放，取消握手干净退出，打断时丢弃还没说出的音频。
       - id: E6
@@ -1121,7 +1122,7 @@ features:
       - android/app/src/com/rungic/telephony/
       - tools/tests/test_cellular_audio.py
       - tools/tests/test_cellular_state.py
-    docs: [docs/research/cellular-call-agent.md, docs/63-call-proxy.md, docs/105-codex-desktop-operation.md]
+    docs: [docs/research/cellular-call-agent.md, docs/63-call-proxy.md, docs/106-codex-desktop-operation.md]
 
   - id: agent.voice-message
     title: 代发语音消息
@@ -1152,7 +1153,7 @@ features:
       - tools/system/tests/voice_recording.py
       - agent/computer-use/rungic_cua/server.py
       - tools/tests/test_voice_message.py
-    docs: [docs/68-luna-computer-use.md, docs/105-codex-desktop-operation.md]
+    docs: [docs/68-luna-computer-use.md, docs/106-codex-desktop-operation.md]
 
   # ---- 主动照看 -----------------------------------------------------------------------------------
   - id: agent.care-ledger

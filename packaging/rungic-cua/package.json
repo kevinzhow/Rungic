@@ -5,7 +5,7 @@
   "build": "device",
   "paths": ["agent/computer-use"],
   "upstream": ["typesafe-computer-use", "arc-cua"],
-  "depends": "rungic-plasma-diagnostics, python3, python3-venv, python3-gi, python3-pil, python3-pypinyin, python3-onnxruntime, python3-requests, python3-anyio, python3-sniffio, python3-typing-extensions, python3-distro, python3-httpx, gir1.2-atspi-2.0, xdg-desktop-portal-kde",
+  "depends": "rungic-plasma-diagnostics, python3, python3-venv, python3-gi, python3-pil, python3-pypinyin, python3-onnxruntime, python3-requests, python3-anyio, python3-sniffio, python3-typing-extensions, python3-distro, python3-httpx, gir1.2-atspi-2.0, xdg-desktop-portal-kde, pulseaudio-utils, rungic-plasma-bridges",
   "build_depends": ["libglib2.0-dev", "pkgconf", "gcc", "g++", "qt6-base-dev", "python3-venv", "gettext"],
   "description": "Plasma Mobile on Android: desktop automation\nrungic-cua (MCP server driving the desktop through AT-SPI, the KWin screenshot and the\nRemoteDesktop portal) and rungic-clicker (goal-level automation with typesafe-computer-use\nin its own Python environment), docs/60 and docs/64.",
   "obsolete": ["/usr/local/bin/moto-cua", "/usr/local/lib/moto-cua", "/usr/local/libexec/moto-screenshot",

@@ -1,6 +1,6 @@
 # 语音Agent：GPT Realtime 驱动 Codex
 
-> 2026-10-03 功能更新：默认桌面操作由当前认证 Codex 使用 Agent 所选模型逐步看图、点击和核验，进展留在来源对话；Luna API 为显式备选。执行方式在「设置 → 桌面操作」选择，登录方式单独设置，语音与 TTS 仍使用 API key。开发 G100 的桌面与 API 只读验收见 [105 篇](105-codex-desktop-operation.md)，完整电话和语音消息未在本轮验收。下文保留各阶段实现记录。
+> 2026-10-03 功能更新：默认桌面操作由当前认证 Codex 使用 Agent 所选模型逐步看图、点击和核验，进展留在来源对话；Luna API 为显式备选。执行方式在「设置 → 桌面操作」选择，登录方式单独设置，语音与 TTS 仍使用 API key。开发 G100 的桌面与 API 只读验收见 [106 篇](106-codex-desktop-operation.md)，完整电话和语音消息未在本轮验收。下文保留各阶段实现记录。
 
 > 改名说明（2026-09-26）：Rungic改名B阶段之后，容器内的`moto-*`包、程序、单元、路径，`MOTO_*`变量和`dev.moto.*`名称改为`rungic-*`、`RUNGIC_*`、`com.rungic.*`；Android侧的名称在C阶段（2026-09-27）改为APK `com.rungic.plasma`、`/data/adb/rungic-*`（镜像在`/data/adb/rungic-lxc/images/`）、容器中的`/var/lib/rungic-{host,cores,apt}`、`rungic-gpu-alloc`、`rungic-cast`、`debug.rungic.*`、dm `rungic-root`与SELinux `rungic_image`。对照与边界见[70篇](70-rungic-rebrand.md)。下文按时间记录的内容保留当时的名称。
 

@@ -178,7 +178,7 @@ Agent 在自己的工作区（或用户指定的桌面）上打开应用、看�
 - RemoteDesktop 门户第一次要用户批准；每次新会话会弹“远程控制会话已开始”通知并挡住窗口顶部，要在 notifyrc 里关掉。 [docs/60-computer-use.md](../docs/60-computer-use.md)
 - 标题栏是 KWin 画的装饰，不在应用的无障碍树里；窗口操作要走 desktop_window。 [docs/60-computer-use.md](../docs/60-computer-use.md)
 
-文档：[docs/68-luna-computer-use.md](../docs/68-luna-computer-use.md)、[docs/60-computer-use.md](../docs/60-computer-use.md)、[docs/103-krita-save-dialog-hang.md](../docs/103-krita-save-dialog-hang.md)、[docs/agent-ready-interfaces.md](../docs/agent-ready-interfaces.md)、[docs/105-codex-desktop-operation.md](../docs/105-codex-desktop-operation.md)
+文档：[docs/68-luna-computer-use.md](../docs/68-luna-computer-use.md)、[docs/60-computer-use.md](../docs/60-computer-use.md)、[docs/103-krita-save-dialog-hang.md](../docs/103-krita-save-dialog-hang.md)、[docs/agent-ready-interfaces.md](../docs/agent-ready-interfaces.md)、[docs/106-codex-desktop-operation.md](../docs/106-codex-desktop-operation.md)
 
 #### 方案二：无障碍树 + OCR + JEV 操作桌面（实验）
 
@@ -406,7 +406,7 @@ Agent 在自己的工作区（或用户指定的桌面）上打开应用、看�
 - 自动开场可能打断语音菜单，对“保持安静”等指示可能多说一句；私下语音指令和独立旁听仍关闭。 [docs/research/cellular-call-agent.md](../docs/research/cellular-call-agent.md)
 - 受限沙箱里 socket 测试被拒不是代码回归；Magisk root 上下文的 pm install 会遇到 Binder 失败，要在 Android shell 上下文安装。 [docs/research/cellular-call-agent.md](../docs/research/cellular-call-agent.md)
 
-文档：[docs/research/cellular-call-agent.md](../docs/research/cellular-call-agent.md)、[docs/63-call-proxy.md](../docs/63-call-proxy.md)、[docs/105-codex-desktop-operation.md](../docs/105-codex-desktop-operation.md)
+文档：[docs/research/cellular-call-agent.md](../docs/research/cellular-call-agent.md)、[docs/63-call-proxy.md](../docs/63-call-proxy.md)、[docs/106-codex-desktop-operation.md](../docs/106-codex-desktop-operation.md)
 
 #### 代发语音消息（实验）
 
@@ -420,7 +420,7 @@ Agent 在自己的工作区（或用户指定的桌面）上打开应用、看�
 - 找发送按钮的模型调用曾排在语音播完之后，结尾多出约 9 秒静音；改为录音一开始就并行去找。 [docs/68-luna-computer-use.md](../docs/68-luna-computer-use.md)
 - 测试不要打扰真实联系人，用文件传输助手。 [docs/68-luna-computer-use.md](../docs/68-luna-computer-use.md)
 
-文档：[docs/68-luna-computer-use.md](../docs/68-luna-computer-use.md)、[docs/105-codex-desktop-operation.md](../docs/105-codex-desktop-operation.md)
+文档：[docs/68-luna-computer-use.md](../docs/68-luna-computer-use.md)、[docs/106-codex-desktop-operation.md](../docs/106-codex-desktop-operation.md)
 
 ### 系统主动照看自己
 

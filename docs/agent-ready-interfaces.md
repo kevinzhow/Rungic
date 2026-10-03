@@ -31,7 +31,7 @@
 | `desktop_launch` | 按应用 ID/名称启动、传入文件或参数；单实例应用迁移可能返回 `needs_confirmation` |
 | `desktop_activate`, `desktop_window` | 激活、关闭、最小化、最大化、恢复及移动窗口 |
 | `desktop_screenshot`, `desktop_act` | 默认 `codex` 及显式 `luna` 模式：看截图并注入鼠标、滚动、键盘、文本等动作；连接的 Agent 自行推理 |
-| `desktop_goal` | 显式 API 模式的多步执行器；Luna 后端或备用 AT-SPI/OCR 路径。默认 Codex 模式不提供此工具，Agent 直接看截图并调用动作；见 [105](105-codex-desktop-operation.md) |
+| `desktop_goal` | 显式 API 模式的多步执行器；Luna 后端或备用 AT-SPI/OCR 路径。默认 Codex 模式不提供此工具，Agent 直接看截图并调用动作；见 [106](106-codex-desktop-operation.md) |
 | `desktop_voice_recording` | 默认 Codex 模式的音频 prepare/status/play/close；Agent 自行截图并点击录音和发送，TTS 使用 API key |
 | `desktop_voice_message` | 显式 API 模式：使用虚拟麦克风和语音合成操作当前聊天；参数随执行模式变化，发送前需用户授权 |
 | `desktop_observe`, `desktop_run`, `desktop_find_name` | 仅 `atspi` 备用模式：控件树、子任务执行、按读音匹配名称 |

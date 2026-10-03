@@ -2209,7 +2209,9 @@ class VoiceAgent:
                         server.call('turn/interrupt', {'threadId': thread_id, 'turnId': turn.turn_id}, timeout=10)
                         turn.done.wait(10)
                         break
-                if stopped:
+                # Cancelled (hang-up, stop): its interrupt may end the turn before the loop sees the
+                # cancel; that is a stop, not an "interrupted" failure.
+                if stopped or job['cancel'].is_set():
                     return {'outcome': 'stopped', 'answer': 'Call step stopped', 'steps': turn.steps}
                 if turn.error:
                     return {'outcome': 'failed', 'answer': turn.error, 'steps': turn.steps}
@@ -2290,6 +2292,9 @@ class VoiceAgent:
 
         def hang_up():
             # The model finds the hang-up control in the call window (computer use plan one, docs/68).
+            # A step still running (dialing, a timer check) holds desktop_lock for up to its timeout:
+            # it is stopped first, so ending the call does not wait for it.
+            self.cancel_desktop_steps()
             window = call.window_id or call_window(app)
             result = self.desktop_goal('End the call that is in progress: press the hang-up (end call) control of the call '
                                'window. Press nothing else. Reply DONE once the call has ended.', timeout=60,
@@ -2468,11 +2473,9 @@ class VoiceAgent:
             call.pause_monitor(len(audio) / 2 / call_proxy.RATE + 0.5)   # not over the call
         GLib.idle_add(self.play, {'data': base64.b64encode(audio).decode(), 'sampleRate': call_proxy.RATE}, True)
 
-    def stop_task(self):
-        """Stop button: interrupt the running agent turn and the reply being spoken."""
-        # The rest of a reply already being spoken keeps arriving: drop it until it ends.
-        self.muted = time.monotonic() < self.playing_until + 0.5
-        GLib.idle_add(self.stop_audio)
+    def cancel_desktop_steps(self):
+        """Stop the call's desktop steps (desktop_goal): the running one is interrupted and gives up its
+        tool lease; those waiting for desktop_lock see the new generation and do not start."""
         self.desktop_generation += 1
         for thread_id, job in list(self.desktop_jobs.items()):
             job['cancel'].set()
@@ -2483,6 +2486,13 @@ class VoiceAgent:
                     job['server'].call('turn/interrupt', {'threadId': thread_id, 'turnId': job['turn'].turn_id}, timeout=10)
                 except Exception as error:
                     log('stop desktop step', error)
+
+    def stop_task(self):
+        """Stop button: interrupt the running agent turn and the reply being spoken."""
+        # The rest of a reply already being spoken keeps arriving: drop it until it ends.
+        self.muted = time.monotonic() < self.playing_until + 0.5
+        GLib.idle_add(self.stop_audio)
+        self.cancel_desktop_steps()
         if not (self.agent_busy and self.thread_id and self.turn_id):
             return
         log('stop task', self.turn_id)

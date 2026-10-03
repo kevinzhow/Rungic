@@ -1,6 +1,6 @@
 # 通话代理：语音助手替用户打电话、接电话
 
-> 2026-10-03 桌面执行更新：默认模式下，拨号、挂断和通话画面判断接入当前认证 Codex，沿用 Agent 所选模型；显式 API 模式保留 Luna 路径。通话对话、转写、TTS 与对话调度继续使用独立 API 服务，音频路由仍在本地，不能把“默认 Codex 操作桌面”理解为整条通话只用 Codex 登录。此项已实现并部署到开发 G100，完整真实电话未在本轮验收；见 [105 篇](105-codex-desktop-operation.md)。下文是原通话方案及逐次验收记录。
+> 2026-10-03 桌面执行更新：默认模式下，拨号、挂断和通话画面判断接入当前认证 Codex，沿用 Agent 所选模型；显式 API 模式保留 Luna 路径。通话对话、转写、TTS 与对话调度继续使用独立 API 服务，音频路由仍在本地，不能把“默认 Codex 操作桌面”理解为整条通话只用 Codex 登录。此项已实现并部署到开发 G100，完整真实电话未在本轮验收；见 [106 篇](106-codex-desktop-operation.md)。下文是原通话方案及逐次验收记录。
 
 > 改名说明（2026-09-26）：Rungic改名B阶段之后，容器内的`moto-*`包、程序、单元、路径，`MOTO_*`变量和`dev.moto.*`名称改为`rungic-*`、`RUNGIC_*`、`com.rungic.*`；Android侧的名称在C阶段（2026-09-27）改为APK `com.rungic.plasma`、`/data/adb/rungic-*`（镜像在`/data/adb/rungic-lxc/images/`）、容器中的`/var/lib/rungic-{host,cores,apt}`、`rungic-gpu-alloc`、`rungic-cast`、`debug.rungic.*`、dm `rungic-root`与SELinux `rungic_image`。对照与边界见[70篇](70-rungic-rebrand.md)。下文按时间记录的内容保留当时的名称。
 
