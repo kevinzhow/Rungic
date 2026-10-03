@@ -36,7 +36,7 @@ Window {
     readonly property QtObject screen: director ? director.focusScreen : agent
     readonly property bool directing: !!director
     readonly property int others: directing ? director.screens.length - 1 : 0
-    visible: ready && !!root.screen && root.screen.status !== "tv"
+    visible: ready && !!root.screen && root.screen.status !== "tv" && root.screen.status !== "off"
     title: "rungic-agent-screen"
     color: "transparent"
 

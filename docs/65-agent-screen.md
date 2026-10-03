@@ -202,3 +202,37 @@ KWin CAST-1 ─────┤
 - 电视互转实测；输出重叠后 plasmashell 的重绘问题；是否启用 KWin blur 做真正的毛玻璃。
 - 小窗约 52 fps（录制 → Qt）；是否经 dmabuf 尚未确认。
 - 写手（gpt-6-luna）生成回答和文字约 7–8 s（64 篇）。
+
+## Agent 对话应用冷启动闪黑窗调查（2026-10-03）
+
+用户反馈：在 Plasma 里冷启动 Agent 对话应用，偶尔闪过黑色悬浮屏，疑似助理屏。调查分支 `fix/agent-app-cold-start-screen` 从 main `331bbdea` 创建。以下区分已复现的助理屏缺陷与尚未确认的用户触发路径。
+
+### 已复现：关闭的助理屏仍显示黑窗
+
+- `AgentScreen` 构造函数启动 1500 ms 轮询并立即调用 `poll()`。平台桥回答助理屏 `enabled:false` 时，旧实现直接调用 `QCoreApplication::quit()`。
+- 此时 `main.cpp` 尚未进入 `app.exec()`，退出请求不起作用。程序继续加载 QML、附着 layer surface 并设 `ready:true`；状态仍是 `starting`，`nodeId` 为 0，于是映射黑色浮窗。下一次轮询进入已运行的事件循环后才真正退出。
+- [Qt 的 QCoreApplication::quit 文档](https://doc.qt.io/qt-6/qcoreapplication.html#quit)说明事件循环启动之前的直接调用无效，建议排队执行退出。采用 Qt 自有事件循环机制，不添加固定等待或新的窗口管理层。适用当前 Qt 6；未修改 Qt 上游源码。
+- 修复：关闭状态立即置为 `off`，通过 `QTimer::singleShot(0, qApp, &QCoreApplication::quit)` 延后退出；QML 在 `off` 状态保持隐藏。同样处理桌面模式 0 号工作空间 socket 不存在的退出路径。
+- 原生回归 `tools/system/tests/desktop_mode_window.py::disabled_assistant`：真实 C++/QML 浮窗程序、独立 KWin、平台桥契约替身回答关闭。旧 main 失败，确认映射了浮窗；修复后通过，并补验 0 号桌面关闭时的残留启动。它验证关闭状态下的残留启动，不声称复现 App 发出启动请求。
+- 新的 QML 检查验证关闭状态从首个布局起浮窗和全屏窗口都不显示；与原生回归共同覆盖 `desktop-mode.floating-window/E7`。
+
+### App 启动路径与实机观察
+
+对话应用入口 `agent/assistant/app/main.cpp`、`Main.qml` 与 `ChatPage.qml` 在空白页冷启动时连接 VoiceAgent、设置观看状态并请求 PhoneSnapshot；本轮追踪未找到这条路径直接调用 `rungic-agent-screen on/ensure/start_window` 的证据。常驻语音悬浮层 `--overlay` 是另一个窗口，不能根据名字判断它就是助理屏。
+
+G100（USB `ZY32M9MRVP`）当前开发覆盖为 `20260930.19+dev20261003t085900`，相关语音服务包为 `0.510+dev20261003t085900.333b931`。本次没有部署浮窗修复、没有重启常驻服务。启动前确认没有对话 App、任务或电话会话，只退出本轮自己创建的 App，结束后恢复 Plasma 首页。
+
+- KWin 普通窗口清单会过滤 layer surface，因此先前只读普通窗口的结果不足以排除短暂浮窗。补充用持续 KWin `windowAdded/windowRemoved` 信号记录全部窗口的类、PID、层级和几何。
+- 连续三次直接运行 `rungic-voice-assistant`：各出现一个 `com.rungic.VoiceAssistant` 对话窗口，没有捕捉到助理屏窗口。退出后恢复原有三个 Plasma 表面。
+- 按 Plasma 的公开 D-Bus `openAppLaunchAnimationWithPosition` 入口先请求启动动画，再运行同一 App：额外出现 `org.kde.plasmashell`、PID 为现有 plasmashell 的临时窗口，覆盖应用区域 `360×726`；约 0.54 秒后移除。这个受控重放验证动画窗口身份，**没有实际点击桌面图标，也没有确认它在视觉上就是用户反馈的黑窗**。
+- 固定上游 plasma-mobile `6.6.5` 的 `AppDelegate.qml::launchApp()` 在应用尚未运行时请求此动画；`StartupFeedbackWindows.qml` 创建最大化、无边框的独立 Window，`StartupFeedbackModel::onWindowOpened()` 在实际应用激活后移除它。来源为配方 `packages/plasma-mobile/recipe.json` 的固定源码（KDE，相关 QML LGPL-2.1-only / LGPL-3.0-only / KDE-Accepted-LGPL，C++ GPL-2.0-or-later）。保留成熟启动反馈机制，本轮没有因相似外观修改或禁用全局启动动画。
+
+**边界**：已修复的是已关闭助理屏的残留启动闪窗。尚未把用户的 App 冷启动现象关联到它；也未证实 Plasma 动画存在黑色绘制缺陷。待确认发生设备、黑窗是小矩形还是覆盖应用区域，并在相同入口捕捉窗口身份和帧画面后再决定是否需要 Plasma 补丁。
+
+### 验证记录
+
+- 修复前：`.work/system-tests/20261003-191003/results.json`，关闭助理屏回归失败。
+- 修复后：`.work/system-tests/20261003-191134/results.json`，`desktop_mode_window`、`assistant_app` 均通过；包含原有浮窗、全屏和电视切换路径。
+- `.work/system-tests/20261003-192351/results.json` 的最终原生回归也通过，含助理屏和桌面模式关闭的两条路径。
+- 本机 QML 30 项通过；日志：`.work/verify/20261003-agent-cold-start/qml-tests.log`。
+- G100 窗口事件：同目录 `trace-surfaces.log`、`trace-shell-startup.log`；初次仅普通窗口的 `trace-app.log` 不作为排除浮窗的证据。

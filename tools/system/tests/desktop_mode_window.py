@@ -100,6 +100,23 @@ def mark():
     return Path(os.environ['XDG_RUNTIME_DIR']) / 'rungic-agent-screen' / 'desktop-fullscreen'
 
 
+# covers[system]: desktop-mode.floating-window/E7
+def disabled_assistant(s, bridge):
+    """A stale launch while the assistant screen is off must never map a window."""
+    bridge.replies['agent-screen'] = {'enabled': False, 'workspace': 1, 'width': 1920, 'height': 1080,
+                                     'tv': False, 'tvShown': [], 'tvHeard': -1, 'directorFocus': 1}
+    for label, args in [('assistant screen', ['--workspace', '1']), ('desktop mode', ['--desktop'])]:
+        process = s.start(['/usr/libexec/rungic-agent-screen-window', *args])
+        mapped = []
+        deadline = time.monotonic() + 5
+        while process.poll() is None and time.monotonic() < deadline:
+            mapped.extend(w for w in s.stack() if w['cls'] == 'rungic-agent-screen-window')
+            time.sleep(.02)
+        process.wait(5)
+        s.check(process.returncode == 0 and not mapped,
+                f'disabled {label} exits without ever mapping its black placeholder')
+
+
 def desktop(s, bridge, helper):
     (s.runtime / 'wayland-ws-0').touch()         # the independent desktop runs: desktop mode is on
     window = s.start(['/usr/libexec/rungic-agent-screen-window', '--desktop'],
@@ -199,6 +216,7 @@ def test():
     helper = Helper(folder)
     with Bridge('platform-bridge') as bridge, harness.Session(1080, 2400) as s:
         os.environ['RUNGIC_PLATFORM_SOCKET'] = bridge.path
+        disabled_assistant(s, bridge)
         desktop(s, bridge, helper)
         assistant(s, bridge, helper)
         return s.steps
