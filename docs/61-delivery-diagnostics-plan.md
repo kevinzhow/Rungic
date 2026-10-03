@@ -322,4 +322,10 @@ rootfs从目录迁入ext4镜像，升级前自动建立dm-snapshot；btrfs按第
   - 这个 cgroup 的 `memory.swappiness` 设为 40（Android 全局为 100），先回收文件缓存，少换出程序内存。
   - `memory-status` 增加 `swap_limit_mib`、`programs_mib`（total_rss）、`cache_mib`（total_cache）、`shmem_mib`（total_shmem）、`swap_mib`（total_swap）。设备面板在总用量下面多一行显示程序、文件缓存（其中内存文件）和 swap；旧启动脚本没有这些字段时只显示原来的一行。
 - **离线验证**：`tools/tests/test_memory_limit.py` 在 sh 里对 cgroup 替身运行启动脚本的内存函数（写入值、无上限、无 swap 计费的内核、状态 JSON 与缺失 memory.stat）；`tools/tests/test_device_panel.py` 覆盖面板的两种显示。替身是普通文件，不模拟内核的写入顺序约束，**实机尚未部署验证**（档位切换的写入顺序、`failcnt` 与容器内 OOM 的变化需上机确认）。
+- **实机（G100 S `ZY32MVJS25`，2026-10-04，开发部署，未发正式版本）**：
+  - 控制器单独安装（开发覆盖不管 Android 侧文件）：原文件与 main 相同（sha256 `c3ec1ded…`，已备份），新文件 `318f10c6…`。`rungic-plasma memory-limit` 按原 4 GB 档重新应用后：`memory.limit_in_bytes` 4294967296、`memory.memsw.limit_in_bytes` 5368709120（原为不限）、`memory.swappiness` 40（原为 100）。
+  - 档位切换写入顺序：依次 6144 → 2048 → unlimited → 4096 均成功、上限值正确，最后恢复 4096。降到 2048 时内核回收了容器文件缓存；之后 `memory.oom_control` 的 `oom_kill` 为 0，KWin、plasmashell 未重启。
+  - 设备面板：`rungic_dev.py deploy rungic-plasma-bridges --restart never`（这个包默认会重启桌面会话，以及网络、蓝牙、基带服务；为不打断日常机，这次不重启，面板下次打开时生效），开发覆盖 `rungic-plasma-bridges 0.510+dev20261003t172123.ec85cd0`，`apt=ok`；完整性 drift 只有部署前已有的两个 unowned 文件（graphviz `config8`、`rungic_cua/keyring.py`）。
+  - 端到端：容器内 `rungic-platform --request '{"op":"container-memory"}'` 经平台桥、APK 和控制器返回新字段（程序 681、文件缓存 1085，其中内存文件 260，swap 988 MiB）。面板界面本身未截图，由离线测试覆盖。
+  - 回退：装回备份的控制器，再写 `memory.memsw.limit_in_bytes=-1` 和 `memory.swappiness=100`；`rungic_dev.py reset rungic-plasma-bridges`。
 - **为什么不另加磁盘 swap**：Moto 自带的"内存扩展"在用。2026-10-03 同一台 G100 S 只读读取：zram0 由厂商 zram 模块提供 hybridswap（`/sys/block/zram0/hybridswap_*`），`hybridswap_enable` 为 `hybridswap enable out_to_eswap enable swapd enable`，后备设备 `/dev/block/loop50`（/data 上的文件）；`hybridswap_meminfo` 显示 eswap 总量约 683 MiB、已用 133 MiB（原始 351 MiB），`hybridswap_stat_snap` 累计写出 5326 批、读回 5727 次，失败记录 0。它不依赖内核配置里的 `CONFIG_ZRAM_WRITEBACK`（该项在当前自建内核 `6.6.87-android15-8-maybe-dirty-4k` 里未开，但厂商模块自带写出机制）。另挂一个全局 swapfile 会与它和 lmkd（`swap_free_low_percentage=10`）的判断相互影响，并增加闪存写入，暂不加。
