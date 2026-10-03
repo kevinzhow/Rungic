@@ -7,6 +7,7 @@ import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import Mock, patch
 
 import rungic_dev
 import rungic_release
@@ -85,6 +86,36 @@ class UpstreamTests(unittest.TestCase):
     the development version, and resets by component."""
     COMPONENTS = {'plasma-mobile': {'source': 'packages/plasma-mobile', 'version': '6.6.5-0ubuntu1+rungic3',
                                     'packages': ['plasma-mobile', 'plasma-mobile-tweaks', 'plasma-mobile-dev']}}
+
+    # covers: delivery.dev-overlay/E5
+    def test_mesa_uses_its_meson_packager_and_records_the_development_version(self):
+        import build_on_device
+        import build_mesa
+        component = {'version': '26.3.0+rungic1', 'packages': ['libgbm1']}
+        version = rungic_dev.dev_version(component['version'], '20261003t120000', 'abc1234', False)
+        host = Mock(name='build-host', jobs=4)
+        host.name = 'macmini'
+        host.out.side_effect = ['mesa', 'resolute', '', f'libgbm1_{version}_arm64.deb']
+        take = Mock()
+        with tempfile.TemporaryDirectory() as temp, \
+                patch.object(rungic_dev, 'POOL', Path(temp)), \
+                patch.object(rungic_dev, 'upstream_dirty', return_value=False), \
+                patch.object(rungic_dev, 'git', return_value='abc1234'), \
+                patch.object(rungic_dev, 'taker', return_value=take), \
+                patch.object(build_on_device, 'host', host), \
+                patch.object(build_on_device, 'sync'), \
+                patch.object(build_on_device, 'build_deps') as deps, \
+                patch.object(build_on_device, 'start') as start, \
+                patch.object(build_on_device, 'status', return_value='Result=success'), \
+                patch.object(build_mesa, 'package') as package:
+            result = rungic_dev.build_upstream('mesa', component, {'libgbm1': component['version']},
+                                               '20261003t120000', 'abc1234', Mock())
+            deps.assert_not_called()
+            start.assert_called_once_with('mesa', 'targets', 4)
+            package.assert_called_once_with(host, version, 'abc1234')
+            self.assertEqual(result['libgbm1']['version'], version)
+            self.assertEqual(result['libgbm1']['component'], 'mesa')
+            take.assert_called_once()
 
     # covers: delivery.dev-overlay/E5
     def test_names_split_and_unknown_stop(self):

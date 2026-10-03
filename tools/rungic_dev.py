@@ -268,7 +268,9 @@ def build_upstream(name, component, base_packages, stamp, commit, record, earlie
              f"&& mv debian/changelog.dev debian/changelog")
     # An earlier successful build keeps its obj tree: build only what changed. Otherwise configure afresh.
     previous = host.out(f'test -d {work}/src/obj-aarch64-linux-gnu && cat {work}/build.rc 2>/dev/null || true').strip()
-    mode = 'incremental' if previous == '0' else 'full'
+    # Mesa's recipe has patches and a changelog, but no Debian build rules. Use its
+    # existing Meson build and runtime packager rather than apt build-dep/dpkg-buildpackage.
+    mode = 'targets' if name == 'mesa' else 'incremental' if previous == '0' else 'full'
     if mode == 'full':
         print(build_on_device.build_deps(name), flush=True)
     build_on_device.start(name, mode, host.jobs)
@@ -277,6 +279,9 @@ def build_upstream(name, component, base_packages, stamp, commit, record, earlie
     if 'Result=success' not in state:
         raise SystemExit(f'{name}: {mode} build failed on {host.name}\n{state}\n'
                          + host.out(f'tail -40 {work}/build.log', timeout=60))
+    if name == 'mesa':
+        import build_mesa
+        build_mesa.package(host, version, commit)
     file_version = version.split(':', 1)[-1]
     listing = host.out(f'cd {work} && ls *_{file_version}_*.deb *_{file_version}_*.ddeb 2>/dev/null || true').split()
     POOL.mkdir(parents=True, exist_ok=True)

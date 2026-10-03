@@ -30,6 +30,18 @@ def step(host, *argv, timeout):
         raise SystemExit(f'build_on_device.py mesa {" ".join(argv)} failed')
 
 
+def package(host, version, commit):
+    """Package a completed Meson build, for a release or a development overlay."""
+    script = host.put(WORKSPACE / 'desktop/package-mesa.py', f'{BASE}/package-mesa.py', '755')
+    print(host.run(f'''set -e
+rm -rf {BASE}/stage {BASE}/*.deb {BASE}/debs
+DESTDIR={BASE}/stage meson install -C {BASE}/build >/dev/null
+RUNGIC_MESA_STAGE={BASE}/stage RUNGIC_MESA_PACKAGES={BASE}/debs RUNGIC_MESA_VERSION={version} \\
+RUNGIC_MESA_SOURCE={BASE}/src RUNGIC_MESA_COMMIT={commit} python3 {script}
+mv {BASE}/debs/*.deb {BASE}/
+ls {BASE}/*.deb''', timeout=1800).stdout)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('--host', choices=sorted(build_on_device.HOSTS), default=os.environ.get('RUNGIC_BUILD_HOST', 'macmini'))
@@ -40,14 +52,7 @@ def main():
     commit = subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=WORKSPACE, capture_output=True, text=True).stdout.strip()
     step(name, 'targets', timeout=3600)
     step(name, 'wait', timeout=4 * 3600)
-    script = host.put(WORKSPACE / 'desktop/package-mesa.py', f'{BASE}/package-mesa.py', '755')
-    print(host.run(f'''set -e
-rm -rf {BASE}/stage {BASE}/*.deb {BASE}/debs
-DESTDIR={BASE}/stage meson install -C {BASE}/build >/dev/null
-RUNGIC_MESA_STAGE={BASE}/stage RUNGIC_MESA_PACKAGES={BASE}/debs RUNGIC_MESA_VERSION={version} \\
-RUNGIC_MESA_SOURCE={BASE}/src RUNGIC_MESA_COMMIT={commit} python3 {script}
-mv {BASE}/debs/*.deb {BASE}/
-ls {BASE}/*.deb''', timeout=1800).stdout)
+    package(host, version, commit)
     step(name, 'collect', timeout=900)
 
 
