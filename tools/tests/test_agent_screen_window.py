@@ -266,8 +266,9 @@ class WindowTest(unittest.TestCase):
         # test from none.
         os.environ['XDG_CONFIG_HOME'] = tempfile.mkdtemp(dir=CONFIG.name)
 
-    def open(self, workspace=0, area=PORTRAIT, director=None, cast=False, node=40):
+    def open(self, workspace=0, area=PORTRAIT, director=None, cast=False, node=40, status='running'):
         self.screen = director.focusScreen if director else Screen(workspace, node)
+        self.screen.set(status=status)
         self.director = director
         self.floater = Floater(area, cast)
         self.localized = Localized()
@@ -285,12 +286,19 @@ class WindowTest(unittest.TestCase):
         win = engine.rootObjects()[0]
         win.setGeometry(area)                          # Floater::attach: the whole phone screen
         win.setProperty('ready', True)                 # main.cpp, once it is a layer surface
-        QTest.qWaitForWindowExposed(win)
+        if status != 'off':
+            QTest.qWaitForWindowExposed(win)
         self.win = win
         self.full_window = next(w for w in win.findChildren(QQuickWindow) if w is not win)
         self.addCleanup(self.close, engine, win, self.full_window)
         QTest.qWait(400)                               # its first layout's animations
         return win
+
+    # covers: desktop-mode.floating-window/E7
+    def test_a_disabled_screen_is_hidden_from_its_first_layout(self):
+        win = self.open(workspace=1, node=0, status='off')
+        self.assertFalse(win.isVisible(), 'no black placeholder while the native backend exits')
+        self.assertFalse(self.full_window.isVisible(), 'no fullscreen replacement either')
 
     def close(self, engine=None, win=None, full=None):
         if engine is None:

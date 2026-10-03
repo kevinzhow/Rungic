@@ -141,7 +141,8 @@ void AgentScreen::poll()
         // §19); the bridge only says whether a TV shows it (computer mode), and may not answer.
         const QString runtime = qEnvironmentVariable("XDG_RUNTIME_DIR", QStringLiteral("/run/user/%1").arg(getuid()));
         if (!QFile::exists(runtime + QStringLiteral("/wayland-ws-0"))) {
-            QCoreApplication::quit();
+            setStatus(QStringLiteral("off"));
+            QTimer::singleShot(0, qApp, &QCoreApplication::quit);
             return;
         }
         m_onTv = bridge({{QStringLiteral("op"), op()}}).value(QStringLiteral("tv")).toBool();
@@ -160,7 +161,10 @@ void AgentScreen::poll()
         ? state.value(QStringLiteral("tvShown")).toArray().contains(m_workspace)
         : state.value(QStringLiteral("tv")).toBool();
     if (!m_enabled) {  // turned off elsewhere (quick setting, rungic-agent-screen off)
-        QCoreApplication::quit();
+        // poll() also runs in the constructor, before app.exec(): a direct quit is lost.
+        // Mark it off before QML can map its black placeholder, then quit on the event loop.
+        setStatus(QStringLiteral("off"));
+        QTimer::singleShot(0, qApp, &QCoreApplication::quit);
         return;
     }
     update();
