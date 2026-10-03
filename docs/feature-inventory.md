@@ -4,7 +4,7 @@
 
 以产品功能和用户场景为骨架：每条功能是用户能感知的一件事；“体验”是它必须做到的，每条都标明由什么检查（自动测试、实机验收、人工验证或已登记的缺口）。数据在 `quality/`，规则见 [quality/README.md](../quality/README.md)。
 
-共 160 条功能、669 条体验，其中 625 条有检查。
+共 160 条功能、671 条体验，其中 627 条有检查。
 
 ## Agent 能力
 
@@ -2328,8 +2328,11 @@ Agent 不靠点界面就能拿到合并日志、崩溃回溯、追踪、截图�
 - **E3** 在 Linux 里打开或关闭 Wi-Fi，安卓的 Wi-Fi 跟着变，显示状态以安卓随后读数为准。（单元测试）
 - **E4** 安卓网络变化后很快反映到 Linux，而且不靠高频轮询（SSID 与信号正常，空闲时无持续开销）。（单元测试、人工）
 - **E5** 安卓接口异常或超时时状态变为未知，不继续显示过期的“已连接”；不支持的操作明确返回 NotSupported，不伪造成功。（单元测试）
+- **E6** Linux 程序的域名解析跟随安卓当前默认网络（开 VPN 时用 VPN 的 DNS）：/etc/resolv.conf 随网络变化原子更新，断网时不保留已失效的服务器；安卓侧连不上时保持原样。（单元测试）
+- **E7** 用户手工写的 /etc/resolv.conf（没有 Rungic 标记行）或符号链接不被覆盖。（单元测试）
 
 注意：
+- 镜像只带一行占位注释的 /etc/resolv.conf，原先没有任何机制写入 DNS，新装设备的 Linux 程序解析不了域名（issue [docs/research/32-network-integration.md](../docs/research/32-network-integration.md)
 - 没有 Linux NetworkManager 守护进程、wpa_supplicant 或 DHCP；安卓独占网卡、路由、DNS 与凭据。在服务页打开 NetworkManager 等服务可能抢走网卡、断开无线调试。 [docs/research/32-network-integration.md](../docs/research/32-network-integration.md) [docs/83-service-policy.md](../docs/83-service-policy.md)
 - 普通安卓 API 会脱敏 SSID/BSSID，靠白名单 root cmd wifi 补齐；固定安卓 16 的输出格式，换 ROM 要重验。 [docs/research/32-network-integration.md](../docs/research/32-network-integration.md)
 - ModemManagerQt 等客户端只在服务已存在时订阅 InterfacesAdded，桥接服务要先发布对象再占用总线名。 [docs/73-reduce-upstream-changes.md](../docs/73-reduce-upstream-changes.md)
