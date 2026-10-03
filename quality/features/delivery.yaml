@@ -53,6 +53,10 @@ features:
       - id: E7
         text: 正式发布部署成功、写好发布 pin 之后，开发覆盖的源、pin 和仓库被清掉；安装失败时开发覆盖和它的包保持原样。
         gap: 这一步还没有在实机走通过（docs/97 §事故）
+      - id: E8
+        text: 覆盖更新使用工作区当前的系统服务名称重启对应部件，旧发布清单中的名称不会让已更新的桥接服务继续运行旧代码。
+        evidence:
+          - {doc: docs/97-local-development-deploy.md, date: 2026-10-03, note: "USB G100 三项桥接服务重启，主进程时间从 9 月 30 日更新到本轮部署"}
     pitfalls:
       - text: 不要 dpkg -i 或直接替换容器里的文件：装上的版本和发布 pin 冲突，Discover 会提示“有更新”，完整性检查报漂移。试验一律走开发覆盖。
         docs: [docs/97-local-development-deploy.md, docs/61-delivery-diagnostics-plan.md]

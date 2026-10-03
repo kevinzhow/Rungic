@@ -188,3 +188,34 @@ python3 tools/rungic_dev.py reset [rungic-design]                     # 回到�
 - Mesa 配方固定源码 `98f3d622`，只有补丁和 changelog，没有 Debian control/rules。使用既有 `desktop/mesa-meson-options` 和 `desktop/package-mesa.py`，由 `build_mesa.package` 按开发版本打包；不对它调用 `apt-get build-dep .`。测试 `test_mesa_uses_its_meson_packager_and_records_the_development_version` 验证版本、包记录与构建选择。
 - Flatpak `1.16.6` 的 Debian rules 明确使用 `dh --buildsystem=meson`，保留的 obj 树内为 `build.ninja`，原工具却无条件调用 make，实测报“no makefile found”。增量入口先检查 `build.ninja`，有则调用 Ninja，否则使用 make，再执行原有 `debian/rules binary`。这同时适用于 Debian Meson 的 Xwayland，无需新增配方特判。
 - 离线回归用真实 make/Ninja 构建小型源码树，再由打包脚本核验编译结果；第二次修改输入后重跑，检查新内容进入打包结果。测试 `test_incremental_build_compiles_make_and_ninja_trees_before_packaging` 覆盖两种生成器，离线测试不访问手机。
+
+## USB G100 补齐当前部件与 Android 入口（2026-10-03）
+
+用户指定“正在插着的机器”：USB G100 `ZY32M9MRVP`，不是日常 G100 S。走开发覆盖；基线仍为 `20260930.19`，已有 rootfs snapshot 保留，没有提交快照、重刷底座或清数据。
+
+### 源码与更新范围
+
+- 部件构建源码 `6aff36bbee6709e420ec2d9b638f3fe6fc320f4d`，分支 `deploy/g100-components-20261003`：main `331bbdea` 加已安装的 Codex 默认桌面改动和禁用 AgentScreen 时的启动黑窗修复（`38933f6c`）。后续构建/传输工具和验收契约修正不改变这些部件的输入，逐项核对 `identity_paths`。
+- 重建并安装 16 个自有包：agent-screen、cast、codec、design、docker、firefox、flatpak-gl、plasma-bridges、plasma-config、plasma-diagnostics、plasma-input、plasma-recording、plasma-services、plasma-session、snapshot、suggestions，完整包名前缀为 `rungic-`。voice-agent、cua、codex 三个已有覆盖的源码路径与整合版本一致，保留它们的版本。
+- 重建 8 个上游组件，覆盖 20 个二进制包：KWin `6.6.6+rungic9`、Mesa `26.3.0~devel20260824+rungic3`、Plasma Mobile `6.6.5+rungic9`、portal `6.6.6+rungic2`、ksystemstats `6.6.6+rungic1`、Flatpak `1.16.6+rungic1`、Xwayland `24.1.10+rungic2`、Polkit KDE `6.6.4+rungic1`。完整 Debian 版本见部署记录。
+- 已安装开发元包 `20260930.19+dev20261003t130244`，共 39 项覆盖，36 个包本轮更新、3 个保留。Mac mini ARM64 构建，手机直取，大小及 SHA-256 验证；记录 `.work/dev-deploy/20261003-210244-deploy/`，最终 `result=ok`。
+- 原机没有 ksystemstats 和 libflatpak0；先通过 APT 安装发行版基线（分别 `6.6.6-0ubuntu0.1`、`1.16.6-1`，以及 libnl 依赖），模拟确认不移除包，再加开发覆盖。新组件的记录包含发行版 `base`，reset 可按该版本恢复；本轮未执行 reset。
+- Android APK `2.29/77` → `2.30/78`，`adb install -r` 保留数据。原生宿主从当前输入重新构建；APK SHA-256 `b363fd5a0ed4f1bbffb5df867f5da784b85d07c0bf8c2c2cd8f454ce38a28ac8`，原生输入指纹 `8b9cc1cb6fa2ad0aac8ead3e7b76ae2915de3035130bd7678b1ebffc7a59da2b`。安装后的 APK、三份提取库哈希全部匹配；UID、socket 目录 inode、应用设置文件哈希未变。OCR none 与之前的 APK 相同。
+- Android 清单 9 项中只有 `system/rungic-plasma` 内容改变，通过 `sync_android` 备份后原子更新，SHA-256 `c3ec1ded3a311262a7ebe395a71ffc61f41eb7177008e02754ee8b664af0c59b`。没有替换其他 Android 配置文件。
+
+### 本轮发现并修正的部署缺口
+
+- Mesa/Meson 入口及 Debian Ninja 增量构建见上一节。Xwayland 旧缓存缺少当前构建容器的 libXfont2 开发库：工具在失败后走完整构建，补齐构建依赖，成功构建；手机不承担构建任务。
+- 构建池清理把 shell 引号写进双引号中的匹配字符串，含 `~` 的 Mesa 包被误删。改为位置参数逐项比较精确文件名；实测保留 `~`、空格和 `$()` 等字面文件名，旧包删除、空保留集清空。修复前回归失败，修复后通过。原始产物还在，按既有 SHA 恢复，无需重编译。
+- 直取脚本从 stdin 执行，SSH 也读 stdin，长脚本后面的命令被吞掉，出现截断参数。只给 `get` 重定向 `</dev/null`，上传 `put` 仍可读取内容；真实 shell 加会读取 stdin 的 SSH 替身连续传 180 个包，修复前丢后续命令，修复后全部内容与哈希匹配。
+- 旧发布的系统服务名称过时，三项网络/蓝牙/调制解调器桥接进程仍从 9 月 30 日运行。开发重启入口合并工作区当前 `service_restart`；本轮补重启三个服务，全部 active，进程时间更新到 `2026-10-03 13:27:11 UTC`。隔离 shell 回归验证使用新服务名，未变的部件不重启。
+- 主会话重启不替换所有后台工作区。发现工作区 0 的 KWin 仍映射已删除的旧 executable，确认没有 busy 标记、助理任务或通话后单独重启该工作区；工作区 1 本轮已重建。按每个 KWin 的 `/proc/PID/exe` 哈希与当前 `/usr/bin/kwin_wayland` 比较，不只检查安装版本。
+- host-controller 验收只列出 schema 2，误报 G100 原有的 `portov-20260928.5` 就绪记录（无 schema/error）。`FirstBootState` 源码明确兼容 v1，补齐契约的旧格式回复；真实 Java 消费者验证可进入、release 不匹配及未来 schema 仍阻止进入。没有改写旧安装记录，也没有把部件升级记为新版首装验收。
+
+### 验收与边界
+
+- 40 项 APT 校验（元包加全部覆盖）Installed = Candidate = 记录目标；完整性 release mismatch 0、changed 0。missing 从 308 降到 305，恢复 portal、Polkit、Snapshot 三份中文翻译；按路径比较没有新增缺失。usr 未归属仍 5、etc 从 11 降到 9，属于已存在漂移；不是全系统无漂移。
+- 15 项实机检查全部通过：会话稳定、关键用户服务、无新增未知崩溃，以及 platform、communication-audio、clipboard、network、bluetooth、telephony、camera、audio、host-controller、shared-storage、GPU、wifi-display 的只读契约。GPU 实际通过 KGSL/GBM/EGL 离屏渲染；平台接口 8 个只读请求通过。
+- 5 项整合源码的原生系统回归通过：desktop_mode_window、desktop_mode_fullscreen、assistant_app、cua_desktop、phone_session_units。工具相关 31 个用例及 16 个 subtest 通过，另外 Android 文件处理 4 个、真实 Java 契约 4 个通过。Fedora 缺 `dpkg-parsechangelog` 的既有用例单独列为环境限制，不计为通过。
+- 手机离屏渲染 ChoiceRow、ToggleRow、ChoiceSheet 的浅色/深色总览，6 张截图已检查；ChoiceSheet 这一节展示打开入口，未作为实际弹层打开的交互验收。不会在手机屏幕开窗口。
+- 账户保留，SSH socket enabled/active，桌面模式与助理画面开关未改变。原生库/控制器、实际进程、APT/完整性差异和截图证据均在 `.work/verify/20261003-g100-components/`。没有重测通话、微信等完整交互流程；这些只读契约不代替产品使用验收。本轮开发覆盖不发行新 rootfs。

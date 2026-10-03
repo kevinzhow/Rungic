@@ -4,7 +4,7 @@
 
 以产品功能和用户场景为骨架：每条功能是用户能感知的一件事；“体验”是它必须做到的，每条都标明由什么检查（自动测试、实机验收、人工验证或已登记的缺口）。数据在 `quality/`，规则见 [quality/README.md](../quality/README.md)。
 
-共 160 条功能、666 条体验，其中 622 条有检查。
+共 160 条功能、667 条体验，其中 623 条有检查。
 
 ## Agent 能力
 
@@ -1102,6 +1102,7 @@ Linux 应用用手机的相机拍照录像，用手机的扬声器和麦克风�
 - **E5** 发布要重建的上游组件（packages/<名>）也能直接 deploy：用补丁队列构建，有 obj 树时增量构建，只覆盖发布里登记、手机已装的那几个二进制包。（单元测试、人工）
 - **E6** 在 Mac mini 上构建的包由手机直接从构建机取（wire.net、局域网依次试），每个文件核对大小与 SHA-256，最多三次；被新覆盖替换掉的包从本机记录和构建机上一并删掉。三个包同步约 25 秒，整次部署约 5.5 分钟。（单元测试、人工）
 - **E7** 正式发布部署成功、写好发布 pin 之后，开发覆盖的源、pin 和仓库被清掉；安装失败时开发覆盖和它的包保持原样。（缺口：这一步还没有在实机走通过（docs/97 §事故））
+- **E8** 覆盖更新使用工作区当前的系统服务名称重启对应部件，旧发布清单中的名称不会让已更新的桥接服务继续运行旧代码。（单元测试、人工）
 
 注意：
 - 不要 dpkg -i 或直接替换容器里的文件：装上的版本和发布 pin 冲突，Discover 会提示“有更新”，完整性检查报漂移。试验一律走开发覆盖。 [docs/97-local-development-deploy.md](../docs/97-local-development-deploy.md) [docs/61-delivery-diagnostics-plan.md](../docs/61-delivery-diagnostics-plan.md)
@@ -2970,4 +2971,4 @@ Agent 不靠点界面就能拿到合并日志、崩溃回溯、追踪、截图�
 | `wifi-display` 无线投屏 | 经安卓（高通）Wi-Fi Display 栈把输出投到电视：扫描、连接、断开、重连。 | `desktop-mode.cast-connect`、`desktop-mode.tv-shows-linux`、`desktop-mode.cast-video-modes`、`desktop-mode.cast-install`、`desktop-mode.tv-director` | 4 | 1 |
 | `shared-storage` 共享存储 | 安卓的共享存储（/storage/emulated/0/Plasma，MediaProvider FUSE）挂到容器的 /mnt/android-shared，用户目录和 ~/Shared 都在上面。 | `desktop.screen-recording` | 3 | 1 |
 | `gpu-device` GPU 设备 | 内核的 KGSL（/dev/kgsl-3d0）与 dma-heap（/dev/dma_heap/system）设备节点，Mesa、Xwayland、Flatpak 和系统监视器经它们用 Adreno；PC 上换成 DRM。 | `desktop.host-display` | — | 1 |
-| `host-controller` 宿主控制器 | Rungic 应用经 Magisk su 调用的 rungic-plasma 动作及其输出：账户状态与设置、安装发布、启停会话、内存上限；安装状态写在应用私有的 rungic-install.properties。 | `desktop.session`、`desktop.edge-back`、`desktop.host-display` | 2 | 1 |
+| `host-controller` 宿主控制器 | Rungic 应用经 Magisk su 调用的 rungic-plasma 动作及其输出：账户状态与设置、安装发布、启停会话、内存上限；安装状态写在应用私有的 rungic-install.properties。 | `desktop.session`、`desktop.edge-back`、`desktop.host-display` | 3 | 1 |

@@ -25,12 +25,14 @@
     },
     {
       "name": "install-state",
+      "comment": "The app explicitly accepts existing v1 installs without schema/error, including quoted product-seed RELEASE_ID, as well as v2. Missing source and mismatched releases still block in FirstBootState; this check does not migrate installation records.",
       "command": "d=/data/user/0/com.rungic.plasma/files; if [ -f $d/rungic-install-source.properties ]; then cat $d/rungic-install-source.properties; elif [ -f /product/etc/rungic/seed.env ]; then grep '^RELEASE_ID=' /product/etc/rungic/seed.env; else echo unmanaged=true; exit 0; fi; cat $d/rungic-install.properties",
       "as": "root",
       "format": "properties",
       "replies": [
         {"RELEASE_ID": "20261003.1", "schema": "2", "release": "20261003.1", "state": "ready", "phase": "complete", "error": "none"},
-        {"unmanaged": "true"}
+        {"unmanaged": "true"},
+        {"RELEASE_ID": "'portov-20260928.5'", "release": "portov-20260928.5", "state": "ready", "phase": "complete"}
       ],
       "examples": [
         {"RELEASE_ID": "20261003.1", "schema": "2", "release": "20261003.1", "state": "installing", "phase": "rootfs", "error": "none"},

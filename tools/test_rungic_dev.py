@@ -37,7 +37,7 @@ class VersionTests(unittest.TestCase):
 
 class OverlayTests(unittest.TestCase):
 
-    # covers: delivery.dev-overlay/E5
+    # covers: delivery.dev-overlay/E8
     def test_restarts_use_current_bridge_units_when_the_base_release_has_old_names(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)

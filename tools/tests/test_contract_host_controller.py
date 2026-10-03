@@ -44,7 +44,7 @@ def read(app, tmp_path, state):
 
 # covers[consumer]: iface:host-controller
 def test_the_app_opens_only_a_finished_install_of_its_release(app, tmp_path):
-    ready, unmanaged = STATE['replies']
+    ready, unmanaged = STATE['replies'][:2]
     installing, waiting, failed, other = STATE['examples']
     assert all(contracts.check_reply(STATE, example) == [] for example in STATE['replies'] + STATE['examples'])
     assert read(app, tmp_path, ready)['ready'] is True
@@ -65,6 +65,19 @@ def test_a_newer_install_state_cannot_open_the_gate(app, tmp_path):
     assert read(app, tmp_path, {**ready, 'schema': '3'})['reason'] == 'SCHEMA_UNSUPPORTED'
     assert read(app, tmp_path, {**ready, 'phase': 'somewhere'})['ready'] is True, 'ready needs no known phase'
     assert read(app, tmp_path, {**ready, 'state': 'installing', 'phase': 'somewhere'})['reason'] == 'PHASE_UNKNOWN'
+
+
+# covers[consumer]: iface:host-controller
+def test_legacy_ready_state_agrees_with_the_provider_check_and_keeps_release_matching(app, tmp_path):
+    # A pre-schema G100 installation omits schema/error and quotes its seed release.
+    # FirstBootState explicitly defaults this format to v1; the provider check must
+    # accept it too, while the app still rejects a mismatched or future release state.
+    legacy = {'RELEASE_ID': "'portov-20260928.5'", 'release': 'portov-20260928.5',
+              'state': 'ready', 'phase': 'complete'}
+    assert contracts.check_reply(STATE, legacy) == []
+    assert read(app, tmp_path, legacy)['ready'] is True
+    assert read(app, tmp_path, {**legacy, 'release': 'other'})['reason'] == 'RELEASE_MISMATCH'
+    assert read(app, tmp_path, {**legacy, 'schema': '3'})['reason'] == 'SCHEMA_UNSUPPORTED'
 
 
 def test_the_controller_has_the_actions_the_contract_runs():
