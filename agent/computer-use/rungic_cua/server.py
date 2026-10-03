@@ -1,10 +1,9 @@
 """rungic-cua: desktop computer use for Codex, as an MCP server or a CLI (docs/60, docs/68).
 
-Two plans (`rungic-cua plan [luna|atspi]`, ~/.config/rungic-cua/plan):
-  luna (default)  GPT-6 Luna computer use: the model sees screenshots and decides where to act
-                  (luna.py); Codex can also look and act itself (desktop_screenshot, desktop_act).
-  atspi           plan two: accessibility tree + OCR + JEV (desktop_observe, desktop_run,
-                  desktop_find_name, and desktop_goal through rungic-clicker).
+Modes (`rungic-cua plan [codex|api|luna|atspi]`, ~/.config/rungic-cua/plan):
+  codex (default): Codex decides each step with desktop_screenshot / desktop_act.
+  api / luna: separate GPT-6 Luna Responses API goal executor (explicit API key).
+  atspi: accessibility tree + OCR + JEV, retained as the alternate API path.
 Window management (KWin) and the input (RemoteDesktop portal, KWin text commit) are shared.
 
 The voice agent's Codex runs commands in a sandbox that cannot reach D-Bus or
@@ -29,6 +28,7 @@ import select
 import shlex
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 from pathlib import Path
@@ -40,6 +40,8 @@ from . import a11y, activity, blocked, names, speech, switch, workspace
 from .i18n import _
 from .backend import LinuxAtspiBackend
 from .luna import ComputerUse
+from .screen import Desktop
+from .mode import plan, save as save_plan
 
 logger = logging.getLogger('rungic-cua')
 
@@ -53,18 +55,6 @@ def host_unreachable() -> bool:
 KEY_FILES = (Path.home() / '.config/rungic-cua/typesafe-api-key',
              Path.home() / '.config/rungic-voice-agent/typesafe-api-key')
 MAX_ELEMENTS_SHOWN = 150
-PLAN_FILE = Path.home() / '.config/rungic-cua/plan'
-PLANS = ('luna', 'atspi')
-
-
-def plan() -> str:
-    """luna unless plan two was chosen."""
-    try:
-        chosen = PLAN_FILE.read_text().strip()
-    except OSError:
-        chosen = ''
-    return chosen if chosen in PLANS else 'luna'
-
 SUBTASK_SCHEMA = {
     'type': 'object',
     'properties': {
@@ -217,7 +207,7 @@ PLAN_ONE_TOOLS = [
     {'name': 'desktop_act',
      'description': ("Act on the assistant's screen yourself, from what you saw in desktop_screenshot: a short "
                      'batch of actions carried out in order, then the new screenshot comes back. For a whole '
-                     'multi-step task prefer desktop_goal (faster).'),
+                     'multi-step task continue looking and acting until the result is verified.'),
      'inputSchema': {'type': 'object', 'properties': {
          'actions': {'type': 'array', 'items': ACTION_SCHEMA},
          'note': {'type': 'string', 'description': ('What this batch does, a few words in the language you speak '
@@ -226,6 +216,21 @@ PLAN_ONE_TOOLS = [
          'required': ['actions']},
      'annotations': {'readOnlyHint': False, 'destructiveHint': False, 'openWorldHint': False}},
 ]
+VOICE_CODEX_TOOLS = [{
+    'name': 'desktop_voice_recording',
+    'description': ('Local audio for a voice message; you decide every UI action with screenshots. '
+        'prepare with text in the verified chat BEFORE clicking its voice-message record control. '
+        'status confirms recording through the Linux microphone. play only after recording=true; '
+        'it returns after playback, and must return played=true before you click Send. '
+        'After verifying the sent message, close to release routing. On failure, cancel the recording '
+        'with desktop_act and close. Never replay after an uncertain playback. This tool never clicks '
+        'or sends, and uses the API key for speech synthesis only.'),
+    'inputSchema': {'type': 'object', 'properties': {
+        'phase': {'type': 'string', 'enum': ['prepare', 'status', 'play', 'close']},
+        'text': {'type': 'string', 'description': 'The authorized message, required for prepare.'},
+        'voice': {'type': 'string'}}, 'required': ['phase']},
+    'annotations': {'readOnlyHint': False, 'destructiveHint': False, 'openWorldHint': False},
+}]
 PLAN_TWO_ONLY = ('desktop_observe', 'desktop_run', 'desktop_find_name')
 DECIDERS = {'luna': 'GPT-6 Luna looking at screenshots of the screen (computer use; no accessibility tree or OCR); '
                     'text is typed in any language',
@@ -235,7 +240,9 @@ DECIDERS = {'luna': 'GPT-6 Luna looking at screenshots of the screen (computer u
 def tools_for(chosen: str) -> list[dict]:
     tools = []
     for tool in TOOLS:
-        if chosen == 'luna' and tool['name'] in PLAN_TWO_ONLY:
+        if chosen in ('codex', 'luna') and tool['name'] in PLAN_TWO_ONLY:
+            continue
+        if chosen == 'codex' and tool['name'] in ('desktop_goal', 'desktop_voice_message'):
             continue
         tool = dict(tool)
         if tool['name'] == 'desktop_goal':
@@ -243,7 +250,7 @@ def tools_for(chosen: str) -> list[dict]:
         if tool['name'] == 'desktop_voice_message' and chosen == 'luna':
             tool = VOICE_MESSAGE_LUNA
         tools.append(tool)
-    return tools + (PLAN_ONE_TOOLS if chosen == 'luna' else [])
+    return tools + (PLAN_ONE_TOOLS if chosen in ('codex', 'luna') else []) + (VOICE_CODEX_TOOLS if chosen == 'codex' else [])
 
 
 VOICE_MESSAGE_LUNA = {
@@ -528,12 +535,12 @@ class Cua:
         except (OSError, ValueError, subprocess.SubprocessError) as error:
             logger.warning('assistant screen: %s', error)
 
-    def agent_screen(self) -> ComputerUse:
+    def agent_screen(self) -> Desktop:
         """The session desktop_screenshot and desktop_act share: its latest image says where
         desktop_act's pixels are. It follows the active window on the assistant's screen."""
         output = self.agent_output()
         if getattr(self, '_computer', None) is None or self._computer.screen.output_name != output:
-            self._computer = ComputerUse(self.backend, output)
+            self._computer = Desktop(self.backend, output)
         return self._computer
 
     def goal_luna(self, args: dict) -> dict:
@@ -601,6 +608,65 @@ class Cua:
                 break
         time.sleep(0.5)
         return {'done': done, **self.screenshot('screen' if computer.screen.whole else 'window')}
+
+    def voice_recording(self, args: dict) -> dict:
+        """Transport for the native audio lifecycle; Codex owns all GUI decisions."""
+        phase = args['phase']
+        process = getattr(self, '_voice_recording', None)
+        if phase == 'prepare':
+            if process is not None:
+                raise RuntimeError('Close the previous recording first')
+            text = str(args.get('text') or '').strip()
+            if not text:
+                raise ValueError('prepare needs the authorized message text')
+            output = self.agent_output()
+            active = self.backend.kwin.windows().get('active') or {}
+            if not active.get('pid') or active.get('output') != output:
+                raise RuntimeError('Open and verify the chat on your screen first')
+            binary = os.path.basename(os.readlink(f"/proc/{active['pid']}/exe"))
+            audio = speech.synthesize(text, voice=str(args.get('voice') or 'marin'))
+            with tempfile.NamedTemporaryFile(prefix='rungic-voice-', dir=os.environ.get('XDG_RUNTIME_DIR')) as pcm:
+                pcm.write(audio)
+                pcm.flush()
+                process = self._voice_recording = subprocess.Popen(
+                    ['/usr/libexec/rungic-voice-recording', binary, pcm.name], stdin=subprocess.PIPE,
+                    stdout=subprocess.PIPE, text=True)
+                result = self._recording_reply(15)
+            return {**result, 'app': binary}
+        if process is None:
+            if phase == 'close':
+                return {'closed': True}
+            raise RuntimeError('Prepare the voice recording first')
+        try:
+            process.stdin.write(json.dumps({'phase': phase}) + '\n')
+            process.stdin.flush()
+            return self._recording_reply(125 if phase == 'play' else 10)
+        finally:
+            if phase == 'close':
+                self.close_recording()
+
+    def _recording_reply(self, timeout: float) -> dict:
+        process = self._voice_recording
+        if not select.select([process.stdout], [], [], timeout)[0]:
+            self.close_recording()
+            raise RuntimeError('Voice recording timed out; cancel its UI without sending')
+        line = process.stdout.readline()
+        result = json.loads(line) if line else {'error': 'Voice recording stopped; cancel without sending'}
+        if result.get('error'):
+            self.close_recording()
+            raise RuntimeError(result['error'])
+        return result
+
+    def close_recording(self) -> None:
+        process = getattr(self, '_voice_recording', None)
+        self._voice_recording = None
+        if process is not None:
+            process.stdin.close()
+            try:
+                process.wait(5)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait(5)
 
     def voice_message_luna(self, args: dict) -> dict:
         """Speak `text` into a recording the model starts and sends on screen (docs/62, docs/68)."""
@@ -848,7 +914,12 @@ class Cua:
 
     def call(self, name: str, arguments: dict) -> dict:
         chosen = plan()
-        if chosen == 'luna':
+        if chosen == 'codex':
+            if name == 'desktop_voice_recording':
+                return self.voice_recording(arguments)
+            if name in ('desktop_goal', 'desktop_voice_message', *PLAN_TWO_ONLY):
+                raise ValueError('Codex mode: use desktop_screenshot and desktop_act; no API goal executor')
+        if chosen in ('codex', 'luna'):
             if name == 'desktop_goal':
                 return self.goal_luna(arguments)
             if name == 'desktop_screenshot':
@@ -943,6 +1014,8 @@ def serve() -> None:
             send({'jsonrpc': '2.0', 'id': rid, 'result': result})
         except Exception as error:
             send({'jsonrpc': '2.0', 'id': rid, 'error': {'code': -32603, 'message': str(error)}})
+    if cua is not None:
+        cua.close_recording()
     if router:
         router.close()
 
@@ -1017,14 +1090,14 @@ def main() -> None:
         data = cua.run(json.loads(sys.argv[2]))
     elif command == 'voice':
         args = json.loads(sys.argv[2])
-        data = cua.voice_message_luna(args) if plan() == 'luna' else cua.voice_message(args)
+        data = cua.call('desktop_voice_message', args)
     elif command == 'find-name':
         data = cua.find_name(sys.argv[2])
     elif command == 'press-control':
         data = cua.press_control(sys.argv[2], sys.argv[3:])
     elif command == 'goal':
         args = json.loads(sys.argv[2])
-        data = cua.goal_luna(args) if plan() == 'luna' else cua.goal(args)
+        data = cua.call('desktop_goal', args)
     elif command == 'screenshot':   # OUT gets the JPEG the model sees; SCOPE window (default) or screen
         data = cua.screenshot(sys.argv[3] if len(sys.argv) > 3 else 'window')
         Path(sys.argv[2]).write_bytes(__import__('base64').b64decode(data.pop('__image__')))
@@ -1033,10 +1106,10 @@ def main() -> None:
         data.pop('__image__', None)
     elif command == 'plan':
         if len(sys.argv) > 2:
-            if sys.argv[2] not in PLANS:
-                raise SystemExit(f'plan: one of {", ".join(PLANS)}')
-            PLAN_FILE.parent.mkdir(parents=True, exist_ok=True)
-            PLAN_FILE.write_text(sys.argv[2] + '\n')
+            try:
+                save_plan(sys.argv[2])
+            except ValueError as error:
+                raise SystemExit(str(error)) from error
         data = {'plan': plan(), 'note': 'restart Codex (rungic-voice-agent) for its tool list to change'}
     elif command == 'top-window':       # rungic-cua top-window RESOURCE_CLASS
         data = {'window': cua.backend.kwin.top_window(sys.argv[2])}

@@ -526,3 +526,6 @@ msgstr "告诉团队：{text}"
 #: task_state.py
 msgid "Tell the team"
 msgstr "告诉团队"
+
+msgid "Finish or stop the current task before changing desktop mode"
+msgstr "请先完成或停止当前任务，再切换桌面操作模式"

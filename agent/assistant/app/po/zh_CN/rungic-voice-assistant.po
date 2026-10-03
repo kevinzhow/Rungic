@@ -1433,3 +1433,55 @@ msgstr "结果：%1"
 msgctxt "@info the lead's decision after the reviews"
 msgid "Decision: %1"
 msgstr "决定：%1"
+
+msgctxt "@title"
+msgid "Desktop operation"
+msgstr "桌面操作"
+
+msgctxt "@item"
+msgid "Luna · API"
+msgstr "Luna · API"
+
+msgctxt "@title:group"
+msgid "OpenAI API"
+msgstr "OpenAI API"
+
+msgctxt "@info what the API key is for"
+msgid "Voice, calls and optional Luna desktop operation"
+msgstr "语音、通话，以及可选的 Luna 桌面操作"
+
+msgctxt "@info"
+msgid "For voice conversation, speech to text, speech synthesis and calls. Also used for desktop operation if you select Luna via OpenAI API. Billed to the OpenAI API by use, apart from a ChatGPT plan. Desktop operation uses Codex's sign-in by default."
+msgstr "用于语音对话、转文字、语音合成和通话。选择“Luna · OpenAI API”后，也用于桌面操作。按 OpenAI API 用量计费，与 ChatGPT 套餐分开。桌面操作默认沿用 Codex 的登录方式。"
+
+msgctxt "@info"
+msgid "The configured OpenAI API key. Billed to the OpenAI API by use."
+msgstr "使用已设置的 OpenAI API Key，按 OpenAI API 用量计费。"
+
+msgctxt "@title:group"
+msgid "Who operates the desktop"
+msgstr "谁来操作桌面"
+
+msgctxt "@option:radio"
+msgid "Codex (default)"
+msgstr "Codex（默认）"
+
+msgctxt "@info"
+msgid "Uses the Agent's model and sign-in. Steps and usage appear with the task."
+msgstr "沿用 Agent 的模型和登录方式，步骤与用量随任务展示。"
+
+msgctxt "@option:radio"
+msgid "Luna via OpenAI API"
+msgstr "Luna · OpenAI API"
+
+msgctxt "@info"
+msgid "Uses a separate API key. Desktop operation is billed to the OpenAI API, apart from a ChatGPT plan."
+msgstr "使用单独设置的 API Key。桌面操作按 OpenAI API 用量计费，与 ChatGPT 套餐分开。"
+
+msgctxt "@info"
+msgid "Changing this setting restarts the Agent connection after the current task has ended. Voice and speech synthesis still use the API key in either mode."
+msgstr "请在任务结束后切换，切换会重启 Agent 连接。两种模式下，语音对话和语音合成仍使用 API Key。"
+
+msgctxt "@info"
+msgid "The accessibility and OCR mode is selected. Choose Codex or Luna to use screenshots."
+msgstr "当前选择了无障碍与 OCR 模式。选择 Codex 或 Luna 可改用截图操作。"

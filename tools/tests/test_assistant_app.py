@@ -63,7 +63,8 @@ class AppTest(unittest.TestCase):
 
     @staticmethod
     def at_end(view):
-        return view.property('contentY') + view.height() >= view.property('contentHeight') - 1
+        # ListView's estimated delegate heights can move its content origin below zero.
+        return view.property('contentY') + view.height() >= view.property('originY') + view.property('contentHeight') - 1
 
     def list_view(self):
         return max(q.of_type(self.page, 'QQuickListView'), key=lambda v: v.height())
@@ -446,7 +447,8 @@ class AppTest(unittest.TestCase):
                 self.assertIn('Sign-in', texts)
                 self.assertIn(sign_in, texts, 'how Codex signs in')
                 self.assertIn('OpenAI API Key', texts)
-                self.assertIn('Voice, speech to text and calls', texts, 'what the key is for, apart from Codex')
+                self.assertIn('Voice, calls and optional Luna desktop operation', texts, 'what the key is for, apart from Codex')
+                self.assertIn('Desktop operation', texts, 'desktop execution has its own setting')
                 self.assertIn(key, texts)
         # Who pays: on the sign-in page, by kind; and the key's own page says its use is billed apart.
         bills = {'ChatGPT plan (Team)': "The Agent's tasks count against your ChatGPT plan.",
@@ -460,6 +462,34 @@ class AppTest(unittest.TestCase):
         q.js(self.engine, self.root, 'openSettings("KeyPage.qml")')
         q.spin(0.5)
         self.assertTrue([t for t in self.texts() if 'Billed to the OpenAI API by use, apart from a ChatGPT plan.' in t])
+
+
+    # covers: agent.computer-use/E8 agent.computer-use/E9
+    def test_desktop_mode_choice_uses_the_service_and_keeps_a_rejected_choice(self):
+        q.js(self.engine, self.root, 'openSettings("DesktopPage.qml")')
+        q.spin(0.5)
+        page = q.of_type(self.content, 'DesktopPage')[0]
+        setup = {'codex': {'installed': True}, 'desktop': {'mode': 'codex'}, 'key': {'set': False}}
+        q.send(self.engine, 'replied', 'Setup', setup)
+        q.spin(0.1)
+        choices = {c.property('text'): c for c in q.of_type(page, 'ChoiceRow')}
+        codex, api = choices['Codex (default)'], choices['Luna via OpenAI API']
+        self.assertTrue(codex.property('checked'))
+        self.assertFalse(api.property('enabled'), 'API needs a separately configured key')
+        q.send(self.engine, 'replied', 'Setup', {**setup, 'key': {'set': True}})
+        q.spin(0.1)
+        q.click(api)
+        self.assertIn(['request', 'SetDesktopMode', ['luna']], q.calls(self.engine))
+        self.assertFalse(api.property('enabled'), 'another selection cannot race the pending request')
+        q.send(self.engine, 'replied', 'SetDesktopMode', {'error': 'Finish the current task first'})
+        q.spin(0.1)
+        self.assertTrue(codex.property('checked'), 'rejected selection leaves the actual mode')
+        self.assertIn('Finish the current task first', self.texts())
+        q.click(api)
+        q.send(self.engine, 'replied', 'SetDesktopMode', {'mode': 'luna'})
+        q.spin(0.1)
+        self.assertTrue(api.property('checked'))
+        self.assertFalse(codex.property('checked'))
 
 
 if __name__ == '__main__':

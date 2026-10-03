@@ -61,7 +61,7 @@ SettingsFrame {
         spacing: 12
         Text {
             Layout.fillWidth: true
-            text: i18nc("@info", "For what Codex's sign-in doesn't cover: talking by voice (Codex connects the realtime voice only with an API key), speech to text, and calls. Billed to the OpenAI API by use, apart from a ChatGPT plan.")
+            text: i18nc("@info", "For voice conversation, speech to text, speech synthesis and calls. Also used for desktop operation if you select Luna via OpenAI API. Billed to the OpenAI API by use, apart from a ChatGPT plan. Desktop operation uses Codex's sign-in by default.")
             wrapMode: Text.Wrap
             font.family: Theme.fontFamily
             font.pixelSize: Theme.bodySize

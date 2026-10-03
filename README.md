@@ -40,6 +40,8 @@ Hold the Home button and ask:
 
 The assistant presents a plan first and speaks its progress updates. It opens apps, clicks buttons and types for you. When the task ends, its pictures and files appear in the conversation. You can open them there.
 
+By default, Codex reads the screen and decides each desktop action using the model and sign-in selected for the Agent. In Settings → Desktop operation, you can choose the separate Luna API executor instead. Codex uses its existing ChatGPT or API-key sign-in; selecting a desktop executor does not change that sign-in. Voice services, speech synthesis and the optional Luna executor use the configured OpenAI API key. The [implementation and acceptance record](docs/106-codex-desktop-operation.md) lists what has been tested on the development G100.
+
 </td>
 <td width="260">
 <img src="docs/images/readme/phone-chat.jpg" width="240" alt="The finished task in the conversation: the rendered rocket, the Blender file and a short summary">
@@ -239,7 +241,7 @@ Rungic exposes two **MCP (Model Context Protocol) servers**, command-line tools,
 | **Tasks, voice and usage** · D-Bus | `com.rungic.VoiceAgent`, plus usage methods and signals from the suggestion service | Conversations, task progress and stopping, voice and call controls, observed tokens and quotas from the provider. Replacing the bundled agent requires adapting this bridge and its usage data. |
 | **Files, packages and hardware** · Linux interfaces | Shell/files, PackageKit/`pkgcli`, polkit, Wayland, desktop portals, AT-SPI, PipeWire/PulseAudio and Android-backed D-Bus services | Work with files, install software with system authorization, and use the same desktop/media/device interfaces as ordinary Linux apps. Android-backed services implement documented subsets. |
 
-The [Agent Ready interface reference](docs/agent-ready-interfaces.md) lists MCP startup examples, tools, D-Bus methods, session requirements and integration limits. Screenshot and action tools can use the connecting agent's own reasoning. The bundled `desktop_goal` helper uses its own configured model backend. Separating display and input does not isolate the agent from files owned by the same Linux user.
+The [Agent Ready interface reference](docs/agent-ready-interfaces.md) lists MCP startup examples, tools, D-Bus methods, session requirements and integration limits. Screenshot and action tools use the connecting agent's own reasoning. This is the bundled Codex assistant's default path. The `desktop_goal` helper is available in explicit API mode and uses its configured model backend. Separating display and input does not isolate the agent from files owned by the same Linux user.
 
 ## Integrations
 
@@ -262,7 +264,7 @@ Rungic is under active development and in private preview. Current limits and on
 
 - The interface uses the desktop's language, currently English or Chinese. The assistant answers in the language you speak to it. Account setup and some technical documents are still in Chinese.
 - Larger tasks, such as 3D modelling, take the assistant about two minutes. Work to reduce this time continues.
-- Testing continues on the call agent, which makes and answers phone calls for you.
+- The default Codex desktop path has passed screenshot, click and result checks on the development G100. The Luna API alternative has passed a read-only screen check. Full call and voice-message workflows still need validation with the new default; see the [acceptance record](docs/106-codex-desktop-operation.md).
 - Vulkan desktop rendering flickers on this GPU family, so the desktop uses OpenGL ES for now.
 
 ## Supported devices
@@ -369,5 +371,5 @@ The [G100 acceptance record](docs/80-g100-image-installation-retrospective.md) d
 - [Source layout](docs/README.md#repository-layout): Android host, agents, desktop integration, system services, package definitions and upstream patches
 - [Developer guide and documentation index](docs/README.md): repository layout, development entry points, and the design and acceptance documents for each capability
 - [Integrating another agent](docs/README.md#integrating-another-agent) · [Proactive system care](docs/research/proactive-system-care.md) · [Compatibility knowledge](compatibility/README.md)
-- [Voice assistant](docs/59-voice-agent.md) · [Computer use](docs/60-computer-use.md) · [Assistant's screen](docs/65-agent-screen.md) · [Agent workspaces and teams](docs/research/91-agent-workspaces.md) · [Standalone install on X70](docs/93-x70-independent-image-revalidation.md) · [Development deploys](docs/97-local-development-deploy.md) (in Chinese)
+- [Voice assistant](docs/59-voice-agent.md) · [Computer use](docs/106-codex-desktop-operation.md) · [Assistant's screen](docs/65-agent-screen.md) · [Agent workspaces and teams](docs/research/91-agent-workspaces.md) · [Standalone install on X70](docs/93-x70-independent-image-revalidation.md) · [Development deploys](docs/97-local-development-deploy.md) (in Chinese)
 - [Engineering conventions](AGENTS.md) (in Chinese)

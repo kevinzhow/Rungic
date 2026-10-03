@@ -48,7 +48,7 @@ except ImportError:
 for path in (CUA / 'typesafe', CUA, STUBS):
     sys.path.insert(0, str(path))
 
-from rungic_cua import activity, luna, server, switch  # noqa: E402
+from rungic_cua import activity, luna, mode, screen as screen_module, server, switch  # noqa: E402
 
 pytestmark = pytest.mark.filterwarnings('ignore::DeprecationWarning')
 
@@ -58,7 +58,7 @@ def private(tmp_path, monkeypatch):
     """Everything a tool writes goes to the test's own directory: captions, the plan, the abort
     file, the switched-apps record; nothing reaches a platform bridge."""
     monkeypatch.setattr(activity, 'DIR', tmp_path / 'rungic-agent-screen')
-    monkeypatch.setattr(server, 'PLAN_FILE', tmp_path / 'plan')
+    monkeypatch.setattr(mode, 'PLAN_FILE', tmp_path / 'plan')
     monkeypatch.setattr(luna, 'ABORT_FILE', tmp_path / 'rungic-clicker' / 'abort')
     monkeypatch.setattr(luna, 'SETTLE_S', 0)
     monkeypatch.setattr(switch, 'STATE', tmp_path / 'switched.json')
@@ -86,6 +86,11 @@ def tool_list():
 
 # covers: agent.plan-two/E1
 def test_plan_atspi_switches_the_tools_and_luna_brings_them_back(monkeypatch):
+    codex_tools = tool_list()
+    assert server.plan() == 'codex'
+    assert {'desktop_screenshot', 'desktop_act'} <= set(codex_tools)
+    assert 'desktop_goal' not in codex_tools
+    mode.save('luna')
     luna_tools = tool_list()
     assert server.plan() == 'luna'
     assert {'desktop_screenshot', 'desktop_act', 'desktop_goal'} <= set(luna_tools)
@@ -113,10 +118,11 @@ def test_plan_atspi_switches_the_tools_and_luna_brings_them_back(monkeypatch):
 
 # covers: agent.plan-two/E1
 def test_under_luna_plan_two_tools_are_refused_and_under_atspi_goal_is_jev(monkeypatch):
+    mode.save('luna')
     cua = server.Cua()
     with pytest.raises(ValueError, match='plan two'):
         cua.call('desktop_observe', {})
-    server.PLAN_FILE.write_text('atspi\n')
+    mode.save('atspi')
     monkeypatch.setattr(server.Cua, 'agent_output', lambda self: 'Virtual-1')
     ran = []
 
@@ -308,13 +314,14 @@ class Recorder:
 def scripted_model(monkeypatch, replies):
     """The Responses API answering `replies` in order; each request and the caption the user saw
     when it was sent are kept."""
+    mode.save('luna')
     seen = []
 
     def respond(self, body):
         seen.append({'body': body, 'caption': activity.read()})
         return replies[len(seen) - 1]
     monkeypatch.setattr(luna.ComputerUse, '_respond', respond)
-    monkeypatch.setattr(luna.Screen, 'capture', lambda self: (
+    monkeypatch.setattr(screen_module.Screen, 'capture', lambda self: (
         setattr(self, 'scope', 'only the "Chat" window') or ('data:image/jpeg;base64,', mock.Mock(width=800, height=600),
                                                              False)))
     return seen
@@ -590,11 +597,11 @@ def test_the_screenshot_is_the_window_then_its_menus_in_the_screens_own_pixels(t
     shot = tmp_path / 'rungic-screenshot'
     shot.write_text(SHOT)
     shot.chmod(0o755)
-    monkeypatch.setattr(luna, 'SCREENSHOT', str(shot))
+    monkeypatch.setattr(screen_module, 'SCREENSHOT', str(shot))
     monkeypatch.setenv('SHOT_LOG', str(tmp_path / 'shot.log'))
     monkeypatch.setenv('SHOT_FRAMES', json.dumps({'{chat}': [640, 480], '{dialog}': [300, 200]}))
     kwin = TargetKWin()
-    screen = luna.Screen(mock.Mock(kwin=kwin), 'Virtual-1', '{chat}')
+    screen = screen_module.Screen(mock.Mock(kwin=kwin), 'Virtual-1', '{chat}')
     url, image, changed = screen.capture()
     assert url.startswith('data:image/jpeg;base64,') and (image.width, image.height) == (640, 480) and changed
     assert screen.note().startswith('(This screenshot shows only the "Chat" window')

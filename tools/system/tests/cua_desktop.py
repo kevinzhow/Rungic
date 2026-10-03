@@ -5,7 +5,7 @@ workspace, on a headless 1920x1080 KWin (--virtual), driving a GTK test app that
 - desktop_launch opens an app by a name in another language (its .desktop file's Name[zh_CN]) and by
   its desktop id; the second time it activates the open window instead of starting another; in a
   workspace it starts the app through systemd-run in a scope of its own, bound to the workspace.
-- Luna's actions (click, double click, drag, scroll, keys) reach the app as ordinary pointer and
+- Codex's desktop_screenshot/desktop_act and the API backup's shared actions reach the app as ordinary pointer and
   keyboard events through the workspace's fake input, a screen pixel for a pixel.
 - What the screenshot shows is the task's window alone (its frame, not the screen); with a popup menu
   open it is the window with its menu, and the note says so. (KWin here has no GPU: its ScreenShot2
@@ -140,14 +140,16 @@ def events(log, kind=None):
     return [e for e in lines if kind is None or e['event'] == kind]
 
 
-# covers[system]: agent.computer-use/E1 agent.computer-use/E2 agent.computer-use/E5 agent.computer-use/E6
+# covers[system]: agent.computer-use/E1 agent.computer-use/E2 agent.computer-use/E3 agent.computer-use/E5 agent.computer-use/E6 agent.computer-use/E8
 def test():
     tmp = Path('/tmp/cua-desktop')
     tmp.mkdir(exist_ok=True)
     setup(tmp)
     with harness.Session(1920, 1080, 'cua') as s:
         os.environ['RUNGIC_WORKSPACE'] = '1'            # rungic-cua as in the agent's workspace 1
-        from rungic_cua import activity, luna, server
+        from rungic_cua import activity, luna, mode, server
+        mode.PLAN_FILE = tmp / 'plan'
+        mode.save('codex')
         activity.DIR = s.runtime / 'rungic-agent-screen'
         cua = server.Cua()
         backend = SimpleNamespace(kwin=s.kwin_api, input=s.pointer(), _no_virtual_keyboard=lambda: None)
@@ -183,6 +185,39 @@ def test():
         computer.screen.origin, computer.screen.scale = (0.0, 0.0), 1.0      # pixels of the whole screen
         client = next(w for w in s.kwin_api.windows()['windows'] if w['id'] == window['id'])['client']
         gx, gy = client[0] + client[2] // 2, client[1] + client[3] // 2
+
+        # Default MCP dispatch drives the real compositor/input. Only image pixels are a
+        # stand-in: Ubuntu's GPU-less KWin cannot capture (the same limitation as E2 above).
+        from PIL import Image
+        direct = cua.agent_screen()
+        def capture():
+            _args, region, scope = direct.screen._region()
+            direct.screen.origin = region[:2]
+            direct.screen.scale = 1.0
+            direct.screen.scope = scope
+            return 'data:image/jpeg;base64,c3RhbmQtaW4=', Image.new('RGB', tuple(map(int, region[2:]))), False
+        direct.screen.capture = capture
+        backend.bus = None
+        try:
+            cua.call('desktop_act', {'actions': [{'type': 'click', 'x': 1, 'y': 1}]})
+        except ValueError as error:
+            s.check('desktop_screenshot first' in str(error), 'Codex actions require a preceding screenshot')
+        else:
+            raise harness.Failed('Codex action accepted coordinates before a screenshot')
+        image = cua.call('desktop_screenshot', {})
+        origin = direct.screen.origin
+        result = cua.call('desktop_act', {'actions': [{'type': 'click', 'x': gx - origin[0], 'y': gy - origin[1]}]})
+        clicked = s.wait_for(lambda: events(canvas_log, 'press'), 5, 'the Codex MCP click')[-1]
+        s.check(image['shows'] == 'only the "Canvas" window' and result['done'] and result.get('__image__')
+                and abs(clicked['x'] - (gx - client[0])) <= 1 and abs(clicked['y'] - (gy - client[1])) <= 1,
+                'default Codex dispatch clicks the real app in window-image coordinates and returns another image')
+        try:
+            cua.call('desktop_goal', {'goal': 'must not call an API'})
+        except ValueError as error:
+            s.check('no API goal executor' in str(error), 'default Codex dispatch rejects the independent API executor')
+        else:
+            raise harness.Failed('Codex mode accepted desktop_goal')
+        canvas_log.write_text('')  # subsequent shared-input checks count only their own events
         computer.execute({'type': 'click', 'x': gx, 'y': gy})
         first = s.wait_for(lambda: events(canvas_log, 'press'), 5, 'the click')[-1]
         computer.execute({'type': 'click', 'x': gx + 37, 'y': gy + 23})

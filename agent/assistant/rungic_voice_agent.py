@@ -169,6 +169,7 @@ INTERFACE = '''
     <method name="SetPreferences"><arg type="s" direction="in"/><arg type="s" direction="out"/></method>
     <method name="Models"><arg type="s" direction="in"/><arg type="s" direction="out"/></method>
     <method name="SetAgentModel"><arg type="s" direction="in"/><arg type="s" direction="out"/></method>
+    <method name="SetDesktopMode"><arg type="s" direction="in"/><arg type="s" direction="out"/></method>
     <method name="SetWatching"><arg type="b" direction="in"/></method>
     <method name="Use"><arg type="s" direction="in"/></method>
     <method name="InvestigateSuggestion"><arg type="s" direction="in"/><arg type="s" direction="in"/><arg type="s" direction="out"/></method>
@@ -611,21 +612,27 @@ class BackgroundTurn:
     """One Codex turn in a thread no conversation shows: its final answer, or why it failed.
     Errors start with a reason code the suggestions service maps to words (service.cpp)."""
 
-    def __init__(self):
+    def __init__(self, progress=None):
         self.done = threading.Event()
         self.text = ''
         self.final = False
         self.error = ''
         self.turn_id = None
+        self.progress = progress
+        self.steps = []
 
     def on(self, method, params):
         if method == 'turn/started':
             self.turn_id = (params.get('turn') or {}).get('id') or self.turn_id
         elif method == 'item/completed':
             item = params.get('item') or {}
+            if item.get('type') == 'mcpToolCall':
+                self.steps.append({'tool': item.get('tool'), 'actions': [item.get('arguments') or {}]})
             if item.get('type') == 'agentMessage' and item.get('text') and not self.final:
                 self.text = item['text']
                 self.final = item.get('phase') == 'final_answer'
+                if self.progress and not self.final:
+                    self.progress(item)
         elif method == 'error' and not params.get('willRetry', False):
             self.error = self.reason(params.get('error') or {})
         elif method == 'turn/completed':
@@ -850,6 +857,9 @@ class VoiceAgent:
         self.phone = None
         self.phone_starting = False
         self.curation_lock = threading.Lock()
+        self.desktop_lock = threading.Lock()
+        self.desktop_jobs = {}
+        self.desktop_generation = 0
         self.server = None
         # The workspace comes up with the service, ready before the first task needs it.
         threading.Thread(target=workspace_env, kwargs={'wait': 20}, daemon=True).start()
@@ -2116,6 +2126,116 @@ class VoiceAgent:
             self.server.respond(request_id, {'decision': 'decline'})
 
     # ---- proxied calls (docs/63) ------------------------------------------------------
+    def desktop_goal(self, goal, timeout=120, stop_when=None, window=None, app=None, image=None):
+        """Call UI steps through the authenticated Codex connection, outside the MCP executor.
+
+        Ordinary desktop tasks use their existing Codex thread. Only the service-owned call
+        lifecycle needs this scoped thread. The existing native task-tools owns its worker.
+        """
+        from rungic_cua.mode import plan
+        if plan() != 'codex' and image is None:
+            return luna_goal(goal, timeout, stop_when, window, app)
+        server = self.server
+        if server is None:
+            return {'outcome': 'failed', 'answer': 'Codex is not running'}
+        conversation = getattr(self.call, 'conversation', '') or self.thread_id
+        def progress(item):
+            self.emit({'type': 'agent-message', 'id': item.get('id'), 'text': item['text'],
+                       'final': False, 'conversation': conversation})
+        turn = BackgroundTurn(progress)
+        thread_id = None
+        lease = None
+        started = time.monotonic()
+        generation = self.desktop_generation
+        with self.desktop_lock:
+            try:
+                settings = self.thread_settings()
+                config = settings['config'] = dict(settings.get('config') or {})
+                # All call windows stay on the application's current desktop.
+                env = app_env(app) or workspace_env()
+                if env:
+                    config['mcp_servers.rungic-desktop.env'] = env
+                settings['ephemeral'] = True
+                settings['developerInstructions'] = ("You execute one service-owned call step. "
+                    "Use only desktop_screenshot, desktop_act and window tools for UI actions. "
+                    "Do not delegate, change desktop mode, call desktop_goal, start another call, "
+                    "or invoke the voice-agent CLI. The requested call step is authorized; do only it. "
+                    "Give short progress captions in the user's language. Stop with DONE, ASK, or FAILED "
+                    "and observable evidence. Never infer call connection from a dial request. "
+                    "If the next step is unclear, stop with ASK and a question. "
+                    "For an attached image, answer its question without using any tools.")
+                names = {'rungic-desktop'}
+                try:
+                    import tomllib
+                    names.update(tomllib.loads((Path.home() / '.codex/config.toml').read_text()).get('mcp_servers', {}))
+                except FileNotFoundError:
+                    pass
+                for name in names:
+                    config[f'mcp_servers.{name}.enabled'] = image is None and name == 'rungic-desktop'
+                if image is not None:
+                    settings['sandbox'] = 'read-only'
+                else:
+                    task = 'call-' + uuid.uuid4().hex
+                    directory = Path(os.environ.get('XDG_RUNTIME_DIR', f'/run/user/{os.getuid()}')) / 'rungic-task-leases'
+                    directory.mkdir(mode=0o700, parents=True, exist_ok=True)
+                    lease = directory / (task + '.json')
+                    identity = Path(f'/proc/{os.getpid()}/stat').read_text().rsplit(')', 1)[1].split()[19]
+                    lease.write_text(json.dumps({'taskId': task, 'exclusive': True, 'pid': os.getpid(), 'startTime': identity}))
+                    lease.chmod(0o600)
+                    config['mcp_servers.rungic-desktop.command'] = 'rungic-task-tools'
+                    config['mcp_servers.rungic-desktop.args'] = ['--task', task, '--', 'rungic-cua', 'mcp']
+                reply = server.call('thread/start', settings, timeout=30)
+                thread_id = reply['thread']['id']
+                self.background[thread_id] = turn
+                job = {'lease': lease, 'turn': turn, 'server': server, 'cancel': threading.Event()}
+                self.desktop_jobs[thread_id] = job
+                if generation != self.desktop_generation:
+                    return {'outcome': 'stopped', 'answer': 'Call step stopped before execution'}
+                if self.phone:
+                    self.phone.post('ExternalBusy', {'busy': True})
+                target = f'\nOperate only window {window}; activate it first.' if window else ''
+                inputs = [{'type': 'text', 'text': goal + target}]
+                if image is not None:
+                    inputs.append({'type': 'image', 'url': image, 'detail': 'original'})
+                reply = server.call('turn/start', {'threadId': thread_id, 'input': inputs}, timeout=30)
+                turn.turn_id = turn.turn_id or reply['turn']['id']
+                deadline = started + timeout
+                stopped = False
+                while not turn.done.wait(0.1):
+                    if job['cancel'].is_set() or (stop_when and stop_when()) or time.monotonic() >= deadline or server is not self.server:
+                        stopped = True
+                        if lease:
+                            lease.unlink(missing_ok=True)
+                        server.call('turn/interrupt', {'threadId': thread_id, 'turnId': turn.turn_id}, timeout=10)
+                        turn.done.wait(10)
+                        break
+                # Cancelled (hang-up, stop): its interrupt may end the turn before the loop sees the
+                # cancel; that is a stop, not an "interrupted" failure.
+                if stopped or job['cancel'].is_set():
+                    return {'outcome': 'stopped', 'answer': 'Call step stopped', 'steps': turn.steps}
+                if turn.error:
+                    return {'outcome': 'failed', 'answer': turn.error, 'steps': turn.steps}
+                import re
+                match = re.match(r'\s*(DONE|ASK|FAILED)\b\s*[:：,，.。\-—–]*\s*(.*)', turn.text, re.S | re.I)
+                if not match:
+                    return {'outcome': 'failed', 'answer': turn.text or 'No verified result', 'steps': turn.steps}
+                outcome = {'DONE': 'done', 'ASK': 'question', 'FAILED': 'failed'}[match[1].upper()]
+                return {'outcome': outcome, 'achieved': outcome == 'done',
+                        'question' if outcome == 'question' else 'answer': match[2], 'steps': turn.steps,
+                        'elapsed_s': round(time.monotonic() - started, 1)}
+            finally:
+                if lease:
+                    lease.unlink(missing_ok=True)
+                self.background.pop(thread_id, None)
+                self.desktop_jobs.pop(thread_id, None)
+                if thread_id:
+                    try:
+                        server.call('thread/unsubscribe', {'threadId': thread_id}, timeout=10)
+                    except Exception as error:
+                        log('desktop thread cleanup', error)
+                if self.phone:
+                    self.phone.post('ExternalBusy', {'busy': self.agent_busy or bool(self.background)})
+
     def call_capabilities(self):
         from call_backends import capabilities
         import call_proxy
@@ -2172,8 +2292,11 @@ class VoiceAgent:
 
         def hang_up():
             # The model finds the hang-up control in the call window (computer use plan one, docs/68).
+            # A step still running (dialing, a timer check) holds desktop_lock for up to its timeout:
+            # it is stopped first, so ending the call does not wait for it.
+            self.cancel_desktop_steps()
             window = call.window_id or call_window(app)
-            result = luna_goal('End the call that is in progress: press the hang-up (end call) control of the call '
+            result = self.desktop_goal('End the call that is in progress: press the hang-up (end call) control of the call '
                                'window. Press nothing else. Reply DONE once the call has ended.', timeout=60,
                                window=window, app=app)
             log('call: hang up', result.get('outcome'), result.get('answer') or result.get('note') or '',
@@ -2208,7 +2331,7 @@ class VoiceAgent:
         self.call.ui_state = 'connecting'
         self.call.on_answered = lambda: call_snapshot('answered', app)
         call = self.call
-        self.call.confirm_connected = lambda: call_screen_connected(call.window_id or call_window(app), app)
+        self.call.confirm_connected = lambda: call_screen_connected(call.window_id or call_window(app), app, self)
         self.call.start()
         GLib.idle_add(self.set_state)
         # Dial only once the call agent can listen: the other side is heard from
@@ -2235,7 +2358,7 @@ class VoiceAgent:
                 f'{contact} from this chat{hint}: the phone button in the chat header may open a small menu first; '
                 'then choose the voice call in it. As soon as a calling or ringing screen appears, stop at once and '
                 'reply DONE. Never press anything in the call window.')
-        result = luna_goal(goal, timeout=120, stop_when=lambda: self.call.streams_seen > before, app=app)
+        result = self.desktop_goal(goal, timeout=120, stop_when=lambda: self.call.streams_seen > before, app=app)
         deadline = time.monotonic() + 8
         while time.monotonic() < deadline and self.call.streams_seen == before and result.get('outcome') != 'failed':
             time.sleep(0.2)
@@ -2350,11 +2473,26 @@ class VoiceAgent:
             call.pause_monitor(len(audio) / 2 / call_proxy.RATE + 0.5)   # not over the call
         GLib.idle_add(self.play, {'data': base64.b64encode(audio).decode(), 'sampleRate': call_proxy.RATE}, True)
 
+    def cancel_desktop_steps(self):
+        """Stop the call's desktop steps (desktop_goal): the running one is interrupted and gives up its
+        tool lease; those waiting for desktop_lock see the new generation and do not start."""
+        self.desktop_generation += 1
+        for thread_id, job in list(self.desktop_jobs.items()):
+            job['cancel'].set()
+            if job['lease']:
+                job['lease'].unlink(missing_ok=True)
+            if job['turn'].turn_id:
+                try:
+                    job['server'].call('turn/interrupt', {'threadId': thread_id, 'turnId': job['turn'].turn_id}, timeout=10)
+                except Exception as error:
+                    log('stop desktop step', error)
+
     def stop_task(self):
         """Stop button: interrupt the running agent turn and the reply being spoken."""
         # The rest of a reply already being spoken keeps arriving: drop it until it ends.
         self.muted = time.monotonic() < self.playing_until + 0.5
         GLib.idle_add(self.stop_audio)
+        self.cancel_desktop_steps()
         if not (self.agent_busy and self.thread_id and self.turn_id):
             return
         log('stop task', self.turn_id)
@@ -2671,7 +2809,7 @@ class VoiceAgent:
             time.sleep(2)
 
     def setup(self):
-        from rungic_cua import keys
+        from rungic_cua import keys, mode
         path = codex_install.standalone()
         version, runs = '', None
         if path:
@@ -2701,7 +2839,8 @@ class VoiceAgent:
                 'account': account, 'credentials': 'keyring' if store in ('keyring', 'auto') else 'file',
                 'key': {'set': bool(key), 'masked': (key[:3] + '…' + key[-4:]) if len(key) > 10 else (_('Set') if key else ''),
                         'store': keys.where('openai-api-key'), 'working': self.key_working},
-                'preferences': self.prefs, 'version': app_version, 'home': str(Path.home()),
+                'preferences': self.prefs, 'desktop': {'mode': mode.plan()},
+                'version': app_version, 'home': str(Path.home()),
                 # A device-code sign-in under way: the page shows its code again (docs/101).
                 'login': ({k: v for k, v in self.login.items() if k != 'started'}
                           if self.login and time.time() - self.login['started'] < DEVICE_CODE_S - 60 else None)}
@@ -2819,6 +2958,21 @@ class VoiceAgent:
         self.emit_raw({'type': 'preferences', **self.prefs, 'time': time.time()})
         return self.prefs
 
+    def set_desktop_mode(self, value):
+        from rungic_cua.mode import save
+        with self.lock:
+            snapshot = self.phone.snapshot if self.phone else {}
+            tasks = snapshot.get('tasks') or []
+            # Restarting app-server resets the phone backend even when no task is running.
+            if getattr(self, 'phone_starting', False) or snapshot.get('sessionId') or self.agent_busy or self.background or any(t.get('status') not in ('completed', 'stopped', 'failed', 'interrupted') for t in tasks) or (self.call and self.call.phase in ('agent', 'user')):
+                return {'error': _('Finish or stop the current task before changing desktop mode')}
+            if value in ('api', 'luna') and not openai_key():
+                return {'error': _('Set an OpenAI API key first')}
+            chosen = save(value)
+        # MCP schemas change with the mode. Restart only when tasks are idle.
+        threading.Thread(target=self.restart_server, daemon=True).start()
+        return {'mode': chosen}
+
     def install_codex(self, method=''):
         """Installs or updates Codex with OpenAI's official script (the latest stable release into
         ~/.codex/packages/standalone, docs/99); progress as `install` events. `method` is left from
@@ -2895,7 +3049,7 @@ def call_window(app: str) -> str | None:
         return None
 
 
-def call_screen_connected(window_id: str | None, app: str | None = None) -> bool:
+def call_screen_connected(window_id: str | None, app: str | None = None, agent=None) -> bool:
     """Whether the call window shows the call connected: a running call timer, not
     "calling" or "waiting". Only its top, where call apps show the timer; about 2 s
     (docs/63). The window itself, not the active one: the chat window was active once,
@@ -2915,6 +3069,14 @@ def call_screen_connected(window_id: str | None, app: str | None = None) -> bool
         top = image.crop((0, 0, image.width, max(60, image.height // 8)))
         buffer = io.BytesIO()
         top.save(buffer, 'JPEG', quality=85, subsampling=0)
+        from rungic_cua.mode import plan
+        if plan() == 'codex':
+            if agent is None:
+                return False
+            result = agent.desktop_goal('This is the top of a call window. Is a running call-duration timer '
+                '(like 00:05) shown? Reply DONE yes or DONE no. Do not use tools.', timeout=30,
+                app=app, image='data:image/jpeg;base64,' + base64.b64encode(buffer.getvalue()).decode())
+            return result.get('outcome') == 'done' and result.get('answer', '').strip().lower() == 'yes'
         body = {'model': 'gpt-6-luna', 'reasoning': {'effort': 'none'}, 'max_output_tokens': 16, 'input': [
             {'role': 'user', 'content': [
                 {'type': 'input_text', 'text': 'This is the top of a call window. Is a running call-duration timer '
@@ -3147,6 +3309,8 @@ class Service:
                                         ensure_ascii=False)
                 elif method == 'SetAgentModel':
                     result = json.dumps(agent.set_agent_model(json.loads(args[0])), ensure_ascii=False)
+                elif method == 'SetDesktopMode':
+                    result = json.dumps(agent.set_desktop_mode(args[0]), ensure_ascii=False)
                 invocation.return_value(GLib.Variant('(s)', (result,)) if result is not None else None)
             except Exception as error:
                 log('call failed', method, error)

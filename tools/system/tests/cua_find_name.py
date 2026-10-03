@@ -35,8 +35,9 @@ def element(n, name, parent, role='list item'):
 def test():
     stubs()
     from rungic_cua import names, server
-    server.PLAN_FILE = Path('/tmp/cua-find-name-plan')
-    server.PLAN_FILE.write_text('atspi\n')          # rungic-cua plan atspi
+    from rungic_cua import mode
+    mode.PLAN_FILE = Path('/tmp/cua-find-name-plan')
+    mode.save('atspi')          # rungic-cua plan atspi
     steps = []
 
     def check(condition, what):

@@ -243,6 +243,7 @@ class DialTest(unittest.TestCase):
         self.goals = []
         self.namespace = agent_namespace(luna_goal=self.luna)
         self.agent = self.namespace['VoiceAgent']()
+        self.agent.desktop_goal = self.luna  # decision executor; dialing still checks the audio signal
         self.agent.call = Mock(streams_seen=0)
         self.opens_audio = False
 

@@ -113,7 +113,7 @@ SettingsFrame {
         }
         ChoiceRow {
             text: i18nc("@option:radio how Codex signs in", "API key")
-            subtitle: page.key.set ? i18nc("@info", "The OpenAI API key set for voice. Billed to the OpenAI API by use.")
+            subtitle: page.key.set ? i18nc("@info", "The configured OpenAI API key. Billed to the OpenAI API by use.")
                 : i18nc("@info", "Set an OpenAI API key first")
             enabled: page.key.set === true || page.kind === "apiKey"
             checked: page.kind === "apiKey"
@@ -193,7 +193,7 @@ SettingsFrame {
         visible: page.choicesShown
         ListRow {
             text: "OpenAI API Key"
-            subtitle: i18nc("@info what the API key is for", "Voice, speech to text and calls")
+            subtitle: i18nc("@info what the API key is for", "Voice, calls and optional Luna desktop operation")
             value: page.key.set ? page.key.masked : i18nc("@info the API key", "Not set")
             valueMono: page.key.set === true
             accessory: "chevron"

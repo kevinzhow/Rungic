@@ -6,14 +6,21 @@
 
 标注：“实测”指在 G100 S 上查看过；“源码”指核对过 openai/codex `rust-v0.159.2`。
 
+## 当前功能（2026-10-03）
+
+默认 Codex 桌面操作使用 Agent 所选模型和已有登录；Luna API 是独立执行方式，在「设置 → 桌面操作」选择。「登录方式」只负责 Codex 的认证，两项独立，切换执行器不切换账户。默认模式的普通桌面操作不需要额外的 OpenAI API key；语音、转写、TTS 和显式 Luna API 仍需要它。
+
+通话的拨号、挂断及画面判断也已接入 Codex 默认路径，通话音频对话与调度仍走独立 API。开发 G100 的默认桌面和 API 只读验收已通过，完整电话、语音消息未在本轮验收，详见 [106 篇](106-codex-desktop-operation.md)。本轮 G100 保持 API key 登录；下文 G100 S 的登录验收是 2026-10-01 的独立记录。
+
 ## 实际上是两套凭据
 
 - **Codex 的登录**（`account/read`：`chatgpt`、`apiKey` 或 `amazonBedrock`）：
-  - 用于 Agent 执行任务、系统建议整理、读取模型列表；
+  - 用于 Agent 执行任务、默认桌面操作、系统建议整理、读取模型列表；
   - ChatGPT 登录计入套餐（`planType`，比如 team），API Key 登录按 API 用量计费。
 - **我们单独保存的 OpenAI API Key**（`~/.config/rungic-voice-agent/openai-api-key`）：
   - **实时语音**：走 Codex 的 `thread/realtime/start`，但 Codex 用 WebSocket 连接实时语音时只接受 API Key（源码：`core/src/realtime_conversation.rs` 的 `realtime_api_key()`）。ChatGPT 登录时，它退回读取环境变量 `OPENAI_API_KEY`，也就是服务传给 app-server 的这把 key。源码里有 TODO 说明这是暂时的；WebRTC 方式不带 API Key，是否能用 ChatGPT 登录还没有验证；
-  - **按住说话后转文字**、**代打电话**、**通话画面判断**：都由我们直接调用 OpenAI API，不经过 Codex。
+  - **按住说话后转文字**、**通话音频对话与调度**、**语音合成**：由本地适配器直接调用 API；
+  - **Luna 桌面执行及通话画面判断**：仅在显式 API 模式直接调用 API；默认 Codex 模式沿用 Codex 的登录。
 - **device code 分辨不出来**（实测）：`account/read` 只返回类型、套餐和邮箱；`~/.codex/auth.json` 只记 `auth_mode` 和凭据，不记登录方式。两种方式登录的是同一个账户，计费也一样，所以界面按套餐称呼。
 
 ## 实测中发现的问题

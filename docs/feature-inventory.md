@@ -4,7 +4,7 @@
 
 以产品功能和用户场景为骨架：每条功能是用户能感知的一件事；“体验”是它必须做到的，每条都标明由什么检查（自动测试、实机验收、人工验证或已登记的缺口）。数据在 `quality/`，规则见 [quality/README.md](../quality/README.md)。
 
-共 160 条功能、664 条体验，其中 620 条有检查。
+共 160 条功能、666 条体验，其中 622 条有检查。
 
 ## Agent 能力
 
@@ -158,15 +158,17 @@ Agent 在自己的工作区（或用户指定的桌面）上打开应用、看�
 
 #### Agent 看画面操作桌面应用
 
-`agent.computer-use` · Linux 系统功能 — 默认的电脑操作（方案一）：GPT-6 Luna 或 Codex 主模型看截图决定点哪里，经 KWin 和标准门户输入；窗口管理交给 KWin。
+`agent.computer-use` · Linux 系统功能 — 默认由 Codex 用当前模型和登录看截图操作桌面；Luna API 可显式选择，输入和窗口管理复用 KWin 与标准门户。
 
 - **E1** Agent 能点击、双击、拖动、滚动、按键和输入任何语言的文字来操作图形应用；应用收到的是普通的键盘鼠标事件，Plasma 在后台时也能输入。（系统测试、人工；只能在手机上看：任何语言的文字靠 KWin 的 commitText 提交，这是 Rungic 的 KWin 补丁（virtualkeyboard-commit-text），系统测试容器里是 Ubuntu 原版 KWin，只测了按键和指针；“Plasma 在后台”指 Android 前台是别的应用，只有手机能造出）
 - **E2** 截图只截任务所在的窗口（连同它的弹出菜单和对话框），范围变化时用一句话告诉模型；点击坐标误差约 1 像素。（单元测试、系统测试、人工；只能在手机上看：截图的像素由 KWin 的 ScreenShot2 渲染，需要 OpenGL 合成；系统测试容器没有 GPU 渲染节点，KWin 退回 QPainter，截图被取消，真实画面和点击误差只能在手机上看）
-- **E3** 多步任务交给 desktop_goal，结束时报告完成、需要提问或失败；需要用户信息时以提问结束，由助手问用户后带着答复继续；用户说停时中止。（单元测试、人工）
+- **E3** 默认 Codex 用 desktop_screenshot 和 desktop_act 逐步操作并核验结果；API 备选保留 desktop_goal 的完成、提问、失败和中止。（单元测试、系统测试、人工）
 - **E4** 程序被一个看不见的对话框挡住时（门户的“另存为”没有回来），工具结果直接说明，Agent 不会一直点菜单。（单元测试、人工）
 - **E5** 窗口的关闭、最小化、最大化和移屏由窗口管理器完成（desktop_window），一次关上；应用要询问保存时返回 still_open。（系统测试、人工）
 - **E6** desktop_launch 按桌面文件 id 或任何语言的名称启动应用，返回已激活的窗口；已开的不重复启动；应用在自己的 scope 里，语音服务重启不会把它一起结束。（单元测试、系统测试、人工）
 - **E7** 即使 Codex 给 MCP 的环境很精简，工具也从 systemd 取图形会话的环境，Firefox 这类应用照样能启动。（单元测试、人工）
+- **E8** 桌面操作默认沿用 Codex 的登录和模型，不隐式调用独立视觉 API；显式 API 备选保留，已有模式选择不被覆盖。（单元测试、系统测试、人工）
+- **E9** 当前任务或通话未结束时拒绝切换桌面操作方式，保持原模式和工作状态。（单元测试、人工）
 
 注意：
 - Codex 的命令沙箱连不上 D-Bus 和 Wayland，桌面操作必须做成沙箱外的 MCP 服务；没有注解的 MCP 工具每次都要审批，只读工具要标 readOnlyHint。 [docs/60-computer-use.md](../docs/60-computer-use.md)
@@ -176,7 +178,7 @@ Agent 在自己的工作区（或用户指定的桌面）上打开应用、看�
 - RemoteDesktop 门户第一次要用户批准；每次新会话会弹“远程控制会话已开始”通知并挡住窗口顶部，要在 notifyrc 里关掉。 [docs/60-computer-use.md](../docs/60-computer-use.md)
 - 标题栏是 KWin 画的装饰，不在应用的无障碍树里；窗口操作要走 desktop_window。 [docs/60-computer-use.md](../docs/60-computer-use.md)
 
-文档：[docs/68-luna-computer-use.md](../docs/68-luna-computer-use.md)、[docs/60-computer-use.md](../docs/60-computer-use.md)、[docs/103-krita-save-dialog-hang.md](../docs/103-krita-save-dialog-hang.md)、[docs/agent-ready-interfaces.md](../docs/agent-ready-interfaces.md)
+文档：[docs/68-luna-computer-use.md](../docs/68-luna-computer-use.md)、[docs/60-computer-use.md](../docs/60-computer-use.md)、[docs/103-krita-save-dialog-hang.md](../docs/103-krita-save-dialog-hang.md)、[docs/agent-ready-interfaces.md](../docs/agent-ready-interfaces.md)、[docs/106-codex-desktop-operation.md](../docs/106-codex-desktop-operation.md)
 
 #### 方案二：无障碍树 + OCR + JEV 操作桌面（实验）
 
@@ -404,21 +406,21 @@ Agent 在自己的工作区（或用户指定的桌面）上打开应用、看�
 - 自动开场可能打断语音菜单，对“保持安静”等指示可能多说一句；私下语音指令和独立旁听仍关闭。 [docs/research/cellular-call-agent.md](../docs/research/cellular-call-agent.md)
 - 受限沙箱里 socket 测试被拒不是代码回归；Magisk root 上下文的 pm install 会遇到 Binder 失败，要在 Android shell 上下文安装。 [docs/research/cellular-call-agent.md](../docs/research/cellular-call-agent.md)
 
-文档：[docs/research/cellular-call-agent.md](../docs/research/cellular-call-agent.md)、[docs/63-call-proxy.md](../docs/63-call-proxy.md)
+文档：[docs/research/cellular-call-agent.md](../docs/research/cellular-call-agent.md)、[docs/63-call-proxy.md](../docs/63-call-proxy.md)、[docs/106-codex-desktop-operation.md](../docs/106-codex-desktop-operation.md)
 
 #### 代发语音消息（实验）
 
 `agent.voice-message` · Linux 系统功能 — Agent 在聊天应用里找到录音按钮，把合成的语音经虚拟麦克风录进去再发送。
 
-- **E1** 录音以音频路由报告“应用开始录音”为准再播放语音，语音播完才点发送；前后留白合计约 1 秒多，不发出空的或截断的语音。（单元测试、人工）
-- **E2** 只点真正的录音按钮，不点“语音输入/听写”（它会把语音转成文字发出去）。（缺口：录音按钮与“语音输入/听写”都会让应用经 Linux 麦克风录音，程序侧分不出；只靠 Luna 看屏幕选对控件，需要真实模型在微信文件传输助手里验证，尚无记录）
+- **E1** 录音以音频路由报告“应用开始录音”为准再播放语音，语音播完才点发送；前后留白合计约 1 秒多，不发出空的或截断的语音。（单元测试、系统测试、人工）
+- **E2** 只点真正的录音按钮，不点“语音输入/听写”（它会把语音转成文字发出去）。（缺口：录音按钮与“语音输入/听写”都会让应用经 Linux 麦克风录音，程序侧分不出；只靠当前执行模型看屏幕选对控件，需要真实模型在微信文件传输助手里验证，尚无记录）
 - **E3** 发送前先经用户确认。（缺口：发送前确认由 Agent 按 prompts/agent.md 执行，工具本身不拦截；离线没有真实模型无法检查，也还没有实机记录）
 
 注意：
 - 找发送按钮的模型调用曾排在语音播完之后，结尾多出约 9 秒静音；改为录音一开始就并行去找。 [docs/68-luna-computer-use.md](../docs/68-luna-computer-use.md)
 - 测试不要打扰真实联系人，用文件传输助手。 [docs/68-luna-computer-use.md](../docs/68-luna-computer-use.md)
 
-文档：[docs/68-luna-computer-use.md](../docs/68-luna-computer-use.md)
+文档：[docs/68-luna-computer-use.md](../docs/68-luna-computer-use.md)、[docs/106-codex-desktop-operation.md](../docs/106-codex-desktop-operation.md)
 
 ### 系统主动照看自己
 

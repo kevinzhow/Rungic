@@ -30,13 +30,14 @@
 | `desktop_windows` | 列出目标会话的窗口与活动窗口 |
 | `desktop_launch` | 按应用 ID/名称启动、传入文件或参数；单实例应用迁移可能返回 `needs_confirmation` |
 | `desktop_activate`, `desktop_window` | 激活、关闭、最小化、最大化、恢复及移动窗口 |
-| `desktop_screenshot`, `desktop_act` | 默认 `luna` 模式：看截图并注入鼠标、滚动、键盘、文本等动作；连接的 Agent 可自行推理 |
-| `desktop_goal` | 多步任务；默认调用配置的 Luna 后端，备用模式走另一执行器，不是无模型依赖的系统原语 |
-| `desktop_voice_message` | 使用虚拟麦克风和语音合成操作当前聊天；参数随执行模式变化，发送前需用户授权 |
+| `desktop_screenshot`, `desktop_act` | 默认 `codex` 及显式 `luna` 模式：看截图并注入鼠标、滚动、键盘、文本等动作；连接的 Agent 自行推理 |
+| `desktop_goal` | 显式 API 模式的多步执行器；Luna 后端或备用 AT-SPI/OCR 路径。默认 Codex 模式不提供此工具，Agent 直接看截图并调用动作；见 [106](106-codex-desktop-operation.md) |
+| `desktop_voice_recording` | 默认 Codex 模式的音频 prepare/status/play/close；Agent 自行截图并点击录音和发送，TTS 使用 API key |
+| `desktop_voice_message` | 显式 API 模式：使用虚拟麦克风和语音合成操作当前聊天；参数随执行模式变化，发送前需用户授权 |
 | `desktop_observe`, `desktop_run`, `desktop_find_name` | 仅 `atspi` 备用模式：控件树、子任务执行、按读音匹配名称 |
 | `desktop_where` | 仅工作区路由启用时：查询或选择 `auto` / `desktop` / `workspace` |
 
-`rungic-cua plan` 查看模式，`rungic-cua plan luna` / `rungic-cua plan atspi` 切换配置；重启 MCP 后重新获取 `tools/list`。不要将两种模式的工具和参数合并成一个固定清单。`desktop_where` 的选择保存在该路由进程中，另一 Agent 要自行管理与会话的对应关系。
+`rungic-cua plan` 查看模式，`rungic-cua plan codex` / `rungic-cua plan api`（luna）/ `rungic-cua plan atspi` 切换配置；重启 MCP 后重新获取 `tools/list`。不要将不同模式的工具和参数合并成一个固定清单。`desktop_where` 的选择保存在该路由进程中，另一 Agent 要自行管理与会话的对应关系。
 
 源码：[工具 schema 与 CLI](../agent/computer-use/rungic_cua/server.py)、[路由](../agent/computer-use/rungic_cua/router.py)、[工作区环境](../agent/workspace/rungic-workspace-env)。流程与验收：[60](60-computer-use.md)、[68](68-luna-computer-use.md)、[工作区](research/91-agent-workspaces.md)。
 

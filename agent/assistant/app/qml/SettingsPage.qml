@@ -80,9 +80,16 @@ SettingsFrame {
             onClicked: page.push("AccountPage.qml")
         }
         ListRow { text: i18nc("@title", "Agent Usage"); accessory: "chevron"; onClicked: page.push("UsagePage.qml") }
+        ListRow {
+            text: i18nc("@title", "Desktop operation")
+            value: (page.setup.desktop || {}).mode === "luna" ? i18nc("@item", "Luna · API")
+                : (page.setup.desktop || {}).mode === "atspi" ? "AT-SPI / OCR" : "Codex"
+            accessory: "chevron"
+            onClicked: page.push("DesktopPage.qml")
+        }
     }
 
-    SectionLabel { Layout.fillWidth: true; text: i18nc("@title:group", "Voice") }
+    SectionLabel { Layout.fillWidth: true; text: i18nc("@title:group", "OpenAI API") }
     ListGroup {
         Layout.fillWidth: true
         Layout.leftMargin: Theme.groupMargin
@@ -90,13 +97,19 @@ SettingsFrame {
         // What Codex's sign-in doesn't cover: the realtime voice, speech to text, calls (docs/101).
         ListRow {
             text: "OpenAI API Key"
-            subtitle: i18nc("@info what the API key is for", "Voice, speech to text and calls")
+            subtitle: i18nc("@info what the API key is for", "Voice, calls and optional Luna desktop operation")
             value: page.key.set ? page.key.masked : (page.setup.key ? i18nc("@info the API key", "Not set") : "")
             valueMono: page.key.set === true
             dot: page.setup.key && !page.key.set ? "negative" : ""
             accessory: "chevron"
             onClicked: page.push("KeyPage.qml")
         }
+    }
+    SectionLabel { Layout.fillWidth: true; text: i18nc("@title:group", "Voice") }
+    ListGroup {
+        Layout.fillWidth: true
+        Layout.leftMargin: Theme.groupMargin
+        Layout.rightMargin: Theme.groupMargin
         ToggleRow {
             text: i18nc("@option:check", "Hold Home to open")
             checked: page.prefs.homeHold !== false

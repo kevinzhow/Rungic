@@ -4,7 +4,7 @@
 
 > 改名说明（2026-09-26）：Rungic改名B阶段之后，容器内的`moto-*`包、程序、单元、路径，`MOTO_*`变量和`dev.moto.*`名称改为`rungic-*`、`RUNGIC_*`、`com.rungic.*`；Android侧的名称在C阶段（2026-09-27）改为APK `com.rungic.plasma`、`/data/adb/rungic-*`（镜像在`/data/adb/rungic-lxc/images/`）、容器中的`/var/lib/rungic-{host,cores,apt}`、`rungic-gpu-alloc`、`rungic-cast`、`debug.rungic.*`、dm `rungic-root`与SELinux `rungic_image`。对照与边界见[70篇](70-rungic-rebrand.md)。下文按时间记录的内容保留当时的名称。
 
-> 2026-09-25 起，本篇描述的是方案二（不是默认方案）。默认的电脑操作方案一见 [68 篇](68-luna-computer-use.md)（GPT-6 Luna 看画面操作）；切换方法：`moto-cua plan atspi`。
+> 当前默认（2026-10-03）：由 Codex 使用 Agent 所选模型和当前登录，看截图并逐步执行桌面操作，见 [106 篇](106-codex-desktop-operation.md)。本篇保留 AT-SPI/OCR/JEV 备用方案的历史实现与验收；选择 `rungic-cua plan atspi` 并重启 MCP 后使用。独立 Luna API 方案见 [68 篇](68-luna-computer-use.md)，可在 Agent App「设置 → 桌面操作」选择。
 
 2026-09-25。用户要求：整个电脑操作过程（任务流程与每一步点什么）都由 JEV 决定，参考 [awlevin/typesafe-computer-use](https://github.com/awlevin/typesafe-computer-use)。60 篇的做法是 Codex 规划子任务、JEV 只在子任务内选控件；本篇改为把整个目标交给 JEV，逐步决策。
 

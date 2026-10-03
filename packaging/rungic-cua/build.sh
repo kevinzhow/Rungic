@@ -14,6 +14,8 @@ done
 mkdir -p "$DESTDIR/usr/libexec"
 cc -O2 -g1 -Wall -o "$DESTDIR/usr/libexec/rungic-screenshot" "$C/screenshot/rungic-screenshot.c" \
     $(pkg-config --cflags --libs gio-unix-2.0)
+c++ -std=c++20 -O2 -g1 -Wall -o "$DESTDIR/usr/libexec/rungic-voice-recording" "$C/voice-recording.cpp" \
+    $(pkg-config --cflags --libs Qt6Core)
 install -Dm644 "$C/screenshot/rungic-screenshot.desktop" "$DESTDIR/usr/share/applications/com.rungic.screenshot.desktop"
 # rungic-clicker: typesafe-computer-use in its own venv; the system site packages supply gi,
 # Pillow and onnxruntime. Dependencies satisfied by the builder's system Python
