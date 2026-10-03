@@ -36,6 +36,34 @@ class VersionTests(unittest.TestCase):
 
 
 class OverlayTests(unittest.TestCase):
+
+    # covers: delivery.dev-overlay/E5
+    def test_restarts_use_current_bridge_units_when_the_base_release_has_old_names(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            spec = root / 'spec.json'
+            spec.write_text(json.dumps({'service_restart': {'bridge': ['new-network.service', 'new-modem.service'],
+                                                            'unchanged': ['unchanged.service']}}))
+            systemctl = root / 'systemctl'
+            log = root / 'restarted'
+            systemctl.write_text(f'#!/bin/sh\nset -eu\n'
+                                 'case "$1" in\n'
+                                 'is-enabled) exit 0;;\n'
+                                 f'restart) printf "%s\\n" "$2" >> {log};;\n'
+                                 '*) exit 1;;\nesac\n')
+            systemctl.chmod(0o755)
+            def run(script, level, **kwargs):
+                import os
+                self.assertEqual(level, 'container')
+                return subprocess.run(['sh', '-eu', '-c', script], capture_output=True, text=True,
+                                      env={**os.environ, 'PATH': f'{root}:{os.environ["PATH"]}'}, check=True)
+            with patch.object(rungic_release, 'SPEC', spec), patch.object(rungic_dev, 'run', run), \
+                    patch.object(rungic_release, 'needs_restart', return_value=([], [])), \
+                    patch.object(rungic_release, 'restart_user_services', return_value=None):
+                rungic_dev.restarts({'service_restart': {'bridge': ['old-network.service']}},
+                                    {'bridge': '1', 'unchanged': '1'}, {'bridge': '2', 'unchanged': '1'},
+                                    'auto', Mock())
+            self.assertEqual(log.read_text().splitlines(), ['new-network.service', 'new-modem.service'])
     def override(self, version):
         return {'version': version, 'commit': 'x', 'dirty': True, 'built': 'now', 'file': f'rungic-design_{version}_arm64.deb'}
 

@@ -347,7 +347,9 @@ def restarts(info, before, after, restart, record):
     packages, and the session when a package that needs it changed."""
     if restart == 'never':
         return
-    units = [u for pkg, names in info.get('service_restart', {}).items() if before.get(pkg) != after.get(pkg)
+    current = json.loads(rungic_release.SPEC.read_text())
+    services = {**info.get('service_restart', {}), **current.get('service_restart', {})}
+    units = [u for pkg, names in services.items() if before.get(pkg) != after.get(pkg)
              for u in names]
     if units:
         result = run('for u in ' + ' '.join(units) + '; do systemctl is-enabled -q "$u" && '
@@ -362,7 +364,7 @@ def restarts(info, before, after, restart, record):
     else:
         # The release's list, and the working tree's over it: an overlay is built from the working
         # tree, whose packages may have restarts the release does not know yet (polkit-kde-agent-1).
-        spec = {**info.get('user_restart', {}), **json.loads(rungic_release.SPEC.read_text()).get('user_restart', {})}
+        spec = {**info.get('user_restart', {}), **current.get('user_restart', {})}
         output = rungic_release.restart_user_services(spec, before, after)
         if output is not None:
             record.step('user-services', output=output)
