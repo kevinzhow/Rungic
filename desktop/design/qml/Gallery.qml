@@ -311,6 +311,126 @@ QQC2.ApplicationWindow {
                     }
                 }
             }
+            // ---- the call with the Agent: where it starts, the bar, the panel -----------------
+            Section {
+                name: "Call · entry"
+                wide: true
+                Variant {
+                    label: "conversation top bar: call"
+                    wide: true
+                    SampleTopBar { callState: "normal" }
+                }
+                Variant {
+                    label: "cannot call now (the reason under it)"
+                    wide: true
+                    Column {
+                        spacing: 2
+                        SampleTopBar { callState: "disabled" }
+                        Text {
+                            width: 330
+                            horizontalAlignment: Text.AlignHCenter
+                            text: DesignI18n.i18nc("@info sample text", "The Agent is on a call for you: call it when that ends")
+                            wrapMode: Text.Wrap
+                            font.family: Theme.fontFamily
+                            font.pixelSize: Theme.labelSize
+                            color: Theme.dim
+                        }
+                    }
+                }
+                Variant {
+                    label: "in a call: the bar under the top bar"
+                    wide: true
+                    Column {
+                        spacing: 4
+                        SampleTopBar { callState: "hidden" }
+                        CallBar { width: 330; forcedState: "agent"; label: DesignI18n.i18nc("@info sample text", "Answering"); detail: "04:12 · 1 task running" }
+                    }
+                }
+                Variant {
+                    label: "conversations panel: call without opening one"
+                    wide: true
+                    Rectangle {
+                        width: 330; height: Theme.topBar; radius: Theme.radiusM; color: Theme.side
+                        Text {
+                            anchors { left: parent.left; leftMargin: Theme.spaceL; verticalCenter: parent.verticalCenter }
+                            text: DesignI18n.i18nc("@info sample text", "Conversations")
+                            font.family: Theme.fontFamily; font.pixelSize: Theme.titleSize; font.weight: Font.DemiBold; color: Theme.text
+                        }
+                        Row {
+                            anchors { right: parent.right; rightMargin: 6; verticalCenter: parent.verticalCenter }
+                            IconButton { iconName: "phone"; text: DesignI18n.i18nc("@info sample text", "Call the Agent") }
+                            IconButton { iconName: "compose"; text: DesignI18n.i18nc("@info sample text", "New conversation") }
+                        }
+                    }
+                }
+            }
+            Section {
+                name: "CallBar"
+                wide: true
+                Repeater {
+                    model: [
+                        ["connecting", "Connecting…", ""],
+                        ["reconnecting", "Reconnecting…", "Wait a moment, then say it again in full"],
+                        ["answer", "Waiting for your answer", "Where should the screenshots go? · 05:03"],
+                        ["agent", "Answering", "04:12 · 1 task running"],
+                        ["you", "Listening", "04:12"],
+                        ["thinking", "Working", "04:12"],
+                        ["muted", "Microphone off", "04:12 · The Agent can't hear you"],
+                        ["idle", "On a call", "04:12 · 2 tasks running"],
+                        ["elsewhere", "Call in another conversation", "Tidy up the Downloads folder · 04:12"]
+                    ]
+                    Variant {
+                        required property var modelData
+                        label: modelData[0]
+                        wide: true
+                        CallBar {
+                            width: 330
+                            forcedState: modelData[0]
+                            label: DesignI18n.i18nc("@info sample text", modelData[1])
+                            detail: modelData[2]
+                        }
+                    }
+                }
+            }
+            Section {
+                name: "CallPanel"
+                wide: true
+                Repeater {
+                    model: [
+                        ["agent", "Answering"],
+                        ["answer", "Waiting for your answer"],
+                        ["muted", "Microphone off"],
+                        ["connecting", "Connecting…"]
+                    ]
+                    Variant {
+                        required property var modelData
+                        label: modelData[0]
+                        wide: true
+                        Rectangle {
+                            width: 358
+                            height: callPanel.implicitHeight + 2 * Theme.spaceXl
+                            radius: Theme.radiusSheet
+                            color: Theme.background
+                            border.color: Theme.line
+                            CallPanel {
+                                id: callPanel
+                                x: Theme.spaceL; y: Theme.spaceXl
+                                width: parent.width - 2 * Theme.spaceL
+                                forcedState: modelData[0]
+                                title: DesignI18n.i18nc("@info sample text", "Call with the Agent")
+                                detail: modelData[0] === "connecting" ? "" : "04:12 · Tidy up the Downloads folder"
+                                label: DesignI18n.i18nc("@info sample text", modelData[1])
+                                tasks: modelData[0] === "connecting" ? [] : [
+                                    {text: "Pick the screenshots out of Downloads", status: "running", statusText: "Working · 2 steps"},
+                                    {text: "Which album new photos go to", status: modelData[0] === "answer" ? "answer" : "queued",
+                                     statusText: modelData[0] === "answer" ? "Waiting for your answer" : "Queued"},
+                                    {text: "How much storage is left", status: "done", statusText: "Done · 41 GB free"}
+                                ]
+                            }
+                        }
+                    }
+                }
+            }
             Section {
                 name: "SecretField"
                 wide: true
@@ -357,6 +477,35 @@ QQC2.ApplicationWindow {
             id: flow
             Layout.fillWidth: true
             spacing: 12
+        }
+    }
+    // The conversation page's top bar (ChatPage), for the call's entry: `callState` normal,
+    // disabled, or hidden (in a call: the CallBar under it says so).
+    component SampleTopBar: Item {
+        property string callState: "normal"
+        width: 330
+        height: Theme.topBar
+        IconButton {
+            anchors { left: parent.left; verticalCenter: parent.verticalCenter }
+            iconName: "menu"
+            text: DesignI18n.i18nc("@info sample text", "Conversations")
+        }
+        Text {
+            anchors { left: parent.left; right: parent.right; leftMargin: 52; rightMargin: 96; verticalCenter: parent.verticalCenter }
+            horizontalAlignment: Text.AlignHCenter
+            text: DesignI18n.i18nc("@info sample text", "Tidy the Downloads folder")
+            elide: Text.ElideRight
+            font.family: Theme.fontFamily; font.pixelSize: Theme.titleSize; font.weight: Font.DemiBold; color: Theme.text
+        }
+        Row {
+            anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+            IconButton {
+                visible: parent.parent.callState !== "hidden"
+                iconName: "phone"
+                text: DesignI18n.i18nc("@info sample text", "Call the Agent")
+                forcedState: parent.parent.callState === "disabled" ? "disabled" : ""
+            }
+            IconButton { iconName: "compose"; text: DesignI18n.i18nc("@info sample text", "New conversation") }
         }
     }
     // One state: the control above its state's name.
