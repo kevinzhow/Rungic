@@ -1,3 +1,12 @@
+kwin (4:6.6.6-0ubuntu0.1+rungic10) resolute; urgency=medium
+
+  * Android host: only the device panel turns the phone; a configuration carrying a rotation
+    (a saved Rotated270 replayed by clients) no longer turns it over and over.
+  * Screencast: another RGB format for DMA-BUF frames when the allocator cannot make the
+    source's (the Android host leases RGBA-ordered buffers only).
+
+ -- Rungic <noreply@rungic.invalid>  Mon, 05 Oct 2026 03:00:00 +0000
+
 kwin (4:6.6.6-0ubuntu0.1+rungic9) resolute; urgency=medium
 
   * Android host: --android-workspace, an agent workspace's KWin without a phone output

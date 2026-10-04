@@ -1,0 +1,92 @@
+From: clawd20130 <clawd20130@gmail.com>
+Date: Mon, 5 Oct 2026 02:16:03 +0900
+Subject: Android host: only the device panel turns the phone
+
+The phone turned whenever a configuration carried a quarter turn or a mode across its orientation,
+and the turn was relative (upright to landscape and back). Clients resend the whole output state,
+and a rotation saved in kwinoutputconfig.json (Rotated270 on the G100 S) came back with it, so the
+phone turned over and over without anyone touching it. Now the phone's orientation is the user's
+setting in the device panel only: Android turns its window, the host offers the turned size, and
+the output takes it as any host resize. A configuration that would turn the phone is ignored (with
+any Android size or refresh change carried with it), and the phone output never takes a transform,
+whatever a configuration carries.
+
+Forwarded: not-needed
+Last-Update: 2026-10-05
+X-Rungic-Status: Pending
+X-Rungic-Tests: L3:display.geometry
+X-Rungic-Docs: docs/50
+Origin: vendor
+---
+ src/backends/android/android_backend.cpp | 19 +++++++------------
+ src/backends/android/android_output.cpp  | 10 +++++-----
+ src/backends/android/android_output.h    |  5 +++--
+ 3 files changed, 15 insertions(+), 19 deletions(-)
+
+diff --git a/src/backends/android/android_backend.cpp b/src/backends/android/android_backend.cpp
+index 2e744cb..571b49d 100644
+--- a/src/backends/android/android_backend.cpp
++++ b/src/backends/android/android_backend.cpp
+@@ -290,18 +290,13 @@ OutputConfigurationError AndroidBackend::applyOutputChanges(const OutputConfigur
+             // A cast output (TV) has the host's size: nothing to ask Android for.
+             if (!props || !static_cast<AndroidOutput *>(output)->isPhone()) continue;
+             if (static_cast<AndroidOutput *>(output)->requestsTurn(*props)) {
+-                // The phone turns (display settings' rotation, docs/50): Android turns its window and
+-                // the host then offers the turned size, which this output takes as any host resize.
+-                // A turn is relative, as the settings show the turned phone upright again: upright
+-                // turns to landscape and back. The mode that came with it is the host's to choose.
+-                const bool landscape = output->modeSize().width() > output->modeSize().height();
+-                const auto reply = RungicDisplay::request(QJsonObject{
+-                    {QStringLiteral("op"), QStringLiteral("orientation")},
+-                    {QStringLiteral("mode"), landscape ? QStringLiteral("portrait") : QStringLiteral("landscape")}});
+-                if (reply.contains(QStringLiteral("error"))) {
+-                    qCWarning(KWIN_WAYLAND_BACKEND) << "Android did not turn the phone:" << reply;
+-                    return OutputConfigurationError::Unknown;
+-                }
++                // The phone's orientation is the user's setting in the device panel (Android turns its
++                // window, and the host offers the turned size, taken as any host resize; docs/50). A
++                // configuration that would turn it here is not a request to turn: clients resend the
++                // whole output state, and a rotation saved or replayed from it turned the phone over
++                // and over (a turn here was relative). The turn is ignored, and so is any Android size or
++                // refresh change carried with it; scale and the rest still apply.
++                qCDebug(KWIN_WAYLAND_BACKEND) << "Not turning the phone: its orientation is set in the device panel";
+                 continue;
+             }
+             const auto mode = props->mode ? props->mode->lock() : nullptr;
+diff --git a/src/backends/android/android_output.cpp b/src/backends/android/android_output.cpp
+index d00bb8f..65682d6 100644
+--- a/src/backends/android/android_output.cpp
++++ b/src/backends/android/android_output.cpp
+@@ -195,11 +195,11 @@ bool AndroidOutput::requestsTurn(const OutputChangeSet &change) const
+ void AndroidOutput::applyExtraChanges(State &next, const OutputChangeSet &props, OutputConfiguration::Source source)
+ {
+     if (m_phone) {
+-        // The phone turns as Android turns it (AndroidBackend::applyOutputChanges asks it to): its
+-        // buffers have the host's orientation, and a transform here would draw a turned picture into
+-        // them (2400x1080 rendered into the upright surface: a third of the screen, the rest black).
+-        // Neither a user's rotation nor a saved one replayed at start is applied.
+-        next.transform = m_state.transform;
++        // The phone turns as Android turns it (the device panel's orientation): its buffers have the
++        // host's orientation, and a transform here would draw a turned picture into them (2400x1080
++        // rendered into the upright surface: a third of the screen, the rest black). Never one,
++        // whatever a configuration carries (a user's, a saved one, one replayed at any time).
++        next.transform = OutputTransform::Normal;
+     }
+     if (m_phone && props.logicalDpi) m_logicalDpi = props.logicalDpi;
+     next.scale = props.scale.value_or(m_state.scale);
+diff --git a/src/backends/android/android_output.h b/src/backends/android/android_output.h
+index f03d58b..59a7586 100644
+--- a/src/backends/android/android_output.h
++++ b/src/backends/android/android_output.h
+@@ -31,8 +31,9 @@ public:
+     bool isPhone() const;
+     bool requestsFixedRefresh(const OutputChangeSet &change) const;
+     /**
+-     * The phone asked to turn (docs/50): a quarter turn of the output, or a mode across its current
+-     * orientation (2400x1080 while upright). Android turns the phone; KWin never rotates it itself.
++     * A configuration that would turn the phone (docs/50): a quarter turn of the output, or a mode
++     * across its current orientation (2400x1080 while upright). Only the device panel's orientation
++     * turns the phone, through Android; such a configuration is not applied.
+      */
+     bool requestsTurn(const OutputChangeSet &change) const;
+     std::optional<double> recommendedScale(const QSize &size) const override;
