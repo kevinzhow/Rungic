@@ -8,6 +8,7 @@ All branches run in one pipeline on one clock, so the files start and end
 together; the audio is encoded once and written into each file.
 """
 import configparser
+import fcntl
 import os
 from pathlib import Path
 import signal
@@ -40,11 +41,40 @@ def gpu_convert():
     return bool(os.environ.get('WAYLAND_DISPLAY')) and all(
         Gst.ElementFactory.find(n) for n in ('glupload', 'glvideoflip', 'glcolorscale', 'glcolorconvert', 'gldownload'))
 
+VIDIOC_QUERYCAP = 0x80685600   # _IOR('V', 0, struct v4l2_capability), 104 bytes
+
+
+def v4l2_encoder():
+    """Whether librungiccodec will encode through msm_vidc's V4L2 encoder (codec-v4l2.c finds it the
+    same way: a /dev/video* node whose card is msm_vidc_encoder), so that the encoder element can draw
+    textures into its picture buffers. Without it the element reads textures back."""
+    if os.environ.get('RUNGIC_CODEC_V4L2') == '0' or os.environ.get('RUNGIC_CODEC_DISABLE'):
+        return False
+    forced = os.environ.get('RUNGIC_CODEC_V4L2_ENCODER')
+    nodes = [forced] if forced else sorted(str(p) for p in Path('/dev').glob('video*'))
+    for node in nodes:
+        try:
+            fd = os.open(node, os.O_RDWR | os.O_NONBLOCK | os.O_CLOEXEC)
+        except OSError:
+            continue
+        try:
+            cap = bytearray(104)
+            fcntl.ioctl(fd, VIDIOC_QUERYCAP, cap)
+            if bytes(cap[16:48]).split(b'\0', 1)[0] == b'msm_vidc_encoder':
+                return True
+        except OSError:
+            pass
+        finally:
+            os.close(fd)
+    return False
+
+
 def texture_input():
     """The GL texture format the encoder takes itself, or None: the GPU writes the picture into the
     V4L2 encoder's own picture buffers, nothing is read back (docs/108). RGBA (the encoder converts
     it with a shader) saves the last glcolorconvert; NV12 is copied as it is. Older elements without
-    GLMemory input get the picture through gldownload."""
+    GLMemory input get the picture through gldownload. RGBA only with the V4L2 encoder: without it the
+    element would read RGBA back and convert it on the CPU, NV12 textures are read back as they are."""
     factory = Gst.ElementFactory.find('rungich264enc')
     if not factory:
         return None
@@ -56,7 +86,9 @@ def texture_input():
                 if caps.get_features(i).contains('memory:GLMemory'):
                     text = caps.get_structure(i).to_string()
                     formats.update(f for f in ('RGBA', 'NV12') if f in text)
-    return 'RGBA' if 'RGBA' in formats else 'NV12' if 'NV12' in formats else None
+    if 'RGBA' in formats and v4l2_encoder():
+        return 'RGBA'
+    return 'NV12' if 'NV12' in formats else None
 
 def partial_path(output):
     return output.with_suffix('.partial.mp4')

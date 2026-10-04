@@ -185,7 +185,7 @@ Kevin 定了方向（2026-10-04）：解码绕开 Codec2，`librungiccodec` 直�
 
 ### RGBA 纹理在编码器里转换
 
-再省一步：编码元素也收 `video/x-raw(memory:GLMemory),format=RGBA`，用两个 GLES 3 着色器（顶点由 `gl_VertexID` 生成一个覆盖目标的三角形，没有顶点数据）把 RGBA 直接画成 Y（R8）和 CbCr（GR88，半尺寸采样点落在四个纹素中间，线性过滤正好求平均），写进 V4L2 的输入缓冲，BT.709 有限范围，编码器信号同步设为 BT.709/limited。录屏管线于是去掉最后那个 `glcolorconvert`，CONFIG 写 `convert=gl-rgba`。没有 GPU 路径时，元素把纹理映射（读回）后用 CPU 换算（同样的系数，2×2 平均色度）。
+再省一步：编码元素也收 `video/x-raw(memory:GLMemory),format=RGBA`，用两个 GLES 3 着色器（顶点由 `gl_VertexID` 生成一个覆盖目标的三角形，没有顶点数据）把 RGBA 直接画成 Y（R8）和 CbCr（GR88，半尺寸采样点落在四个纹素中间，线性过滤正好求平均），写进 V4L2 的输入缓冲，BT.709 有限范围，编码器信号同步设为 BT.709/limited。录屏管线于是去掉最后那个 `glcolorconvert`，CONFIG 写 `convert=gl-rgba`。只有找到 msm_vidc 的 V4L2 编码器时才这样做（`recorder.py` 的 `v4l2_encoder()` 与 codec-v4l2.c 一样按设备的 card 名查找）；没有它的手机继续由 GPU 转成 NV12 纹理、编码元素读回，免得在 CPU 上做 RGBA 换算。没有 GPU 路径时，元素把纹理映射（读回）后用 CPU 换算（同样的系数，2×2 平均色度）。
 
 **坑**：直接用纹理 ID 之前必须先以 `GST_MAP_READ|GST_MAP_GL` 映射 GLMemory。经过直通元素时（例如 glupload 之后 RGBA→RGBA 的 glcolorconvert），GStreamer 推迟上传，纹理还是空的；第一版因此编出几乎不变的画面（300 帧只有 26 KB）。
 
