@@ -7,16 +7,16 @@ scenarios:
     summary: 在开发机或 Mac mini 上从工作区构建，作为开发覆盖装到手机，看效果，不满意一条命令撤销。
   - id: delivery.release
     title: 出一个正式发布并能回退
-    summary: 从干净的提交构建全部包，生成发布元包，部署到手机，自动验收；失败时自动回到部署前，之后也能回到上一个发布。
+    summary: 从干净的提交构建全部包，生成发布元包，部署到手机，自动验收。失败时自动回到部署前，之后也能回到上一个发布。
   - id: delivery.diagnose
     title: 查清手机上出了什么问题
     summary: Agent 不靠点界面就能拿到合并日志、崩溃回溯、追踪、截图、完整性报告，并按控件名操作桌面复现问题。
   - id: delivery.upstream
     title: 维护对上游组件的修改
-    summary: 上游源码只固定不入库，修改是带元数据的补丁队列；编辑、构建、升级都有固定流程。
+    summary: 上游源码只固定不入库，修改是带元数据的补丁队列。编辑、构建、升级都有固定流程。
   - id: delivery.repository
     title: 管好仓库与项目知识
-    summary: 仓库里只有该同步的东西，来源可查；开发 Agent 一进来就找得到约定、技能、文档和功能清单。
+    summary: 仓库里只有该同步的东西，来源可查。开发 Agent 一进来就找得到约定、技能、文档和功能清单。
 
 features:
   # ---------------------------------------------------------------- try on the phone
@@ -26,20 +26,20 @@ features:
     status: live
     platform: linux
     interfaces: []
-    summary: rungic_dev.py deploy 从工作区（含未提交改动）构建指定的包或上游组件，装在已安装发布之上；状态看得见，reset 回到发布。
+    summary: rungic_dev.py deploy 从工作区构建指定包或上游组件，包括未提交改动。产物作为开发覆盖安装在现有发布之上。用户可以查看覆盖状态，并用 reset 恢复发布版本。
     experience:
       - id: E1
-        text: 开发版本是“发布里的版本+dev<UTC 时间>.<短 sha>[.dirty]”，排在该发布版本之后、下一个发布之前；apt 和 Discover 把开发覆盖当作已装系统（每个覆盖 Installed 等于 Candidate），不提示把我们的包“更新”回去。
+        text: 开发版本是“发布里的版本+dev<UTC 时间>.<短 sha>[.dirty]”，排在该发布版本之后、下一个发布之前。apt 和 Discover 把开发覆盖当作已装系统（每个覆盖 Installed 等于 Candidate），不提示把我们的包“更新”回去。
         evidence:
           - {doc: docs/97-local-development-deploy.md, date: 2026-09-30, note: "首次部署三个包：apt list --upgradable 无 rungic 包，dist-upgrade 不动它们"}
       - id: E2
-        text: 手机说得出自己偏离了哪个发布、偏离了什么：status 和 /usr/share/rungic/release.json 列出基线发布及每个覆盖的版本、提交、是否 dirty、构建时间；完整性检查的 release.dev 列出覆盖，state 为 development。
+        text: 手机说得出自己偏离了哪个发布、偏离了什么：status 和 /usr/share/rungic/release.json 列出基线发布及每个覆盖的版本、提交、是否 dirty、构建时间。完整性检查的 release.dev 列出覆盖，state 为 development。
         evidence:
           - {doc: docs/97-local-development-deploy.md, date: 2026-09-30, note: "release.dev 列出基线和 3 个覆盖"}
       - id: E3
         text: 再次部署时之前的覆盖保留，开发元包的基线始终是原来那个发布。
       - id: E4
-        text: reset [包|组件] 回到发布版本（发布里还没有的组件回到手机上原来的发行版版本）；先装好基线版本，成功后才删开发的源、pin 和仓库。
+        text: reset [包|组件] 回到发布版本（发布里还没有的组件回到手机上原来的发行版版本）。先装好基线版本，成功后才删开发的源、pin 和仓库。
         gap: reset 尚未在实机执行，只有离线测试
       - id: E5
         text: 发布要重建的上游组件（packages/<名>）也能直接 deploy：用补丁队列构建，有 obj 树时增量构建，只覆盖发布里登记、手机已装的那几个二进制包。
@@ -47,11 +47,11 @@ features:
           - {doc: docs/97-local-development-deploy.md, date: 2026-10-01, note: "plasma-mobile 增量构建 238 秒，会话按规则重启"}
           - {doc: docs/97-local-development-deploy.md, date: 2026-10-03, note: "新加入 rebuilt 的 ksystemstats，以发行版版本为基准"}
       - id: E6
-        text: 在 Mac mini 上构建的包由手机直接从构建机取（wire.net、局域网依次试），每个文件核对大小与 SHA-256，最多三次；被新覆盖替换掉的包从本机记录和构建机上一并删掉。三个包同步约 25 秒，整次部署约 5.5 分钟。
+        text: 在 Mac mini 上构建的包由手机直接从构建机取（wire.net、局域网依次试），每个文件核对大小与 SHA-256，最多三次。被新覆盖替换掉的包从本机记录和构建机上一并删掉。三个包同步约 25 秒，整次部署约 5.5 分钟。
         evidence:
           - {doc: docs/97-local-development-deploy.md, date: 2026-10-03, note: "rungic-firefox、rungic-agent-screen、rungic-cua；此前约 21 分钟"}
       - id: E7
-        text: 正式发布部署成功、写好发布 pin 之后，开发覆盖的源、pin 和仓库被清掉；安装失败时开发覆盖和它的包保持原样。
+        text: 正式发布部署成功、写好发布 pin 之后，开发覆盖的源、pin 和仓库被清掉。安装失败时开发覆盖和它的包保持原样。
         gap: 这一步还没有在实机走通过（docs/97 §事故）
       - id: E8
         text: 覆盖更新使用工作区当前的系统服务名称重启对应部件，旧发布清单中的名称不会让已更新的桥接服务继续运行旧代码。
@@ -60,7 +60,7 @@ features:
     pitfalls:
       - text: 不要 dpkg -i 或直接替换容器里的文件：装上的版本和发布 pin 冲突，Discover 会提示“有更新”，完整性检查报漂移。试验一律走开发覆盖。
         docs: [docs/97-local-development-deploy.md, docs/61-delivery-diagnostics-plan.md]
-      - text: 开发覆盖不做 rootfs 快照；上一次发布的快照未 commit 时也能部署，但之后执行 rollback --snapshot 会把覆盖一起丢掉。
+      - text: 开发覆盖不做 rootfs 快照。上一次发布的快照未 commit 时也能部署，但之后执行 rollback --snapshot 会把覆盖一起丢掉。
         docs: [docs/97-local-development-deploy.md]
       - text: APK、rungic-plasma 控制器和发布清单里 android 列出的文件没有开发覆盖，要单独安装并在文档里记录。
         docs: [docs/97-local-development-deploy.md]
@@ -83,11 +83,11 @@ features:
     status: live
     platform: linux
     interfaces: []
-    summary: 设备包和上游组件在 Mac mini 的 Ubuntu 26.04 ARM64 容器里构建（手机为后备），产物进发布或开发仓库。
+    summary: 设备包和上游组件默认在 Mac mini 的 Ubuntu 26.04 ARM64 容器中构建。手机作为后备构建端。产物进入发布仓库或开发仓库。
     experience:
       - id: E1
-        text: 默认构建机是 Mac mini，速度远快于手机：KWin 含 LTO 的完整构建约 6 分钟，手机上一小时以上；构建期间手机不受影响。
-        device: 构建耗时取决于 Mac mini 与手机的硬件，只能在两台机器上实测；默认构建机和不碰手机由单元测试检查
+        text: 默认构建机是 Mac mini，速度远快于手机：KWin 含 LTO 的完整构建约 6 分钟，手机上一小时以上。构建期间手机不受影响。
+        device: 构建耗时取决于 Mac mini 与手机的硬件，只能在两台机器上实测。默认构建机和不碰手机由单元测试检查
         evidence:
           - {doc: docs/71-upstream-patch-queue.md, date: 2026-09-27, note: "§构建机：Mac mini"}
       - id: E2
@@ -104,15 +104,15 @@ features:
           - {doc: docs/71-upstream-patch-queue.md, date: 2026-09-27, note: "实测 6.8 MB/s，其他命令与路径被拒绝"}
       - id: E5
         text: Mac mini 上的构建结果与手机上的完整构建逐文件一致（ELF 去掉 build-id 与 debuglink 后比较），差异只来自可解释的原因。
-        device: 要在手机容器里做一次完整构建（一小时以上）再与 Mac mini 的产物逐文件比较；系统测试只有 Mac mini 一台构建环境，替代不了手机上的那一份
+        device: 要在手机容器里做一次完整构建（一小时以上）再与 Mac mini 的产物逐文件比较。系统测试只有 Mac mini 一台构建环境，替代不了手机上的那一份
         evidence:
           - {doc: docs/71-upstream-patch-queue.md, date: 2026-09-27, note: "plasma-settings、libcamera 一致；qmlcachegen AOT 与 IPA 签名差异已解释"}
       - id: E6
         text: 构建容器里每条联网命令都带上 Mac mini 的系统代理（scutil 读取，以 host.docker.internal 代替本机地址）。
     pitfalls:
-      - text: 经 ssh 执行的命令和 Docker 容器都不会自动使用 Mac mini 的系统代理（Surge 127.0.0.1:6152），要显式传入；容器 DNS 把 macmini.wire.net 解析成公网地址，手机直连要用 10.77.0.20 或 192.168.5.45。
+      - text: 经 ssh 执行的命令和 Docker 容器都不会自动使用 Mac mini 的系统代理（Surge 127.0.0.1:6152），要显式传入。容器 DNS 把 macmini.wire.net 解析成公网地址，手机直连要用 10.77.0.20 或 192.168.5.45。
         docs: [AGENTS.md, docs/71-upstream-patch-queue.md]
-      - text: qmlcachegen 按构建环境里已安装的 QML 模块决定能预编译哪些绑定，所以构建机镜像装了手机的整套桌面（arm64-host-packages.txt）；手机新装包后要刷新这份清单。
+      - text: qmlcachegen 按构建环境里已安装的 QML 模块决定能预编译哪些绑定，所以构建机镜像装了手机的整套桌面（arm64-host-packages.txt）。手机新装包后要刷新这份清单。
         docs: [docs/71-upstream-patch-queue.md]
       - text: 比较 aarch64 二进制要用 llvm-objcopy：主机的 objcopy 不认识 aarch64，出错时输出为空，两边哈希会“相同”。
         docs: [docs/71-upstream-patch-queue.md]
@@ -133,16 +133,16 @@ features:
     status: live
     platform: linux
     interfaces: []
-    summary: dev-setup.sh 建开发用 Python，work-env.sh 把缓存和构建输出引到 .work/，Android 交叉编译器包装脚本可由环境变量指向本机工具链。
+    summary: dev-setup.sh 准备开发用 Python 环境。work-env.sh 将缓存和构建输出放入 .work/。Android 交叉编译器包装脚本通过环境变量选择本机工具链。
     experience:
       - id: E1
-        text: source tools/work-env.sh 之后 Python 字节码缓存、Cargo 输出都在 .work/ 下，并启用 .work/venv；源码目录里不出现缓存。
+        text: source tools/work-env.sh 之后 Python 字节码缓存、Cargo 输出都在 .work/ 下，并启用 .work/venv。源码目录里不出现缓存。
       - id: E2
-        text: sh tools/dev-setup.sh 一次装好开发用 Python（PySide6、pytest）并打印 PySide6 版本；这些依赖只用于原型和测试，不进入镜像或软件包。
+        text: sh tools/dev-setup.sh 一次装好开发用 Python（PySide6、pytest）并打印 PySide6 版本。这些依赖只用于原型和测试，不进入镜像或软件包。
       - id: E3
         text: Android 交叉编译器（tools/toolchains/android-clang、android-clang++）可由 RUNGIC_ANDROID_CLANG、RUNGIC_ANDROID_SYSROOT 等变量指向本机的 clang 与 sysroot。
     pitfalls:
-      - text: 交叉编译器包装脚本的默认路径写死在 /home/kevinzhow/android-kernel；SDK/NDK、Rust 依赖和 Android 链接库要另行准备，源码齐备不等于任意机器一键构建。
+      - text: 交叉编译器包装脚本的默认路径写死在 /home/kevinzhow/android-kernel。SDK/NDK、Rust 依赖和 Android 链接库要另行准备，源码齐备不等于任意机器一键构建。
         docs: [docs/52-git-repository-scope.md, docs/53-remote-system-development.md]
       - text: PySide6 这类依赖只服务于开发时的原型与测试，进入生产的部分用 C++ 等重写或用设备自带的库（用户 2026-09-29 明确）。
         docs: [AGENTS.md, docs/52-git-repository-scope.md]
@@ -161,10 +161,10 @@ features:
     status: live
     platform: linux
     interfaces: []
-    summary: design_gallery.py 把设计系统每个控件的各种状态渲染成浅色、深色两套图，本机离线或在手机上都能做，用于界面改动的前后对照。
+    summary: design_gallery.py 将设计系统各控件的状态渲染为浅色和深色两套图。开发机可离线渲染，也可在手机上渲染。截图用于界面改动前后的对照。
     experience:
       - id: E1
-        text: local 在本机用 PySide6 渲染 desktop/design/qml，每节浅深两张图并拼成 sheet.png；--rev 渲染某个提交的 QML，用于改动前后对照。
+        text: local 在本机用 PySide6 渲染 desktop/design/qml，每节浅深两张图并拼成 sheet.png。--rev 渲染某个提交的 QML，用于改动前后对照。
         evidence:
           - {doc: docs/102-design-system-choices-and-swipe-back.md, date: 2026-10-01, note: "ChoiceRow、ToggleRow、ListRow 三节"}
       - id: E2
@@ -173,7 +173,7 @@ features:
           - {doc: docs/87-agent-app-redesign.md, date: 2026-09-30, note: "21 节 × 浅深两种主题共 42 张"}
           - {doc: docs/102-design-system-choices-and-swipe-back.md, date: 2026-10-01}
     pitfalls:
-      - text: software 后端不画 MultiEffect，Thumbnail 和 LivePicture 的示例图是空的；这不是回退，这类控件要在真实会话里另行确认。
+      - text: software 后端不画 MultiEffect，Thumbnail 和 LivePicture 的示例图是空的。这不是回退，这类控件要在真实会话里另行确认。
         docs: [.agents/skills/rungic-dev-release/SKILL.md, docs/87-agent-app-redesign.md]
     code:
       - tools/design_gallery.py
@@ -187,7 +187,7 @@ features:
     status: live
     platform: linux
     interfaces: []
-    summary: tools/run-tests.sh 在开发机上一次跑完 pytest、APK 的纯 Java 测试和 shell 语法检查，不碰手机。
+    summary: tools/run-tests.sh 在开发机上统一运行 pytest、APK 纯 Java 测试和 shell 语法检查，不操作手机。
     experience:
       - id: E1
         text: 一条命令跑完全部离线测试（tools/ci、tools、tools/tests、system/account 的 pytest，APK 纯 Java 测试，已跟踪 sh 脚本的语法），最后列出失败的部分或报告全部通过。
@@ -196,7 +196,7 @@ features:
       - id: E3
         text: 没有 PySide6 时跳过需要它的 QML 测试，并提示 sh tools/dev-setup.sh。
     pitfalls:
-      - text: 2026-09-30 一个部署测试走到了没有被替换的 rungic_device.run，删掉了真手机上的开发覆盖；之后 conftest.py 给 tools/ 下所有测试加了 adb 保护。
+      - text: 2026-09-30 一个部署测试走到了没有被替换的 rungic_device.run，删掉了真手机上的开发覆盖。之后 conftest.py 给 tools/ 下所有测试加了 adb 保护。
         docs: [docs/97-local-development-deploy.md]
       - text: 在模块顶层调用 unittest.main() 的测试会中断 pytest 收集（system/account/test_setup.py 曾如此）。
         docs: [docs/95-install-use-case-tests.md]
@@ -213,18 +213,18 @@ features:
     status: live
     platform: linux
     interfaces: []
-    summary: rungic_package.py 从 packaging/<名>/ 构建本项目的 rungic-* 包（主机或 ARM64 构建机），装到 /usr、/etc 的标准位置，带依赖、维护脚本和调试符号。
+    summary: rungic_package.py 根据 packaging/<名>/ 在主机或 ARM64 构建机上构建 rungic-* 包。包安装到 /usr 和 /etc 等标准位置，包含依赖、维护脚本和调试符号。
     experience:
       - id: E1
-        text: 发布构建只用已提交的内容：包的路径里有未提交改动就拒绝构建；版本为 0.<提交数>，同一提交重建内容不同时加 +bN；路径没变的包不重建，list 显示 current、stale 或 uncommitted。
+        text: 发布构建只用已提交的内容：包的路径里有未提交改动就拒绝构建。版本为 0.<提交数>，同一提交重建内容不同时加 +bN。路径没变的包不重建，list 显示 current、stale 或 uncommitted。
       - id: E2
         text: 包声明的输入（paths、upstream 配方及其 overlay）都存在，build.sh 从仓库读取的文件都在声明里，所以改了任何输入，这个包都会被判为需要重建。
       - id: E3
-        text: 升级、卸载重装都保留管理员对单元的启用或禁用选择；维护脚本只启用不覆盖禁用，obsolete 里的链接只在悬空时删除。
+        text: 升级、卸载重装都保留管理员对单元的启用或禁用选择。维护脚本只启用不覆盖禁用，obsolete 里的链接只在悬空时删除。
         evidence:
           - {doc: docs/70-rungic-rebrand.md, date: 2026-09-26, note: "B0：禁用 coredump.path 后 dpkg -r 再 -i 仍为 disabled"}
       - id: E4
-        text: 改名的包对旧名写 Conflicts 和 Replaces，安装时继承旧单元的启用状态；按精确版本部署时 apt 自动移走旧名的包。
+        text: 改名的包对旧名写 Conflicts 和 Replaces，安装时继承旧单元的启用状态。按精确版本部署时 apt 自动移走旧名的包。
         evidence:
           - {doc: docs/70-rungic-rebrand.md, date: 2026-09-27, note: "发布 20260927.5：4 个系统单元与 6 个用户单元都已启用"}
       - id: E5
@@ -232,11 +232,11 @@ features:
         evidence:
           - {doc: docs/61-delivery-diagnostics-plan.md, date: 2026-09-26, note: "-g1 成本：plasma-mobile dbgsym 3.7 MB"}
     pitfalls:
-      - text: 旧的生成器把单元启用链接列为 obsolete，每次升级都删一遍；运行中的会话掩盖了问题，直到容器重启后会话起不来（发布 20260926.7）。
+      - text: 旧的生成器把单元启用链接列为 obsolete，每次升级都删一遍。运行中的会话掩盖了问题，直到容器重启后会话起不来（发布 20260926.7）。
         docs: [docs/61-delivery-diagnostics-plan.md]
       - text: 维护脚本只启用单元（容器的 policy-rc.d 不让启动），新服务要靠部署的 service_restart 才会跑新代码。
         docs: [docs/73-reduce-upstream-changes.md]
-      - text: 改名规则漏掉库文件名（libmotocodec）时，GStreamer 按插件文件名找入口符号，编码器全部不可用；改名字要连文件名一起核对。
+      - text: 改名规则漏掉库文件名（libmotocodec）时，GStreamer 按插件文件名找入口符号，编码器全部不可用。改名字要连文件名一起核对。
         docs: [docs/70-rungic-rebrand.md]
     code:
       - tools/rungic_package.py
@@ -252,10 +252,10 @@ features:
     status: live
     platform: linux
     interfaces: []
-    summary: rungic_release.py 把一次发布做成精确依赖全部包的元包 rungic-release=<YYYYMMDD.N>，部署到手机（预检、记录、同步、安装、重启、复核），失败自动退回，也能回到上一个发布。
+    summary: rungic_release.py 将一次发布打包为 rungic-release=<YYYYMMDD.N>，精确依赖该发布的全部包。手机部署依次执行预检、记录、同步、安装、重启和复核。失败时自动恢复，用户也可以回到上一发布。
     experience:
       - id: E1
-        text: 部署在临时单元里按精确版本安装发布的全部包，成功后把每个包钉在发布版本（1001），元包带 Protected：Discover 不把我们的包显示为“有更新”，也不能顺带卸掉元包；不在发布里的 Ubuntu 包照常更新。
+        text: 部署在临时单元里按精确版本安装发布的全部包，成功后把每个包钉在发布版本（1001），元包带 Protected：Discover 不把我们的包显示为“有更新”，也不能顺带卸掉元包。不在发布里的 Ubuntu 包照常更新。
         evidence:
           - {doc: docs/97-local-development-deploy.md, date: 2026-09-30, note: "发布 20260930.10 写 71 条 pin，apt 不提示 rungic 包"}
       - id: E2
@@ -270,33 +270,33 @@ features:
       - id: E4
         text: 发布记录的 Android 侧源文件在构建发布之后被改动时，部署在建快照之前就中止。
       - id: E5
-        text: 部署后改动自动生效：变化的系统服务（service_restart）、正在运行的桌面用户服务（user_restart，plasmashell 最后）按规则重启，需要时重启整个会话；没在运行的单元不启动。
+        text: 部署后改动自动生效：变化的系统服务（service_restart）、正在运行的桌面用户服务（user_restart，plasmashell 最后）按规则重启，需要时重启整个会话。没在运行的单元不启动。
         evidence:
           - {doc: docs/97-local-development-deploy.md, date: 2026-09-30, note: "按 user_restart 重启了 rungic-voice-agent、语音浮层和 plasmashell"}
       - id: E6
-        text: status 给出手机上的发布、它的 git 提交、与仓库是否一致、rootfs 快照状态和开发覆盖；每次部署在 .work/deploy/<时间>-<版本>/ 留下逐步记录和 result。
+        text: status 给出手机上的发布、它的 git 提交、与仓库是否一致、rootfs 快照状态和开发覆盖。每次部署在 .work/deploy/<时间>-<版本>/ 留下逐步记录和 result。
       - id: E7
         text: 增量发布装到 Android 侧的文件，与完整镜像的 host seed 路径和权限一致。
       - id: E8
-        text: Ubuntu 发布了我们重建或耦合的包的更高版本时，apt 升级（Discover 的更新）和 unattended-upgrades 都保留已装发布的版本：每个发布包按精确版本 pin 在 1001，与耦合包同源的已装兄弟包（plasma-workspace 的私有库）按已装版本 pin，unattended-upgrades 另有按发布生成的精确名单；元包被卸掉后 pin 照样有效。
+        text: Ubuntu 发布了我们重建或耦合的包的更高版本时，apt 升级（Discover 的更新）和 unattended-upgrades 都保留已装发布的版本：每个发布包按精确版本 pin 在 1001，与耦合包同源的已装兄弟包（plasma-workspace 的私有库）按已装版本 pin，unattended-upgrades 另有按发布生成的精确名单。元包被卸掉后 pin 照样有效。
         evidence:
           - {doc: docs/109-dev-release-channel.md, date: 2026-10-04, note: "G100 S 只读：apt-cache policy 与 apt-get -s dist-upgrade 不动任何发布包；unattended-upgrades 每天运行，从未升级过发布包"}
     pitfalls:
-      - text: 经 Wi-Fi 部署整套发布会超过 10 分钟；2026-09-30 一次部署被 590 秒的客户端超时杀掉，只能用 rungic_release.py 自己的函数补完。要放在后台运行，不加超时。
+      - text: 经 Wi-Fi 部署整套发布会超过 10 分钟。2026-09-30 一次部署被 590 秒的客户端超时杀掉，只能用 rungic_release.py 自己的函数补完。要放在后台运行，不加超时。
         docs: [docs/96-desktop-recovery-after-apk-restart.md]
-      - text: 上一次部署的快照还没 commit 时部署会中止；commit 上一版还是 --snapshot never 由用户决定。
+      - text: 上一次部署的快照还没 commit 时部署会中止。commit 上一版还是 --snapshot never 由用户决定。
         docs: [.agents/skills/rungic-dev-release/SKILL.md]
-      - text: 家目录不随快照回滚，失败部署期间写进 ~/.config 的内容会留下（曾留下 kdeglobals 的 SceneGraphBackend=software，抽屉网格空白）；排查部署后的异常时先看这段时间改过的用户配置。
+      - text: 家目录不随快照回滚，失败部署期间写进 ~/.config 的内容会留下（曾留下 kdeglobals 的 SceneGraphBackend=software，抽屉网格空白）。排查部署后的异常时先看这段时间改过的用户配置。
         docs: [docs/61-delivery-diagnostics-plan.md]
-      - text: 建快照的重启仍在跑旧版本，那时的崩溃曾被算进新发布、导致误回滚；验收从安装完成时统计，早于安装的崩溃记为 version null。
+      - text: 建快照的重启仍在跑旧版本，那时的崩溃曾被算进新发布、导致误回滚。验收从安装完成时统计，早于安装的崩溃记为 version null。
         docs: [docs/61-delivery-diagnostics-plan.md]
-      - text: 容器里的 unattended-upgrades 是开着的，会把重建包静默换成 Ubuntu 的更高版本；重建、被 divert 和 Qt 私有 ABI 相关的包要在黑名单里。
+      - text: 容器里的 unattended-upgrades 是开着的，会把重建包静默换成 Ubuntu 的更高版本。重建、被 divert 和 Qt 私有 ABI 相关的包要在黑名单里。
         docs: [docs/61-delivery-diagnostics-plan.md]
-      - text: unattended-upgrades 认 pin（被 pin 的已装版本不算可升级），pin 不在时只剩名单；rungic-plasma-config 带的静态名单漏了后来加入的组件（powerdevil、kwayland、xwayland、flatpak、gst-plugins-base 等）和 plasma-workspace 的私有库，部署因此按发布另写 52rungic-release。
+      - text: unattended-upgrades 认 pin（被 pin 的已装版本不算可升级），pin 不在时只剩名单。rungic-plasma-config 带的静态名单漏了后来加入的组件（powerdevil、kwayland、xwayland、flatpak、gst-plugins-base 等）和 plasma-workspace 的私有库，部署因此按发布另写 52rungic-release。
         docs: [docs/109-dev-release-channel.md]
-      - text: 耦合包（plasma-workspace）的版本取自出发布时那台手机上装的版本；Ubuntu 的 -updates 索引只留最新版，别的手机要装回这个旧版本时可能已经下载不到，部署会在安装一步失败。
+      - text: 耦合包（plasma-workspace）的版本取自出发布时那台手机上装的版本。Ubuntu 的 -updates 索引只留最新版，别的手机要装回这个旧版本时可能已经下载不到，部署会在安装一步失败。
         docs: [docs/109-dev-release-channel.md]
-      - text: 仓库保留历史版本供回滚；只靠仓库整体 pin 时，旧版本同样可能成为候选，所以按包写 pin。
+      - text: 仓库保留历史版本供回滚。只靠仓库整体 pin 时，旧版本同样可能成为候选，所以按包写 pin。
         docs: [docs/61-delivery-diagnostics-plan.md]
       - text: 按包回滚到较早的发布需要它的提交：Android 侧文件从发布记录的提交中读取并按 sha256 核对。
         docs: [docs/70-rungic-rebrand.md]
@@ -314,31 +314,31 @@ features:
     status: live
     platform: linux
     interfaces: []
-    summary: rungic_release.py dev 只从干净的 origin/main 出 dev 发布（含 APK），导出发布包；deploy --all 逐台部署所有连着的 Rungic 手机，status --all 每台一行；经确认后发成 GitHub 预发布；每次部署记进 release/history.json。
+    summary: rungic_release.py dev 仅从干净的 origin/main 构建含 APK 的 dev 发布，并导出发布包。deploy --all 逐台部署已连接的 Rungic 手机。status --all 为每台手机显示一行状态。用户确认后，发布可上传为 GitHub 预发布。每次部署记录在 release/history.json。
     experience:
       - id: E1
-        text: dev 只在 HEAD 等于刚取下来的 origin/main、工作区干净（含未跟踪文件）时才出发布；版本号 YYYYMMDD.N 避开本机仓库、origin 上已发布的 dev-* tag 和 release/history.json 里用过的号。
+        text: dev 只在 HEAD 等于刚取下来的 origin/main、工作区干净（含未跟踪文件）时才出发布。版本号 YYYYMMDD.N 避开本机仓库、origin 上已发布的 dev-* tag 和 release/history.json 里用过的号。
       - id: E2
-        text: dev 先构建发布缺的东西：源码变了的自有包、changelog 版本不在仓库里的上游组件（补丁队列变了却没加 changelog 条目就拒绝）、APK；发布记录 channel dev、提交和 APK 的文件名、versionName、versionCode、sha256，同时写进元包里的 release.json。
+        text: dev 先构建发布缺的东西：源码变了的自有包、changelog 版本不在仓库里的上游组件（补丁队列变了却没加 changelog 条目就拒绝）、APK。发布记录 channel dev、提交和 APK 的文件名、versionName、versionCode、sha256，同时写进元包里的 release.json。
       - id: E3
-        text: 发布包是一个文件：发布用到的 deb 加索引、APK、Android 侧文件和逐文件 SHA-256 的 manifest；没构建的机器 deploy --from 逐文件核对后导入再部署；同名 deb 内容不同、同一版本号来自别的提交都拒绝，两台机器的构建不会混在一起。
+        text: 发布包是一个文件：发布用到的 deb 加索引、APK、Android 侧文件和逐文件 SHA-256 的 manifest。没构建的机器 deploy --from 逐文件核对后导入再部署。同名 deb 内容不同、同一版本号来自别的提交都拒绝，两台机器的构建不会混在一起。
       - id: E4
-        text: 部署在容器一侧装好之后装发布的 APK：手机上的 versionCode 更低时 adb install -r（保留数据）、重新打开、等会话就绪，再做验收；结果记在部署记录的 apk 一步。版本不低于发布的不动，--restart never 时不装并记录，没装 APK 的手机不首装；装不上算部署失败，回到快照。
+        text: 部署在容器一侧装好之后装发布的 APK：手机上的 versionCode 更低时 adb install -r（保留数据）、重新打开、等会话就绪，再做验收。结果记在部署记录的 apk 一步。版本不低于发布的不动，--restart never 时不装并记录，没装 APK 的手机不首装。装不上算部署失败，回到快照。
       - id: E5
-        text: deploy --all 逐台部署所有连着的、有 Rungic 启动器的手机（每台用自己的 RUNGIC_SERIAL/RUNGIC_TRANSPORT），某台失败或连不上就记下来继续下一台，最后打印汇总表；同一台手机同时走 USB 和 Wi-Fi 只算一次。
+        text: deploy --all 逐台部署所有连着的、有 Rungic 启动器的手机（每台用自己的 RUNGIC_SERIAL/RUNGIC_TRANSPORT），某台失败或连不上就记下来继续下一台，最后打印汇总表。同一台手机同时走 USB 和 Wi-Fi 只算一次。
       - id: E6
-        text: status --all 每台手机一行：已装发布、渠道、提交、比 origin/main 落后的提交数、APK 版本、开发覆盖数、apt 是否按发布钉住（未 pin 的包、元包 Protected、unattended-upgrades 名单）。
+        text: status --all 为每台手机显示一行状态：已装发布、渠道、提交、比 origin/main 落后的提交数、APK 版本和开发覆盖数。该行还显示 apt 是否按发布固定版本，包括未 pin 的包、元包 Protected 状态和 unattended-upgrades 名单。
         evidence:
           - {doc: docs/109-dev-release-channel.md, date: 2026-10-04, note: "G100 S 只读运行：20260930.10 之上 25 个覆盖，落后 195 个提交，APK 2.33/81"}
       - id: E7
-        text: publish 默认只给出 gh 命令和说明（上一个 dev 发布以来合并的 PR、其他提交、包版本变化、APK、部署命令），用户确认后加 --yes 才在 kevinzhow/Rungic 上创建预发布 dev-<版本>，附发布包和 APK。
+        text: publish 默认只输出 gh 命令和发布说明。说明包括上一 dev 发布以来合并的 PR、其他提交、包版本变化、APK 和部署命令。用户确认后，加 --yes 才会在 kevinzhow/Rungic 创建 dev-<版本> 预发布，并附发布包和 APK。
         gap: 还没有对 GitHub 实际执行过：对外发布要用户确认
       - id: E8
         text: 每次部署（成功、失败、中止，以及 deploy --all 里连不上的手机）在 release/history.json 追加一行：版本、提交、渠道、手机序列号、结果、时间，随仓库提交。
     pitfalls:
-      - text: 2026-10-04 之前各开发机有自己的 APT 仓库，发布号在不同机器上各自增长；最后一个正式发布是 20260930.10，之后合并的改动只以开发覆盖散落在手机上。dev 渠道之后只从 origin/main 出发布。
+      - text: 2026-10-04 之前各开发机有自己的 APT 仓库，发布号在不同机器上各自增长。最后一个正式发布是 20260930.10，之后合并的改动只以开发覆盖散落在手机上。dev 渠道之后只从 origin/main 出发布。
         docs: [docs/109-dev-release-channel.md]
-      - text: 发布号只能避开已发布（有 tag）的号和已提交的部署记录；两台机器同时出还没发布的 dev 发布仍可能撞号，导入时会因提交不同而拒绝。
+      - text: 发布号只能避开已发布（有 tag）的号和已提交的部署记录。两台机器同时出还没发布的 dev 发布仍可能撞号，导入时会因提交不同而拒绝。
         docs: [docs/109-dev-release-channel.md]
       - text: 回滚不会降级 APK：adb install -r 只往高版本装。
         docs: [docs/109-dev-release-channel.md]
@@ -355,10 +355,10 @@ features:
     status: live
     platform: android
     interfaces: []
-    summary: rootfs 是 /data/adb 下的 ext4 镜像，部署前自动建 dm-snapshot；失败合并回去，用户接受后 commit 丢弃快照。
+    summary: rootfs 使用 /data/adb 下的 ext4 镜像。部署前自动创建 dm-snapshot，失败时合并快照以恢复原状态。用户接受发布后，commit 丢弃快照。
     experience:
       - id: E1
-        text: 部署先停容器建快照，重启后等会话稳定再安装；验收失败时自动合并回快照，回滚后发布和 dpkg 状态都是部署前的版本。
+        text: 部署先停容器建快照，重启后等会话稳定再安装。验收失败时自动合并回快照，回滚后发布和 dpkg 状态都是部署前的版本。
         evidence:
           - {doc: docs/61-delivery-diagnostics-plan.md, date: 2026-09-26, note: "§P6 实测"}
       - id: E2
@@ -374,11 +374,11 @@ features:
       - id: E5
         text: 快照回滚后比较内核的 ext4 错误数并跑完整性检查，结果写进部署记录。
     pitfalls:
-      - text: 2026-09-27 一次快照回滚没有恢复被重写的块，ext4 出现 76 个目录损坏，根因至今未查明；在查明之前退回优先按包回滚（部署上一个发布）。
+      - text: 2026-09-27 一次快照回滚没有恢复被重写的块，ext4 出现 76 个目录损坏，根因至今未查明。在查明之前退回优先按包回滚（部署上一个发布）。
         docs: [docs/70-rungic-rebrand.md]
-      - text: 回滚测试的副本只改了 LXC= 没改 IMAGES=，在容器运行时把系统镜像第二次读写挂载；测试脚本现在拒绝仍含系统路径的副本，attach 拒绝被别的 dm 设备占用的 loop。
+      - text: 回滚测试的副本只改了 LXC= 没改 IMAGES=，在容器运行时把系统镜像第二次读写挂载。测试脚本现在拒绝仍含系统路径的副本，attach 拒绝被别的 dm 设备占用的 loop。
         docs: [docs/70-rungic-rebrand.md]
-      - text: toybox losetup 只接受 64 字节以内的路径且默认 autoclear；镜像目录因此移到 /data/adb/rungic-lxc/images/。
+      - text: toybox losetup 只接受 64 字节以内的路径且默认 autoclear。镜像目录因此移到 /data/adb/rungic-lxc/images/。
         docs: [docs/61-delivery-diagnostics-plan.md, docs/70-rungic-rebrand.md]
       - text: journal 随快照回滚丢失，失败部署要先保存证据包再回滚。
         docs: [docs/61-delivery-diagnostics-plan.md]
@@ -396,7 +396,7 @@ features:
     status: live
     platform: android
     interfaces: [platform-bridge, kwin-android-host, host-input, camera, audio, codec]
-    summary: rungic_acceptance.py 按 release/acceptance.json 的场景在手机上自动验收：每次部署跑冒烟，发布候选跑完整，结果与上一发布比较。
+    summary: rungic_acceptance.py 按 release/acceptance.json 在手机上执行自动验收。每次部署运行冒烟验收，发布候选运行完整验收。结果与上一发布比较。
     experience:
       - id: E1
         text: 每次部署后自动跑冒烟验收（会话、单元、新崩溃、显示、输入、相机、空闲抑制、播放、录音），几分钟内给出结果。
@@ -410,19 +410,19 @@ features:
       - id: E3
         text: 每个场景结束时恢复它改过的东西（无障碍开关、显示缩放和模式、录下的文件），不留在用户手机上。
       - id: E4
-        text: 指标与较早发布的最新报告比较；合成器 paint 或呈现间隔 p95 比上一发布劣化超过 15% 即判失败。
+        text: 指标与较早发布的最新报告比较。合成器 paint 或呈现间隔 p95 比上一发布劣化超过 15% 即判失败。
         evidence:
           - {doc: docs/61-delivery-diagnostics-plan.md, date: 2026-09-26, note: "完整验收 15 项全部通过，paint p95 3.802 ms"}
       - id: E5
-        text: 部署和验收期间出现已知签名以外的崩溃即失败；安装之前发生的崩溃不算到新发布上。
+        text: 部署和验收期间出现已知签名以外的崩溃即失败。安装之前发生的崩溃不算到新发布上。
       - id: E6
         text: 报告写到 .work/acceptance/<发布>/<时间>/report.json，并列出自动结果不能替代的人工项（画质、声学、音画同步、拼音手感、投屏）。
     pitfalls:
       - text: 验收前先看 dumpsys input 的 touchingPointers 为空：一次屏幕右下持续的实体触摸让注入的滑动成了多指手势，快捷设置拉不下来。
         docs: [docs/73-reduce-upstream-changes.md]
-      - text: 容器刚启动时第一次 Android 文字输入偶尔大小写错误（CaICUL），原因未确认；输入检查不区分大小写并记录 case_exact。
+      - text: 容器刚启动时第一次 Android 文字输入偶尔大小写错误（CaICUL），原因未确认。输入检查不区分大小写并记录 case_exact。
         docs: [docs/61-delivery-diagnostics-plan.md]
-      - text: 会话刚重启时抽屉搜索结果不进 AT-SPI 树，输入检查改用 OCR 读回；前置摄像头冷启动首帧可达数秒，按帧 10 秒超时。
+      - text: 会话刚重启时抽屉搜索结果不进 AT-SPI 树，输入检查改用 OCR 读回。前置摄像头冷启动首帧可达数秒，按帧 10 秒超时。
         docs: [docs/61-delivery-diagnostics-plan.md, docs/55-agent-native-debugging.md]
       - text: smoke 会自动附带上一份报告的指标对比，换了机型时数值不能当作性能变化的结论。
         docs: [docs/94-build-fingerprints.md]
@@ -439,24 +439,24 @@ features:
     status: live
     platform: linux
     interfaces: []
-    summary: build_artifact.py 按实际输入（源码内容、依赖、工具、参数、架构）算指纹，相同才复用缓存，并校验每个产物的摘要；镜像构建靠它避免旧产物混入。
+    summary: build_artifact.py 根据源码内容、依赖、工具、参数和架构计算输入指纹。只有指纹相同才复用缓存，并校验每个产物的摘要。镜像构建用这些检查阻止旧产物混入。
     experience:
       - id: E1
-        text: 输入相同就复用缓存；改无关的文档或换输入所在位置不会让组件失效。
+        text: 输入相同就复用缓存。改无关的文档或换输入所在位置不会让组件失效。
       - id: E2
         text: 源码、依赖、工具、参数、目标架构、文件模式或符号链接任何一项变化，都得到新的输入指纹和新的缓存目录。
       - id: E3
-        text: 产物损坏、缺记录、构建中输入被改、构建失败时绝不发布或命中缓存；伪造记录、越界输出路径和与固定摘要不符的二进制输入都被拒绝。
+        text: 产物损坏、缺记录、构建中输入被改、构建失败时绝不发布或命中缓存。伪造记录、越界输出路径和与固定摘要不符的二进制输入都被拒绝。
       - id: E4
         text: 真实组件第二次调用同一执行器全部命中，输入指纹和产物摘要不变。
         evidence:
           - {doc: docs/94-build-fingerprints.md, date: 2026-09-30, note: "8 个构建阶段，cache-reuse-verification.json"}
     pitfalls:
-      - text: 起因是旧投屏 JAR 被混入新镜像（docs/86）；按组件类别决定“强制重编或默认复用”都不可靠，只能按实际输入判断。
+      - text: 起因是旧投屏 JAR 被混入新镜像（docs/86）。按组件类别决定“强制重编或默认复用”都不可靠，只能按实际输入判断。
         docs: [docs/94-build-fingerprints.md]
       - text: 组合 rootfs/host 的执行器要在 podman unshare 内运行，APT 索引容器要在外层单独执行，不能在该用户命名空间里再起 Podman。
         docs: [docs/94-build-fingerprints.md]
-      - text: 记录只说明本地构建一致性，不是签名的供应链证明；rungic_package.py 等直接构建入口还没切到这个执行器。
+      - text: 记录只说明本地构建一致性，不是签名的供应链证明。rungic_package.py 等直接构建入口还没切到这个执行器。
         docs: [docs/94-build-fingerprints.md]
     code:
       - tools/build_artifact.py
@@ -471,7 +471,7 @@ features:
     status: live
     platform: android
     interfaces: [platform-bridge]
-    summary: 项目级 MCP 服务 rungic（rungic_agent_mcp.py）把设备状态、合并日志、崩溃、截图、证据包、完整性、追踪和按控件操作做成带参数的工具，开发 Agent 不用拼 adb 引号。
+    summary: 项目级 rungic MCP 服务由 rungic_agent_mcp.py 提供。工具支持设备状态、合并日志、崩溃、截图、证据包、完整性、追踪和按控件操作。开发 Agent 通过参数调用，无需手工拼接 adb 引号。
     experience:
       - id: E1
         text: logs 把 Android logcat、容器 journal 和内核日志按墙钟合成一条时间线，三个来源的事件按实际先后返回。
@@ -490,20 +490,20 @@ features:
         evidence:
           - {doc: docs/55-agent-native-debugging.md, date: 2026-09-23, note: "34 秒生成完整证据包"}
       - id: E5
-        text: 只读工具不改变设备状态并标为 read-only；改变状态的操作（按控件操作、无障碍开关）单列。
+        text: 只读工具不改变设备状态并标为 read-only。改变状态的操作（按控件操作、无障碍开关）单列。
       - id: E6
         text: MCP 客户端经 stdio 能列出并调用全部工具（adb 子进程不吞调用者的 stdin）。
         evidence:
           - {doc: docs/55-agent-native-debugging.md, date: 2026-09-23, note: "列出 9 个工具，逐一调用成功"}
           - {doc: docs/70-rungic-rebrand.md, date: 2026-09-26, note: "改名后新实例列出 21 个工具并调用成功"}
     pitfalls:
-      - text: 没给 adb 子进程关闭 stdin 时，adb shell 会吞掉调用者的 stdin，MCP 的 stdio 握手没有响应；统一用 stdin=DEVNULL。
+      - text: 没给 adb 子进程关闭 stdin 时，adb shell 会吞掉调用者的 stdin，MCP 的 stdio 握手没有响应。统一用 stdin=DEVNULL。
         docs: [docs/55-agent-native-debugging.md]
       - text: .mcp.json 是项目级配置，Claude Code 首次加载时要用户批准。
         docs: [docs/55-agent-native-debugging.md]
       - text: 设备日志可能含网络、账户、剪贴板等隐私，只写本地 .work/，不上传外部服务。
         docs: [docs/55-agent-native-debugging.md]
-      - text: 向 Magisk 31.0 守护进程提交可能返回 SQL NULL 的查询会让它退出；工具层要拒绝这类查询。
+      - text: 向 Magisk 31.0 守护进程提交可能返回 SQL NULL 的查询会让它退出。工具层要拒绝这类查询。
         docs: [docs/39-magisk-daemon-crash.md, AGENTS.md]
     code:
       - tools/rungic_agent.py
@@ -518,10 +518,10 @@ features:
     status: live
     platform: linux
     interfaces: []
-    summary: 桌面程序崩溃时自动留下带回溯、build-id、所属包、发布和签名的报告，coredumpctl 和 MCP 都能看；按签名归并，在构建机上符号化。
+    summary: 桌面程序崩溃后，系统自动保存回溯、build-id、所属包、发布和签名。用户可以通过 coredumpctl 和 MCP 查看报告。系统按签名归并报告，并在构建机上符号化。
     experience:
       - id: E1
-        text: 桌面程序（KDE 的与非 KDE 的）崩溃后自动留下报告和 core，journal 里有一条 err 级记录，coredumpctl list/info/debug 能直接使用；Android 的 core_pattern 和目录不受影响。
+        text: 桌面程序（KDE 的与非 KDE 的）崩溃后自动留下报告和 core，journal 里有一条 err 级记录，coredumpctl list/info/debug 能直接使用。Android 的 core_pattern 和目录不受影响。
         evidence:
           - {doc: docs/55-agent-native-debugging.md, date: 2026-09-23, note: "sleep 与 kalk 的可控 SIGSEGV"}
           - {doc: docs/61-delivery-diagnostics-plan.md, date: 2026-09-26, note: "coredumpctl 读取 kalk 与 sleep 的 core.zst"}
@@ -530,11 +530,11 @@ features:
         evidence:
           - {doc: docs/61-delivery-diagnostics-plan.md, date: 2026-09-26}
       - id: E3
-        text: 符号化在构建机上做：手机只给出报告、映射文件和 core，回溯与签名写回手机；手机不会因此内存耗尽、失去 VPN。
+        text: 符号化在构建机上做：手机只给出报告、映射文件和 core，回溯与签名写回手机。手机不会因此内存耗尽、失去 VPN。
         evidence:
           - {doc: docs/61-delivery-diagnostics-plan.md, date: 2026-09-27, note: "符号化移出手机"}
       - id: E4
-        text: 每个签名最多保留 2 个 core，一个循环崩溃不会挤掉其他崩溃的现场；采集服务限 768 MiB 内存。
+        text: 每个签名最多保留 2 个 core，一个循环崩溃不会挤掉其他崩溃的现场。采集服务限 768 MiB 内存。
         evidence:
           - {doc: docs/61-delivery-diagnostics-plan.md, date: 2026-09-26, note: "kaccess 两天 188 次 abort"}
       - id: E5
@@ -544,11 +544,11 @@ features:
       - id: E6
         text: 早于当前发布安装时间的崩溃记为 version null 并注明 before，不算到新发布上。
     pitfalls:
-      - text: 不要装 drkonqi：KCrash 找得到它时改走 DrKonqi 并以 _exit(253) 结束，KDE 程序不再留下 core；确需时同时设 KCRASH_DUMP_ONLY=1。
+      - text: 不要装 drkonqi：KCrash 找得到它时改走 DrKonqi 并以 _exit(253) 结束，KDE 程序不再留下 core。确需时同时设 KCRASH_DUMP_ONLY=1。
         docs: [docs/61-delivery-diagnostics-plan.md]
-      - text: 在手机上用 gdb 加载桌面程序的调试信息要数 GB，两次让 Android 低内存查杀杀掉了 VPN 和 Plasma APK；手机上的 rungic-crash-symbols 默认拒绝运行。
+      - text: 在手机上用 gdb 加载桌面程序的调试信息要数 GB，两次让 Android 低内存查杀杀掉了 VPN 和 Plasma APK。手机上的 rungic-crash-symbols 默认拒绝运行。
         docs: [docs/61-delivery-diagnostics-plan.md, docs/73-reduce-upstream-changes.md]
-      - text: debuginfod 直连很慢、经代理超时，只作后备；gdb 开启它要用 -iex。
+      - text: debuginfod 直连很慢、经代理超时，只作后备。gdb 开启它要用 -iex。
         docs: [docs/55-agent-native-debugging.md, docs/61-delivery-diagnostics-plan.md]
       - text: core 文件名虽是 .gz，实际是未压缩的 core（Android 的 core_pattern 在崩溃进程自己的根目录下解析）。
         docs: [docs/55-agent-native-debugging.md]
@@ -569,7 +569,7 @@ features:
     status: live
     platform: android
     interfaces: [kwin-android-host]
-    summary: rungic_trace.py 用 Android perfetto 一次录下 KWin、plasmashell、SurfaceFlinger、宿主 APK 和 Adreno GPU，rungic_trace_report.py 给出各阶段耗时。
+    summary: rungic_trace.py 使用 Android perfetto 同时记录 KWin、plasmashell、SurfaceFlinger、宿主 APK 和 Adreno GPU。rungic_trace_report.py 分析各阶段耗时。
     experience:
       - id: E1
         text: 一份追踪里同时看到 KWin 的 Paint→GpuWait→Import 区间、宿主的 queueBuffer 和 SurfaceFlinger 呈现，以及各进程的 CPU 与 GPU 时间。
@@ -582,7 +582,7 @@ features:
         evidence:
           - {doc: docs/55-agent-native-debugging.md, date: 2026-09-23, note: "29295 ticks = 1.53 ms"}
     pitfalls:
-      - text: 本机是 user 版，perfetto 只接受白名单 ftrace 事件，KGSL 事件被静默忽略；工具另建 tracefs 实例记录它们。
+      - text: 本机是 user 版，perfetto 只接受白名单 ftrace 事件，KGSL 事件被静默忽略。工具另建 tracefs 实例记录它们。
         docs: [docs/55-agent-native-debugging.md]
       - text: Android 把两层 queueBuffer 都记为嵌套的 queueBuffer，直接计数会翻倍，只计外层。
         docs: [docs/55-agent-native-debugging.md]
@@ -603,7 +603,7 @@ features:
     status: live
     platform: linux
     interfaces: []
-    summary: rungic-integrity（MCP 工具 integrity）只读核对容器 rootfs 与 dpkg、发布元包和本机配置清单是否一致，部署前后各跑一次。
+    summary: rungic-integrity 只读核对 rootfs 与 dpkg、发布元包和本机配置清单是否一致。部署前后各运行一次。MCP 通过 integrity 工具提供同一检查。
     experience:
       - id: E1
         text: 一次只读检查给出 clean、drift 或 development 的结论，并逐项列出：被改或缺失的包文件、本项目的 divert、无主文件、属主与模式异常、本机配置是否在、该启用的单元、用户配置里强制软件渲染的覆盖。
@@ -620,7 +620,7 @@ features:
       - id: E4
         text: 本机配置与凭据（代理、音频 cookie、账户、API Key）只按路径、属主、权限声明和检查，不保存内容。
     pitfalls:
-      - text: 曾发现容器 /、/usr 属 UID 1000 且模式 775，桌面用户等于拿到容器 root（暂存树带着构建者 UID 解包）；ownership 检查就是为此加的。
+      - text: 曾发现容器 /、/usr 属 UID 1000 且模式 775，桌面用户等于拿到容器 root（暂存树带着构建者 UID 解包）。ownership 检查就是为此加的。
         docs: [docs/55-agent-native-debugging.md]
       - text: drift 里可能有部署前就存在的项（如不属于任何包的 /usr/lib/rungic-cua/rungic_cua/keyring.py），每次要逐项区分新旧。
         docs: [docs/96-desktop-recovery-after-apk-restart.md, docs/97-local-development-deploy.md]
@@ -636,14 +636,14 @@ features:
     status: live
     platform: linux
     interfaces: [host-input]
-    summary: rungic-a11y 和 MCP 工具 ui_find/ui_press/ui_tap/ui_set_text 经 AT-SPI 按控件名称查找和操作桌面应用，不用固定坐标。
+    summary: rungic-a11y 和 MCP 工具 ui_find/ui_press/ui_tap/ui_set_text 通过 AT-SPI 按控件名称查找和操作桌面应用，无需固定坐标。
     experience:
       - id: E1
         text: 按名称找到控件并操作（按下、点击、填文字）：打开抽屉找到 Calculator 启动，在 Kalk 里按 C、7、+、8、= 得到 15，全程不用固定坐标。
         evidence:
           - {doc: docs/55-agent-native-debugging.md, date: 2026-09-23, note: "P3 验收"}
       - id: E2
-        text: 无障碍按需开启，运行中的 Qt 程序约 2 秒内注册，不用重启；用完关闭并记录状态。
+        text: 无障碍按需开启，运行中的 Qt 程序约 2 秒内注册，不用重启。用完关闭并记录状态。
         evidence:
           - {doc: docs/55-agent-native-debugging.md, date: 2026-09-23}
       - id: E3
@@ -651,7 +651,7 @@ features:
         evidence:
           - {doc: docs/55-agent-native-debugging.md, date: 2026-09-23}
     pitfalls:
-      - text: 会话刚重启时抽屉搜索结果不进 AT-SPI 树；快捷设置折叠时未显示的磁贴仍报告 showing；plasma-keyboard 的面板坐标与屏幕有偏移；Kirigami 搜索框没有 EditableText 接口。
+      - text: 会话刚重启时抽屉搜索结果不进 AT-SPI 树。快捷设置折叠时未显示的磁贴仍报告 showing。plasma-keyboard 的面板坐标与屏幕有偏移。Kirigami 搜索框没有 EditableText 接口。
         docs: [docs/55-agent-native-debugging.md]
       - text: 无障碍在每个注册的应用里都有开销，性能测试前关闭。
         docs: [docs/55-agent-native-debugging.md]
@@ -667,26 +667,26 @@ features:
     status: live
     platform: linux
     interfaces: [kwin-android-host, audio, camera]
-    summary: 随 rungic-plasma-diagnostics 安装的小探针：Wayland 协议探针、输入法与屏幕探针、文件系统能力审计、媒体问题复现脚本。
+    summary: rungic-plasma-diagnostics 安装一组诊断探针和复现脚本。它们检查 Wayland 协议、输入法、屏幕、文件系统能力和媒体问题。
     experience:
       - id: E1
         text: idle-probe 持有空闲抑制期间手机屏幕保持常亮（冒烟验收 idle.inhibit 用它）。
-        device: 屏幕常亮是宿主 APK 把 KWin 经 zwp_idle_inhibitor_v1 转来的空闲抑制变成窗口 FLAG_KEEP_SCREEN_ON 的结果；无头 KWin 没有 Android 后端和屏幕，熄不熄屏只有手机能看出（验收 idle.inhibit）
+        device: 屏幕常亮是宿主 APK 把 KWin 经 zwp_idle_inhibitor_v1 转来的空闲抑制变成窗口 FLAG_KEEP_SCREEN_ON 的结果。无头 KWin 没有 Android 后端和屏幕，熄不熄屏只有手机能看出（验收 idle.inhibit）
         evidence:
           - {doc: docs/94-build-fingerprints.md, date: 2026-09-30, note: "9 项 smoke 含空闲抑制"}
       - id: E2
         text: 输入探针只记录提交文字的长度和是否有中文，不记录文字本身。
       - id: E3
-        text: rungic-fs-audit 对每个目录跑桌面程序依赖的文件操作，列出哪些不可用、影响哪类程序；必需项失败时退出码为 1。
+        text: rungic-fs-audit 对每个目录跑桌面程序依赖的文件操作，列出哪些不可用、影响哪类程序。必需项失败时退出码为 1。
         evidence:
           - {doc: docs/69-filesystem-capabilities.md, date: 2026-09-25, note: "~/Documents、~/Desktop 两处 24/24"}
       - id: E4
         text: 媒体复现脚本能稳定复现并对照问题：pa-gap 测出 Qt 原版缓冲参数下的播放断点，camerabin-record 测出相机录像被截短。
-        device: 复现的是手机上的媒体问题：pa-gap 录 Android 音频桥的 android.monitor，camerabin-record 用 Android 摄像头 rungic.camera.0；断点和截短来自 Android 音频与相机的时序，系统测试容器里没有这些后端
+        device: 复现的是手机上的媒体问题：pa-gap 录 Android 音频桥的 android.monitor，camerabin-record 用 Android 摄像头 rungic.camera.0。断点和截短来自 Android 音频与相机的时序，系统测试容器里没有这些后端
         evidence:
           - {doc: docs/73-reduce-upstream-changes.md, date: 2026-09-27, note: "第一阶段 1.2、1.3"}
     pitfalls:
-      - text: 三个 probe 的源码原先只在手机的 /opt 里，2026-09-26 才收进仓库；新探针一开始就放进仓库。
+      - text: 三个 probe 的源码原先只在手机的 /opt 里，2026-09-26 才收进仓库。新探针一开始就放进仓库。
         docs: [docs/61-delivery-diagnostics-plan.md]
       - text: 新增挂载先跑 rungic-fs-audit，问题在挂载层修，不逐个修应用。
         docs: [docs/69-filesystem-capabilities.md]
@@ -704,10 +704,10 @@ features:
     status: live
     platform: android
     interfaces: []
-    summary: rungic_device.py 找到手机并把脚本送到 Android、Android root、容器 root 或桌面用户执行；rungic_plasma.py、rungic_lxc.py 是对应的命令行；enter 程序是 Android 侧进入 LXC 控制环境的入口。
+    summary: rungic_device.py 查找手机，并将脚本送到 Android、Android root、容器 root 或桌面用户环境执行。rungic_plasma.py 和 rungic_lxc.py 提供对应命令行。Android 侧的 enter 程序负责进入 LXC 控制环境。
     experience:
       - id: E1
-        text: 按硬件序列号在所有 adb 设备里找到手机，无线调试端口变化不用改配置；RUNGIC_ADB、RUNGIC_SERIAL、RUNGIC_TRANSPORT 或 .work/device.env 可以指定。
+        text: 按硬件序列号在所有 adb 设备里找到手机，无线调试端口变化不用改配置。RUNGIC_ADB、RUNGIC_SERIAL、RUNGIC_TRANSPORT 或 .work/device.env 可以指定。
         evidence:
           - {doc: docs/55-agent-native-debugging.md, date: 2026-09-23, note: "P0：原 7 个硬编码工具改为共用此入口"}
       - id: E2
@@ -717,16 +717,16 @@ features:
         evidence:
           - {doc: docs/70-rungic-rebrand.md, date: 2026-09-27, note: "按包回滚到 20260926.20 后冒烟验收通过"}
       - id: E4
-        text: enter 程序在私有挂载命名空间里进入 LXC 运行环境，不在 Android 原来的挂载命名空间挂载任何东西；build_enter.sh 用 NDK 静态编译。
-        gap: enter 程序只能以 Android root 运行：路径写死为 /data/adb/rungic-lxc/runtime、/storage 与 /data/user，unshare/pivot_root 需要 CAP_SYS_ADMIN；开发机禁止非特权 user namespace（apparmor_restrict_unprivileged_userns=1），系统测试容器没有 SYS_ADMIN，也没有 NDK；还没有按日期记录的实机核对
+        text: enter 程序在私有挂载命名空间里进入 LXC 运行环境，不在 Android 原来的挂载命名空间挂载任何东西。build_enter.sh 用 NDK 静态编译。
+        gap: enter 程序只能以 Android root 运行：路径写死为 /data/adb/rungic-lxc/runtime、/storage 与 /data/user，unshare/pivot_root 需要 CAP_SYS_ADMIN。开发机禁止非特权 user namespace（apparmor_restrict_unprivileged_userns=1），系统测试容器没有 SYS_ADMIN，也没有 NDK。还没有按日期记录的实机核对
     pitfalls:
-      - text: 多个 adb server 或多台手机同时在线时，先 adb devices -l 核对端口和序列号，之后每条命令都带精确序列号；adb server 是共用的，不能 kill-server。
+      - text: 多个 adb server 或多台手机同时在线时，先 adb devices -l 核对端口和序列号，之后每条命令都带精确序列号。adb server 是共用的，不能 kill-server。
         docs: [AGENTS.md]
       - text: adb shell su -c '命令一; 命令二' 可能只有第一条以 root 运行，改为把脚本经 stdin 送给 su -c sh。
         docs: [AGENTS.md]
-      - text: adb 走 Wi-Fi，离开当前 Wi-Fi 会断开 adb，失去对手机的全部访问；不要做会断网的操作。
+      - text: adb 走 Wi-Fi，离开当前 Wi-Fi 会断开 adb，失去对手机的全部访问。不要做会断网的操作。
         docs: [docs/73-reduce-upstream-changes.md]
-      - text: Magisk 31.0 的 magiskd 遇到返回 SQL NULL 的查询会退出（直接 PRAGMA table_info、未检查的 SELECT *）；只查明确非空的列或逐列 COALESCE，先在内存数据库核对，不在实机复现。
+      - text: Magisk 31.0 的 magiskd 遇到返回 SQL NULL 的查询会退出（直接 PRAGMA table_info、未检查的 SELECT *）。只查明确非空的列或逐列 COALESCE，先在内存数据库核对，不在实机复现。
         docs: [docs/39-magisk-daemon-crash.md, AGENTS.md]
     code:
       - tools/rungic_device.py
@@ -744,22 +744,22 @@ features:
     status: live
     platform: linux
     interfaces: []
-    summary: packages/<名>/recipe.json 固定上游来源与校验值，修改是 debian/patches/rungic/ 下带 DEP-3 与 X-Rungic-* 字段的补丁；tools/pq.py 负责下载、展开、编辑、导出、检查。
+    summary: packages/<名>/recipe.json 固定上游来源和校验值。修改保存在 debian/patches/rungic/，使用 DEP-3 和 X-Rungic-* 元数据。tools/pq.py 负责下载、展开、编辑、导出和检查。
     experience:
       - id: E1
         text: fetch 按配方下载并核对 sha256，不符的文件不留在缓存里，并报出是哪个文件。
       - id: E2
         text: lint 要求我们的每条补丁都有 DEP-3 与 X-Rungic-* 字段、取值合法、与 series 一致，缺了就失败。
       - id: E3
-        text: overlay 把仓库里的共享文件放进源码树，补丁只引用不复制；整体替换上游文件时必须记录它的哈希，上游一改或文件消失就拒绝构建。
+        text: overlay 把仓库里的共享文件放进源码树，补丁只引用不复制。整体替换上游文件时必须记录它的哈希，上游一改或文件消失就拒绝构建。
       - id: E4
-        text: git 子树配方核对所选子树的树哈希；换了子树不复用旧归档；排除项消失或路径越出所选子树时失败，要求复核。
+        text: git 子树配方核对所选子树的树哈希。换了子树不复用旧归档。排除项消失或路径越出所选子树时失败，要求复核。
       - id: E5
         text: verify 把打好补丁的源码与参照树比较，无法解析的符号链接算作差异，不会误报一致。
       - id: E6
         text: tests 列出补丁与测试的对应矩阵，只写了计划的测试不算覆盖，没有测试的补丁列为缺口。
       - id: E7
-        text: prepare 再 export 往返不改变补丁内容；export 只写回我们的主题和 series，Ubuntu 原有补丁保持原样。
+        text: prepare 再 export 往返不改变补丁内容。export 只写回我们的主题和 series，Ubuntu 原有补丁保持原样。
         evidence:
           - {doc: docs/71-upstream-patch-queue.md, date: 2026-09-26, note: "试点 3 工具"}
       - id: E8
@@ -767,15 +767,15 @@ features:
         evidence:
           - {doc: docs/73-reduce-upstream-changes.md, date: 2026-09-30, note: "706 个原生文件差异为 0"}
     pitfalls:
-      - text: 不以提交上游作为手段（评审周期过长）：必须保留的修改长期作为补丁维护，能在自有组件、扩展点或共享服务里解决的不改上游；升级时先核对新版本是否已包含我们的修复，已包含的删除。
+      - text: 不以提交上游作为手段（评审周期过长）：必须保留的修改长期作为补丁维护，能在自有组件、扩展点或共享服务里解决的不改上游。升级时先核对新版本是否已包含我们的修复，已包含的删除。
         docs: [docs/73-reduce-upstream-changes.md, AGENTS.md]
       - text: gbp pq export 第一次会把 Ubuntu 原有补丁改写成 From/Date/Subject 格式，只导出 rungic 主题下的补丁。
         docs: [docs/71-upstream-patch-queue.md]
-      - text: 复用构建目录并用 rsync -a 同步时源文件保留旧修改时间，CMake 不重编，结果混入旧目标文件；每个源码状态用新目录或 git archive。
+      - text: 复用构建目录并用 rsync -a 同步时源文件保留旧修改时间，CMake 不重编，结果混入旧目标文件。每个源码状态用新目录或 git archive。
         docs: [docs/71-upstream-patch-queue.md]
       - text: KWin 测试要在 xvfb 下串行跑（xvfb-run ctest -j1），比较与不含补丁的基线的失败集合，而不是通过数。
         docs: [docs/71-upstream-patch-queue.md]
-      - text: pull-lp-source 只用 Debian 密钥环验签，Ubuntu 上传者只给警告；完整性以配方里的 sha256 为准。
+      - text: pull-lp-source 只用 Debian 密钥环验签，Ubuntu 上传者只给警告。完整性以配方里的 sha256 为准。
         docs: [docs/71-upstream-patch-queue.md]
       - text: Winland 固定提交缺根 LICENSE（README 声明 MIT），这是已记录的来源缺口，没有补造许可证。
         docs: [docs/52-git-repository-scope.md, docs/73-reduce-upstream-changes.md]
@@ -797,7 +797,7 @@ features:
     status: retired
     platform: linux
     interfaces: []
-    summary: 一次性迁移工具：按 tools/pq-history/<包>.json 把 vendor/ 时期的提交转成补丁队列并与 vendor 树逐字节核对。全部组件已于 2026-09-27/30 迁完，vendor/ 已从全部历史中删除。
+    summary: 一次性迁移工具按 tools/pq-history/<包>.json 将 vendor/ 时期的提交转换为补丁队列。工具与 vendor 树逐字节核对结果。全部组件已于 2026-09-27/30 完成迁移，vendor/ 已从全部历史删除。
     experience:
       - id: E1
         text: 生成的补丁队列准备出的源码树与迁移前的 vendor 树逐字节一致。
@@ -816,10 +816,10 @@ features:
     status: live
     platform: linux
     interfaces: []
-    summary: 私有仓库只同步源码、文档、基准数据和来源记录；本地产物都在 .work/；provenance/ 记上游来源与校验值；开发 APK 签名密钥是唯一同步的密钥。
+    summary: 私有仓库同步源码、文档、基准数据和来源记录。本地产物放在 .work/，上游来源和校验值记录在 provenance/。开发 APK 签名密钥是唯一随仓库同步的密钥。
     experience:
       - id: E1
-        text: 提交前的候选检查用 Git 实际的忽略规则，在临时 Git 目录里列出候选文件，标出敏感文件名、令牌格式、大文件和指向仓库外的链接，只放行指定的开发签名密钥；不改工作区索引。
+        text: 提交前的候选检查用 Git 实际的忽略规则，在临时 Git 目录里列出候选文件，标出敏感文件名、令牌格式、大文件和指向仓库外的链接，只放行指定的开发签名密钥。不改工作区索引。
         evidence:
           - {doc: docs/52-git-repository-scope.md, date: 2026-09-23, note: "约 1031 个候选、17.6 MiB，无发现"}
       - id: E2
@@ -829,9 +829,9 @@ features:
         evidence:
           - {doc: docs/52-git-repository-scope.md, date: 2026-09-30, note: "APK 编译、打包和签名校验通过"}
       - id: E4
-        text: 上游来源、版本、校验值和许可证有记录；审计只按精确哈希豁免已核对的上游公开文件。
+        text: 上游来源、版本、校验值和许可证有记录。审计只按精确哈希豁免已核对的上游公开文件。
     pitfalls:
-      - text: 2026-09-30 的历史改写改变了所有提交号；发布记录和文档里的旧提交号按 provenance/history-rewrite-20260930/commit-map.txt 查找，不要再推送基于旧历史的分支。
+      - text: 2026-09-30 的历史改写改变了所有提交号。发布记录和文档里的旧提交号按 provenance/history-rewrite-20260930/commit-map.txt 查找，不要再推送基于旧历史的分支。
         docs: [docs/52-git-repository-scope.md]
       - text: 候选检查只是有限的模式检查，不表示仓库适合公开：文档里仍有设备身份、本机路径和局域网地址。
         docs: [docs/52-git-repository-scope.md]
@@ -877,7 +877,7 @@ features:
     summary: README（产品主页）、docs/README.md（开发者指南和文档索引）、AGENTS.md（用户要求与工程约定）和 .agents/skills 下的项目技能。
     experience:
       - id: E1
-        text: 开发 Agent 一进仓库就能读到按日期记录的用户要求与工程约定（AGENTS.md），并能按任务调用项目技能（$rungic-three-stage-image、$rungic-dev-release；Claude Code 经 .claude/skills 链接）。
+        text: 开发 Agent 进入仓库后可以读取 AGENTS.md 中按日期记录的用户要求和工程约定。Agent 按任务调用 $rungic-three-stage-image 和 $rungic-dev-release 等项目技能。Claude Code 通过 .claude/skills 链接调用技能。
       - id: E2
         text: docs/README.md 的文档索引列出每一篇现有文档。
       - id: E3
@@ -885,7 +885,7 @@ features:
     pitfalls:
       - text: docs/README.md 的索引落后：91–104 篇及 research/ 下多篇新文档（共 24 篇）没有列入。
         docs: [docs/README.md]
-      - text: 新遇到的失败、修复和实机证据要及时写进对应文档；研究结论、离线校验和实机验收必须分开标注。
+      - text: 新遇到的失败、修复和实机证据要及时写进对应文档。研究结论、离线校验和实机验收必须分开标注。
         docs: [AGENTS.md]
     code:
       - AGENTS.md
@@ -902,16 +902,16 @@ features:
     status: experimental
     platform: linux
     interfaces: []
-    summary: quality/ 记下每个功能必须做到的体验和背后的代码、文档、测试；tools/feature_inventory.py 检查引用、认领和覆盖，并生成 docs/feature-inventory.md。
+    summary: quality/ 记录功能的体验要求、代码、文档和测试。tools/feature_inventory.py 检查引用、文件认领和检查覆盖，并生成 docs/feature-inventory.md。
     experience:
       - id: E1
-        text: check 把断裂的引用（不存在的文件、未知的功能或体验、未知的接口）报为错误，把无人认领的文件、没有检查的体验、已退役功能的残留和被取代的文档报为警告；--strict 下警告也算失败。
+        text: check 将断裂引用报为错误，包括不存在的文件、未知功能、未知体验和未知接口。它将无人认领的文件、未检查的体验、退役功能残留和被取代的文档报为警告。--strict 按 quality/README.md 的结构性警告和测试欠账规则判定失败。
       - id: E2
         text: owner PATH 说出一个文件归哪些功能，feature ID 列出它的体验、检查、代码和文档。
       - id: E3
         text: 生成的 docs/feature-inventory.md 与数据不一致时 check 失败，提示 render --write。
     pitfalls:
-      - text: 测试要在被检查的地方声明 covers，只在真的检查了那条体验时才写；没有测试的体验如实留作未检查或写明 gap。
+      - text: 测试要在被检查的地方声明 covers，只在真的检查了那条体验时才写。没有测试的体验如实留作未检查或写明 gap。
         docs: [quality/README.md]
     code:
       - quality/
@@ -926,18 +926,18 @@ features:
     status: experimental
     platform: linux
     interfaces: [platform-bridge]
-    summary: 与安卓无关的 Linux 系统功能在 Mac mini 的无头 KWin 里测试；它和安卓之间的接口按契约两头分别测，Linux 一侧对着替身，安卓一侧在手机上。
+    summary: 与 Android 无关的 Linux 功能在 Mac mini 的无头 KWin 中测试。跨系统接口的使用方和提供方分别按同一契约检查。Linux 使用方对着替身检查，Android 提供方在手机上检查。
     experience:
       - id: E1
-        text: tools/system_test.py 在 Mac mini 的一次性 arm64 容器里用工作区的代码构建并运行系统测试，不碰手机；结果逐条写进 .work/system-tests/。
+        text: tools/system_test.py 在 Mac mini 的一次性 arm64 容器里用工作区的代码构建并运行系统测试，不碰手机。结果逐条写进 .work/system-tests/。
         evidence:
           - {doc: quality/README.md, date: 2026-10-03, note: "desktop_mode_fullscreen 4 秒通过；在修复前的 e6693dd 上失败"}
       - id: E2
-        text: 接口契约（quality/contracts/）给出每个查询和使用方依赖的回复字段；替身按契约回答并记下请求，同一份契约在手机上核对提供方。
+        text: 接口契约（quality/contracts/）给出每个查询和使用方依赖的回复字段。替身按契约回答并记下请求，同一份契约在手机上核对提供方。
       - id: E3
-        text: Linux 程序都经 RUNGIC_PLATFORM_SOCKET 找平台桥，测试可以换成替身；不设时仍是手机上的路径。
+        text: Linux 程序都经 RUNGIC_PLATFORM_SOCKET 找平台桥，测试可以换成替身。不设时仍是手机上的路径。
     pitfalls:
-      - text: 测试 KWin 要 KWIN_WAYLAND_NO_PERMISSION_CHECKS=1 才接受模拟输入，容器要 --cap-add SYS_NICE（kwin_wayland 带文件能力）；Docker 构建上下文要 USTAR 格式的 tar。
+      - text: 测试 KWin 要 KWIN_WAYLAND_NO_PERMISSION_CHECKS=1 才接受模拟输入，容器要 --cap-add SYS_NICE（kwin_wayland 带文件能力）。Docker 构建上下文要 USTAR 格式的 tar。
         docs: [quality/README.md]
       - text: 在手机上核对提供方的检查只能读不能切换：桌面模式的第一版检查把状态读成空，关掉了用户正在用的桌面。
         docs: [quality/README.md]
@@ -957,7 +957,7 @@ features:
     status: live
     platform: android
     interfaces: []
-    summary: 2026-09-26/27 从 moto 改名为 Rungic 的工具（迁移仍随会话包发布，回滚到改名前的发布也靠它们）：规则替换（rebrand.py）、用户与系统状态的双向迁移、Android 侧切换（rungic_cutover.py）。B、C 阶段已完成；清理残留的 D 阶段还没做。
+    summary: 2026-09-26/27 的改名工具将 moto 迁移为 Rungic。工具包括 rebrand.py 规则替换、用户与系统状态的双向迁移，以及 rungic_cutover.py 的 Android 侧切换。迁移工具仍随会话包发布，回滚到改名前的发布也依赖它们。B、C 阶段已完成，清理残留的 D 阶段尚未执行。
     experience:
       - id: E1
         text: 跨越改名的升级和回滚两个方向都可用：用户设置、目录和单元启用状态迁到新名称，回滚到改名前的发布时迁回，往返后配置逐字节相同。
@@ -968,9 +968,9 @@ features:
         evidence:
           - {doc: docs/70-rungic-rebrand.md, date: 2026-09-27, note: "rebrand.residue 通过；C2 后容器与 Android 侧 0 项失败"}
     pitfalls:
-      - text: D 阶段没做：兼容挂载 /var/lib/moto-*、moto-gpu-alloc 链接、投屏厂商 Moto、停用的旧 APK、/data/adb/rungic-cutover、moto-* 的 rc 残留和 /home/linux 链接仍在；rungic_release.py 的 rebrand_down、rungic_device 的旧名回退、rungic-rebrand-user 也要随之删除。
+      - text: D 阶段没做：兼容挂载 /var/lib/moto-*、moto-gpu-alloc 链接、投屏厂商 Moto、停用的旧 APK、/data/adb/rungic-cutover、moto-* 的 rc 残留和 /home/linux 链接仍在。rungic_release.py 的 rebrand_down、rungic_device 的旧名回退、rungic-rebrand-user 也要随之删除。
         docs: [docs/70-rungic-rebrand.md]
-      - text: rebrand.py apply 只运行过一次；审查时恢复的旧名称会让 list 再次列出那些文件，不能再次 apply。
+      - text: rebrand.py apply 只运行过一次。审查时恢复的旧名称会让 list 再次列出那些文件，不能再次 apply。
         docs: [docs/70-rungic-rebrand.md]
     code:
       - tools/rebrand.py
@@ -988,10 +988,10 @@ features:
     status: retired
     platform: android
     interfaces: []
-    summary: 导入时带来的、已没有任何代码引用的主机脚本：feature 上传助手 device.py、APT 下载计划抓取 prefetch_apt_uris.py、LXC 前置条件探针 lxc_kernel_probe.c（docs/16 的 2026-09-22 审计）。
+    summary: 仓库导入时保留了一组主机脚本，现已没有代码引用。脚本包括 feature 上传助手 device.py、APT 下载计划抓取工具 prefetch_apt_uris.py 和 LXC 前置条件探针 lxc_kernel_probe.c。探针用于 docs/16 记录的 2026-09-22 审计。
     experience: []
     pitfalls:
-      - text: tools/device.py 与 tools/prefetch_apt_uris.py 没有任何导入或文档引用；prefetch_apt_uris.py 还写死了代理 192.168.5.45:6152。lxc_kernel_probe.c 只被 docs/16 作为当时的证据引用，新机型接入走三段式 skill 的内核兼容参考。
+      - text: tools/device.py 与 tools/prefetch_apt_uris.py 没有任何导入或文档引用。prefetch_apt_uris.py 还写死了代理 192.168.5.45:6152。lxc_kernel_probe.c 只被 docs/16 作为当时的证据引用，新机型接入走三段式 skill 的内核兼容参考。
         docs: [docs/16-lxc-prerequisites.md]
     code: []
     docs: []

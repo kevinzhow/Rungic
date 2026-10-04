@@ -1,13 +1,13 @@
 area: desktop-mode
 title: 桌面模式与外屏
-summary: 手机里有一台完整的电脑桌面（0 号独立桌面）：浮窗里看、全屏里用、投到电视上当电脑；几块助理屏可以一起看，也可以从别的设备远程看。
+summary: 手机里有一台完整的电脑桌面（0 号独立桌面）：浮窗里看、全屏里用、投到电视上当电脑。几块助理屏可以一起看，也可以从别的设备远程看。
 scenarios:
   - id: desktop-mode.use
     title: 把手机当电脑用
-    summary: 打开桌面模式，在浮窗里看桌面，进入全屏后用触摸、触控板和键盘操作；桌面里的应用、设置、剪贴板和授权与手机连通。
+    summary: 打开桌面模式，在浮窗里看桌面，进入全屏后用触摸、触控板和键盘操作。桌面里的应用、设置、剪贴板和授权与手机连通。
   - id: desktop-mode.tv
     title: 在电视上用
-    summary: 选一台电视投屏，电视显示电脑桌面，手机当触控板和键盘；声音跟着画面走，断了能自己连回来。
+    summary: 选一台电视投屏，电视显示电脑桌面，手机当触控板和键盘。声音跟着画面走，断了能自己连回来。
   - id: desktop-mode.watch-agents
     title: 看助理们工作
     summary: 几块助理屏同时在干活时，在手机的导播台窗口或电视上一起看，切换焦点、放大其中一块。
@@ -23,26 +23,26 @@ features:
     status: live
     platform: linux
     interfaces: [platform-bridge]
-    summary: 控制中心的“桌面模式”磁贴（或 rungic-desktop-mode）打开一台独立的电脑桌面并显示它的浮窗；关闭时先请桌面里的应用退出。
+    summary: 控制中心的“桌面模式”磁贴或 rungic-desktop-mode 启动独立电脑桌面，并显示浮窗。关闭前，系统先请求桌面应用退出。
     experience:
       - id: E1
-        text: 打开后 0 号桌面启动、浮窗显示它；手机的 KWin 不再多出一块 CAST 输出（只剩 WL-0），旧的 APK 桌面模式开关被顺手关掉。
+        text: 打开后 0 号桌面启动、浮窗显示它。手机的 KWin 不再多出一块 CAST 输出（只剩 WL-0），旧的 APK 桌面模式开关被顺手关掉。
         evidence:
           - {doc: docs/research/97-headless-agent-work.md, date: 2026-10-03, note: "§19.4 实机验收：切换"}
       - id: E2
-        text: 关闭（磁贴、off、浮窗的关闭按钮）先请应用退出；有应用因未保存内容没关掉时发通知（查看／不保存直接关闭），不强行关闭。
+        text: 关闭（磁贴、off、浮窗的关闭按钮）先请应用退出。有应用因未保存内容没关掉时发通知（查看／不保存直接关闭），不强行关闭。
       - id: E3
-        text: 手机界面重启（会话重启、宿主重启）后，开着的桌面模式自动回来、浮窗重新出现；0 号不属于图形会话，期间一直在运行。
+        text: 手机界面重启（会话重启、宿主重启）后，开着的桌面模式自动回来、浮窗重新出现。0 号不属于图形会话，期间一直在运行。
         evidence:
           - {doc: docs/research/97-headless-agent-work.md, date: 2026-10-03, note: "§19.7、§20.1 会话重启后浮窗自动恢复"}
       - id: E4
-        text: 磁贴如实显示状态：关闭、浮窗、全屏、在电视上；操作中显示“正在打开/关闭…”，出错时显示原因。
+        text: 磁贴如实显示状态：关闭、浮窗、全屏、在电视上。操作中显示“正在打开/关闭…”，出错时显示原因。
       - id: E5
-        text: 手机睡着、Rungic 应用被冻结时，开关请求最多等 1 秒就回答；手机醒来后第一次操作立即生效，不会一段时间内对开关没反应。
+        text: 手机睡着、Rungic 应用被冻结时，开关请求最多等 1 秒就回答。手机醒来后第一次操作立即生效，不会一段时间内对开关没反应。
     pitfalls:
       - text: rungic_plasma.py restart-session 会误报 “Desktop did not become ready”：就绪检查用 pidof kwin_wayland 比较新旧进程，而工作区（含 0 号）的 KWin 一直在跑。
         docs: [docs/research/97-headless-agent-work.md]
-      - text: 0 号运行时手机可用内存约 2.5 GB；打开桌面模式就多了一整套 KWin、plasmashell 和会话服务。
+      - text: 0 号运行时手机可用内存约 2.5 GB。打开桌面模式就多了一整套 KWin、plasmashell 和会话服务。
         docs: [docs/research/97-headless-agent-work.md]
       - text: 磁贴注释、验收检查 desktop_mode_output 和 docs/65 仍按“用户 KWin 的第二输出 CAST-n”描述桌面模式，那是 §19 之前的做法。
         docs: [docs/65-agent-screen.md, docs/research/97-headless-agent-work.md]
@@ -63,14 +63,14 @@ features:
     status: live
     platform: linux
     interfaces: []
-    summary: 桌面模式是一台独立的 KWin 加 Plasma 桌面外壳（0 号工作区，无头运行）：任务栏、开始菜单、托盘、通知齐全，用户的设置和数据与手机共用，桌面布局单独保存。
+    summary: 桌面模式使用独立 KWin 和 Plasma 桌面外壳，作为工作区 0 无头运行。桌面提供任务栏、开始菜单、托盘和通知。用户设置及数据与手机共用，桌面布局单独保存。
     experience:
       - id: E1
-        text: 桌面里有完整的 Plasma 桌面：任务栏、开始菜单、固定的应用、托盘、时钟，壁纸与手机相同；外壳退出后自动重新起来。
+        text: 桌面里有完整的 Plasma 桌面：任务栏、开始菜单、固定的应用、托盘、时钟，壁纸与手机相同。外壳退出后自动重新起来。
         evidence:
           - {doc: docs/research/97-headless-agent-work.md, date: 2026-10-03, note: "§19.2 实机验收"}
       - id: E2
-        text: 应用设置与手机共用（一边改了另一边看得到，桌面上新建的设置文件放置 10 秒后归入用户目录，手机那边增删的跟着增删）；KWin、桌面外壳、全局快捷键、活动、klipper 历史等各自私有，两边互不覆盖。
+        text: 应用设置与手机共用（一边改了另一边看得到，桌面上新建的设置文件放置 10 秒后归入用户目录，手机那边增删的跟着增删）。KWin、桌面外壳、全局快捷键、活动、klipper 历史等各自私有，两边互不覆盖。
         evidence:
           - {doc: docs/research/97-headless-agent-work.md, date: 2026-10-03, note: "§19.2 kdeglobals 是链接、kwinrc 私有、活动数据库在私有目录"}
       - id: E3
@@ -78,28 +78,28 @@ features:
         evidence:
           - {doc: docs/research/97-headless-agent-work.md, date: 2026-10-03, note: "§19.2 两条总线上 Collections 相同、只有 1 个 ksecretd"}
       - id: E4
-        text: 桌面里的程序按桌面形态运行：KDE 应用不用手机布局，Firefox 用桌面版配置（Linux UA、maxTouchPoints 为 0、没有 about:mobile）；同一个 Firefox 回到手机上仍是移动版。
+        text: 桌面里的程序按桌面形态运行：KDE 应用不用手机布局，Firefox 用桌面版配置（Linux UA、maxTouchPoints 为 0、没有 about:mobile）。同一个 Firefox 回到手机上仍是移动版。
         evidence:
           - {doc: docs/research/97-headless-agent-work.md, date: 2026-10-03, note: "§19.8 在 3 号工作区后台实测；0 号里待用户实测"}
       - id: E5
         text: 桌面的声音面板列出手机的输出和输入设备（手机上的设备都是虚拟设备，默认不显示）。
       - id: E6
-        text: 关闭桌面模式后 0 号的进程全部退出；开着时不因闲置被冻结或关闭。
+        text: 关闭桌面模式后 0 号的进程全部退出。开着时不因闲置被冻结或关闭。
         evidence:
           - {doc: docs/research/97-headless-agent-work.md, date: 2026-10-03, note: "§19.2 停止单元后相关进程全部退出"}
     pitfalls:
       - text: plasmashell 的程序名、KWin 的 kwinrc 在源码里写死，plasmashellrc、kwinrc 等与手机的移动版外壳同名，0 号必须用私有的 XDG_CONFIG_HOME（链接镜像），否则两边互相覆盖。
         docs: [docs/research/97-headless-agent-work.md]
       - text: 工作区要有自己的 XDG_CACHE_HOME：KDE 应用数据库 ksycoca 记录设置目录，共用时被两边轮流重建，手机主屏反复重载、丢掉 dock 和小部件（2026-09-29）。
-      - text: 0 号的 plasmashell 环境曾带 QT_QUICK_CONTROLS_MOBILE=true，KDE 应用按手机布局显示；rungic_cua 的 import_session_environment 会从 systemd 环境把 PLASMA_* 补回来，0 号必须跳过。Firefox 的判断用 RUNGIC_WORKSPACE 而不是 PLASMA_PLATFORM（后者会串进工作区）。
+      - text: 0 号的 plasmashell 环境曾带 QT_QUICK_CONTROLS_MOBILE=true，KDE 应用按手机布局显示。rungic_cua 的 import_session_environment 会从 systemd 环境把 PLASMA_* 补回来，0 号必须跳过。Firefox 的判断用 RUNGIC_WORKSPACE 而不是 PLASMA_PLATFORM（后者会串进工作区）。
         docs: [docs/research/97-headless-agent-work.md]
-      - text: 外壳运行中改它的布局文件，退出时会被覆盖：rungic-desktop-plasma 只在外壳启动前写；手动运行必须带 0 号的 XDG_CONFIG_HOME，否则写进手机自己的布局文件（发生过一次）。
+      - text: 外壳运行中改它的布局文件，退出时会被覆盖：rungic-desktop-plasma 只在外壳启动前写。手动运行必须带 0 号的 XDG_CONFIG_HOME，否则写进手机自己的布局文件（发生过一次）。
         docs: [docs/research/97-headless-agent-work.md]
-      - text: 0 号的密码库解锁提示经 rungic-bus-forward 仍弹在手机上（竖屏、手机外观），在电视或远程观看时看不到；1 号工作区的私有总线上另有一个 ksecretd，只有 0 号做了转发，有损坏密码库文件的风险。
+      - text: 0 号的密码库解锁提示经 rungic-bus-forward 仍弹在手机上（竖屏、手机外观），在电视或远程观看时看不到。1 号工作区的私有总线上另有一个 ksecretd，只有 0 号做了转发，有损坏密码库文件的风险。
         docs: [docs/research/97-headless-agent-work.md]
-      - text: Firefox 不能在两边同时运行（switch.py 先关后开）；在 about:config 改过的设置两边都生效；网站记在 cookie 里的“移动版”可能还会跳。
+      - text: Firefox 不能在两边同时运行（switch.py 先关后开）。在 about:config 改过的设置两边都生效。网站记在 cookie 里的“移动版”可能还会跳。
         docs: [docs/research/97-headless-agent-work.md]
-      - text: 独立桌面里 Firefox 闪烁的原因没有证实，§20 的改动之后不再出现；再出现时先查触控板模式下的两路 0 号录屏，再录原始画面和手机屏幕逐帧比较。
+      - text: 独立桌面里 Firefox 闪烁的原因没有证实，§20 的改动之后不再出现。再出现时先查触控板模式下的两路 0 号录屏，再录原始画面和手机屏幕逐帧比较。
         docs: [docs/research/97-headless-agent-work.md]
     code:
       - agent/workspace/rungic-workspace
@@ -128,17 +128,17 @@ features:
     summary: 在手机上、安卓应用里或桌面里复制的文字，在另外两处都能粘贴（手机会话 ⇄ 安卓剪贴板 ⇄ 独立桌面）。
     experience:
       - id: E1
-        text: 手机上复制的文字在桌面里能粘贴，桌面里复制的在手机上能粘贴；安卓应用的复制同样到达桌面。
+        text: 手机上复制的文字在桌面里能粘贴，桌面里复制的在手机上能粘贴。安卓应用的复制同样到达桌面。
         evidence:
           - {doc: docs/research/97-headless-agent-work.md, date: 2026-10-03, note: "§19.3 wl-copy/wl-paste 两个方向"}
       - id: E2
-        text: 桌面打开时以安卓剪贴板的当前内容为准；同步程序退出后几秒内自动重启。
+        text: 桌面打开时以安卓剪贴板的当前内容为准。同步程序退出后几秒内自动重启。
       - id: E3
         text: 桌面的剪贴板历史（klipper）与手机的分开保存，不共用一份历史文件。
     pitfalls:
-      - text: 后台运行的 wl-copy 会继承输出管道，远程命令一直等它结束而超时；测试时要重定向 wl-copy 的输出，并在测试前后保存、恢复用户的剪贴板。
+      - text: 后台运行的 wl-copy 会继承输出管道，远程命令一直等它结束而超时。测试时要重定向 wl-copy 的输出，并在测试前后保存、恢复用户的剪贴板。
         docs: [docs/research/97-headless-agent-work.md]
-      - text: 只同步当前的纯文本：不补回断线期间的每一次复制，不同步图片和文件；锁屏和多用户时不交换。
+      - text: 只同步当前的纯文本：不补回断线期间的每一次复制，不同步图片和文件。锁屏和多用户时不交换。
         docs: [docs/research/clipboard-background.md]
       - text: Klipper 默认 NoEmptyClipboard=true，会把清空的剪贴板恢复成上一条，桥随后同步该值。
         docs: [docs/research/clipboard-background.md]
@@ -154,38 +154,38 @@ features:
     status: live
     platform: linux
     interfaces: [platform-bridge]
-    summary: 桌面（和助理屏）显示在手机上一个浮动的小窗里：只看不操作，单指拖动、双指缩放、甩到边上收成标签，工具栏按需出现。
+    summary: 桌面和助理屏以手机上的浮窗显示，供观看而不直接操作。用户可以单指拖动、双指缩放，或甩到边缘收成标签。工具栏按需出现。
     experience:
       - id: E1
-        text: 单指拖动时浮窗逐帧跟手，松手平滑归位；拖过侧边四分之一或向侧边快甩，收成贴边标签；点标签展开，竖直拖动标签沿边移动。
+        text: 单指拖动时浮窗逐帧跟手，松手平滑归位。拖过侧边四分之一或向侧边快甩，收成贴边标签。点标签展开，竖直拖动标签沿边移动。
         evidence:
           - {doc: docs/65-agent-screen.md, date: 2026-10-01, note: "双指放大修复后的实机测试表：甩动、拖过边缘、点标签"}
       - id: E2
-        text: 双指捏合在屏宽 50%–100% 之间缩放；捏合永远不会把浮窗收成标签，包括一根手指先抬起、外侧手指先快速外移的情况；捏合后立即单指慢拖仍然跟手。
+        text: 双指捏合在屏宽 50%–100% 之间缩放。捏合永远不会把浮窗收成标签，包括一根手指先抬起、外侧手指先快速外移的情况。捏合后立即单指慢拖仍然跟手。
         evidence:
           - {doc: docs/65-agent-screen.md, date: 2026-10-01, note: "tools/rungic_touch.py 写多点触控事件"}
       - id: E3
-        text: 点击、拖动或捏合时工具栏出现在画面下方（靠近底部时改到上方），几秒后淡出；按钮为全屏、投到电视、收到边缘、关闭，并显示这是哪块屏（“桌面”或“助理屏”）。
+        text: 点击、拖动或捏合时工具栏出现在画面下方（靠近底部时改到上方），几秒后淡出。按钮为全屏、投到电视、收到边缘、关闭，并显示这是哪块屏（“桌面”或“助理屏”）。
         evidence:
           - {doc: docs/65-agent-screen.md, date: 2026-09-25, note: "实机验收截图"}
       - id: E4
-        text: 浮窗只显示画面，不能直接操作里面的内容；桌面的画面里没有光标；画面边上不露出底下的黑线，黑底只在还没有画面时出现。
+        text: 浮窗只显示画面，不能直接操作里面的内容。桌面的画面里没有光标。画面边上不露出底下的黑线，黑底只在还没有画面时出现。
         evidence:
           - {doc: docs/research/97-headless-agent-work.md, date: 2026-10-03, note: "§19.4 浮窗显示 0 号桌面、画面里没有光标"}
       - id: E5
-        text: 浮窗不白耗电：投到电视、被全屏取代时不再接收画面；呼吸点每秒只画 10 步，不按 120 Hz 重画。
+        text: 浮窗不白耗电：投到电视、被全屏取代时不再接收画面。呼吸点每秒只画 10 步，不按 120 Hz 重画。
       - id: E6
         text: 手机转屏后浮窗留在屏内、大小合适（横屏转回竖屏不会被撑到横屏宽度的一半）。
       - id: E7
         text: 已关闭的桌面或助理屏遇到残留启动请求时直接退出，不闪出黑色浮窗。
     pitfalls:
-      - text: 不能用 margin 移动整个 layer surface：位置总比请求晚一帧，形成反馈，窗口乱窜；现在是一个覆盖整屏的透明表面，画面在里面由 QML 移动，输入区域只含可见部分。
+      - text: 不能用 margin 移动整个 layer surface：位置总比请求晚一帧，形成反馈，窗口乱窜。现在是一个覆盖整屏的透明表面，画面在里面由 QML 移动，输入区域只含可见部分。
         docs: [docs/65-agent-screen.md]
-      - text: 经 Android → 宿主 → KWin 送到 Qt 的触摸与测试工具直接注入的不一样：捏合中一指先抬起的路径离线重现不了，要用 tools/rungic_touch.py 实机测；测试前确认屏幕上没有真实触点，测试会移动用户屏幕上的浮窗。
+      - text: 经 Android → 宿主 → KWin 送到 Qt 的触摸与测试工具直接注入的不一样：捏合中一指先抬起的路径离线重现不了，要用 tools/rungic_touch.py 实机测。测试前确认屏幕上没有真实触点，测试会移动用户屏幕上的浮窗。
         docs: [docs/65-agent-screen.md]
       - text: Qt 的 eglSwapBuffers 每帧把整个表面标为受损，浮窗每画一帧（小窗也一样），手机 KWin 都要重新合成整屏。
         docs: [docs/research/97-headless-agent-work.md]
-      - text: 真正的毛玻璃要 KWin 的 blur 效果，Plasma Mobile 默认没有加载；全局开启的 GPU 开销没有评估，所以没开。
+      - text: 真正的毛玻璃要 KWin 的 blur 效果，Plasma Mobile 默认没有加载。全局开启的 GPU 开销没有评估，所以没开。
         docs: [docs/65-agent-screen.md]
       - text: 浮窗程序的语言本来就是英文（标签 “Desktop” 等），授权提示等也是英文。
         docs: [docs/research/97-headless-agent-work.md]
@@ -212,7 +212,7 @@ features:
     status: live
     platform: linux
     interfaces: [platform-bridge, host-input]
-    summary: 浮窗里的桌面进入全屏，铺满手机，横屏显示，系统的对话框、键盘和通知照常在它上面。全屏是一个普通的全屏窗口，PC 上的 Plasma 同样适用。
+    summary: 浮窗桌面可以全屏显示，横向铺满手机。系统对话框、键盘和通知仍显示在它上方。这是普通全屏窗口，也适用于 PC Plasma。
     experience:
       - id: E1
         text: 进出全屏是连续的变形动画，中间没有空白帧，退出后浮窗回到原来的位置和大小。
@@ -228,37 +228,37 @@ features:
         evidence:
           - {doc: docs/research/97-headless-agent-work.md, date: 2026-10-03}
       - id: E4
-        text: 竖着拿手机时，全屏画面在窗口里转成横向（手机向左横放的方向），手机本身、桌面和其他应用不转，没有整机转屏；PC 的横屏显示器上不转。
+        text: 竖着拿手机时，全屏画面在窗口里转成横向（手机向左横放的方向），手机本身、桌面和其他应用不转，没有整机转屏。PC 的横屏显示器上不转。
         evidence:
           - {doc: docs/research/97-headless-agent-work.md, date: 2026-10-02, note: "§17.1 进入全屏后 mCurrentRotation=ROTATION_0"}
           - {doc: docs/research/97-headless-agent-work.md, date: 2026-10-03, note: "§21.6 画面转成横屏、铺满屏幕"}
-        device: 手机整机转不转屏由安卓的旋转（mCurrentRotation）决定，Linux 一侧测不到；画面在窗口里转、横屏显示器上不转由单元测试检查。
+        device: 手机整机转不转屏由安卓的旋转（mCurrentRotation）决定，Linux 一侧测不到。画面在窗口里转、横屏显示器上不转由单元测试检查。
       - id: E5
-        text: 离开全屏：工具栏的退出，或电脑上的 Esc；从任务切换器关闭它只回到浮窗，桌面照开；桌面被投到电视时全屏直接撤掉、不播动画。
+        text: 离开全屏：工具栏的退出，或电脑上的 Esc。从任务切换器关闭它只回到浮窗，桌面照开。桌面被投到电视时全屏直接撤掉、不播动画。
         evidence:
           - {doc: docs/research/97-headless-agent-work.md, date: 2026-10-03, note: "§21.6 工具栏退出（手机）、Esc（无头）；任务切换器待测"}
       - id: E6
-        text: 全屏铺满时手机 KWin 不再合成它下面的界面，被盖住的程序降到每秒 1 帧；退出全屏时背后的程序立即恢复满帧，没有残影。
+        text: 全屏铺满时手机 KWin 不再合成它下面的界面，被盖住的程序降到每秒 1 帧。退出全屏时背后的程序立即恢复满帧，没有残影。
         evidence:
           - {doc: docs/research/97-headless-agent-work.md, date: 2026-10-03, note: "§20.1 背后有动画时每秒合成 70 → 0，退出后下一个 2 秒窗口回到满帧"}
       - id: E7
-        text: 桌面模式的全屏铺满到边：没有边距、圆角、壁纸和阴影，16:9 以外是黑边，点黑边呼出工具栏；进入全屏后工具栏先显示约 1 秒再滑出，告诉用户它在哪里。
+        text: 桌面模式的全屏铺满到边：没有边距、圆角、壁纸和阴影，16:9 以外是黑边，点黑边呼出工具栏。进入全屏后工具栏先显示约 1 秒再滑出，告诉用户它在哪里。
         evidence:
           - {doc: docs/research/97-headless-agent-work.md, date: 2026-10-03, note: "§19.4 工具栏先显示后自动隐藏；点黑边待测"}
     pitfalls:
-      - text: 手机上全屏窗口第一帧比无头环境晚约 0.6 秒；交接要等它真正画出第一帧，否则画面会消失。
+      - text: 手机上全屏窗口第一帧比无头环境晚约 0.6 秒。交接要等它真正画出第一帧，否则画面会消失。
         docs: [docs/research/97-headless-agent-work.md]
       - text: 浮动键盘没打开时，全屏里的 Esc 是退出全屏，不会送进桌面。
         docs: [docs/research/97-headless-agent-work.md]
       - text: 不要再用 overlay 层的 layer surface 做全屏：它压在 Normal 到 OSD 各层之上，盖住授权框、门户对话框、通知和键盘，逐个窗口打补丁没有尽头（§21）。
         docs: [docs/research/97-headless-agent-work.md]
-      - text: 浮窗和全屏必须是两个窗口（没有“同一表面从画中画切到标准全屏”的做法）；新窗口第一次建立纹理、特效和着色器约 110 ms，离开的窗口要留一张静帧，直到另一个窗口画出画面。
+      - text: 浮窗和全屏必须是两个窗口（没有“同一表面从画中画切到标准全屏”的做法）。新窗口第一次建立纹理、特效和着色器约 110 ms，离开的窗口要留一张静帧，直到另一个窗口画出画面。
         docs: [docs/research/97-headless-agent-work.md]
-      - text: 全屏是普通应用窗口：出现在任务切换器里，授权框弹出时面板会重新出现；顶边触摸带下拉、与 §18 边缘手势的分工还没有实机核对。
+      - text: 全屏是普通应用窗口：出现在任务切换器里，授权框弹出时面板会重新出现。顶边触摸带下拉、与 §18 边缘手势的分工还没有实机核对。
         docs: [docs/research/97-headless-agent-work.md]
-      - text: KWin 补丁 input-panel-above-overlay 只是为原来的 overlay 全屏加的；确认键盘照常显示在标准全屏之上后应当移除。
+      - text: KWin 补丁 input-panel-above-overlay 只是为原来的 overlay 全屏加的。确认键盘照常显示在标准全屏之上后应当移除。
         docs: [docs/research/97-headless-agent-work.md]
-      - text: 遮挡降帧只在一个输出整个被单个不透明、未变换的窗口盖住时生效；被盖住的 Qt 应用每秒“曝光一次”的开销没有测。不透明区域必须在开始退出的同一刻撤销。
+      - text: 遮挡降帧只在一个输出整个被单个不透明、未变换的窗口盖住时生效。被盖住的 Qt 应用每秒“曝光一次”的开销没有测。不透明区域必须在开始退出的同一刻撤销。
         docs: [docs/research/97-headless-agent-work.md]
     code:
       - agent/screen/qml/Main.qml
@@ -275,7 +275,7 @@ features:
     status: live
     platform: linux
     interfaces: [host-input]
-    summary: 全屏时手指直接操作桌面，两种方式可切换并记住：直接触摸（手指就是指针）和触控板（手指移动系统光标），手势规则与原来的 APK 全屏一致。
+    summary: 全屏桌面提供直接触摸和触控板两种操作方式。直接触摸以手指位置作为指针，触控板通过手指移动系统光标。用户可以切换方式，系统保存选择。手势规则与原 APK 全屏一致。
     experience:
       - id: E1
         text: 直接触摸：点按左键，长按约 400 ms 右键，按住移动从按下处开始拖动，双指点按右键、三指点按中键，双指移动自然滚动、松手后惯性滚动。
@@ -283,31 +283,31 @@ features:
           - {doc: docs/research/97-headless-agent-work.md, date: 2026-10-02, note: "§17.1 转后的长按：右键菜单出现在手指所在的文件上"}
           - {doc: docs/research/97-headless-agent-work.md, date: 2026-10-03, note: "§19.4 点开始菜单、打开 Dolphin、长按出右键菜单；多指手势未测"}
       - id: E2
-        text: 触控板：单指相对移动系统光标（慢速时物理 1:1、快速时按 libinput 曲线加速），轻点单击、点两下双击、点后按住拖动，双指、三指轻点右键、中键；选的模式会记住。
+        text: 触控板：单指相对移动系统光标（慢速时物理 1:1、快速时按 libinput 曲线加速），轻点单击、点两下双击、点后按住拖动，双指、三指轻点右键、中键。选的模式会记住。
         evidence:
           - {doc: docs/research/97-headless-agent-work.md, date: 2026-10-03, note: "§19.4 系统光标跟着手指移动"}
       - id: E3
-        text: 直接触摸时画面里没有光标；切到触控板时带光标的画面接上，前后不闪黑、不出现空白。
+        text: 直接触摸时画面里没有光标。切到触控板时带光标的画面接上，前后不闪黑、不出现空白。
         evidence:
           - {doc: docs/research/97-headless-agent-work.md, date: 2026-10-03, note: "§19.4 触摸屏模式没有光标；指针画面修复一"}
       - id: E4
-        text: 从（横屏视角的）底边上滑呼出工具栏，3 秒后隐藏；底边的点按仍是点击；打开着的开始菜单不会因呼出工具栏或点键盘按钮而关闭。
+        text: 从（横屏视角的）底边上滑呼出工具栏，3 秒后隐藏。底边的点按仍是点击。打开着的开始菜单不会因呼出工具栏或点键盘按钮而关闭。
         evidence:
           - {doc: docs/research/97-headless-agent-work.md, date: 2026-10-03, note: "§19.4 修复二之后"}
       - id: E5
-        text: 导播台全屏时点其他屏幕把它设为焦点；团队看板在焦点时触摸不转发给任何屏幕，上滑呼出工具栏照常可用。
+        text: 导播台全屏时点其他屏幕把它设为焦点。团队看板在焦点时触摸不转发给任何屏幕，上滑呼出工具栏照常可用。
     pitfalls:
       - text: 替换旧机制前要先逐项列出旧实现的功能：移植 APK 全屏时漏了触控板模式，用户发现工具栏上的切换没了。
         docs: [docs/research/97-headless-agent-work.md]
-      - text: 底边起手的触摸要先压住，走出 3.2 mm 再判断（APK 的 stripDecided）；移植时漏了这一步，手指动 1.3 mm 就被当成移动，工具栏永远呼不出来。
+      - text: 底边起手的触摸要先压住，走出 3.2 mm 再判断（APK 的 stripDecided）。移植时漏了这一步，手指动 1.3 mm 就被当成移动，工具栏永远呼不出来。
         docs: [docs/research/97-headless-agent-work.md]
-      - text: 从安卓 24 dp 的边缘区内起手，安卓的系统栏会闪出来，触摸被当成触控板移动；原生安卓本来就是“第一次边缘滑动给应用、第二次给系统”，第一次仍会半透明地显示系统栏约 2.25 秒。
+      - text: 从安卓 24 dp 的边缘区内起手，安卓的系统栏会闪出来，触摸被当成触控板移动。原生安卓本来就是“第一次边缘滑动给应用、第二次给系统”，第一次仍会半透明地显示系统栏约 2.25 秒。
         docs: [docs/research/97-headless-agent-work.md]
       - text: KPipeWire 只在项目可见时接收数据：带指针的那路画面要一直可见（准备好之前透明度为 0），否则两边互相等待，流一直 suspended。
         docs: [docs/research/97-headless-agent-work.md]
       - text: 点击要在按下 40 ms 后再抬起：面板的应用启动器认不出同一瞬间的按下和抬起。
         docs: [docs/66-pointer-gestures.md, docs/research/97-headless-agent-work.md]
-      - text: adb 只能模拟单指；双指滚动、多指点按要用 tools/rungic_touch.py 写多点触控事件实机测。
+      - text: adb 只能模拟单指。双指滚动、多指点按要用 tools/rungic_touch.py 写多点触控事件实机测。
         docs: [docs/65-agent-screen.md, docs/research/97-headless-agent-work.md]
     code:
       - agent/screen/qml/FullTouch.qml
@@ -320,33 +320,33 @@ features:
     status: live
     platform: linux
     interfaces: []
-    summary: 全屏窗口自带一块像平板浮动输入法那样的键盘：方向随画面旋转，可拖动、缩放、停靠，中文用与手机键盘相同的 Rime，打的字进入桌面里获得焦点的输入框。
+    summary: 全屏窗口提供可拖动、缩放和停靠的浮动键盘，类似平板输入法。键盘方向跟随画面。中文使用与手机键盘相同的 Rime，文字进入桌面中获得焦点的输入框。
     experience:
       - id: E1
-        text: 键盘方向跟着全屏画面转，横握手机时是正的；拖顶栏移动、松手吸附到底部中间或两角，双指缩放，放大到上限停靠成整宽、缩小又浮起来；大小、位置、停靠为桌面模式和助理屏分别记住。
+        text: 键盘方向跟着全屏画面转，横握手机时是正的。拖顶栏移动、松手吸附到底部中间或两角，双指缩放，放大到上限停靠成整宽、缩小又浮起来。大小、位置、停靠为桌面模式和助理屏分别记住。
         evidence:
           - {doc: docs/research/97-headless-agent-work.md, date: 2026-10-03, note: "§19.9 用户实测方向正确；拖动、吸附、缩放待验收"}
       - id: E2
-        text: 中文用与手机键盘相同的 Rime 和用户词库：拼音显示在左上角，候选字够大、可横向滑动，第一个（空格选它）用蓝色，能展开全部候选；选中的词上屏到桌面里获得焦点的输入框（密码框也行）。
+        text: 中文用与手机键盘相同的 Rime 和用户词库：拼音显示在左上角，候选字够大、可横向滑动，第一个（空格选它）用蓝色，能展开全部候选。选中的词上屏到桌面里获得焦点的输入框（密码框也行）。
         evidence:
           - {doc: docs/research/97-headless-agent-work.md, date: 2026-10-03, note: "§19.10 手机真实窗口输入 nihao"}
           - {doc: docs/research/97-headless-agent-work.md, date: 2026-10-03, note: "§21.7 经键盘向 0 号的密码框输入 abc"}
       - id: E3
-        text: 顶栏有 Esc、Tab、Ctrl、Alt（点一下作用于下一个键后松开）和四个方向键；按住 Ctrl 或 Alt 时字母和数字按键码发送，Ctrl+C、Alt+F4 等组合键送进桌面。
+        text: 顶栏有 Esc、Tab、Ctrl、Alt（点一下作用于下一个键后松开）和四个方向键。按住 Ctrl 或 Alt 时字母和数字按键码发送，Ctrl+C、Alt+F4 等组合键送进桌面。
       - id: E4
-        text: 键盘打开时全屏工具栏出现在键盘上方，不挡最下面一排键；在键盘上的触摸不会漏到下面的画面。
+        text: 键盘打开时全屏工具栏出现在键盘上方，不挡最下面一排键。在键盘上的触摸不会漏到下面的画面。
         evidence:
           - {doc: docs/research/97-headless-agent-work.md, date: 2026-10-03, note: "§19.10 工具栏在键盘上方"}
       - id: E5
-        text: 浮动键盘打开时手机键盘不同时弹出；收起键盘或退出全屏后键盘消失。
+        text: 浮动键盘打开时手机键盘不同时弹出。收起键盘或退出全屏后键盘消失。
       - id: E6
         text: 键盘加载后位于横屏舞台的底部中间，高度合适，不超出屏幕，离底边留出呼出工具栏的那条边。
         evidence:
           - {doc: docs/research/97-headless-agent-work.md, date: 2026-10-03, note: "§19.9 手机上离屏测试的尺寸与位置"}
     pitfalls:
-      - text: 系统键盘 plasma-keyboard 只有铺满屏宽一种尺寸，KWin 只把它放在屏幕底部或光标下，不能旋转和浮动；而画面在窗口里旋转是我们全屏自己的设计，所以键盘做在窗口里，不改共享层。
+      - text: 系统键盘 plasma-keyboard 只有铺满屏宽一种尺寸，KWin 只把它放在屏幕底部或光标下，不能旋转和浮动。而画面在窗口里旋转是我们全屏自己的设计，所以键盘做在窗口里，不改共享层。
         docs: [docs/research/97-headless-agent-work.md]
-      - text: Qt 虚拟键盘的内置样式按 2560×800 的大屏设计，字号随键盘宽度缩放，手机上按键字只有约 2 mm；自己的样式里所有尺寸取自按键高度。样式的 id 不能叫 style（被键盘组件的同名属性遮住），内联组件看不到外层 id。
+      - text: Qt 虚拟键盘的内置样式按 2560×800 的大屏设计，字号随键盘宽度缩放，手机上按键字只有约 2 mm。自己的样式里所有尺寸取自按键高度。样式的 id 不能叫 style（被键盘组件的同名属性遮住），内联组件看不到外层 id。
         docs: [docs/research/97-headless-agent-work.md]
       - text: 离屏截图不可靠：打字之后截出的顶栏是空的（手机软件渲染、Docker llvmpipe 都一样），看设计要看手机上的真实窗口。
         docs: [docs/research/97-headless-agent-work.md]
@@ -354,7 +354,7 @@ features:
         docs: [docs/research/97-headless-agent-work.md]
       - text: 隐藏输入框必须设 ImhNoAutoUppercase | ImhNoPredictiveText：它总是空的，否则每个字母都被当成句首大写。
         docs: [docs/research/97-headless-agent-work.md]
-      - text: 窗口进程设了 QT_IM_MODULE=qtvirtualkeyboard，不再有 Wayland text-input；电视键盘模式下手机 KWin 提交给它的文字由 KWin 改成按键送来。
+      - text: 窗口进程设了 QT_IM_MODULE=qtvirtualkeyboard，不再有 Wayland text-input。电视键盘模式下手机 KWin 提交给它的文字由 KWin 改成按键送来。
         docs: [docs/research/97-headless-agent-work.md]
       - text: 在桌面里点中输入框时自动弹出键盘还没有做（要一个报告“输入框被点中”的 KWin 补丁）。
         docs: [docs/research/97-headless-agent-work.md]
@@ -370,17 +370,17 @@ features:
     scenario: desktop-mode.use
     status: live
     platform: linux
-    summary: 桌面里的应用要授权时，授权框画在桌面里（横屏、桌面外观）；只在浮窗时浮窗提示，点了进全屏输入。
+    summary: 桌面应用需要授权时，授权框显示在桌面内，使用横屏和桌面外观。仅以浮窗观看时，浮窗显示提示。用户点击提示后进入全屏输入。
     interfaces: []
     experience:
       - id: E1
-        text: 只把请求方会话总线上的请求转给那里的代理界面；手机自己的、助理屏的、地址不可接受的请求留在手机上弹。
+        text: 只把请求方会话总线上的请求转给那里的代理界面。手机自己的、助理屏的、地址不可接受的请求留在手机上弹。
       - id: E2
-        text: 授权框出现在 0 号桌面里，桌面外观、横向；手机上不再弹竖屏框。
+        text: 授权框出现在 0 号桌面里，桌面外观、横向。手机上不再弹竖屏框。
         evidence:
           - {doc: docs/research/97-headless-agent-work.md, date: 2026-10-03, note: "§21.7"}
       - id: E3
-        text: 桌面只在浮窗里时，浮窗显示“需要授权”提示，点它进入全屏；答完提示消失。
+        text: 桌面只在浮窗里时，浮窗显示“需要授权”提示，点它进入全屏。答完提示消失。
         evidence:
           - {doc: docs/research/97-headless-agent-work.md, date: 2026-10-03, note: "§21.7"}
       - id: E4
@@ -389,17 +389,17 @@ features:
           - {doc: docs/research/97-headless-agent-work.md, date: 2026-10-03, note: "§21.7 修复后复测"}
       - id: E5
         text: 电视的电脑模式或远程观看 ws-0 时，授权框同样出现在 0 号桌面里，在哪看就在哪输入。
-        gap: 还没有实测（docs/97 §21.7“未测和遗留”第一项）；系统测试要先在容器里运行由补丁队列构建的 polkit-kde-agent-1，再有一个 RDP 观看端或电视。
+        gap: 还没有实测（docs/97 §21.7“未测和遗留”第一项）。系统测试要先在容器里运行由补丁队列构建的 polkit-kde-agent-1，再有一个 RDP 观看端或电视。
     pitfalls:
       - text: 原版 PolicyKitListener 取消一次会多次完成结果对象，结果对象不能在第一次完成时释放。
         docs: [docs/research/97-headless-agent-work.md]
-      - text: polkit 每个会话只有一个代理；user@ 下的进程都回落到显示会话，按会话分不开桌面实例。
+      - text: polkit 每个会话只有一个代理。user@ 下的进程都回落到显示会话，按会话分不开桌面实例。
         docs: [docs/research/97-headless-agent-work.md]
-      - text: 发起测试要经 systemd-run --user --scope 放进 user@1000.service，像 0 号里真实启动的应用一样；直接从 adb 启动的进程不属于任何会话，polkit 回答 “no agent is available”。
+      - text: 发起测试要经 systemd-run --user --scope 放进 user@1000.service，像 0 号里真实启动的应用一样。直接从 adb 启动的进程不属于任何会话，polkit 回答 “no agent is available”。
         docs: [docs/research/97-headless-agent-work.md]
-      - text: 对话框在 0 号里被放在左上角（0 号 KWin 默认的摆放）；KAuth 应用把对话框挂到自己窗口上、输入正确密码后授权成功都还没测。
+      - text: 对话框在 0 号里被放在左上角（0 号 KWin 默认的摆放）。KAuth 应用把对话框挂到自己窗口上、输入正确密码后授权成功都还没测。
         docs: [docs/research/97-headless-agent-work.md]
-      - text: rungic_dev.py 原先只用基线发布的 user_restart，工作区新登记的重启项被忽略，部署后手机端代理没有重启；重启时 systemd 提示需要 daemon-reload，重启脚本不执行。
+      - text: rungic_dev.py 原先只用基线发布的 user_restart，工作区新登记的重启项被忽略，部署后手机端代理没有重启。重启时 systemd 提示需要 daemon-reload，重启脚本不执行。
         docs: [docs/research/97-headless-agent-work.md]
     code:
       - packages/polkit-kde-agent-1/
@@ -414,25 +414,25 @@ features:
     status: live
     platform: android
     interfaces: [wifi-display, platform-bridge]
-    summary: 从控制中心的“投屏”选一台电视连上、断开或换一台；电视端断开时自动重连，用户自己断开的不重连。走安卓无线显示框架和高通 WFD 组件，Ready For 开不开都行。
+    summary: 用户在控制中心的“投屏”中选择电视，连接、断开或更换接收端。电视端断开时自动重连，用户主动断开时不重连。投屏使用 Android 无线显示框架和高通 WFD 组件，不依赖 Ready For 开关。
     experience:
       - id: E1
-        text: 点“投屏”打开“投屏到”面板：同一台电视的多个入口（R1、R2）合并为一项，分“上次使用”和“附近的设备”，忙碌中的不可点；找不到时提示电视须停在等待画面、屏保时搜不到，并列出检查项。
+        text: 点“投屏”打开“投屏到”面板：同一台电视的多个入口（R1、R2）合并为一项，分“上次使用”和“附近的设备”，忙碌中的不可点。找不到时提示电视须停在等待画面、屏保时搜不到，并列出检查项。
         evidence:
           - {doc: docs/58-miracast-desktop-feasibility.md, date: 2026-09-29, note: "选设备与投屏控制：实测"}
           - {doc: docs/86-x70-miracast-assessment.md, date: 2026-09-30, note: "X70 面板列出 TCL 和 UGREEN"}
       - id: E2
-        text: 选中电视后几秒内连上（G100 S 约 3 秒、X70 约 6 秒），面板自动关闭，电视显示 Linux 桌面；连接中可以取消。
+        text: 选中电视后几秒内连上（G100 S 约 3 秒、X70 约 6 秒），面板自动关闭，电视显示 Linux 桌面。连接中可以取消。
         evidence:
           - {doc: docs/58-miracast-desktop-feasibility.md, date: 2026-09-29}
           - {doc: docs/86-x70-miracast-assessment.md, date: 2026-09-28, note: "三轮断开/重连 6.15/6.02/6.33 秒"}
       - id: E3
-        text: 用户断开（快捷开关、投屏胶囊、语音、命令）后保持断开，不自动重连；电视端结束会话时几秒后开始自动重连（最长 180 秒），重连成功后 2 分钟内电视又退出就不再重连。
+        text: 用户断开（快捷开关、投屏胶囊、语音、命令）后保持断开，不自动重连。电视端结束会话时几秒后开始自动重连（最长 180 秒），重连成功后 2 分钟内电视又退出就不再重连。
         evidence:
           - {doc: docs/58-miracast-desktop-feasibility.md, date: 2026-09-24, note: "第 5 步实测表：模拟电视端断开 11 秒后重连"}
       - id: E4
         text: 投屏中可以换另一台电视：列表里有当前的、上次使用的、最近发现的和安卓已保存的电视，点一台即切换，失败时有提示。
-        gap: 投屏中实际换到第二台电视、换台失败的提示、“已保存”的电视出现在列表里都还没有实机验收（docs/58：2026-09-29 列为未验证，2026-10-01 修复后待验收）；APK 的换设备面板没有离线测试。
+        gap: 投屏中实际换到第二台电视、换台失败的提示、“已保存”的电视出现在列表里都还没有实机验收（docs/58：2026-09-29 列为未验证，2026-10-01 修复后待验收）。APK 的换设备面板没有离线测试。
       - id: E5
         text: 后端出错时说清原因（组件版本不兼容、无线显示关闭、Wi-Fi 不可用、超时等），不显示成“没有电视”的空列表。
         evidence:
@@ -446,23 +446,23 @@ features:
         evidence:
           - {doc: docs/58-miracast-desktop-feasibility.md, date: 2026-09-24, note: "断开约 6 秒、连接约 26 秒后口头确认"}
     pitfalls:
-      - text: 电视进入屏保后停止 P2P 监听，扫描不到；TCL 只在等待画面出现后的短时间内监听。查发现问题前先问用户电视是不是在屏保。
+      - text: 电视进入屏保后停止 P2P 监听，扫描不到。TCL 只在等待画面出现后的短时间内监听。查发现问题前先问用户电视是不是在屏保。
         docs: [docs/58-miracast-desktop-feasibility.md, docs/84-miracast-source.md]
-      - text: 用户在电视遥控器上退出投屏与电视端故障无法区分，会被自动重连一次；P2P 链路直接丢失时日志顺序可能与手机端断开相同，不会重连（未验证）。重连判断依赖 logcat 字符串顺序。
+      - text: 用户在电视遥控器上退出投屏与电视端故障无法区分，会被自动重连一次。P2P 链路直接丢失时日志顺序可能与手机端断开相同，不会重连（未验证）。重连判断依赖 logcat 字符串顺序。
         docs: [docs/58-miracast-desktop-feasibility.md, docs/86-x70-miracast-assessment.md]
       - text: 会话在 PLAYING 约 45–48 秒后因 P2P 链路丢失断开过多次（电视为组主、5 GHz、rssi -87），原因未排除。
         docs: [docs/58-miracast-desktop-feasibility.md]
-      - text: 投屏期间安卓不扫描，“最近发现”会过期；不扫描时 status 里的 available 可能是上次扫描的结果，选设备只采信 scan 的可见状态。
+      - text: 投屏期间安卓不扫描，“最近发现”会过期。不扫描时 status 里的 available 可能是上次扫描的结果，选设备只采信 scan 的可见状态。
         docs: [docs/58-miracast-desktop-feasibility.md]
       - text: 手机上的 root 组件（rungic-cast.jar）要和容器里的 rungic-cast 版本一致：旧 jar 没有 protocol_version、没有 receivers，面板就列不出电视。
         docs: [docs/58-miracast-desktop-feasibility.md, docs/86-x70-miracast-assessment.md]
       - text: 编码器失败后 rungic-cast-watch 会按“电视端断开”反复重连且错误为空，快捷开关只显示“没有连上电视”。
         docs: [docs/58-miracast-desktop-feasibility.md]
-      - text: wfd.sepolicy.rule 只针对 XT2537-4（G100 S）的高通域，其他机型要按实际 AVC 核对，不能机械套用；未知平台走不改厂商的框架路径。
+      - text: wfd.sepolicy.rule 只针对 XT2537-4（G100 S）的高通域，其他机型要按实际 AVC 核对，不能机械套用。未知平台走不改厂商的框架路径。
         docs: [docs/58-miracast-desktop-feasibility.md, docs/86-x70-miracast-assessment.md]
-      - text: X70 上直接关掉无线显示开关后，紧接着的重连多次超时，失败在 P2P/IP 建立之后、WFD 会话完成之前，未定因；刷新率变更的完整重新协商也没单独验证。
+      - text: X70 上直接关掉无线显示开关后，紧接着的重连多次超时，失败在 P2P/IP 建立之后、WFD 会话完成之前，未定因。刷新率变更的完整重新协商也没单独验证。
         docs: [docs/86-x70-miracast-assessment.md]
-      - text: 连接时 Moto“超级互联显示”仍会在手机上弹“已连接至…”横幅；Ready For 参与连接，不能整体停用。
+      - text: 连接时 Moto“超级互联显示”仍会在手机上弹“已连接至…”横幅。Ready For 参与连接，不能整体停用。
         docs: [docs/58-miracast-desktop-feasibility.md]
     code:
       - desktop/cast/
@@ -485,10 +485,10 @@ features:
     status: live
     platform: android
     interfaces: [wifi-display]
-    summary: 投屏后电视上是 Linux 桌面，不被厂商的投屏界面（Moto 欢迎页、任务栏、副屏主屏）盖住；断开后厂商组件恢复原样。规则按实际窗口判断，不按机型名单。
+    summary: 投屏后，电视显示 Linux 桌面。厂商的欢迎页、任务栏和副屏主屏不会覆盖它。断开后，厂商组件恢复原状。规则根据实际窗口判断，不使用机型名单。
     experience:
       - id: E1
-        text: 只有实际盖在 Linux 桌面上的厂商界面（同一块外屏、真的可见、包和 UID 相符、层级更高）才被处理，只暂停实际出现的冲突包；不因装了某个包就停用它，不接管没有 Rungic 桌面的普通安卓投屏。
+        text: 只有实际盖在 Linux 桌面上的厂商界面（同一块外屏、真的可见、包和 UID 相符、层级更高）才被处理，只暂停实际出现的冲突包。不因装了某个包就停用它，不接管没有 Rungic 桌面的普通安卓投屏。
         evidence:
           - {doc: docs/research/g100-ugreen-miracast.md, date: 2026-09-29, note: "第二阶段最终验收：watcher 自动识别欢迎页和任务栏"}
       - id: E2
@@ -507,15 +507,15 @@ features:
     pitfalls:
       - text: 首次识别要等厂商窗口出现，开始投屏时可能短暂露出 Moto 界面，没有证明零闪屏。
         docs: [docs/research/g100-ugreen-miracast.md]
-      - text: 窗口观测（dumpsys window）不是公开接口：字段缺失或未知时不匹配、不停包；新厂商的界面要按实际窗口加规则，不能说所有品牌已自动适配。
+      - text: 窗口观测（dumpsys window）不是公开接口：字段缺失或未知时不匹配、不停包。新厂商的界面要按实际窗口加规则，不能说所有品牌已自动适配。
         docs: [docs/research/g100-ugreen-miracast.md]
       - text: 不能把 ApplicationInfo.FLAG_SYSTEM 当作“系统预装”：com.motorola.mobiledesktop 在 /product/preinstall 下却没有 SYSTEM 标记，第一版因此漏判了欢迎页。
         docs: [docs/research/g100-ugreen-miracast.md]
       - text: 暂停的是整个厂商 UI 包，投屏期间该包的其他界面也不可用。
         docs: [docs/86-x70-miracast-assessment.md]
-      - text: 手机锁屏时安卓在电视上显示锁屏（KeyguardPresentation），盖住 Linux；这与厂商界面是两件事，不能靠停用 SystemUI 解决；手机进入 Dozing 后电视上是锁屏时钟。
+      - text: 手机锁屏时安卓在电视上显示锁屏（KeyguardPresentation），盖住 Linux。这与厂商界面是两件事，不能靠停用 SystemUI 解决。手机进入 Dozing 后电视上是锁屏时钟。
         docs: [docs/86-x70-miracast-assessment.md]
-      - text: 普通应用的 TYPE_APPLICATION_OVERLAY 盖不过厂商的系统窗口；setShouldShowSystemDecors(false) 会被显示自身的 FLAG_SHOULD_SHOW_SYSTEM_DECORATIONS 覆盖，无效。
+      - text: 普通应用的 TYPE_APPLICATION_OVERLAY 盖不过厂商的系统窗口。setShouldShowSystemDecors(false) 会被显示自身的 FLAG_SHOULD_SHOW_SYSTEM_DECORATIONS 覆盖，无效。
         docs: [docs/58-miracast-desktop-feasibility.md, docs/86-x70-miracast-assessment.md]
     code:
       - shared/android/rungic-cast/src/com/rungic/cast/CastAdapter.java
@@ -531,14 +531,14 @@ features:
     status: live
     platform: android
     interfaces: [wifi-display]
-    summary: 投屏胶囊里的“分辨率与帧率…”只列出这台电视与这台手机之间真正能用的视频模式，选了就核对是否生效，失败就恢复。
+    summary: 投屏胶囊的“分辨率与帧率…”只列出当前电视与手机能实际使用的视频模式。选择后，系统核对模式是否生效，失败时恢复原模式。
     experience:
       - id: E1
-        text: 列表只有“自动”、当前协商的模式和在这台电视上实际切换并核对成功的模式（协商读回一致、外屏尺寸一致、连接保持 5 秒）；没有未验证或“试用”的选项。
+        text: 列表只有“自动”、当前协商的模式和在这台电视上实际切换并核对成功的模式（协商读回一致、外屏尺寸一致、连接保持 5 秒）。没有未验证或“试用”的选项。
         evidence:
           - {doc: docs/research/miracast-video-modes.md, date: 2026-09-29, note: "最终实机复核：胶囊弹窗只有 8 项"}
       - id: E2
-        text: 切换失败时恢复原来的模式并从列表里去掉；检查结果按接收端、它声明的能力、手机固件和组件版本分开记，每项 7 天过期，记录损坏或身份不符时不信任。
+        text: 切换失败时恢复原来的模式并从列表里去掉。检查结果按接收端、它声明的能力、手机固件和组件版本分开记，每项 7 天过期，记录损坏或身份不符时不信任。
         evidence:
           - {doc: docs/research/miracast-video-modes.md, date: 2026-09-29, note: "1920×1200p30 回落后返回失败、恢复 1080p60、不进菜单"}
       - id: E3
@@ -546,19 +546,19 @@ features:
         evidence:
           - {doc: docs/research/miracast-video-modes.md, date: 2026-09-29, note: "720p/1080p 在线与重连矩阵"}
       - id: E4
-        text: 接收端的能力按它本次 RTSP 回复实际解析（R1、R2 位表，64 位位图，隔行与逐行区分）；抓包缺段、有歧义或没有握手记录时记为未知，不推测、不用内置表冒充。
+        text: 接收端的能力按它本次 RTSP 回复实际解析（R1、R2 位表，64 位位图，隔行与逐行区分）。抓包缺段、有歧义或没有握手记录时记为未知，不推测、不用内置表冒充。
       - id: E5
-        text: 模式在胶囊里的底部面板里选，点“应用”才生效；取消、返回键、点遮罩、下拉都回到胶囊。
+        text: 模式在胶囊里的底部面板里选，点“应用”才生效。取消、返回键、点遮罩、下拉都回到胶囊。
         evidence:
           - {doc: docs/research/miracast-video-modes.md, date: 2026-09-29, note: "BottomSheet 交互验收"}
     pitfalls:
-      - text: 安卓和 KScreen 显示的 60 Hz 是显示刷新率，不是视频 60 fps；UGREEN 默认协商的是 1080p30。
+      - text: 安卓和 KScreen 显示的 60 Hz 是显示刷新率，不是视频 60 fps。UGREEN 默认协商的是 1080p30。
         docs: [docs/research/miracast-video-modes.md, docs/research/g100-ugreen-miracast.md]
-      - text: XML 和属性只控制 offer 的上限，不能做精确选择；setResolution 返回 0 却不改变协商，getCommonResolution 在 R2 会话返回空，返回码不能当作成功。
+      - text: XML 和属性只控制 offer 的上限，不能做精确选择。setResolution 返回 0 却不改变协商，getCommonResolution 在 R2 会话返回空，返回码不能当作成功。
         docs: [docs/research/miracast-video-modes.md]
-      - text: 高通 Java wrapper 的 VESA 校验表不接受 R2 的位 30–32，1440p 以上暂时开不了；不猜 handle、不另建会话、不改闭源库。
+      - text: 高通 Java wrapper 的 VESA 校验表不接受 R2 的位 30–32，1440p 以上暂时开不了。不猜 handle、不另建会话、不改闭源库。
         docs: [docs/research/miracast-video-modes.md]
-      - text: 能力读取靠系统自带的 tcpdump 只看 RTSP 7236 端口；从安卓设置直接连上的会话没有握手记录，能力为 unknown，要重新连接一次。
+      - text: 能力读取靠系统自带的 tcpdump 只看 RTSP 7236 端口。从安卓设置直接连上的会话没有握手记录，能力为 unknown，要重新连接一次。
         docs: [docs/research/miracast-video-modes.md]
     code:
       - shared/android/rungic-cast/src/com/rungic/cast/CastResolution.java
@@ -578,24 +578,24 @@ features:
     status: live
     platform: linux
     interfaces: [kwin-android-host, host-input, platform-bridge]
-    summary: 电视投“电脑模式”时显示的是独立桌面（0 号），手机当它的触控板和键盘；桌面模式在电视上时手机上的浮窗收起。
+    summary: 电视的“电脑模式”显示独立桌面，即工作区 0。手机作为该桌面的触控板和键盘。桌面显示在电视上时，手机浮窗收起。
     experience:
       - id: E1
-        text: 电视投电脑模式时显示 0 号桌面，盖住手机会话放在那块输出上的外壳；连上后马上出画面，不等桌面里的画面下一次变化。
+        text: 电视投电脑模式时显示 0 号桌面，盖住手机会话放在那块输出上的外壳。连上后马上出画面，不等桌面里的画面下一次变化。
       - id: E2
-        text: 电视上只有一个光标，跟着手机触控板移动，位置与 0 号里的指针一一对应；按键和滚轮按比例转进 0 号（一格滚轮 = 15 个轴单位）。
+        text: 电视上只有一个光标，跟着手机触控板移动，位置与 0 号里的指针一一对应。按键和滚轮按比例转进 0 号（一格滚轮 = 15 个轴单位）。
       - id: E3
         text: 投屏控制的键盘模式打的文字（含中文、表情）进入 0 号里获得焦点的输入框。
       - id: E4
-        text: 桌面模式在电视上时手机上的浮窗收起，0 号的画面流继续；断开电视后浮窗回来。
+        text: 桌面模式在电视上时手机上的浮窗收起，0 号的画面流继续。断开电视后浮窗回来。
       - id: E5
-        text: 每个窗口的投屏按钮投它自己的画面：桌面模式的浮窗投电脑模式，助理屏投导播台（并把那块屏设为焦点）；没有电视时先打开选电视列表，已连电视时打开投屏控制面板；快捷开关只打开面板。
+        text: 每个窗口的投屏按钮投它自己的画面：桌面模式的浮窗投电脑模式，助理屏投导播台（并把那块屏设为焦点）。没有电视时先打开选电视列表，已连电视时打开投屏控制面板。快捷开关只打开面板。
     pitfalls:
-      - text: KWin 的屏幕录制流不给新加入的接收方补发当前帧：电视窗口接已有的那条流时要等到下一次画面变化（约 30 秒黑屏）；电视要单独开一条新流（tv-stream）。
+      - text: KWin 的屏幕录制流不给新加入的接收方补发当前帧：电视窗口接已有的那条流时要等到下一次画面变化（约 30 秒黑屏）。电视要单独开一条新流（tv-stream）。
         docs: [docs/research/97-headless-agent-work.md]
-      - text: 投屏按钮原来只发 source:0，安卓把 0 当作“不改内容”，新连上的电视又被无条件设成导播台，于是桌面模式投出的是导播台；窗口按钮必须带上 content。
+      - text: 投屏按钮原来只发 source:0，安卓把 0 当作“不改内容”，新连上的电视又被无条件设成导播台，于是桌面模式投出的是导播台。窗口按钮必须带上 content。
         docs: [docs/58-miracast-desktop-feasibility.md]
-      - text: 电视上的桌面由 CAST 输出上一块 overlay 层的图层窗口显示（placeOnCast），和原来的 overlay 全屏是同一类，会压住同层后来出现的窗口；下面的 Plasma Mobile 外接屏外壳和 docked 模式照常运行。
+      - text: 电视上的桌面由 CAST 输出上一块 overlay 层的图层窗口显示（placeOnCast），和原来的 overlay 全屏是同一类，会压住同层后来出现的窗口。下面的 Plasma Mobile 外接屏外壳和 docked 模式照常运行。
         docs: [docs/research/97-headless-agent-work.md]
       - text: 电视的电脑模式在 2026-10-03 改投 0 号后，黑屏和没声音的修复还在等用户在电视上复测。
         docs: [docs/research/97-headless-agent-work.md]
@@ -614,35 +614,35 @@ features:
     status: live
     platform: android
     interfaces: [host-input, platform-bridge]
-    summary: 投屏时手机上有一个投屏胶囊，可在“手机／触控板／键盘”之间切换：触控板移动电视上的光标，键盘把字打进电视上的窗口。
+    summary: 投屏时，手机显示投屏胶囊。用户可以切换“手机／触控板／键盘”。触控板移动电视光标，键盘向电视窗口输入文字。
     experience:
       - id: E1
-        text: 投屏时出现投屏胶囊，显示电视名和状态；空闲 4 秒后收成贴边小胶囊，可拖到任意位置、松手吸附到较近一边，位置在应用重启后保留；贴边时不会触发安卓的返回手势。
+        text: 投屏时出现投屏胶囊，显示电视名和状态。空闲 4 秒后收成贴边小胶囊，可拖到任意位置、松手吸附到较近一边，位置在应用重启后保留。贴边时不会触发安卓的返回手势。
         evidence:
           - {doc: docs/58-miracast-desktop-feasibility.md, date: 2026-09-29, note: "胶囊与面板实测"}
       - id: E2
-        text: 触控板：手指移动电视上的光标，慢速时按视角 1:1（约 10.5 像素/毫米）、快速时加速；轻点单击、轻点后按住拖动、双指滚动（内容跟着手指，松手有停止事件）、双指轻点右键、三指轻点中键。
+        text: 触控板：手指移动电视上的光标，慢速时按视角 1:1（约 10.5 像素/毫米）、快速时加速。轻点单击、轻点后按住拖动、双指滚动（内容跟着手指，松手有停止事件）、双指轻点右键、三指轻点中键。
         evidence:
           - {doc: docs/58-miracast-desktop-feasibility.md, date: 2026-09-24, note: "第 3 步：触控板按出 Kalk 的 7、8"}
           - {doc: docs/66-pointer-gestures.md, date: 2026-09-25, note: "电视上双指滚动的 axis_source/axis_stop、双指轻点打开右键菜单"}
       - id: E3
-        text: 键盘：按键和输入法提交的文字（含中文、表情）送到电视上获得焦点的 Linux 窗口，电视上不弹 Plasma 屏幕键盘；输入法被返回键收起后自动回到触控板。
+        text: 键盘：按键和输入法提交的文字（含中文、表情）送到电视上获得焦点的 Linux 窗口，电视上不弹 Plasma 屏幕键盘。输入法被返回键收起后自动回到触控板。
         evidence:
           - {doc: docs/58-miracast-desktop-feasibility.md, date: 2026-09-24, note: "abc1+2、你好，世界 进入电视上的 KRunner"}
       - id: E4
-        text: 手机模式下手机照常操作 Plasma 移动界面；投屏中手机屏幕保持常亮，触控板和键盘模式下亮度降到很低，回到手机模式后恢复。
+        text: 手机模式下手机照常操作 Plasma 移动界面。投屏中手机屏幕保持常亮，触控板和键盘模式下亮度降到很低，回到手机模式后恢复。
         evidence:
           - {doc: docs/58-miracast-desktop-feasibility.md, date: 2026-09-24}
     pitfalls:
       - text: 电视上光标抖动、不跟手的原因没有定位（嫌疑：KWin CAST 时钟与无线显示编码时钟不同步、120 Hz 输入对 60 Hz 出帧、编码和 Wi-Fi 延迟）。
         docs: [docs/66-pointer-gestures.md]
-      - text: 轻点和移动的阈值要按每根手指相对自己的按下点判断；用多指中点对比第一指按下点时，第二根手指一落下就超阈值，双指轻点失效。
+      - text: 轻点和移动的阈值要按每根手指相对自己的按下点判断。用多指中点对比第一指按下点时，第二根手指一落下就超阈值，双指轻点失效。
         docs: [docs/66-pointer-gestures.md]
       - text: 10.5 像素/毫米是按电视占 35° 视野推算的，拿不到电视的实际尺寸和观看距离。
         docs: [docs/66-pointer-gestures.md]
       - text: 应用在后台时手机上没有触控板和键盘，电视只能看不能操作（除非另接蓝牙键鼠，未测）。
         docs: [docs/58-miracast-desktop-feasibility.md]
-      - text: 胶囊画在 Linux 画面之上，Plasma 面板打开时小胶囊仍压在面板边缘；收起后原来展开区域的点击落到桌面。
+      - text: 胶囊画在 Linux 画面之上，Plasma 面板打开时小胶囊仍压在面板边缘。收起后原来展开区域的点击落到桌面。
         docs: [docs/58-miracast-desktop-feasibility.md]
       - text: 注入测试时一次轻点总时长超过 180 ms 就不算轻点。
         docs: [docs/66-pointer-gestures.md]
@@ -660,14 +660,14 @@ features:
     status: live
     platform: linux
     interfaces: [audio, platform-bridge]
-    summary: 投屏时每个声音从它的画面所在的地方出来：手机上的应用从手机出声，电视上的从电视出声；断开电视后一切回到默认输出。
+    summary: 投屏时，声音跟随应用画面。手机应用从手机播放声音，电视应用从电视播放声音。电视断开后，所有声音恢复默认输出。
     experience:
       - id: E1
-        text: 窗口在手机上的应用从手机出声，窗口在电视上的从电视出声；没有窗口的声音在电视投电脑模式时去电视，否则留在手机。
+        text: 窗口在手机上的应用从手机出声，窗口在电视上的从电视出声。没有窗口的声音在电视投电脑模式时去电视，否则留在手机。
         evidence:
           - {doc: docs/58-miracast-desktop-feasibility.md, date: 2026-10-02, note: "无窗口的 paplay、桌面上的 Godot 游戏挪到手机"}
       - id: E2
-        text: 助理屏的声音在电视显示它时去电视，否则去手机；独立桌面（0 号）在电视投电脑模式时去电视，否则在手机。
+        text: 助理屏的声音在电视显示它时去电视，否则去手机。独立桌面（0 号）在电视投电脑模式时去电视，否则在手机。
       - id: E3
         text: 应用自己选定的去处不动：语音助手的手机输出、通话用的扬声器、工作区自己的声道。
       - id: E4
@@ -676,17 +676,17 @@ features:
         text: 留在手机本机的声音不卡顿，延迟有上限（约 185 ms）。
         evidence:
           - {doc: docs/58-miracast-desktop-feasibility.md, date: 2026-10-02, note: "用户确认声音从手机出来、不卡"}
-        device: 手机本机的声音卡不卡、延迟多少取决于安卓 AudioTrack 的输出线程和扬声器路径，只能在手机上听和测；Linux 一侧按画面分配去处由 E1–E4 的单元测试检查。
+        device: 手机本机的声音卡不卡、延迟多少取决于安卓 AudioTrack 的输出线程和扬声器路径，只能在手机上听和测。Linux 一侧按画面分配去处由 E1–E4 的单元测试检查。
     pitfalls:
       - text: 安卓会把所有普通媒体声音都送到无线显示，所以要在 Linux 一侧按画面所在分配，否则手机上玩的游戏声音从电视出来。
         docs: [docs/58-miracast-desktop-feasibility.md]
-      - text: AudioTrack 用 PERFORMANCE_MODE_LOW_LATENCY 时不再理会 setPreferredDevice，投屏时被送到 PROXY，声音跑到电视上；已撤回。以后试 USAGE_GAME 前也要先核对这一点。
+      - text: AudioTrack 用 PERFORMANCE_MODE_LOW_LATENCY 时不再理会 setPreferredDevice，投屏时被送到 PROXY，声音跑到电视上。已撤回。以后试 USAGE_GAME 前也要先核对这一点。
         docs: [docs/58-miracast-desktop-feasibility.md]
       - text: 浏览器的声音来自子进程，找窗口时要沿父进程往上查。
         docs: [docs/58-miracast-desktop-feasibility.md]
-      - text: 手机本机这一路比默认路径多约 0.15–0.2 s；剩下的延迟主要在安卓扬声器输出线程，暂不处理。
+      - text: 手机本机这一路比默认路径多约 0.15–0.2 s。剩下的延迟主要在安卓扬声器输出线程，暂不处理。
         docs: [docs/58-miracast-desktop-feasibility.md]
-      - text: 0 号的回环要一直开着（rungic-workspace-sound 0 listen），并每 30 秒检查补建；0 号在这一行加入之前启动时没有回环，电视上没声音。
+      - text: 0 号的回环要一直开着（rungic-workspace-sound 0 listen），并每 30 秒检查补建。0 号在这一行加入之前启动时没有回环，电视上没声音。
         docs: [docs/research/97-headless-agent-work.md]
     code:
       - shared/media/audio-follow.py
@@ -701,18 +701,18 @@ features:
     status: live
     platform: linux
     interfaces: [kwin-android-host]
-    summary: 手机自己的会话接上一块外接屏（电视的 CAST 输出、PC 上的显示器）时，外接屏是 Plasma 桌面式外观（文件夹桌面、任务栏、开始菜单），窗口在外接屏上带标题栏，手机上的保持移动样式。
+    summary: 手机会话支持电视 CAST 输出或 PC 显示器作为外接屏。外接屏使用文件夹桌面、任务栏和开始菜单等 Plasma 桌面外观。外屏窗口显示标题栏，手机窗口保持移动样式。
     experience:
       - id: E1
-        text: 接上外接屏后进入 docked 模式，拔掉后退出；会话在外接屏连着时重启，拔掉后也能退出 docked。
+        text: 接上外接屏后进入 docked 模式，拔掉后退出。会话在外接屏连着时重启，拔掉后也能退出 docked。
         evidence:
           - {doc: docs/58-miracast-desktop-feasibility.md, date: 2026-09-24, note: "第 2、4 步实测"}
       - id: E2
-        text: 外接屏有任务栏和开始菜单，开始菜单贴任务栏弹出且大小完整，打开的应用出现在外接屏并在其任务栏高亮；手机仍是移动界面。
+        text: 外接屏有任务栏和开始菜单，开始菜单贴任务栏弹出且大小完整，打开的应用出现在外接屏并在其任务栏高亮。手机仍是移动界面。
         evidence:
           - {doc: docs/58-miracast-desktop-feasibility.md, date: 2026-09-24}
       - id: E3
-        text: 窗口规则按所在的屏区分：手机上的窗口无边框、最大化，外接屏上的带边框；窗口换屏时重新套用，状态栏和导航条保持沉浸样式。
+        text: 窗口规则按所在的屏区分：手机上的窗口无边框、最大化，外接屏上的带边框。窗口换屏时重新套用，状态栏和导航条保持沉浸样式。
         evidence:
           - {doc: docs/58-miracast-desktop-feasibility.md, date: 2026-09-24}
       - id: E4
@@ -724,15 +724,15 @@ features:
         evidence:
           - {doc: docs/58-miracast-desktop-feasibility.md, date: 2026-09-29, note: "plasma-mobile +rungic5 三步实测"}
     pitfalls:
-      - text: 电视的电脑模式自 2026-10-03 起投 0 号（盖在 CAST 上的图层窗口），手机会话在外接屏上的这套外壳在电视上看不到；补丁按 §19 保留给真显示器和 PC 用。
+      - text: 电视的电脑模式自 2026-10-03 起投 0 号（盖在 CAST 上的图层窗口），手机会话在外接屏上的这套外壳在电视上看不到。补丁按 §19 保留给真显示器和 PC 用。
         docs: [docs/research/97-headless-agent-work.md]
-      - text: external-desktop.js 判断屏上是否已有面板时不能只看 screen（面板视图约 0.4 s 后才有屏号），否则每次接屏多建一个面板；脚本不去重，其他设备上已累积的面板要另行清理。
+      - text: external-desktop.js 判断屏上是否已有面板时不能只看 screen（面板视图约 0.4 s 后才有屏号），否则每次接屏多建一个面板。脚本不去重，其他设备上已累积的面板要另行清理。
         docs: [docs/58-miracast-desktop-feasibility.md]
-      - text: 上游 KScreenOSDProvider 把“插入前的模式”记在 convergenceModeEnabled 本身，docked 状态下重启会话就回不去；KScreenOSDUtil 构造时从不读取 KScreen 配置，插入外屏也不会切换。
+      - text: 上游 KScreenOSDProvider 把“插入前的模式”记在 convergenceModeEnabled 本身，docked 状态下重启会话就回不去。KScreenOSDUtil 构造时从不读取 KScreen 配置，插入外屏也不会切换。
         docs: [docs/58-miracast-desktop-feasibility.md]
       - text: KWin 的 TabletMode 和应用自身的移动/桌面形态仍是全局的，没有按屏区分。
         docs: [docs/58-miracast-desktop-feasibility.md]
-      - text: 升级后第一次接电视的那次会话里，断开后通知仍会重复一次（小程序已加载）；kickoff 和手机的任务切换器不走“点图标回到点击的屏”。
+      - text: 升级后第一次接电视的那次会话里，断开后通知仍会重复一次（小程序已加载）。kickoff 和手机的任务切换器不走“点图标回到点击的屏”。
         docs: [docs/58-miracast-desktop-feasibility.md]
     code:
       - packages/plasma-mobile/debian/patches/rungic/external-screen-desktop-shell.patch
@@ -750,12 +750,12 @@ features:
     status: live
     platform: android
     interfaces: [wifi-display]
-    summary: 新装或升级后，投屏在安卓一侧要用的组件（root 工具、重连守护、开机脚本、SELinux 规则）自动就位且与桌面一侧版本一致，坏了能修，装不上也不影响桌面。
+    summary: 新装或升级时，Android 侧的投屏组件自动安装，并与桌面侧版本一致。组件包括 root 工具、重连守护、开机脚本和 SELinux 规则。损坏的组件可以修复，安装失败不阻止桌面运行。
     experience:
       - id: E1
-        text: 清数据新装时首启装好投屏组件和开机脚本，并在本次开机就启动；投屏是可选能力，组件缺失时只记日志，不阻止桌面安装。
+        text: 清数据新装时首启装好投屏组件和开机脚本，并在本次开机就启动。投屏是可选能力，组件缺失时只记日志，不阻止桌面安装。
       - id: E2
-        text: 已有安装损坏（jar 坏了、开机脚本缺了）时自动修复，并保留上次连接的电视等状态；完好的安装不去动它。
+        text: 已有安装损坏（jar 坏了、开机脚本缺了）时自动修复，并保留上次连接的电视等状态。完好的安装不去动它。
       - id: E3
         text: 只装与当前源码一致的组件：没有构建来源记录、源码在编译期间或之后改过、jar 被换过的，拒绝组包和部署，不会再出现“旧 jar 让面板显示空列表”。
       - id: E4
@@ -766,9 +766,9 @@ features:
     pitfalls:
       - text: 首启的整 release 完成标记会跳过后续安装逻辑：已完成首启的设备更新投屏组件要用 tools/deploy_cast.py，不能重跑首启。
         docs: [docs/86-x70-miracast-assessment.md]
-      - text: install.sh 是可恢复的文件级更新，不是整目录事务切换；回退时要同时恢复备份的 root 载荷、桌面包和 release pin，不能只换回旧 jar。
+      - text: install.sh 是可恢复的文件级更新，不是整目录事务切换。回退时要同时恢复备份的 root 载荷、桌面包和 release pin，不能只换回旧 jar。
         docs: [docs/86-x70-miracast-assessment.md]
-      - text: 悬浮窗权限不在 default-permissions 管的范围内：首启以 root、失败再以 shell 身份 appops set，结果只记日志；G100 首启曾拒绝 root 上下文的 appops。
+      - text: 悬浮窗权限不在 default-permissions 管的范围内：首启以 root、失败再以 shell 身份 appops set，结果只记日志。G100 首启曾拒绝 root 上下文的 appops。
         docs: [docs/58-miracast-desktop-feasibility.md]
       - text: 带投屏组件的新整包还没有做清数据刷入后的投屏验收。
         docs: [docs/58-miracast-desktop-feasibility.md, docs/86-x70-miracast-assessment.md]
@@ -786,7 +786,7 @@ features:
     status: experimental
     platform: android
     interfaces: []
-    summary: 自己实现 Miracast 发送端（Wi-Fi P2P、RTSP、TS/RTP、硬件编码），不经厂商 WFD 栈。原型能协商到 PLAY，但电视不出画面；用户允许使用高通组件后，2026-09-28 起暂缓。
+    summary: 自研 Miracast 发送端使用 Wi-Fi P2P、RTSP、TS/RTP 和硬件编码，不经过厂商 WFD 栈。原型能协商到 PLAY，但电视没有画面。用户允许使用高通组件后，这条路线自 2026-09-28 起暂缓。
     experience:
       - id: E1
         text: 定向查找约 3 秒发现电视、约 4 秒建组，RTSP M1–M7 协商成功并收到 PLAY，每 25 秒保活。
@@ -794,9 +794,9 @@ features:
           - {doc: docs/84-miracast-source.md, date: 2026-09-28, note: "原型实测，root app_process"}
       - id: E2
         text: 电视显示推送的画面和声音，持续 10 分钟以上不掉线。
-        gap: 暂缓：电视一直停在等待画面，最可疑的是只实现了 LPCM 而电视只支持 AAC；要先抓厂商栈会话的 RTSP/RTP 逐项对比。
+        gap: 暂缓：电视一直停在等待画面，最可疑的是只实现了 LPCM 而电视只支持 AAC。要先抓厂商栈会话的 RTSP/RTP 逐项对比。
     pitfalls:
-      - text: TCL 85Q6H 的 wfd_audio_codecs 只有 AAC，不支持规范强制的 LPCM；CEA 里没有 1080p60。
+      - text: TCL 85Q6H 的 wfd_audio_codecs 只有 AAC，不支持规范强制的 LPCM。CEA 里没有 1080p60。
         docs: [docs/84-miracast-source.md]
       - text: 在 app_process 里画文字会因没加载系统字体触发 hwui 断言（gDefaultTypeface）。
         docs: [docs/84-miracast-source.md]
@@ -811,31 +811,31 @@ features:
     status: live
     platform: linux
     interfaces: [platform-bridge]
-    summary: 有两块以上助理屏（或一块加团队看板）要显示时，手机上合成一个导播台窗口：焦点画面加右侧一列实时小窗，可以放大、全屏。
+    summary: 需要显示至少两块助理屏，或一块助理屏加团队看板时，手机合成一个导播台窗口。焦点画面在主区域，右侧一列实时小窗。窗口可以放大或全屏。
     experience:
       - id: E1
-        text: 第二块助理屏要显示时，各自的浮窗换成一个导播台窗口；成员少到一个时它像普通浮窗；有团队看板时一块屏加看板也算两格。
+        text: 第二块助理屏要显示时，各自的浮窗换成一个导播台窗口。成员少到一个时它像普通浮窗。有团队看板时一块屏加看板也算两格。
         evidence:
           - {doc: docs/research/91-agent-workspaces.md, date: 2026-10-02, note: "§14 第二次实机验收：浮窗自动换成导播台"}
       - id: E2
-        text: 点右侧的小窗把它设为焦点；切换时画面不闪黑，新焦点从 0.95 倍“呼吸”到原大（约 0.26 秒，不过冲）。
+        text: 点右侧的小窗把它设为焦点。切换时画面不闪黑，新焦点从 0.95 倍“呼吸”到原大（约 0.26 秒，不过冲）。
         evidence:
           - {doc: docs/58-miracast-desktop-feasibility.md, date: 2026-10-01, note: "第五次修订：切到 3 号后一秒内已是时钟画面"}
       - id: E3
-        text: 工具栏的放大按钮在标准、放大、独占三级之间循环；全屏时焦点按 16:9 放到最大，其他屏排在右侧一列，与电视的布局相同。
+        text: 工具栏的放大按钮在标准、放大、独占三级之间循环。全屏时焦点按 16:9 放到最大，其他屏排在右侧一列，与电视的布局相同。
       - id: E4
-        text: 团队看板在焦点时显示阶段、简报、每个成员一行和组长的决定；看板不盖住组长屏的字幕。
+        text: 团队看板在焦点时显示阶段、简报、每个成员一行和组长的决定。看板不盖住组长屏的字幕。
         evidence:
           - {doc: docs/research/91-agent-workspaces.md, date: 2026-10-02, note: "§14 第二次实机验收"}
       - id: E5
         text: 三块助理屏的导播台约占 290 MB（每块屏各开一个窗口时约 516 MB）。
         evidence:
           - {doc: docs/58-miracast-desktop-feasibility.md, date: 2026-10-01}
-        device: 内存是手机上 Qt 在 Mesa/KGSL 上渲染、PipeWire 缓冲几路画面的实际占用，取决于手机的 GPU 驱动；系统测试容器用 llvmpipe，量出的数不代表手机。
+        device: 内存是手机上 Qt 在 Mesa/KGSL 上渲染、PipeWire 缓冲几路画面的实际占用，取决于手机的 GPU 驱动。系统测试容器用 llvmpipe，量出的数不代表手机。
     pitfalls:
-      - text: 浮窗里不能用一个视频项换 nodeId 切换焦点：接通另一路 PipeWire 流前那几帧是黑底；每块屏固定一个一直连着的视频项，切焦点只改位置和大小。
+      - text: 浮窗里不能用一个视频项换 nodeId 切换焦点：接通另一路 PipeWire 流前那几帧是黑底。每块屏固定一个一直连着的视频项，切焦点只改位置和大小。
         docs: [docs/58-miracast-desktop-feasibility.md]
-      - text: 用户否决了弹簧动画（分散注意力）和单纯变亮（像闪了一下）；切换只用普通的呼吸。
+      - text: 用户否决了弹簧动画（分散注意力）和单纯变亮（像闪了一下）。切换只用普通的呼吸。
         docs: [docs/58-miracast-desktop-feasibility.md]
       - text: TeamBoard.qml 的 id 不能和数据属性同名，否则 board.phase 读到的是组件自己。
         docs: [docs/research/91-agent-workspaces.md]
@@ -856,14 +856,14 @@ features:
     status: live
     platform: android
     interfaces: [kwin-android-host, platform-bridge, wifi-display]
-    summary: 电视投导播台时，几块助理屏零拷贝地排在电视上：焦点在左，其他在右侧一列，带名字标签，声音跟着焦点。这部分在安卓里，按 §17 的决定逐步移到 Linux。
+    summary: 电视导播台以零拷贝呈现多块助理屏。焦点画面在左，其他画面列在右侧，各带名称标签。声音跟随焦点。当前实现位于 Android，按 §17 的决定逐步迁入 Linux。
     experience:
       - id: E1
-        text: 新连上的电视在有助理屏时默认投导播台；最后一块助理屏关掉后电视自动回到电脑模式。
+        text: 新连上的电视在有助理屏时默认投导播台。最后一块助理屏关掉后电视自动回到电脑模式。
         evidence:
           - {doc: docs/58-miracast-desktop-feasibility.md, date: 2026-10-01, note: "23:58 新连上的电视直接投导播台"}
       - id: E2
-        text: 布局按 16:9：焦点在左尽量大，其余在右侧一列，不拉伸，名字标签正确；关掉一块屏后格子随之减少；断开重连后回到导播台。
+        text: 布局按 16:9：焦点在左尽量大，其余在右侧一列，不拉伸，名字标签正确。关掉一块屏后格子随之减少。断开重连后回到导播台。
         evidence:
           - {doc: docs/58-miracast-desktop-feasibility.md, date: 2026-10-01, note: "用户确认布局和标签"}
           - {doc: docs/58-miracast-desktop-feasibility.md, date: 2026-10-02, note: "关闭一块屏、断开重连"}
@@ -872,21 +872,21 @@ features:
         evidence:
           - {doc: docs/58-miracast-desktop-feasibility.md, date: 2026-10-02, note: "6 次 130–142 ms，用户确认声音跟着焦点"}
       - id: E4
-        text: 无头的助理屏在电视上有实时画面（约 27.6 fps）；Rungic 应用被冻结时工作区照跑，解冻后画面自动恢复。
+        text: 无头的助理屏在电视上有实时画面（约 27.6 fps）。Rungic 应用被冻结时工作区照跑，解冻后画面自动恢复。
         evidence:
           - {doc: docs/research/97-headless-agent-work.md, date: 2026-10-02, note: "§13 呈现器实测"}
     pitfalls:
-      - text: 动画每帧调用 setDirector 会让宿主每帧重新提交所有画面而卡顿；动画只移动焦点那一层（placeTile，一次 setGeometry 事务）。
+      - text: 动画每帧调用 setDirector 会让宿主每帧重新提交所有画面而卡顿。动画只移动焦点那一层（placeTile，一次 setGeometry 事务）。
         docs: [docs/58-miracast-desktop-feasibility.md]
       - text: 宿主丢掉一个格子的图层时，要先隐藏并从父层摘下再释放，否则旧画面留在屏上。
         docs: [docs/58-miracast-desktop-feasibility.md]
-      - text: 呈现器里 Qt 在 Mesa 上默认建桌面 OpenGL 上下文，外部纹理不可用，着色器失败后在 libgallium 里 SIGSEGV，keeper 每 3 秒重启、每次留约 140 MB core；必须显式要 GLES，并有重启退避。
+      - text: 呈现器里 Qt 在 Mesa 上默认建桌面 OpenGL 上下文，外部纹理不可用，着色器失败后在 libgallium 里 SIGSEGV，keeper 每 3 秒重启、每次留约 140 MB core。必须显式要 GLES，并有重启退避。
         docs: [docs/research/97-headless-agent-work.md]
       - text: KGSL 没有隐式同步：录屏帧交给 PipeWire 前要 glFinish，否则消费方读到 GPU 没画完的帧（也影响浮窗）。
         docs: [docs/research/97-headless-agent-work.md]
-      - text: 导播台全屏里点电视按钮曾让 APK 崩溃（castButton 要求主窗口有焦点）；之后 plasmashell active 却一个窗口都没有、屏幕全黑，自动恢复还没覆盖这种情况。
+      - text: 导播台全屏里点电视按钮曾让 APK 崩溃（castButton 要求主窗口有焦点）。之后 plasmashell active 却一个窗口都没有、屏幕全黑，自动恢复还没覆盖这种情况。
         docs: [docs/58-miracast-desktop-feasibility.md]
-      - text: 按 §17，电视应改为“KWin 第二输出上全屏放导播台窗口”，Director.java、DirectorArt、宿主的 21-tv-director 和呈现器逐步退役；声音跟随焦点也要改由 Linux 侧的导播台提供。
+      - text: 按 §17，电视应改为“KWin 第二输出上全屏放导播台窗口”，Director.java、DirectorArt、宿主的 21-tv-director 和呈现器逐步退役。声音跟随焦点也要改由 Linux 侧的导播台提供。
         docs: [docs/research/97-headless-agent-work.md]
     code:
       - android/app/src/com/rungic/plasma/Director.java
@@ -903,29 +903,29 @@ features:
     status: experimental
     platform: linux
     interfaces: [platform-bridge]
-    summary: 整台设备一个 RDP Host（RemoteSurface）：连上后看到手机桌面、电脑桌面和各块助理屏，由观看端切换；手机睡着时助理屏照样能看。
+    summary: 整台设备共用一个 RemoteSurface RDP Host。连接后，观看端可以切换手机桌面、电脑桌面和各块助理屏。手机休眠时，助理屏仍可观看。
     experience:
       - id: E1
         text: 整台设备只有一个 Host：连上后观看端拿到设备上所有屏幕的列表（手机桌面、电脑桌面 ws-0、各助理屏），由观看端切换，不会自己切走。
       - id: E2
         text: 手机睡着时手机桌面列为不可用并说明原因，助理屏和电脑桌面照常可看。
       - id: E3
-        text: 默认只监听本机回环；TLS 加用户名和随机密码，密码只在第一次显示，配置只有本人可读。
+        text: 默认只监听本机回环。TLS 加用户名和随机密码，密码只在第一次显示，配置只有本人可读。
       - id: E4
         text: 看一块无头工作区时 1920×1080 约 27 fps（软件 H.264）。
         evidence:
           - {doc: docs/research/97-headless-agent-work.md, date: 2026-10-02, note: "§15 单工作区冒烟测试，测试用 Host，非 rungic-remote.service"}
-        device: 约 27 fps 是手机 CPU 上软件 H.264 编码的实测速度（KGSL 不是 DRM 渲染节点，画面要读回再编码）；Mac mini 容器的 CPU、渲染和读回路径都不同，量出的帧率不代表手机。
+        device: 约 27 fps 是手机 CPU 上软件 H.264 编码的实测速度（KGSL 不是 DRM 渲染节点，画面要读回再编码）。Mac mini 容器的 CPU、渲染和读回路径都不同，量出的帧率不代表手机。
       - id: E5
         text: 手机界面重启不会断开正在看工作区的观看端。
     pitfalls:
-      - text: RemoteSurface Host 不在发行包里：rungic-remote 从 ~/.local/share/remote-surface-host 或 /usr/lib/remote-surface-host 找它；ARM64 版要另编共享库形式的 FreeRDP 3.31。
+      - text: RemoteSurface Host 不在发行包里：rungic-remote 从 ~/.local/share/remote-surface-host 或 /usr/lib/remote-surface-host 找它。ARM64 版要另编共享库形式的 FreeRDP 3.31。
         docs: [docs/research/97-headless-agent-work.md]
-      - text: KGSL 不是 DRM 渲染节点，录屏要读回、用软件编码；硬件编码等 RemoteSurface 多屏合并后再做。
+      - text: KGSL 不是 DRM 渲染节点，录屏要读回、用软件编码。硬件编码等 RemoteSurface 多屏合并后再做。
         docs: [docs/research/97-headless-agent-work.md]
-      - text: 每个工作区各开一个 Host（rungic-remote@N）方向不对，已作废；授权靠 ~/.local/share/applications 里一个桌面文件覆盖所有 KWin。
+      - text: 每个工作区各开一个 Host（rungic-remote@N）方向不对，已作废。授权靠 ~/.local/share/applications 里一个桌面文件覆盖所有 KWin。
         docs: [docs/research/97-headless-agent-work.md]
-      - text: Mac 不经路由器直连手机（AWDL）：G100 的无线驱动 monitor 模式没有发送回调，原版 filin 用不了；不依赖外网时，安卓本地专用热点是优先验证的路线。
+      - text: Mac 不经路由器直连手机（AWDL）：G100 的无线驱动 monitor 模式没有发送回调，原版 filin 用不了。不依赖外网时，安卓本地专用热点是优先验证的路线。
         docs: [docs/research/mac-offline-desktop-link.md]
     code:
       - agent/workspace/rungic-remote
@@ -940,9 +940,9 @@ features:
     status: retired
     platform: android
     interfaces: [kwin-android-host, host-input]
-    summary: 旧做法：浮窗的全屏（含导播台全屏）由 Rungic 应用的 AgentFullscreen 把宿主输出直接呈现在手机上，手势在安卓里识别（DirectGestures）。2026-10-02 起被 Linux 的全屏窗口取代（docs/research/97 §17），Linux 一侧已不再请求它。
+    summary: 旧浮窗全屏由 Rungic 应用的 AgentFullscreen 将宿主输出直接呈现在手机上，包括导播台全屏。DirectGestures 在 Android 侧识别手势。自 2026-10-02 起，Linux 全屏窗口取代此入口，Linux 已不再请求它。见 docs/research/97 §17。
     pitfalls:
-      - text: 2026-10-03 随 APK 2.30 删除（AgentFullscreen、DirectGestures，平台桥 agent-screen、desktop-mode、director 的 fullscreen 字段，Linux 一侧的 AgentScreen::fullscreen()、Director::fullscreen() 和 keeper 的全屏判断）；电视的导播台与触控板（TouchpadGestures）保留。
+      - text: 2026-10-03 随 APK 2.30 删除（AgentFullscreen、DirectGestures，平台桥 agent-screen、desktop-mode、director 的 fullscreen 字段，Linux 一侧的 AgentScreen::fullscreen()、Director::fullscreen() 和 keeper 的全屏判断）。电视的导播台与触控板（TouchpadGestures）保留。
         docs: [docs/research/97-headless-agent-work.md]
     code: []
 
@@ -952,7 +952,7 @@ features:
     status: retired
     platform: android
     interfaces: [platform-bridge]
-    summary: 投屏第 1 步的原型：平台桥 cast-test 在电视上放彩条、毫秒时钟和帧计数，用来验证能否接管电视画面（docs/58）。已被 CastDesktop 的真实桌面取代，没有调用方。
+    summary: 投屏第 1 步原型通过平台桥 cast-test 在电视显示彩条、毫秒时钟和帧计数，检查能否接管电视画面。见 docs/58。CastDesktop 的实际桌面已取代该原型，当前没有调用方。
     pitfalls:
       - text: 2026-10-03 随 APK 2.30 删除（CastTest.java 与平台桥 cast-test 操作）。
         docs: [docs/research/97-headless-agent-work.md]

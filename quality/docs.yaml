@@ -7,45 +7,45 @@
 - {path: docs/philosophy.md, kind: index, note: 项目理念总览，不是功能文档}
 
 # 01–21：设备、ROM 与早期容器（G100 S / mumba）
-- {path: docs/01-device.md, kind: reference, note: G100 S 硬件与分区身份；分区一节仍是刷 GSI 后的状态，需更新}
-- {path: docs/02-linux-feasibility.md, kind: history, note: 早期路线判断（不做主线 Linux、改走 GSI）；GSI 路线已放弃，现为原厂 Android + LXC}
-- {path: docs/03-gsi-dsu.md, kind: history, note: Android 17 GSI 的 DSU 试验；GSI 路线已放弃，改回原厂固件（11、13 篇）}
-- {path: docs/04-permanent-gsi.md, kind: history, note: 永久刷 GSI 与救砖；GSI 路线已放弃}
-- {path: docs/05-magisk-root.md, kind: history, note: GSI 上修补 init_boot 的 Magisk 记录；原厂上的做法见 09、11、13 篇及三段式 skill}
-- {path: docs/06-pitfalls.md, kind: history, note: GSI 刷机踩坑；通用教训已进 AGENTS.md 与三段式 skill}
+- {path: docs/01-device.md, kind: reference, note: G100 S 硬件与分区身份。分区一节仍是刷 GSI 后的状态，需更新}
+- {path: docs/02-linux-feasibility.md, kind: history, note: 早期路线判断（不做主线 Linux、改走 GSI）。GSI 路线已放弃，现为原厂 Android + LXC}
+- {path: docs/03-gsi-dsu.md, kind: history, note: Android 17 GSI 的 DSU 试验。GSI 路线已放弃，改回原厂固件（11、13 篇）}
+- {path: docs/04-permanent-gsi.md, kind: history, note: 永久刷 GSI 与救砖。GSI 路线已放弃}
+- {path: docs/05-magisk-root.md, kind: history, note: GSI 上修补 init_boot 的 Magisk 记录。原厂上的做法见 09、11、13 篇及三段式 skill}
+- {path: docs/06-pitfalls.md, kind: history, note: GSI 刷机踩坑。通用教训已进 AGENTS.md 与三段式 skill}
 - {path: docs/07-restore-stock.md, kind: history, note: 刷 GSI 后回原厂 MYUI 的固件来源与步骤}
-- {path: docs/08-commands.md, kind: history, note: GSI 时期的 adb/fastboot 命令速查；GSI 与 DSU 部分已无用}
+- {path: docs/08-commands.md, kind: history, note: GSI 时期的 adb/fastboot 命令速查。GSI 与 DSU 部分已无用}
 - {path: docs/09-stock-magisk.md, kind: history, note: 原厂 MYUI + Magisk 可行性核验（实施前）}
-- {path: docs/10-stock-debloat.md, kind: history, note: 原厂精简固件 v1 离线制作；super.img 被 bootloader 拒绝，改走 11 篇}
-- {path: docs/11-stock-install.md, kind: history, note: G100 S 精简系统与 Magisk 实机安装；fastbootd 分区刷写教训仍被 AGENTS.md 引用}
-- {path: docs/12-offline-magisk.md, kind: history, note: 已弃用的 v2 系统应用方案，由 13 篇 v3 取代；“Magisk 不能作为系统应用”“JNI 库进 lib/arm64”的教训仍被 AGENTS.md 引用}
-- {path: docs/13-offline-magisk-user-app.md, kind: history, note: Magisk 离线首启 v3（普通应用）；属于整包精简 ROM 路线，现为三段式独立安装}
-- {path: docs/14-oneclick-package.md, kind: history, note: v3 一键完整重装包（G100 S 精简 ROM）；整包路线已不是默认目标}
+- {path: docs/10-stock-debloat.md, kind: history, note: 原厂精简固件 v1 离线制作。super.img 被 bootloader 拒绝，改走 11 篇}
+- {path: docs/11-stock-install.md, kind: history, note: G100 S 精简系统与 Magisk 实机安装。fastbootd 分区刷写教训仍被 AGENTS.md 引用}
+- {path: docs/12-offline-magisk.md, kind: history, note: 已弃用的 v2 系统应用方案，由 13 篇 v3 取代。“Magisk 不能作为系统应用”“JNI 库进 lib/arm64”的教训仍被 AGENTS.md 引用}
+- {path: docs/13-offline-magisk-user-app.md, kind: history, note: Magisk 离线首启 v3（普通应用）。属于整包精简 ROM 路线，现为三段式独立安装}
+- {path: docs/14-oneclick-package.md, kind: history, note: v3 一键完整重装包（G100 S 精简 ROM）。整包路线已不是默认目标}
 - {path: docs/15-container-reassessment.md, kind: history, note: 部署前的 Docker/LXC 评估，文首已注明不是最新状态}
-- {path: docs/16-lxc-prerequisites.md, kind: history, note: 部署前的 LXC 内核条件审计；后续见 17 篇}
-- {path: docs/17-lxc-installation.md, kind: history, note: 第一个 Alpine LXC 容器的部署；已被 Ubuntu Plasma 容器取代，但仍是内核/enter 程序来源的证据}
-- {path: docs/18-termux-lxc.md, kind: history, note: 用 Termux 管理 Alpine 容器；该容器与入口已不再使用}
+- {path: docs/16-lxc-prerequisites.md, kind: history, note: 部署前的 LXC 内核条件审计。后续见 17 篇}
+- {path: docs/17-lxc-installation.md, kind: history, note: 第一个 Alpine LXC 容器的部署。已被 Ubuntu Plasma 容器取代，但仍是内核/enter 程序来源的证据}
+- {path: docs/18-termux-lxc.md, kind: history, note: 用 Termux 管理 Alpine 容器。该容器与入口已不再使用}
 - {path: docs/21-memory-audit.md, kind: journal, note: G100 S 原厂系统 RAM 实测，2026-10-01 又补了四个工作区的内存需求}
 
 # 28–35、74：共享接口研究（research/）
-- {path: docs/research/28-capability-audit.md, kind: history, note: Phosh 时期的日常能力审计；Phosh 已于 2026-09-23 停止维护，仍被 AGENTS.md 称为“当前设备能力审计”}
-- {path: docs/research/29-reuse-research.md, kind: history, note: Phosh 适配前的复用调研快照；仍被 AGENTS.md 引用为首轮复用研究}
-- {path: docs/research/30-feature-adaptation.md, kind: journal, note: 正文是 Phosh 逐项适配的历史；文首仍按 AGENTS.md 要求追加 Plasma/G100/X70 的验收记录}
-- {path: docs/research/31-backend-integration.md, kind: reference, note: AGENTS.md 指定的“应用→接口→后端”映射，文首持续追加；正文架构仍按 Phosh/Phoc 描述，需改写}
-- {path: docs/research/32-network-integration.md, kind: history, note: GNOME/Phosh 网络接入；Plasma 现用 NetworkManager 模拟服务（73 篇第四阶段）}
-- {path: docs/research/33-capture-integration.md, kind: research, note: 麦克风/相机接入 Android 的共享接口研究，camera-source 等仍在用；Phosh 部分是历史}
+- {path: docs/research/28-capability-audit.md, kind: history, note: Phosh 时期的日常能力审计。Phosh 已于 2026-09-23 停止维护，仍被 AGENTS.md 称为“当前设备能力审计”}
+- {path: docs/research/29-reuse-research.md, kind: history, note: Phosh 适配前的复用调研快照。仍被 AGENTS.md 引用为首轮复用研究}
+- {path: docs/research/30-feature-adaptation.md, kind: journal, note: 正文是 Phosh 逐项适配的历史。文首仍按 AGENTS.md 要求追加 Plasma/G100/X70 的验收记录}
+- {path: docs/research/31-backend-integration.md, kind: reference, note: AGENTS.md 指定的“应用→接口→后端”映射，文首持续追加。正文架构仍按 Phosh/Phoc 描述，需改写}
+- {path: docs/research/32-network-integration.md, kind: history, note: GNOME/Phosh 网络接入。Plasma 现用 NetworkManager 模拟服务（73 篇第四阶段）}
+- {path: docs/research/33-capture-integration.md, kind: research, note: 麦克风/相机接入 Android 的共享接口研究，camera-source 等仍在用。Phosh 部分是历史}
 - {path: docs/research/34-hardware-codec-audit.md, kind: research, note: 硬件编解码的实机能力与候选，仍是共享 MediaCodec 桥的依据}
-- {path: docs/research/35-hardware-codec-integration.md, kind: research, note: Linux 应用与 Firefox 接入 MediaCodec 桥；文中 shared/media 文件名是改名前的}
+- {path: docs/research/35-hardware-codec-integration.md, kind: research, note: Linux 应用与 Firefox 接入 MediaCodec 桥。文中 shared/media 文件名是改名前的}
 - {path: docs/research/74-vaapi-feasibility.md, kind: research, note: 编解码桥做成 VA-API 驱动的可行性（结论：不能替代现有补丁）}
 
 # 36–37：Alpine/Phosh 末期
-- {path: docs/36-firefox-input-fix.md, kind: history, note: Alpine/Phosh 上 Firefox 输入崩溃（focusmanager.testmode 残留）；教训仍适用于验收清理}
-- {path: docs/37-linux-distribution-evaluation.md, kind: history, note: Alpine/Debian/Ubuntu 取舍；最终选型见 38 篇}
+- {path: docs/36-firefox-input-fix.md, kind: history, note: Alpine/Phosh 上 Firefox 输入崩溃（focusmanager.testmode 残留）。教训仍适用于验收清理}
+- {path: docs/37-linux-distribution-evaluation.md, kind: history, note: Alpine/Debian/Ubuntu 取舍。最终选型见 38 篇}
 
 # 38 起：Plasma
 - {path: docs/38-plasma-mobile.md, kind: research, note: Plasma Mobile 版本目标与 Ubuntu 26.04 选型（实施前），当前状态以 40 篇为准}
 - {path: docs/39-magisk-daemon-crash.md, kind: research, note: Magisk 31.0 SQL NULL 崩溃的定位与规避，AGENTS.md 引用}
-- {path: docs/40-plasma-mobile-integration.md, kind: reference, note: Plasma 桌面与 Android 后端的总架构（README 指定）；仍有 Phosh 并存、plasma/ 与 vendor/ 等过时说法}
+- {path: docs/40-plasma-mobile-integration.md, kind: reference, note: Plasma 桌面与 Android 后端的总架构（README 指定）。仍有 Phosh 并存、plasma/ 与 vendor/ 等过时说法}
 - {path: docs/41-plasma-rime-input.md, kind: journal, note: Plasma Keyboard + Rime 的改造与验收}
 - {path: docs/42-plasma-runtime-acceptance.md, kind: journal, note: 桌面显示后的应用、硬件后端与重启恢复修复}
 - {path: docs/43-plasma-panel-workarea.md, kind: journal, note: 状态栏高度与应用避让}
@@ -58,8 +58,8 @@
 - {path: docs/50-plasma-display-settings.md, kind: journal, note: KDE 显示设置、原生分辨率、旋转}
 - {path: docs/51-plasma-vulkan-benchmark.md, kind: research, note: Vulkan 链路与 GLES 的同机性能对照}
 - {path: docs/52-git-repository-scope.md, kind: reference, note: 仓库目录与同步边界（AGENTS.md 指定）}
-- {path: docs/53-remote-system-development.md, kind: reference, note: 多机协作与“到哪里改代码”；表中 native/plasma、plasma/ 入口已过时}
-- {path: docs/55-agent-native-debugging.md, kind: reference, note: 开发用诊断 MCP 的架构与限制（rungic MCP 服务说明指向本篇）；部分路径为 plasma/ 时期}
+- {path: docs/53-remote-system-development.md, kind: reference, note: 多机协作与“到哪里改代码”。表中 native/plasma、plasma/ 入口已过时}
+- {path: docs/55-agent-native-debugging.md, kind: reference, note: 开发用诊断 MCP 的架构与限制（rungic MCP 服务说明指向本篇）。部分路径为 plasma/ 时期}
 - {path: docs/56-kwin-vulkan-quantification.md, kind: research, note: KWin 改原生 Vulkan 的收益量化（只省 CPU），未实现}
 - {path: docs/57-zero-copy-explicit-sync.md, kind: journal, note: 零拷贝呈现与显式同步的实施与 A/B}
 - {path: docs/58-miracast-desktop-feasibility.md, kind: journal, note: Miracast 投屏桌面与触控板：调研、原型与实测}
@@ -69,26 +69,26 @@
 - {path: docs/62-linux-virtual-audio.md, kind: journal, note: 系统级 Linux 扬声器与麦克风}
 - {path: docs/63-call-proxy.md, kind: journal, note: 通话代理（替用户打/接电话）}
 - {path: docs/64-goal-computer-use.md, kind: journal, note: 目标级电脑操作与手机 GPU OCR（非默认方案）}
-- {path: docs/65-agent-screen.md, kind: journal, note: 助理屏/桌面模式的第二输出；概念已按 research/91 调整}
+- {path: docs/65-agent-screen.md, kind: journal, note: 助理屏/桌面模式的第二输出。概念已按 research/91 调整}
 - {path: docs/66-pointer-gestures.md, kind: journal, note: 指针手势与移动算法}
 - {path: docs/67-home-assistant.md, kind: journal, note: 长按 Home 呼出语音助手}
 - {path: docs/68-luna-computer-use.md, kind: journal, note: 默认的 Luna 看画面电脑操作}
-- {path: docs/69-filesystem-capabilities.md, kind: reference, note: 挂载能力审计与挂载层修复；脚本路径仍写 plasma/}
-- {path: docs/70-rungic-rebrand.md, kind: history, note: Rungic 改名已于 2026-09-27 完成；对照表供查旧文档里的旧名}
-- {path: docs/71-upstream-patch-queue.md, kind: reference, note: 固定上游＋补丁队列的规则、布局与工具（AGENTS.md 指定）；KWin 试点部分是历史}
+- {path: docs/69-filesystem-capabilities.md, kind: reference, note: 挂载能力审计与挂载层修复。脚本路径仍写 plasma/}
+- {path: docs/70-rungic-rebrand.md, kind: history, note: Rungic 改名已于 2026-09-27 完成。对照表供查旧文档里的旧名}
+- {path: docs/71-upstream-patch-queue.md, kind: reference, note: 固定上游＋补丁队列的规则、布局与工具（AGENTS.md 指定）。KWin 试点部分是历史}
 - {path: docs/72-kwin-android-host-isolation.md, kind: journal, note: KWin Android 宿主协议化与独立后端}
 - {path: docs/73-reduce-upstream-changes.md, kind: journal, note: 减少上游修改的总方案与各阶段进度}
-- {path: docs/75-image-build-separation.md, kind: reference, note: 三段式交付与跨机型契约（AGENTS.md 指定）；2026-09-27 方案节为历史设计}
+- {path: docs/75-image-build-separation.md, kind: reference, note: 三段式交付与跨机型契约（AGENTS.md 指定）。2026-09-27 方案节为历史设计}
 - {path: docs/76-g100-memory-audit.md, kind: research, note: G100（portov_cn）Android 内存占用只读采样}
-- {path: docs/77-g100-three-ci-assessment.md, kind: history, note: 整包三条 CI 的计划与 runner 评估；2026-09-30 起方向改为 75 篇的独立安装}
+- {path: docs/77-g100-three-ci-assessment.md, kind: history, note: 整包三条 CI 的计划与 runner 评估。2026-09-30 起方向改为 75 篇的独立安装}
 - {path: docs/78-g100-firmware-inventory.md, kind: reference, note: G100 原厂固件来源与离线核验，仍是该机型的输入事实}
-- {path: docs/79-g100-ci-execution.md, kind: history, note: G100 整包 CI 首轮执行的逐次证据；整包路线已不是默认，教训被 AGENTS.md 与 skill 引用}
-- {path: docs/80-g100-image-installation-retrospective.md, kind: history, note: G100 整包清数据安装的复盘；当前为独立安装（75、91–93 篇），安全初始化顺序等结论仍被沿用}
+- {path: docs/79-g100-ci-execution.md, kind: history, note: G100 整包 CI 首轮执行的逐次证据。整包路线已不是默认，教训被 AGENTS.md 与 skill 引用}
+- {path: docs/80-g100-image-installation-retrospective.md, kind: history, note: G100 整包清数据安装的复盘。当前为独立安装（75、91–93 篇），安全初始化顺序等结论仍被沿用}
 - {path: docs/81-end-to-end-user-experience.md, kind: journal, note: 用户全流程 UX 审查}
 - {path: docs/82-first-run-ux-refactor.md, kind: journal, note: 首启 UX 第一批实施（真实阶段、账户门槛）}
-- {path: docs/83-service-policy.md, kind: journal, note: 系统服务页与 SSH；文首已更正为 SSH 自动开启}
+- {path: docs/83-service-policy.md, kind: journal, note: 系统服务页与 SSH。文首已更正为 SSH 自动开启}
 - {path: docs/83-x70-air-pro-onboarding.md, kind: journal, note: X70 Air Pro 首轮接入}
-- {path: docs/84-miracast-source.md, kind: history, note: 自研 Miracast 发送端，2026-09-28 暂缓；主路径是 58 篇引擎 A，原型留在 shared/android/miracast-probe/}
+- {path: docs/84-miracast-source.md, kind: history, note: 自研 Miracast 发送端，2026-09-28 暂缓。主路径是 58 篇引擎 A，原型留在 shared/android/miracast-probe/}
 - {path: docs/85-lxc-rootless-docker.md, kind: journal, note: 容器内 rootless Docker 的试验与打包}
 - {path: docs/85-phone-display-size-policy.md, kind: journal, note: 手机显示大小策略（末节 Android density 优先为现行）}
 - {path: docs/86-x70-miracast-assessment.md, kind: journal, note: X70 Miracast 完善评估}
@@ -132,5 +132,5 @@
 - {path: docs/106-codex-desktop-operation.md, kind: journal, note: 默认 Codex 桌面操作与 API 备选的实现和验收}
 
 - {path: docs/107-android-sms.md, kind: journal, note: 安卓 SIM 短信接口与 USB G100 验收}
-- {path: docs/108-codec-bridge-buffers.md, kind: journal, note: 视频硬解改走 msm_vidc V4L2 直通（CPU 降到约 1/5）；MediaCodec 桥 v2（DMA-BUF、10bit）作回退；Iris 驱动调研}
+- {path: docs/108-codec-bridge-buffers.md, kind: journal, note: 视频硬解改走 msm_vidc V4L2 直通（CPU 降到约 1/5）。MediaCodec 桥 v2（DMA-BUF、10bit）作回退。Iris 驱动调研}
 - {path: docs/109-dev-release-channel.md, kind: reference, note: dev 发布渠道（只从 origin/main 出、含 APK、发布包、多机部署与状态、GitHub 预发布）与发布包不被 Ubuntu 更新替换的分析}

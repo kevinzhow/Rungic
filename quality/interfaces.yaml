@@ -1,86 +1,87 @@
-# The interfaces through which Linux system features use Android (quality/README.md). Each is one
-# contract: its Linux consumers are tested against a stand-in (covers[consumer]: iface:ID), Android's
-# provider on the phone (covers[provider]: iface:ID). Consumers are the features naming it in their
-# `interfaces`. On a PC these are what another backend would provide.
+# These interfaces connect Linux features to Android. See quality/README.md.
+# Each interface has one contract. Check Linux consumers against a substitute
+# (covers[consumer]: iface:ID). Check the Android provider on the phone
+# (covers[provider]: iface:ID). A feature lists its interfaces in `interfaces`.
+# A PC backend would provide these interfaces instead of Android.
 - id: platform-bridge
   title: 平台桥
-  summary: 逐行 JSON 的 Unix socket（Rungic 应用 files/tmp/platform.sock）：状态、显示、亮度、方向、振动、设置面板、桌面模式、助理屏、电视与导播台、文字提交。
+  summary: Rungic 应用通过 files/tmp/platform.sock 提供 Unix socket 接口，每行传输一个 JSON 对象。接口涵盖状态、显示、亮度、方向、振动、设置面板、桌面模式、助理屏、电视、导播台和文字提交。
   provider:
     - android/app/src/com/rungic/plasma/PlatformBridge.java
     - android/app/src/com/rungic/plasma/MainActivity.java
 - id: kwin-android-host
   title: KWin 安卓宿主
-  summary: KWin 的 android-host 后端与 Rungic 应用里的宿主：输出、帧时钟、零拷贝呈现、显式同步、空闲抑制、投屏输出。
+  summary: KWin 的 android-host 后端连接 Rungic 应用内的宿主。接口提供输出、帧时钟、零拷贝呈现、显式同步、空闲抑制和投屏输出。
   provider:
     - android/host/
     - packages/android-host/
   gaps:
-    consumer: 使用方是 KWin 的 android 后端（packages/kwin 的 android-backend.patch）：它在 KGSL 设备上渲染，输出缓冲向宿主的 rungic-gpu-alloc 租用 AHardwareBuffer。替身得是会分配 AHardwareBuffer 的 Wayland 宿主，而宿主（android/host，APK 里的 Smithay）只为 Android 构建；系统测试容器也没有 KGSL 或任何 GPU 设备节点，无头测试用的 KWin --virtual 不经过这个后端。
+    consumer: 使用方是 KWin 的 android 后端，对应 packages/kwin 的 android-backend.patch。该后端在 KGSL 设备上渲染，通过宿主的 rungic-gpu-alloc 租用 AHardwareBuffer 作为输出缓冲。替身需要是能分配 AHardwareBuffer 的 Wayland 宿主。现有宿主是 android/host 中 APK 使用的 Smithay，只为 Android 构建。系统测试容器没有 KGSL 或其他 GPU 设备节点。无头测试使用 KWin --virtual，不经过此后端。
 - id: host-input
   title: 宿主输入
-  summary: 安卓的触摸、按键、指针、手势与输入法文字送进 KWin（直接触摸、触控板、电视遥控与键盘）。
+  summary: Android 将触摸、按键、指针、手势和输入法文字送入 KWin。输入方式包括直接触摸、触控板、电视遥控和键盘。
   provider:
     - android/app/src/com/rungic/plasma/HostEvents.java
     - android/app/src/com/rungic/plasma/TouchpadGestures.java
     - android/app/src/com/rungic/plasma/PointerTransfer.java
     - android/app/src/com/rungic/plasma/GestureRules.java
   gaps:
-    consumer: 触摸、按键、指针和输入法文字经 APK 的宿主合成器（android/host，只为 Android 构建）以 Wayland 输入事件和 text-input-v3 送进 KWin 的 android 后端；这个后端离开 KGSL 起不来（见 kwin-android-host）。把 KWin 嵌在别的 Wayland 宿主里测到的是 KWin 通用的 Wayland 后端，不是这条路径。
+    consumer: APK 的宿主合成器（android/host）将触摸、按键、指针和输入法文字送入 KWin 的 android 后端。输入使用 Wayland 事件和 text-input-v3。该宿主只为 Android 构建，该后端必须使用 KGSL 才能启动，见 kwin-android-host。将 KWin 嵌入其他 Wayland 宿主，只能检查通用 Wayland 后端，无法检查这条输入路径。
 - id: camera
   title: 相机
-  summary: 安卓 Camera2 的画面作为 PipeWire 相机节点（rungic.camera.N），按需开关；有哪些相机由平台桥的 capture-info 回答。
+  summary: Android Camera2 通过 PipeWire 相机节点 rungic.camera.N 提供画面，并按需开关相机。平台桥的 capture-info 查询返回可用相机。
   provider:
     - android/app/src/com/rungic/plasma/CaptureBridge.java
     - android/app/src/com/rungic/plasma/CaptureService.java
 - id: audio
   title: 扬声器与麦克风
-  summary: 安卓的扬声器和麦克风作为 PulseAudio 设备（android、android_phone 输出与麦克风源），按需挂起；输出经安卓侧的 PulseAudio（system/android-audio）。
+  summary: Android 扬声器和麦克风作为 PulseAudio 设备提供，包括 android、android_phone 输出和麦克风源。设备按需挂起，输出通过 Android 侧的 PulseAudio（system/android-audio）。
   provider:
     - android/app/src/com/rungic/plasma/CaptureBridge.java
     - system/android-audio
     - system/android-audio.pa
 - id: communication-audio
   title: 通话音频
-  summary: $XDG_RUNTIME_DIR/rungic-communication.sock：电话模式与通话用的双向通信音频（android_communication 设备）。
+  summary: $XDG_RUNTIME_DIR/rungic-communication.sock 为电话模式和通话提供双向通信音频，使用 android_communication 设备。
   provider:
     - shared/media/communication-audio.cpp
 - id: codec
   title: 硬件编解码
-  summary: 安卓 MediaCodec 经 IPC 给 GStreamer、FFmpeg 和 Firefox 用（H.264/HEVC/VP9 解码、H.264 编码）。
+  summary: Android MediaCodec 通过 IPC 为 GStreamer、FFmpeg 和 Firefox 提供 H.264/HEVC/VP9 解码及 H.264 编码。
   provider:
     - android/app/src/com/rungic/plasma/CodecBridge.java
 - id: clipboard
   title: 剪贴板
-  summary: 安卓 ClipboardDaemon 与 Wayland 剪贴板双向同步。
+  summary: Android ClipboardDaemon 与 Wayland 剪贴板双向同步。
   provider:
     - android/app/src/com/rungic/clipboard/ClipboardDaemon.java
 - id: network
   title: 网络
-  summary: 安卓的 Wi-Fi 与网络状态，经 Linux 一侧的 NetworkManager D-Bus 接口给桌面用。
+  summary: Android 提供 Wi-Fi 和网络状态。Linux 通过 NetworkManager D-Bus 接口将这些能力提供给桌面。
   provider:
     - android/app/src/com/rungic/plasma/AndroidNetworkBridge.java
     - android/app/src/com/rungic/wifi/RootWifi.java
 - id: bluetooth
   title: 蓝牙
-  summary: 安卓蓝牙经 Linux 一侧的 BlueZ D-Bus 接口给桌面用。
+  summary: Android 提供蓝牙能力。Linux 通过 BlueZ D-Bus 接口将这些能力提供给桌面。
   provider:
     - android/app/src/com/rungic/plasma/AndroidBluetoothBridge.java
     - android/app/src/com/rungic/bluetooth/RootBluetooth.java
 - id: telephony
   title: 蜂窝与通话
-  summary: 蜂窝网络状态（ModemManager 接口）、来电去电与通话控制。
+  summary: 接口提供 ModemManager 使用的蜂窝网络状态，以及来电、去电和通话控制。
   provider:
     - android/app/src/com/rungic/plasma/AndroidTelephonyBridge.java
     - android/app/src/com/rungic/telephony/
 - id: ocr
   title: 文字识别
-  summary: 手机 GPU 上的 OCR（PP-OCR），给目标式电脑操作用。
+  summary: PP-OCR 在手机 GPU 上识别文字，供目标式电脑操作使用。
   provider:
     - android/app/src/com/rungic/plasma/OcrBridge.java
     - android/app/jni/ocr/
 - id: wifi-display
   title: 无线投屏
-  summary: 经安卓（高通）Wi-Fi Display 栈把输出投到电视：扫描、连接、断开、重连。
+  summary: 接口通过 Android 的高通 Wi-Fi Display 栈将输出投到电视，支持扫描、连接、断开和重连。
   provider:
     - shared/android/rungic-cast/
     - shared/android/rungic-cast-watch.sh
@@ -89,20 +90,19 @@
     - profiles/cast-adapters.json
 - id: shared-storage
   title: 共享存储
-  summary: 安卓的共享存储（/storage/emulated/0/Plasma，MediaProvider FUSE）挂到容器的 /mnt/android-shared，用户目录和 ~/Shared 都在上面。
+  summary: Android 通过 MediaProvider FUSE 提供 /storage/emulated/0/Plasma。该目录挂载到容器的 /mnt/android-shared，承载用户目录和 ~/Shared。
   provider:
     - system/shared-storage
 - id: gpu-device
   title: GPU 设备
-  summary: 内核的 KGSL（/dev/kgsl-3d0）与 dma-heap（/dev/dma_heap/system）设备节点，Mesa、Xwayland、Flatpak 和系统监视器经它们用 Adreno；PC 上换成 DRM。
+  summary: 内核提供 KGSL 节点 /dev/kgsl-3d0 和 dma-heap 节点 /dev/dma_heap/system。Mesa、Xwayland、Flatpak 和系统监视器通过这些节点使用 Adreno。PC 使用 DRM。
   provider:
     - system/plasma.config
   gaps:
-    consumer: 使用方是 Mesa 的 freedreno KGSL 驱动（以及在它上面的 KWin、Xwayland、Flatpak GL、libcamera 的 dma-heap 分配）：它们直接对高通内核驱动发 KGSL ioctl。手机之外没有 KGSL 的替身或模拟器，系统测试容器也没有 GPU；只有手机能说明它们可用（contract.gpu-device 的离屏渲染、perf.compositor）。
+    consumer: 使用方包括 Mesa freedreno KGSL 驱动及其上的 KWin、Xwayland、Flatpak GL，以及 libcamera 的 dma-heap 分配。它们直接向高通内核驱动发送 KGSL ioctl。手机之外没有 KGSL 替身或模拟器，系统测试容器也没有 GPU。只能在手机上检查这些能力，使用 contract.gpu-device 离屏渲染和 perf.compositor。
 - id: host-controller
   title: 宿主控制器
-  summary: Rungic 应用经 Magisk su 调用的 rungic-plasma 动作及其输出：账户状态与设置、安装发布、启停会话、内存上限；安装状态写在应用私有的 rungic-install.properties。
+  summary: Rungic 应用通过 Magisk su 调用 rungic-plasma，查询和设置账户、安装发布、启停会话及管理内存上限。安装状态记录在应用私有的 rungic-install.properties。
   provider:
     - system/rungic-plasma
     - android/app/src/com/rungic/plasma/FirstBootState.java
-

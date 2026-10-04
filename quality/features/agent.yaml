@@ -10,16 +10,16 @@ scenarios:
     summary: Agent 在自己的工作区（或用户指定的桌面）上打开应用、看画面、点击和输入，用户随时能看到它在做什么，手机锁屏时也能继续。
   - id: agent.team
     title: 让几个 Agent 组队完成大任务
-    summary: 由助理当组长，成员各用一个工作区并行制作，用户在导播台和对话里看到团队的进展。
+    summary: 助理按 rungic-agent-team 技能担任组长，通过 Codex 子 Agent 分工。每个成员首次需要桌面时，系统分配独立工作区。成员在共享项目中按约定交付。
   - id: agent.calls
     title: 让 Agent 替我打电话、发语音
-    summary: 用手机卡或微信替用户通话，随时旁听、接过来或挂断；在聊天应用里代发语音消息。
+    summary: 用手机卡或微信替用户通话，随时旁听、接过来或挂断。在聊天应用里代发语音消息。
   - id: agent.care
     title: 系统主动照看自己
-    summary: 系统发现崩溃、故障和适配问题，Agent 整理成主屏上的少数几张卡，用户择机让它调查和修复；主屏上还能看到 Agent 的用量。
+    summary: 系统发现崩溃、故障和适配问题，Agent 整理成主屏上的少数几张卡，用户择机让它调查和修复。主屏上还能看到 Agent 的用量。
   - id: agent.setup
     title: 安装、设置和接入 Agent
-    summary: 安装和更新 Codex、登录、选模型、改指令和技能；开发用的 Agent 也能经诊断接口查看手机。
+    summary: 安装和更新 Codex、登录、选模型、改指令和技能。开发用的 Agent 也能经诊断接口查看手机。
 features:
   # ---- 和 Agent 说话 ------------------------------------------------------------------------------
   - id: agent.voice
@@ -28,10 +28,10 @@ features:
     status: live
     platform: linux
     interfaces: [audio, platform-bridge]
-    summary: 常驻语音服务（GPT Realtime 在前、Codex 执行）：按住说话、松手发送，助手先回应再交给 Agent 去做，并朗读结果。
+    summary: 常驻语音服务由 GPT Realtime 处理对话，由 Codex 执行任务。用户按住说话，松手发送。助手先回应，再将任务交给 Agent 执行，并朗读结果。
     experience:
       - id: E1
-        text: 一次按住只算一句话：中间停顿不会被切成几段，松手后才整句发出；按下时正在播的回答立即停下。
+        text: 一次按住只算一句话：中间停顿不会被切成几段，松手后才整句发出。按下时正在播的回答立即停下。
         evidence:
           - {doc: docs/59-voice-agent.md, date: 2026-09-24, note: "合成语音，停顿 1.6 s 仍为一条消息"}
       - id: E2
@@ -53,27 +53,27 @@ features:
         evidence:
           - {doc: docs/59-voice-agent.md, date: 2026-09-24, note: "截屏任务 3 s 后停止"}
       - id: E6
-        text: 关闭“朗读回答”后不播语音回复；点某条回答的“朗读”只出声，不多出一条消息、不写进记录。
+        text: 关闭“朗读回答”后不播语音回复。点某条回答的“朗读”只出声，不多出一条消息、不写进记录。
         evidence:
           - {doc: docs/87-agent-app-redesign.md, date: 2026-09-29, note: "朗读 10.6 s，界面无新增气泡"}
       - id: E7
-        text: 按住说话、发文字和朗读总是作用在用户正在看的对话上；用浮层说过话再回到 App 说话，不会进到别的对话。
+        text: 按住说话、发文字和朗读总是作用在用户正在看的对话上。用浮层说过话再回到 App 说话，不会进到别的对话。
         evidence:
           - {doc: docs/89-agent-progress.md, date: 2026-09-29, note: "只验证了服务端 Use，界面路径待真人验收"}
       - id: E8
-        text: 没配 OpenAI API Key 时只有语音不可用并提示去配置，打字照常；没装 Codex 时服务不退出，对话里提示先安装。
+        text: 没配 OpenAI API Key 时只有语音不可用并提示去配置，打字照常。没装 Codex 时服务不退出，对话里提示先安装。
     pitfalls:
-      - text: Codex 的实时会话固定用服务端 VAD（静音 500 ms 即结束一轮），app-server 不提供修改或手动提交的接口；所以按住期间先存本地、松手后整段上传并补 900 ms 静音。
+      - text: Codex 的实时会话固定用服务端 VAD（静音 500 ms 即结束一轮），app-server 不提供修改或手动提交的接口。所以按住期间先存本地、松手后整段上传并补 900 ms 静音。
         docs: [docs/59-voice-agent.md, docs/87-agent-app-redesign.md]
-      - text: Codex 用 WebSocket 连实时语音时只接受 API Key（ChatGPT 登录也要另配 Key）；WebRTC 走 UDP，用户的 HTTP 代理转发不了。
+      - text: Codex 用 WebSocket 连实时语音时只接受 API Key（ChatGPT 登录也要另配 Key）。WebRTC 走 UDP，用户的 HTTP 代理转发不了。
         docs: [docs/59-voice-agent.md, docs/101-codex-sign-in-and-api-key.md]
-      - text: 语音模型的指令要经 thread/realtime/start 的 prompt 传入；realtimeStartInstructions 只进 Agent 上下文。
+      - text: 语音模型的指令要经 thread/realtime/start 的 prompt 传入。realtimeStartInstructions 只进 Agent 上下文。
         docs: [docs/59-voice-agent.md]
       - text: 用手机扬声器外放合成语音再由手机麦克风录入的自测不成立：Android 采集带回声消除，会把本机播放的声音抵消掉。
         docs: [docs/59-voice-agent.md]
-      - text: 投屏时音量键调的是电视那一路；手机扬声器的媒体音量要在未投屏时调。输入转写常为繁体，显示时转简体。
+      - text: 投屏时音量键调的是电视那一路。手机扬声器的媒体音量要在未投屏时调。输入转写常为繁体，显示时转简体。
         docs: [docs/59-voice-agent.md]
-      - text: 实时模型对“情绪不增加话语”这类规则执行得不严格；语气未经人耳评估。
+      - text: 实时模型对“情绪不增加话语”这类规则执行得不严格。语气未经人耳评估。
         docs: [docs/59-voice-agent.md]
     code:
       - agent/assistant/rungic_voice_agent.py
@@ -92,10 +92,10 @@ features:
     scenario: agent.talk
     status: live
     platform: linux
-    summary: 在导航栏 Home 上按住即开始说话，松手发送；浮层显示聆听、识别、处理中和回答，始终在同一个“语音助手”对话里。
+    summary: 用户按住导航栏 Home 开始说话，松手发送。浮层显示聆听、识别、处理和回答状态。消息始终进入同一个“语音助手”对话。
     experience:
       - id: E1
-        text: 在 Home 上按住约 400 ms 呼出浮层并开始听，松手即发送；长按不再触发回主屏，浮层出现在按下 Home 的那块屏上。
+        text: 在 Home 上按住约 400 ms 呼出浮层并开始听，松手即发送。长按不再触发回主屏，浮层出现在按下 Home 的那块屏上。
         evidence:
           - {doc: docs/67-home-assistant.md, date: 2026-09-25, note: "dbus-monitor 看到 Hold(true, WL-0) 与 Hold(false)"}
       - id: E2
@@ -104,34 +104,34 @@ features:
           - {doc: docs/67-home-assistant.md, date: 2026-09-25, note: "released before speech; nothing said, cancelled"}
           - {doc: docs/87-agent-app-redesign.md, date: 2026-09-29, note: "D-Bus 模拟 Home，免提 8 秒后取消并收起"}
       - id: E3
-        text: 点浮层外、下滑或单击 Home 收起浮层：正在听的这句丢弃、正在播的停下；Agent 的工作继续，完成后浮层自动弹出结果（不开麦克风）。
+        text: 点浮层外、下滑或单击 Home 收起浮层：正在听的这句丢弃、正在播的停下。Agent 的工作继续，完成后浮层自动弹出结果（不开麦克风）。
         evidence:
           - {doc: docs/67-home-assistant.md, date: 2026-09-25, note: "单击 Home 收起；完成后自动弹出结果"}
       - id: E4
         text: 按下后不必等连接：服务和浮层常驻预热，按下约 0.1 s 内开始录音，实时连接在后台建立，期间的录音按顺序补发。
         evidence:
           - {doc: docs/67-home-assistant.md, date: 2026-09-25, note: "Hold 后 89 ms 开始录音"}
-        device: 按下到开始录音的时延取决于手机上 Android 麦克风经 PulseAudio 的采集链路和 CPU 调度，无头系统里没有这条采集链路，测不出 0.1 s；浮层常驻不显示由 tools/system/tests/assistant_app.py 检查
+        device: 按下到开始录音的时延取决于手机上 Android 麦克风经 PulseAudio 的采集链路和 CPU 调度，无头系统里没有这条采集链路，测不出 0.1 s。浮层常驻不显示由 tools/system/tests/assistant_app.py 检查
       - id: E5
         text: 一次按住超过 60 秒视为松开事件丢失：关闭浮层、取消录音，已说的内容不发送，麦克风不会一直开着。
       - id: E6
-        text: 在设置里关闭“长按 Home 呼出”后，长按 Home 不再呼出浮层；浮层跟随应用的主题设置。
+        text: 在设置里关闭“长按 Home 呼出”后，长按 Home 不再呼出浮层。浮层跟随应用的主题设置。
       - id: E7
         text: 会话启动时浮层等 plasmashell 在总线上就绪再启动，熄屏时 plasmashell 起得慢也不会启动失败。
         evidence:
           - {doc: docs/87-agent-app-redesign.md, date: 2026-09-29, note: "先停 plasmashell，再启动后 2 秒内 active，重启次数 0"}
       - id: E8
-        text: 浮层只在显示期间加载 KWin 的模糊和对比度特效，隐藏后卸载；用户自己加载的不动。
+        text: 浮层只在显示期间加载 KWin 的模糊和对比度特效，隐藏后卸载。用户自己加载的不动。
         evidence:
           - {doc: docs/67-home-assistant.md, date: 2026-09-25, note: "收起后已加载特效中不再有两者"}
     pitfalls:
-      - text: Plasma Mobile 的导航栏按钮原本没有长按，全局快捷键也只有“按下”没有“松开”；长按与松开经补丁里的 holdable 按钮和明确的 D-Bus Hold 接口传给浮层。
+      - text: Plasma Mobile 的导航栏按钮原本没有长按，全局快捷键也只有“按下”没有“松开”。长按与松开经补丁里的 holdable 按钮和明确的 D-Bus Hold 接口传给浮层。
         docs: [docs/67-home-assistant.md]
       - text: 手势导航模式没有 Home 按钮、电视（docked）没有导航栏，这两种情况下目前没有长按入口。
         docs: [docs/67-home-assistant.md]
-      - text: 服务先发 listen-cancelled 再发状态变化，浮层曾把后者当成“说完等回复”而误显示“正在处理”；浮层改为按视图（listen、sending、work、answer）显式切换。
+      - text: 服务先发 listen-cancelled 再发状态变化，浮层曾把后者当成“说完等回复”而误显示“正在处理”。浮层改为按视图（listen、sending、work、answer）显式切换。
         docs: [docs/87-agent-app-redesign.md]
-      - text: 光效用 layer 反而让帧数翻倍；聆听时 GPU 约 70%，其中模糊约占一半。
+      - text: 光效用 layer 反而让帧数翻倍。聆听时 GPU 约 70%，其中模糊约占一半。
         docs: [docs/67-home-assistant.md]
     code:
       - agent/assistant/app/overlay.cpp
@@ -151,11 +151,11 @@ features:
     summary: 聊天式的 Agent 应用：侧边栏按日期分组的对话、新对话的建议、打字和语音输入、折叠的工作卡片、复制和朗读、设置。
     experience:
       - id: E1
-        text: 点开一段对话立即显示内容，不等 Codex 恢复线程；超过 150 ms 才显示“正在打开…”，空对话界面只在确实没有内容时出现。
+        text: 点开一段对话立即显示内容，不等 Codex 恢复线程。超过 150 ms 才显示“正在打开…”，空对话界面只在确实没有内容时出现。
         evidence:
           - {doc: docs/59-voice-agent.md, date: 2026-09-25, note: "Blender 对话 2775 ms 降到 73 ms"}
       - id: E2
-        text: 往上翻历史时视图停在拖到的位置，不跳回底部，不拉出空白、不闪动；离开底部后出现“回到最新”。
+        text: 往上翻历史时视图停在拖到的位置，不跳回底部，不拉出空白、不闪动。离开底部后出现“回到最新”。
         evidence:
           - {doc: docs/59-voice-agent.md, date: 2026-09-25, note: "长对话上拖后 4 秒仍停住；慢拖录屏无单帧跳变"}
       - id: E3
@@ -163,7 +163,7 @@ features:
         evidence:
           - {doc: docs/59-voice-agent.md, date: 2026-09-25, note: "静止 3 秒 390 帧降到 0 帧"}
       - id: E4
-        text: 一轮工作折叠成一张卡：运行中显示“正在处理 · N 秒”和当前步骤，完成后是可展开的“已处理 N 步 · 用时 N 秒”；显示过的条目不会再被移走；回答下有复制和朗读。
+        text: 一轮工作折叠成一张卡：运行中显示“正在处理 · N 秒”和当前步骤，完成后是可展开的“已处理 N 步 · 用时 N 秒”。显示过的条目不会再被移走。回答下有复制和朗读。
         evidence:
           - {doc: docs/87-agent-app-redesign.md, date: 2026-09-29, note: "G100 S 文字一轮约 13 秒，带“已处理 5 步”"}
       - id: E5
@@ -176,7 +176,7 @@ features:
           - {doc: docs/67-home-assistant.md, date: 2026-09-25, note: "第二个实例立即退出，已运行的应用打开对话"}
           - {doc: docs/research/proactive-system-care.md, date: 2026-09-30, note: "激活令牌，第二次唤起为同一 PID"}
       - id: E7
-        text: 状态栏和导航栏与应用同色；切换浅色、深色或跟随系统时，应用、面板和浮层同时变，重启后保留。
+        text: 状态栏和导航栏与应用同色。切换浅色、深色或跟随系统时，应用、面板和浮层同时变，重启后保留。
         evidence:
           - {doc: docs/87-agent-app-redesign.md, date: 2026-09-29}
       - id: E8
@@ -184,15 +184,15 @@ features:
         evidence:
           - {doc: docs/87-agent-app-redesign.md, date: 2026-09-29, note: "3 张照片时正常打开"}
       - id: E9
-        text: 侧边栏可以搜索对话、新建、按日分组（今天、昨天、M月D日、更早）、长按删除；删除对话同时归档它的 Codex 线程。
+        text: 侧边栏可以搜索对话、新建、按日分组（今天、昨天、M月D日、更早）、长按删除。删除对话同时归档它的 Codex 线程。
     pitfalls:
-      - text: 可交互的 ScrollBar 会把 0–1 的位置写回列表，越界时把内容一下拉回边界；触屏上用只显示的 ScrollIndicator。
+      - text: 可交互的 ScrollBar 会把 0–1 的位置写回列表，越界时把内容一下拉回边界。触屏上用只显示的 ScrollIndicator。
         docs: [docs/59-voice-agent.md]
       - text: 定位器（Row/Column/Grid/Flow）里子项的尺寸不能依赖定位器自身的宽高，否则布局不收敛、主线程满载。
         docs: [docs/87-agent-app-redesign.md]
-      - text: Codex app-server 逐个处理请求，快速连点多个对话时恢复会排队；界面不等它，所以不再被挡住。
+      - text: Codex app-server 逐个处理请求，快速连点多个对话时恢复会排队。界面不等它，所以不再被挡住。
         docs: [docs/59-voice-agent.md]
-      - text: 部署工具不会自动重启已打开的应用；离屏 software 后端不绘制 MultiEffect，带图的状态只能在真实屏幕上核对。
+      - text: 部署工具不会自动重启已打开的应用。离屏 software 后端不绘制 MultiEffect，带图的状态只能在真实屏幕上核对。
         docs: [docs/87-agent-app-redesign.md]
       - text: 宽屏分栏、附件缩略图的圆角裁切、长 GIF 的资源占用尚未验收。
         docs: [docs/87-agent-app-redesign.md, docs/88-agent-visible-work.md]
@@ -222,36 +222,36 @@ features:
     scenario: agent.talk
     status: live
     platform: linux
-    summary: Agent 回答里的图片直接显示、文件以卡片出现；用户可以发照片、文件和视频，动图会动，视频抽帧给 Agent 看。
+    summary: 对话直接显示 Agent 回答中的图片，以卡片显示文件。用户可以发送照片、文件和视频。界面播放动图，并从视频中抽帧供 Agent 查看。
     experience:
       - id: E1
-        text: Agent 回答里的本机图片显示在这一轮下方（语音朗读过的回合也显示），其他本机文件显示为文件卡片；点图片看大图，正文里没有加载失败的空图。
+        text: Agent 回答里的本机图片显示在这一轮下方（语音朗读过的回合也显示），其他本机文件显示为文件卡片。点图片看大图，正文里没有加载失败的空图。
         evidence:
           - {doc: docs/88-agent-visible-work.md, date: 2026-09-29, note: "小火箭、甜甜圈渲染图与 .blend 卡片"}
       - id: E2
-        text: GIF 和动态 WebP 在对话、大图和预览里会动；小图不被放大，看不见时暂停。
+        text: GIF 和动态 WebP 在对话、大图和预览里会动。小图不被放大，看不见时暂停。
         evidence:
           - {doc: docs/88-agent-visible-work.md, date: 2026-10-01, note: "手机上 offscreen qmltestrunner 7 项"}
       - id: E3
-        text: 用户可以发照片和文件：图片作为图片交给 Agent，其他文件给出路径由 Agent 自己读；带图发送后 Agent 能描述图片内容，气泡上方显示缩略图。
+        text: 用户可以发照片和文件：图片作为图片交给 Agent，其他文件给出路径由 Agent 自己读。带图发送后 Agent 能描述图片内容，气泡上方显示缩略图。
         evidence:
           - {doc: docs/87-agent-app-redesign.md, date: 2026-09-29}
       - id: E4
-        text: 视频和动图附件先抽 2–8 帧（约每 2 秒一帧，长边不超过 1024）随消息交给 Agent，并写明时长、尺寸和有无声音；没有 ffmpeg 或读不出时只附路径；用户消息先显示，不等抽帧。
+        text: 视频和动图附件先抽 2–8 帧（约每 2 秒一帧，长边不超过 1024）随消息交给 Agent，并写明时长、尺寸和有无声音。没有 ffmpeg 或读不出时只附路径。用户消息先显示，不等抽帧。
         evidence:
           - {doc: docs/88-agent-visible-work.md, date: 2026-10-01, note: "20 秒 1080p 视频抽 8 帧 4.0 秒，再次命中缓存"}
       - id: E5
-        text: 打开附件面板时键盘收起，面板占据键盘原来的位置；最近照片取自“图片”目录，4 列显示。
+        text: 打开附件面板时键盘收起，面板占据键盘原来的位置。最近照片取自“图片”目录，4 列显示。
         evidence:
           - {doc: docs/87-agent-app-redesign.md, date: 2026-09-29}
     pitfalls:
-      - text: Markdown 文本控件按应用自己的 qrc 基址解析裸路径；本机图片要改写为 file:// 才加载得出来。
+      - text: Markdown 文本控件按应用自己的 qrc 基址解析裸路径。本机图片要改写为 file:// 才加载得出来。
         docs: [docs/88-agent-visible-work.md]
       - text: Codex 只收静态图（GIF 只取第一帧，动态 WebP 原样发出），所以动图和视频由我们抽帧。
         docs: [docs/88-agent-visible-work.md]
-      - text: 容器的 Qt 图片插件原本没有 WebP，所有 Qt 应用都打不开 WebP；rungic-design 依赖 qt6-image-formats-plugins。
+      - text: 容器的 Qt 图片插件原本没有 WebP，所有 Qt 应用都打不开 WebP。rungic-design 依赖 qt6-image-formats-plugins。
         docs: [docs/88-agent-visible-work.md]
-      - text: AnimatedImage 在界面线程同步打开本地文件、会拉伸 GIF，不能直接替换 Image；视频在对话里还只显示为文件卡片；“拍照”因没有相机入口而隐藏。
+      - text: AnimatedImage 在界面线程同步打开本地文件、会拉伸 GIF，不能直接替换 Image。视频在对话里还只显示为文件卡片。“拍照”因没有相机入口而隐藏。
         docs: [docs/88-agent-visible-work.md, docs/87-agent-app-redesign.md]
     code:
       - agent/assistant/media_frames.py
@@ -265,16 +265,16 @@ features:
     status: live
     platform: linux
     interfaces: [platform-bridge]
-    summary: Agent 干活时屏幕上详细、连续地显示计划和当前步骤，语音只在里程碑处说一句，并按用户是否在看调节频率。
+    summary: Agent 执行任务时，屏幕持续显示详细计划和当前步骤。语音只在里程碑处简短汇报，并根据用户是否正在观看调整频率。
     experience:
       - id: E1
-        text: 多步任务一开始列出 2–6 步计划，步骤状态随进度更新；回合结束后计划、改动的文件和步骤保存在记录里，展开“已处理 N 步”可以看到。
+        text: 多步任务一开始列出 2–6 步计划，步骤状态随进度更新。回合结束后计划、改动的文件和步骤保存在记录里，展开“已处理 N 步”可以看到。
         evidence:
           - {doc: docs/89-agent-progress.md, date: 2026-09-29, note: "统计脚本任务三步依次更新"}
       - id: E2
         text: 命令显示为人话（“读取 x.py”“在后台运行 Blender（make_donut.py）”），运行中的命令显示最后一行输出，只认明确的进度（百分比、x/y）。
       - id: E3
-        text: 语音按事件汇报：报一次计划、进入下一步说一句、单步很久才报进展；有人在看时间隔更长；超过 90 秒只道歉一次；不再每隔几十秒说“还在处理”。
+        text: 语音按事件汇报：报一次计划、进入下一步说一句、单步很久才报进展。有人在看时间隔更长。超过 90 秒只道歉一次。不再每隔几十秒说“还在处理”。
         evidence:
           - {doc: docs/89-agent-progress.md, date: 2026-09-29, note: "语音只收到一次进度：报计划"}
       - id: E4
@@ -282,7 +282,7 @@ features:
         evidence:
           - {doc: docs/89-agent-progress.md, date: 2026-09-29, note: "事实的时态都正确"}
       - id: E5
-        text: Agent 在屏幕上操作时，字幕作为“在助理屏上：…”交给语音转述；回合结束时仍显示“进行中”的字幕改为完成。
+        text: Agent 在屏幕上操作时，字幕作为“在助理屏上：…”交给语音转述。回合结束时仍显示“进行中”的字幕改为完成。
       - id: E6
         text: 任务卡的实时预览图只来自这一轮产生的图片。
       - id: E7
@@ -293,11 +293,11 @@ features:
     pitfalls:
       - text: Codex 的 update_plan 默认关闭，要在线程配置里开 tools.update_plan.enabled。
         docs: [docs/89-agent-progress.md]
-      - text: Codex 自己会把 agentMessage 旁白以 [BACKEND] 消息交给实时语音；服务再转述一次，同一句就说两遍。
+      - text: Codex 自己会把 agentMessage 旁白以 [BACKEND] 消息交给实时语音。服务再转述一次，同一句就说两遍。
         docs: [docs/89-agent-progress.md]
-      - text: 是否在看要同时看应用窗口是否激活和平台桥 status 的 foreground；熄屏或回到 Android 桌面时为 false。平台桥不答时要按“没人在看”处理。
+      - text: 是否在看要同时看应用窗口是否激活和平台桥 status 的 foreground。熄屏或回到 Android 桌面时为 false。平台桥不答时要按“没人在看”处理。
         docs: [docs/89-agent-progress.md, docs/research/97-headless-agent-work.md]
-      - text: 一轮 Blender 任务约 128 秒，约 100 秒花在模型往返和逐字写代码上，Blender 本身约 25 秒；提速靠高层积木库和写进技能的稳定事实（调研，未实施）。
+      - text: 一轮 Blender 任务约 128 秒，约 100 秒花在模型往返和逐字写代码上，Blender 本身约 25 秒。提速靠高层积木库和写进技能的稳定事实（调研，未实施）。
         docs: [docs/research/92-agent-task-speed.md]
     code:
       - agent/assistant/task_state.py
@@ -313,61 +313,61 @@ features:
     summary: 像打电话一样和 Agent 连续对话，任务在后台执行，可以随时打断或追加。
     experience:
       - id: E1
-        text: Agent 的回合开始、结束不会影响电话会话；协调器意外退出后，下一次使用时自动恢复，不需要用户重开应用。
+        text: Agent 的回合开始、结束不会影响电话会话。协调器意外退出后，下一次使用时自动恢复，不需要用户重开应用。
       - id: E2
-        text: 只读任务不能调用任何可能改动外部的 MCP 工具；可写任务独占自己的工具进程。
+        text: 只读任务不能调用任何可能改动外部的 MCP 工具。可写任务独占自己的工具进程。
       - id: E3
-        text: 用户开口就停止播报，已有任务继续；只有明确的停止请求或任务卡片的停止按钮才取消任务，取消显示“正在停止”，直到 Codex 真的停下才显示已停止。
+        text: 用户开口就停止播报，已有任务继续。只有明确的停止请求或任务卡片的停止按钮才取消任务，取消显示“正在停止”，直到 Codex 真的停下才显示已停止。
         evidence:
           - {doc: docs/101-full-duplex-phone-mode.md, date: 2026-10-02, note: "等待任务从 stopping 到后端确认 stopped"}
       - id: E4
-        text: 挂断、Plasma 被遮住、音频或网络断开时关闭话音连接，任务继续执行；返回后不自动恢复，要再点“和 Agent 通话”。
+        text: 挂断、Plasma 被遮住、音频或网络断开时关闭话音连接，任务继续执行。返回后不自动恢复，要再点“和 Agent 通话”。
         evidence:
           - {doc: docs/101-full-duplex-phone-mode.md, date: 2026-10-02, note: "Android 设置遮住 Plasma；挂断后 137×29 仍完成"}
       - id: E5
-        text: 只按完整的最终转写开始任务：同一句话最多开始一个任务，句中停顿不提前执行，连接就绪前说了一半的话要求重说；执行器拿到的是转写原文，不是模型改写的话。
+        text: 只按完整的最终转写开始任务：同一句话最多开始一个任务，句中停顿不提前执行，连接就绪前说了一半的话要求重说。执行器拿到的是转写原文，不是模型改写的话。
         evidence:
           - {doc: docs/101-full-duplex-phone-mode.md, date: 2026-10-02, note: "六场景小样本；模型重复调用 start_task 只新增一个任务"}
       - id: E6
-        text: 任务需要用户回答时，问题出现在任务卡上，必须由用户回答，不自动选默认；答案只能回到提问的那个任务，已停止的任务不会被迟到的问题复活。
+        text: 任务需要用户回答时，问题出现在任务卡上，必须由用户回答，不自动选默认。答案只能回到提问的那个任务，已停止的任务不会被迟到的问题复活。
       - id: E7
-        text: 任务和它的历史留在发起它的对话里；一句更正只送到一个任务，目标不明确时先问。
+        text: 任务和它的历史留在发起它的对话里。一句更正只送到一个任务，目标不明确时先问。
       - id: E8
-        text: 静音关闭物理麦克风、播放继续；挂断后通话音频和麦克风都释放。
+        text: 静音关闭物理麦克风、播放继续。挂断后通话音频和麦克风都释放。
         evidence:
           - {doc: docs/101-full-duplex-phone-mode.md, date: 2026-10-02, note: "microphoneActive=false；关闭会话后模块为零"}
       - id: E9
         text: 有效语音到播报静音 P95 不超过 200 ms，完整话语到首音 P95 不超过 2.5 s（兜底 4 s），意图路由大样本不低于 95%，可连续进行 30 分钟。
         gap: 只有小样本云端探针和传输层测试，未做声学实测、大样本和 30 分钟真人对话
       - id: E10
-        text: 停止任务或撤销它的工具租约时，只结束这个任务的工具进程组（包括忽略 SIGTERM 的后代和工具进程意外退出后留下的），用户自己运行的应用不受影响；没有租约的工具调用被拒绝。
+        text: 停止任务或撤销它的工具租约时，只结束这个任务的工具进程组（包括忽略 SIGTERM 的后代和工具进程意外退出后留下的），用户自己运行的应用不受影响。没有租约的工具调用被拒绝。
       - id: E11
         text: 按用户实际说的语言识别和回答，不强制用桌面界面的语言。
       - id: E12
         text: 服务重启后不重放排队中或做到一半的任务，按后端的实际状态恢复显示（标为已中断）。
       - id: E13
-        text: 对话顶栏的电话按钮在当前对话里开始通话，对话列表的“和 Agent 通话”新开一段对话再开始；不能开始时（Agent 正在替你打电话、另一段对话在通话）按钮显示为不可用，点一下说明原因。
+        text: 对话顶栏的电话按钮在当前对话里开始通话，对话列表的“和 Agent 通话”新开一段对话再开始。不能开始时（Agent 正在替你打电话、另一段对话在通话）按钮显示为不可用，点一下说明原因。
       - id: E14
-        text: 通话中顶栏下方的通话条按“正在连接、等你回答、正在回答、正在听、正在处理、麦克风已关、通话中”显示当前状态和通话时长，可静音、挂断，点开是通话面板（打断、这次通话的任务及其状态、去回答）；通话在别的对话时显示“前往”；重新打开应用后按会话快照恢复。
-        gap: 只有离线 QML 测试和截图；未在手机上做真人通话下的状态切换验收。
+        text: 顶栏下方的通话条显示当前状态和通话时长。状态包括“正在连接、等你回答、正在回答、正在听、正在处理、麦克风已关、通话中”。用户可以静音、挂断或打开通话面板。面板提供打断、通话任务及状态和“去回答”。通话属于其他对话时，通话条显示“前往”。重新打开应用时，界面根据会话快照恢复。
+        gap: 只有离线 QML 测试和截图。未在手机上做真人通话下的状态切换验收。
       - id: E15
         text: 通话结束在对话里留下摘要：时长、这次通话发起和完成的任务数，有任务在等回答时可直接去回答，也可以再打给它。
       - id: E16
-        text: Agent 说话连贯不卡：回复的声音按 Android 实际播放的进度送出，Android 不因等数据而停顿；停顿之后不会把空档补成一阵突发。
+        text: Agent 说话连贯不卡：回复的声音按 Android 实际播放的进度送出，Android 不因等数据而停顿。停顿之后不会把空档补成一阵突发。
         evidence:
           - {doc: docs/101-full-duplex-phone-mode.md, date: 2026-10-04, note: "G100 S 真人通话不卡；AudioFlinger 14.72 s 欠载为 0（修复前 10%–21%）"}
     pitfalls:
       - text: 发给协调器的每条指令都必须带 id，否则回复不带 id，曾让读取线程退出并杀掉协调器。
         docs: [docs/101-full-duplex-phone-mode.md]
-      - text: Codex app-server 的 Realtime 封装把任务入口固定为 background_agent/remain_silent，VAD 也由它内部设置；所以电话模式直接连同一个 Realtime 模型，按住说话仍用原封装。
+      - text: Codex app-server 的 Realtime 封装把任务入口固定为 background_agent/remain_silent，VAD 也由它内部设置。所以电话模式直接连同一个 Realtime 模型，按住说话仍用原封装。
         docs: [docs/101-full-duplex-phone-mode.md]
       - text: semantic VAD 可能延迟很久，改为等本地静默和完整最终转写，2 秒仍未提交时手动 commit。
         docs: [docs/101-full-duplex-phone-mode.md]
       - text: 播放游标读取不等于“用户听到了什么”，截断位置仍有边界误差，必须声学实测。
         docs: [docs/101-full-duplex-phone-mode.md]
-      - text: G100 的 Home 键返回同一个入口，不能用它测试“隐藏”；2026-10-03 的协调器修复尚未部署。
+      - text: G100 的 Home 键返回同一个入口，不能用它测试“隐藏”。2026-10-03 的协调器修复尚未部署。
         docs: [docs/101-full-duplex-phone-mode.md]
-      - text: 断线直接结束通话（不重连），所以通话条的“正在重新连接”状态目前不会出现；对话列表也还没有通话中的标记。
+      - text: 断线直接结束通话（不重连），所以通话条的“正在重新连接”状态目前不会出现。对话列表也还没有通话中的标记。
         docs: [docs/101-full-duplex-phone-mode.md]
     code:
       - agent/assistant/phone_session.py
@@ -389,28 +389,28 @@ features:
     scenario: agent.setup
     status: live
     platform: linux
-    summary: 系统不自带 Codex；设置里用官方脚本一键安装到用户目录，有新的正式版时提示更新。
+    summary: 系统不自带 Codex。设置里用官方脚本一键安装到用户目录，有新的正式版时提示更新。
     experience:
       - id: E1
-        text: 设置里显示 Codex 已安装、未安装或正在安装；未安装时一键用官方脚本装到 ~/.codex，期间语音服务不退出，对话里提示“还差一步：安装 Codex”。
+        text: 设置里显示 Codex 已安装、未安装或正在安装。未安装时一键用官方脚本装到 ~/.codex，期间语音服务不退出，对话里提示“还差一步：安装 Codex”。
         evidence:
           - {doc: docs/99-codex-standalone.md, date: 2026-10-01, note: "Setup 报告已安装、能运行；一键安装本身未重跑"}
       - id: E2
-        text: 只跟正式版：有新版本时设置显示“可更新到 X”，预发布版和带后缀的标签不算；结果缓存 6 小时，离线时保留上次的结果。
+        text: 只跟正式版：有新版本时设置显示“可更新到 X”，预发布版和带后缀的标签不算。结果缓存 6 小时，离线时保留上次的结果。
         evidence:
           - {doc: docs/99-codex-standalone.md, date: 2026-10-01, note: "CheckCodexUpdate 强制检查 0.159.2 为最新"}
       - id: E3
         text: 安装或更新完成后，等没有任务在跑、也没人在说话（最多 30 分钟）再重启 app-server，模型列表随之重新读取。
       - id: E4
-        text: /usr/bin/codex 对所有调用者（助手的 app-server、命令行、实时语音）运行用户的独立安装版本，并带上手机代理；没装时提示去设置安装，退出码 127。
+        text: /usr/bin/codex 对所有调用者（助手的 app-server、命令行、实时语音）运行用户的独立安装版本，并带上手机代理。没装时提示去设置安装，退出码 127。
         evidence:
           - {doc: docs/99-codex-standalone.md, date: 2026-10-01, note: "app-server 进程为 standalone 0.159.2"}
     pitfalls:
-      - text: OpenAI 按客户端版本下发模型目录：同一账户 0.156.1 看不到 GPT-6.1-Sol；所以 Codex 要跟最新正式版。
+      - text: OpenAI 按客户端版本下发模型目录：同一账户 0.156.1 看不到 GPT-6.1-Sol。所以 Codex 要跟最新正式版。
         docs: [docs/99-codex-standalone.md, docs/98-agent-model-selection.md]
-      - text: Codex 在用户目录里，不随发布锁定、不随快照回滚；验收记录要写上当时 Codex 的实际版本。
+      - text: Codex 在用户目录里，不随发布锁定、不随快照回滚。验收记录要写上当时 Codex 的实际版本。
         docs: [docs/99-codex-standalone.md]
-      - text: 完整包里的 codex-code-mode-host 是执行命令所必需的；单独的 CLI 二进制缺它时 Agent 无法执行命令。
+      - text: 完整包里的 codex-code-mode-host 是执行命令所必需的。单独的 CLI 二进制缺它时 Agent 无法执行命令。
         docs: [docs/59-voice-agent.md]
     code:
       - agent/codex/codex-wrapper
@@ -425,32 +425,32 @@ features:
     scenario: agent.setup
     status: live
     platform: linux
-    summary: 两套凭据分开讲清楚：Codex 的登录（ChatGPT 套餐或 API Key）用于 Agent 执行任务；单独的 OpenAI API Key 用于语音、转文字和代打电话。
+    summary: Codex 登录与单独的 OpenAI API Key 使用不同凭据。Codex 通过 ChatGPT 套餐或 API Key 登录，用于执行任务。单独的 OpenAI API Key 用于语音、转文字和代打电话。
     experience:
       - id: E1
         text: 设置首页分开显示 Codex 的登录方式（“ChatGPT 套餐（Team）”“API Key”或“未登录”）和 OpenAI API Key，各自说明计费归属。
         evidence:
           - {doc: docs/101-codex-sign-in-and-api-key.md, date: 2026-10-01, note: "用户重新登录后 account/read 为 chatgpt/team；页面只做了离线渲染"}
       - id: E2
-        text: ChatGPT 设备码登录：15 分钟内再点显示同一个验证码，不让 Codex 顶替；被顶替或取消的那次结束不在页面上报错；重新打开页面恢复进行中的验证码。
+        text: ChatGPT 设备码登录：15 分钟内再点显示同一个验证码，不让 Codex 顶替。被顶替或取消的那次结束不在页面上报错。重新打开页面恢复进行中的验证码。
         evidence:
           - {doc: docs/101-codex-sign-in-and-api-key.md, date: 2026-10-01, note: "两次 CodexLogin 返回同一 loginId"}
       - id: E3
-        text: 改用 API Key 登录 Codex 前要确认，并写明 Agent 的任务改按 API 用量计费；没设置 Key 时这一项不可选；改用 API Key 时丢掉进行中的设备码登录。
+        text: 改用 API Key 登录 Codex 前要确认，并写明 Agent 的任务改按 API 用量计费。没设置 Key 时这一项不可选。改用 API Key 时丢掉进行中的设备码登录。
       - id: E4
         text: 切换登录方式时语音服务不退出：被主动替换的 app-server 退出只记日志，只有意外退出才交给 systemd 恢复。
         evidence:
           - {doc: docs/101-codex-sign-in-and-api-key.md, date: 2026-10-01, note: "codex app-server exited (replaced)，NRestarts 为 0"}
       - id: E5
-        text: API Key 保存前用 /v1/models 实测，没测过的密钥打开页面时自动测一次；明文保存在权限 600 的文件里，界面写明本用户的程序（包括 Agent）都能读到它。
+        text: API Key 保存前用 /v1/models 实测，没测过的密钥打开页面时自动测一次。明文保存在权限 600 的文件里，界面写明本用户的程序（包括 Agent）都能读到它。
     pitfalls:
-      - text: 容器里 KDE 钥匙串（ksecretd）缺 QCA OpenSSL 插件，第一次写入还会弹英文建钱包向导并卡住调用方；用户决定 Key 明文存文件。
+      - text: 容器里 KDE 钥匙串（ksecretd）缺 QCA OpenSSL 插件，第一次写入还会弹英文建钱包向导并卡住调用方。用户决定 Key 明文存文件。
         docs: [docs/87-agent-app-redesign.md]
       - text: 旧 API Key 页上“改用 API Key 登录”点一下就切换、不提示计费变化，用户的 Codex 曾因此被切到 API Key。
         docs: [docs/101-codex-sign-in-and-api-key.md]
       - text: account/read 和 auth.json 分不出是设备码还是浏览器登录，界面按套餐称呼。
         docs: [docs/101-codex-sign-in-and-api-key.md]
-      - text: 每次 account/login/start 都会顶替进行中的登录，旧登录以 “Login was not completed” 结束；要按 loginId 核对通知。
+      - text: 每次 account/login/start 都会顶替进行中的登录，旧登录以 “Login was not completed” 结束。要按 loginId 核对通知。
         docs: [docs/101-codex-sign-in-and-api-key.md]
     code:
       - agent/assistant/app/qml/AccountPage.qml
@@ -468,30 +468,30 @@ features:
     scenario: agent.setup
     status: live
     platform: linux
-    summary: 默认跟随账户默认模型；也可以从账户可用的模型里选，并选该模型支持的推理强度。接口为以后别的 provider 留了位置。
+    summary: Agent 默认使用账户的默认模型。用户也可以选择账户可用的其他模型及其支持的推理强度。接口预留其他 provider 的接入位置。
     experience:
       - id: E1
-        text: 可选的模型和强度来自账户的模型目录（隐藏的不列出）；不在目录里的模型、该模型不支持的强度都被拒绝，不保存。
+        text: 可选的模型和强度来自账户的模型目录（隐藏的不列出）。不在目录里的模型、该模型不支持的强度都被拒绝，不保存。
         evidence:
           - {doc: docs/98-agent-model-selection.md, date: 2026-10-01, note: "gpt-4 与 gpt-6-luna+ultra 被拒"}
       - id: E2
         text: 选的模型不再提供或强度不支持时，退回账户默认或模型默认，设置里的“模型”行首显示红点。
       - id: E3
-        text: 改设置后，空闲的对话立即换到新模型并恢复语音；有任务在跑、正在说话或还没有过一轮时，等这一轮结束再换；已经是目标模型时不重载。
+        text: 改设置后，空闲的对话立即换到新模型并恢复语音。有任务在跑、正在说话或还没有过一轮时，等这一轮结束再换。已经是目标模型时不重载。
         evidence:
           - {doc: docs/98-agent-model-selection.md, date: 2026-10-01, note: "服务日志：Astra/low 重载为 Luna/low 约 3 秒，再恢复"}
       - id: E4
-        text: 模型目录读取失败时保留上次的目录，缓存 10 分钟；账户变化后重新读取，选择不再成立时提示。
+        text: 模型目录读取失败时保留上次的目录，缓存 10 分钟。账户变化后重新读取，选择不再成立时提示。
       - id: E5
         text: 用量面板报告实际使用的模型名称。
         evidence:
           - {doc: docs/98-agent-model-selection.md, date: 2026-10-01, note: "用量面板变为 GPT-6-Luna"}
     pitfalls:
-      - text: 已加载的会话再 thread/resume 模型不变，要先 thread/unsubscribe 再 resume；还没有过任何一轮的会话无法 resume。
+      - text: 已加载的会话再 thread/resume 模型不变，要先 thread/unsubscribe 再 resume。还没有过任何一轮的会话无法 resume。
         docs: [docs/98-agent-model-selection.md]
       - text: 语音触发的任务由实时模型经 background_agent 发起，沿用会话当前模型，不经过我们的 turn/start。
         docs: [docs/98-agent-model-selection.md]
-      - text: 实时语音、通话画面判断仍写死模型；建议整理用自己的 CURATE_MODEL，不跟用户的选择。
+      - text: 实时语音、通话画面判断仍写死模型。建议整理用自己的 CURATE_MODEL，不跟用户的选择。
         docs: [docs/98-agent-model-selection.md]
     code:
       - agent/assistant/model_catalog.py
@@ -506,14 +506,14 @@ features:
     scenario: agent.setup
     status: live
     platform: linux
-    summary: Agent 的提示词和技能在用户目录里有可编辑的副本，升级不覆盖用户的修改，改动在进行中的对话里也很快生效。
+    summary: 用户目录保留可编辑的 Agent 提示词和技能副本。升级不覆盖用户修改。改动也能在进行中的对话里很快生效。
     experience:
       - id: E1
-        text: 提示词（agent.md、realtime.md）和每个技能在用户目录有真实的副本；升级时没改过的副本跟随新默认，改过的保留，新默认另存为 NAME.default。
+        text: 提示词（agent.md、realtime.md）和每个技能在用户目录有真实的副本。升级时没改过的副本跟随新默认，改过的保留，新默认另存为 NAME.default。
         evidence:
           - {doc: docs/59-voice-agent.md, date: 2026-09-29, note: "用户正在用的对话恢复时收到当前指令"}
       - id: E2
-        text: 改了 agent.md 或技能后约 30 秒内（Agent 空闲、没在说话时），进行中的对话也用上新指令；改了 realtime.md 在空闲时重启实时会话。
+        text: 改了 agent.md 或技能后约 30 秒内（Agent 空闲、没在说话时），进行中的对话也用上新指令。改了 realtime.md 在空闲时重启实时会话。
         evidence:
           - {doc: docs/59-voice-agent.md, date: 2026-09-29, note: "编辑后约 30 秒 rollout 出现带标记的 developer 消息"}
       - id: E3
@@ -521,9 +521,9 @@ features:
       - id: E4
         text: 每个桌面用户首次登录时自动配好 rungic-desktop MCP 服务和技能目录（kconf_update，重复执行无副作用）。
     pitfalls:
-      - text: Codex 把开发者指令固定在对话加载的那一刻；同一个 app-server 里再次恢复只是重新加入；包升级只 reload systemd、不重启用户服务。所以要注入新指令，而不是等下次打开。
+      - text: Codex 把开发者指令固定在对话加载的那一刻。同一个 app-server 里再次恢复只是重新加入。包升级只 reload systemd、不重启用户服务。所以要注入新指令，而不是等下次打开。
         docs: [docs/59-voice-agent.md, docs/88-agent-visible-work.md]
-      - text: Agent 在沙箱里看不到桌面进程（ps/pgrep），不能从 shell 启动图形程序；这些规则写在技能里。
+      - text: Agent 在沙箱里看不到桌面进程（ps/pgrep），不能从 shell 启动图形程序。这些规则写在技能里。
         docs: [docs/60-computer-use.md]
     code:
       - agent/assistant/prompts/agent.md
@@ -539,10 +539,10 @@ features:
     scenario: agent.setup
     status: live
     platform: android
-    summary: 开发机上的 rungic MCP 服务让开发用的 Agent 查看手机：状态、合并日志、崩溃、完整性、截图、证据包、控件、追踪和构建状态。
+    summary: 开发机上的 rungic MCP 服务为开发 Agent 提供手机诊断接口。接口包括状态、合并日志、崩溃、完整性、截图、证据包、控件、追踪和构建状态。
     experience:
       - id: E1
-        text: rungic MCP 提供 21 个工具；只读工具不改变设备状态，会改变设备的（符号化、控件操作、追踪采集）在说明里标明。
+        text: rungic MCP 提供 21 个工具。只读工具不改变设备状态，会改变设备的（符号化、控件操作、追踪采集）在说明里标明。
       - id: E2
         text: 多个 ADB 服务器、多台手机同时在线时，按配置的端口和序列号操作那一台，不沿用工具的历史默认设备。
       - id: E3
@@ -550,9 +550,9 @@ features:
       - id: E4
         text: 合并日志把 Android、容器和内核日志按同一时钟排成一条时间线。
     pitfalls:
-      - text: 在手机上做重活（例如 gdb 符号化）会被 LMK 连带杀掉 VPN 和桌面；符号化走构建机。
+      - text: 在手机上做重活（例如 gdb 符号化）会被 LMK 连带杀掉 VPN 和桌面。符号化走构建机。
         docs: [docs/55-agent-native-debugging.md, docs/research/proactive-system-care.md]
-      - text: 通用 ui_tap 对 Qt 弹出层使用未计入弹出层偏移的 AT-SPI 坐标，会点到按钮上方；不能把工具点错当成按钮失效。
+      - text: 通用 ui_tap 对 Qt 弹出层使用未计入弹出层偏移的 AT-SPI 坐标，会点到按钮上方。不能把工具点错当成按钮失效。
         docs: [docs/research/proactive-system-care.md]
       - text: 每次经 adb 的 AT-SPI 查询约 3 秒，等待位置稳定的超时要够长。
         docs: [docs/agent-ready-interfaces.md]
@@ -570,20 +570,20 @@ features:
     scenario: agent.desktop-work
     status: live
     platform: linux
-    summary: 默认由 Codex 用当前模型和登录看截图操作桌面；Luna API 可显式选择，输入和窗口管理复用 KWin 与标准门户。
+    summary: Codex 默认使用当前模型和登录凭据，根据截图操作桌面。用户可以显式选择 Luna API。输入和窗口管理复用 KWin 与标准门户。
     experience:
       - id: E1
-        text: Agent 能点击、双击、拖动、滚动、按键和输入任何语言的文字来操作图形应用；应用收到的是普通的键盘鼠标事件，Plasma 在后台时也能输入。
+        text: Agent 能点击、双击、拖动、滚动、按键和输入任何语言的文字来操作图形应用。应用收到的是普通的键盘鼠标事件，Plasma 在后台时也能输入。
         evidence:
           - {doc: docs/68-luna-computer-use.md, date: 2026-09-25, note: "微信 3 步打开聊天"}
-        device: 任何语言的文字靠 KWin 的 commitText 提交，这是 Rungic 的 KWin 补丁（virtualkeyboard-commit-text），系统测试容器里是 Ubuntu 原版 KWin，只测了按键和指针；“Plasma 在后台”指 Android 前台是别的应用，只有手机能造出
+        device: 任何语言的文字靠 KWin 的 commitText 提交，这是 Rungic 的 KWin 补丁（virtualkeyboard-commit-text），系统测试容器里是 Ubuntu 原版 KWin，只测了按键和指针。“Plasma 在后台”指 Android 前台是别的应用，只有手机能造出
       - id: E2
-        text: 截图只截任务所在的窗口（连同它的弹出菜单和对话框），范围变化时用一句话告诉模型；点击坐标误差约 1 像素。
+        text: 截图只截任务所在的窗口（连同它的弹出菜单和对话框），范围变化时用一句话告诉模型。点击坐标误差约 1 像素。
         evidence:
           - {doc: docs/68-luna-computer-use.md, date: 2026-09-25, note: "输入 token 减少 67%，坐标误差 1 px"}
-        device: 截图的像素由 KWin 的 ScreenShot2 渲染，需要 OpenGL 合成；系统测试容器没有 GPU 渲染节点，KWin 退回 QPainter，截图被取消，真实画面和点击误差只能在手机上看
+        device: 截图的像素由 KWin 的 ScreenShot2 渲染，需要 OpenGL 合成。系统测试容器没有 GPU 渲染节点，KWin 退回 QPainter，截图被取消，真实画面和点击误差只能在手机上看
       - id: E3
-        text: 默认 Codex 用 desktop_screenshot 和 desktop_act 逐步操作并核验结果；API 备选保留 desktop_goal 的完成、提问、失败和中止。
+        text: 默认 Codex 用 desktop_screenshot 和 desktop_act 逐步操作并核验结果。API 备选保留 desktop_goal 的完成、提问、失败和中止。
         evidence:
           - {doc: docs/63-call-proxy.md, date: 2026-09-25, note: "中止机制：12 s 发信号，13.3 s 停下"}
       - id: E4
@@ -591,11 +591,11 @@ features:
         evidence:
           - {doc: docs/103-krita-save-dialog-hang.md, date: 2026-10-01, note: "desktop_act 结果出现 held by a dialog 提示"}
       - id: E5
-        text: 窗口的关闭、最小化、最大化和移屏由窗口管理器完成（desktop_window），一次关上；应用要询问保存时返回 still_open。
+        text: 窗口的关闭、最小化、最大化和移屏由窗口管理器完成（desktop_window），一次关上。应用要询问保存时返回 still_open。
         evidence:
           - {doc: docs/60-computer-use.md, date: 2026-09-24, note: "window close 一次关闭"}
       - id: E6
-        text: desktop_launch 按桌面文件 id 或任何语言的名称启动应用，返回已激活的窗口；已开的不重复启动；应用在自己的 scope 里，语音服务重启不会把它一起结束。
+        text: desktop_launch 按桌面文件 id 或任何语言的名称启动应用，返回已激活的窗口。已开的不重复启动。应用在自己的 scope 里，语音服务重启不会把它一起结束。
         evidence:
           - {doc: docs/60-computer-use.md, date: 2026-09-24, note: "launch 系统设置 1.15 s"}
           - {doc: docs/88-agent-visible-work.md, date: 2026-09-29, note: "Blender 图形界面在助理屏上运行"}
@@ -604,7 +604,7 @@ features:
         evidence:
           - {doc: docs/60-computer-use.md, date: 2026-09-24, note: "env -i 下 launch Firefox 3.5 s"}
       - id: E8
-        text: 桌面操作默认沿用 Codex 的登录和模型，不隐式调用独立视觉 API；显式 API 备选保留，已有模式选择不被覆盖。
+        text: 桌面操作默认沿用 Codex 的登录和模型，不隐式调用独立视觉 API。显式 API 备选保留，已有模式选择不被覆盖。
         evidence:
           - {doc: docs/106-codex-desktop-operation.md, date: 2026-10-03, note: "PR 前补充验证：常驻 Codex 实际看图点击 Kalk，147×31=4,557"}
       - id: E9
@@ -612,17 +612,17 @@ features:
         evidence:
           - {doc: docs/106-codex-desktop-operation.md, date: 2026-10-03, note: "G100：任务中、10000 接通时及空闲静音电话模式均拒绝切换，原 sessionId 保持"}
     pitfalls:
-      - text: Codex 的命令沙箱连不上 D-Bus 和 Wayland，桌面操作必须做成沙箱外的 MCP 服务；没有注解的 MCP 工具每次都要审批，只读工具要标 readOnlyHint。
+      - text: Codex 的命令沙箱连不上 D-Bus 和 Wayland，桌面操作必须做成沙箱外的 MCP 服务。没有注解的 MCP 工具每次都要审批，只读工具要标 readOnlyHint。
         docs: [docs/60-computer-use.md]
-      - text: 弹出菜单和对话框在 Wayland 下是独立窗口，CaptureWindow 不包括它们；CaptureArea 按最高缩放（手机 3 倍）出图，要缩回目标屏的缩放，否则 token 多近三倍。
+      - text: 弹出菜单和对话框在 Wayland 下是独立窗口，CaptureWindow 不包括它们。CaptureArea 按最高缩放（手机 3 倍）出图，要缩回目标屏的缩放，否则 token 多近三倍。
         docs: [docs/68-luna-computer-use.md]
-      - text: 续接对话后接口只接受 computer_call_output 回传的图片；函数调用只回文字，由模型再请求截图。
+      - text: 续接对话后接口只接受 computer_call_output 回传的图片。函数调用只回文字，由模型再请求截图。
         docs: [docs/68-luna-computer-use.md]
       - text: computer 工具没有“按住直到外部信号”的动作，按住说话类的录音控件在方案一下不支持。
         docs: [docs/68-luna-computer-use.md]
-      - text: RemoteDesktop 门户第一次要用户批准；每次新会话会弹“远程控制会话已开始”通知并挡住窗口顶部，要在 notifyrc 里关掉。
+      - text: RemoteDesktop 门户第一次要用户批准。每次新会话会弹“远程控制会话已开始”通知并挡住窗口顶部，要在 notifyrc 里关掉。
         docs: [docs/60-computer-use.md]
-      - text: 标题栏是 KWin 画的装饰，不在应用的无障碍树里；窗口操作要走 desktop_window。
+      - text: 标题栏是 KWin 画的装饰，不在应用的无障碍树里。窗口操作要走 desktop_window。
         docs: [docs/60-computer-use.md]
     code:
       - agent/computer-use/rungic-cua
@@ -654,35 +654,35 @@ features:
     status: experimental
     platform: linux
     interfaces: [ocr]
-    summary: 备用的电脑操作方案（rungic-cua plan atspi）：读应用的无障碍树和手机 GPU 上的 OCR，由 TypeSafe JEV 逐步选控件；含按读音找人。
+    summary: rungic-cua plan atspi 提供备用电脑操作方案。它读取应用无障碍树和手机 GPU OCR 结果，由 TypeSafe JEV 逐步选择控件。该方案也支持按读音找人。
     experience:
       - id: E1
-        text: rungic-cua plan atspi 切换后，工具换成 desktop_observe、desktop_run、desktop_find_name 和 JEV 版的 desktop_goal；切回 luna 恢复（重启语音服务后生效）。
+        text: rungic-cua plan atspi 切换后，工具换成 desktop_observe、desktop_run、desktop_find_name 和 JEV 版的 desktop_goal。切回 luna 恢复（重启语音服务后生效）。
       - id: E2
-        text: OCR 在手机 GPU 上识别整屏约 0.5 s（PP-OCRv6 Small，fp16）；模型还没下载好或 GPU 不可用时立即改用容器 CPU 上的 RapidOCR（约 2 s），不卡住。
+        text: OCR 在手机 GPU 上识别整屏约 0.5 s（PP-OCRv6 Small，fp16）。模型还没下载好或 GPU 不可用时立即改用容器 CPU 上的 RapidOCR（约 2 s），不卡住。
         evidence:
           - {doc: docs/64-goal-computer-use.md, date: 2026-09-25, note: "det 640² 57 ms，整屏约 0.5 s"}
-        device: 整屏约 0.5 s 是手机 Adreno GPU 上 LiteRT 的速度，OCR 在安卓应用里运行，系统测试里没有这块 GPU；CPU 约 2 s 也取决于手机 CPU
+        device: 整屏约 0.5 s 是手机 Adreno GPU 上 LiteRT 的速度，OCR 在安卓应用里运行，系统测试里没有这块 GPU。CPU 约 2 s 也取决于手机 CPU
       - id: E3
-        text: OCR 模型在第一次请求时由 Rungic 应用后台下载，按固定的地址和 SHA-256 校验；下载完成前请求立即返回错误。
-        gap: 模型下载和 SHA-256 校验在 Rungic 应用的 OcrBridge.java 里，没有 Android 侧的离线测试，也没有实机记录；Linux 一侧收到“下载中”后立即改用 CPU 已由 tools/tests/test_cua_tools.py 检查（E2）
+        text: OCR 模型在第一次请求时由 Rungic 应用后台下载，按固定的地址和 SHA-256 校验。下载完成前请求立即返回错误。
+        gap: 模型下载和 SHA-256 校验在 Rungic 应用的 OcrBridge.java 里，没有 Android 侧的离线测试，也没有实机记录。Linux 一侧收到“下载中”后立即改用 CPU 已由 tools/tests/test_cua_tools.py 检查（E2）
       - id: E4
-        text: 语音识别写错的人名按读音找：同音得 1.0、近音 0.9，按分区标题区分联系人和搜索建议；两个不同的人都达到 0.9 时先问用户。
+        text: 语音识别写错的人名按读音找：同音得 1.0、近音 0.9，按分区标题区分联系人和搜索建议。两个不同的人都达到 0.9 时先问用户。
         evidence:
           - {doc: docs/60-computer-use.md, date: 2026-09-25, note: "find-name 周凯文 1.2 s，周楷雯 1.0"}
       - id: E5
-        text: 一次观察约 0.5–1 s；控件坐标按窗口根节点换算，应用的错误窗口坐标（微信内置 Qt）和阴影边距不影响点击。
+        text: 一次观察约 0.5–1 s。控件坐标按窗口根节点换算，应用的错误窗口坐标（微信内置 Qt）和阴影边距不影响点击。
         evidence:
           - {doc: docs/60-computer-use.md, date: 2026-09-25, note: "微信子任务 2 步 7.2 s"}
-        device: 一次观察 0.5–1 s 是手机上 AT-SPI 往返的耗时（每个属性约 50 ms，取决于手机和应用）；微信内置 Qt 的错误窗口坐标只有真实微信能复现，测试里是按其症状做的替身
+        device: 一次观察 0.5–1 s 是手机上 AT-SPI 往返的耗时（每个属性约 50 ms，取决于手机和应用）。微信内置 Qt 的错误窗口坐标只有真实微信能复现，测试里是按其症状做的替身
     pitfalls:
-      - text: Qt 没有实现 AT-SPI 缓存和 GetAll，逐个属性查询每个节点约 50 ms；改为同一层的请求一次发出。
+      - text: Qt 没有实现 AT-SPI 缓存和 GetAll，逐个属性查询每个节点约 50 ms。改为同一层的请求一次发出。
         docs: [docs/60-computer-use.md]
-      - text: 本机 Hexagon CDSP 关闭、没有 NNAPI，能用的加速器只有 Adreno（OpenCL）；模型卡称 fp16 下部分张量用例不过，请求可带 fp32。
+      - text: 本机 Hexagon CDSP 关闭、没有 NNAPI，能用的加速器只有 Adreno（OpenCL）。模型卡称 fp16 下部分张量用例不过，请求可带 fp32。
         docs: [docs/64-goal-computer-use.md]
-      - text: 需要 TypeSafe JEV 的 key；写手模型生成输入文字约 7–8 s；滚动固定在窗口中心，多窗格应用会滚错区域。
+      - text: 需要 TypeSafe JEV 的 key。写手模型生成输入文字约 7–8 s。滚动固定在窗口中心，多窗格应用会滚错区域。
         docs: [docs/64-goal-computer-use.md]
-      - text: 上游测试会清掉 CLICKER_PLATFORM，测试永远不会操作本机；Linux 适配器只在启动器设置该变量时启用。
+      - text: 上游测试会清掉 CLICKER_PLATFORM，测试永远不会操作本机。Linux 适配器只在启动器设置该变量时启用。
         docs: [docs/64-goal-computer-use.md]
       - text: 60、64 篇里的 vendor/、plasma/native-apk 等路径已不存在，现为 packages/ 配方和 android/app/jni/ocr。
         docs: [docs/60-computer-use.md, docs/64-goal-computer-use.md]
@@ -709,31 +709,31 @@ features:
     status: live
     platform: linux
     interfaces: [platform-bridge, kwin-android-host]
-    summary: 每个 Agent 一个独立的 KWin（默认无头）、自己的 D-Bus、Xwayland、无障碍总线和声音；Agent 在那里打开应用、点击和输入，不打扰用户的手机。
+    summary: 每个 Agent 使用独立的 KWin，默认无头运行。工作区有自己的 D-Bus、Xwayland、无障碍总线和声音。Agent 在工作区内打开和操作应用，不干扰用户的手机。
     experience:
       - id: E1
-        text: Agent 打开的应用只出现在它的工作区里，第一帧就在那里；它的点击和打字不抢用户手机上的焦点、指针和当前屏。
+        text: Agent 打开的应用只出现在它的工作区里，第一帧就在那里。它的点击和打字不抢用户手机上的焦点、指针和当前屏。
         evidence:
           - {doc: docs/research/91-agent-workspaces.md, date: 2026-09-29, note: "Kalk 算 12×12，用户会话除浮窗外没有新窗口"}
       - id: E2
         text: 工作区默认无头：手机锁屏、息屏、Rungic 应用被冻结时，工作区照常启动、运行应用、截图和操作。
         evidence:
           - {doc: docs/research/97-headless-agent-work.md, date: 2026-10-02, note: "§10、§14：APK 冻结时启动、截图、录屏"}
-        device: 截图要经 KWin 在手机 GPU 上渲染，容器里的 KWin 没有 GPU，ScreenShot2 一律取消；Android 锁屏、息屏和冻结 Rungic 应用也只在手机上发生
+        device: 截图要经 KWin 在手机 GPU 上渲染，容器里的 KWin 没有 GPU，ScreenShot2 一律取消。Android 锁屏、息屏和冻结 Rungic 应用也只在手机上发生
       - id: E3
-        text: 宿主不响应时，需要宿主的工作区约 3 秒内明确失败并说明原因，Agent 能如实转告；冻结期间桌面工具每次约 1 秒，不每次等满超时。
+        text: 宿主不响应时，需要宿主的工作区约 3 秒内明确失败并说明原因，Agent 能如实转告。冻结期间桌面工具每次约 1 秒，不每次等满超时。
         evidence:
           - {doc: docs/research/97-headless-agent-work.md, date: 2026-10-02, note: "§9 ensure 3.2 s 返回原因；§14 截图约 1.0 s"}
       - id: E4
-        text: 工作区有自己的无障碍总线，不会抢走用户会话的；工作区重启后，用户手机上读控件和文字输入照常。
+        text: 工作区有自己的无障碍总线，不会抢走用户会话的。工作区重启后，用户手机上读控件和文字输入照常。
         evidence:
           - {doc: docs/research/91-agent-workspaces.md, date: 2026-09-30, note: "两条总线分开，冒烟 9/9"}
       - id: E5
-        text: 工作区的环境按 Plasma 桌面会话设置（文件对话框在进程内），把命令交还用户会话时恢复用户原来的值；工作区的变量不泄漏进用户的 systemd 环境。
+        text: 工作区的环境按 Plasma 桌面会话设置（文件对话框在进程内），把命令交还用户会话时恢复用户原来的值。工作区的变量不泄漏进用户的 systemd 环境。
         evidence:
           - {doc: docs/research/91-agent-workspaces.md, date: 2026-09-29, note: "工作区重启、Xwayland 启动后用户环境不变"}
       - id: E6
-        text: 工作区里的声音进它自己的 null sink，没人看时用户听不到；显示时接到默认输出；停止后 sink 和回环都清理掉。
+        text: 工作区里的声音进它自己的 null sink，没人看时用户听不到。显示时接到默认输出。停止后 sink 和回环都清理掉。
         evidence:
           - {doc: docs/research/91-agent-workspaces.md, date: 2026-10-01, note: "paplay 进 rungic_ws4；listen/quiet 接上和断开"}
       - id: E7
@@ -743,17 +743,17 @@ features:
     pitfalls:
       - text: KWin 只有一个座席（一个指针、一个键盘焦点、一个活动窗口），要隔离输入只能每个工作区一个合成器。
         docs: [docs/research/91-agent-workspaces.md]
-      - text: 工作区与用户共用缓存目录时 ksycoca 被两边轮流重建，主屏幕每秒重载应用列表；工作区要有自己的 XDG_CACHE_HOME。
+      - text: 工作区与用户共用缓存目录时 ksycoca 被两边轮流重建，主屏幕每秒重载应用列表。工作区要有自己的 XDG_CACHE_HOME。
         docs: [docs/research/91-agent-workspaces.md]
-      - text: 私有总线上没有 systemd：busctl --user、systemctl 冻结等要显式走用户会话总线；工作区里 KIO 直接 fork，应用会落进语音服务的 cgroup，要用 systemd-run 的 scope。
+      - text: 私有总线上没有 systemd：busctl --user、systemctl 冻结等要显式走用户会话总线。工作区里 KIO 直接 fork，应用会落进语音服务的 cgroup，要用 systemd-run 的 scope。
         docs: [docs/research/91-agent-workspaces.md]
-      - text: 容器的 cgroup2 没有控制器，MemoryMax、CPUWeight 静默失效；整个容器只有 4 GiB 的 Android memcg，现实上同时只能跑 1 个重型 GUI 应用、2 个工作区。
+      - text: 容器的 cgroup2 没有控制器，MemoryMax、CPUWeight 静默失效。整个容器只有 4 GiB 的 Android memcg，现实上同时只能跑 1 个重型 GUI 应用、2 个工作区。
         docs: [docs/research/91-agent-workspaces.md]
-      - text: Motorola 中国版 ROM 的 SmartFreezer 在息屏后会冻结 Rungic 应用（前台服务也不例外），冻结后 Unix socket 的连接只排队、不唤醒；不带超时的 connect 会永久阻塞。
+      - text: Motorola 中国版 ROM 的 SmartFreezer 在息屏后会冻结 Rungic 应用（前台服务也不例外），冻结后 Unix socket 的连接只排队、不唤醒。不带超时的 connect 会永久阻塞。
         docs: [docs/research/97-headless-agent-work.md]
-      - text: KWin 的 virtual 后端只枚举 /dev/dri，容器里只有 /dev/kgsl-3d0，需要补丁指定渲染节点；后端只能启动时选定，不能热切换。
+      - text: KWin 的 virtual 后端只枚举 /dev/dri，容器里只有 /dev/kgsl-3d0，需要补丁指定渲染节点。后端只能启动时选定，不能热切换。
         docs: [docs/research/97-headless-agent-work.md]
-      - text: 测试时在测试工作区里用 rungic-cua launch 会把用户手机上的助理屏切过去；测试用 systemd-run 直接启动应用。
+      - text: 测试时在测试工作区里用 rungic-cua launch 会把用户手机上的助理屏切过去。测试用 systemd-run 直接启动应用。
         docs: [docs/research/91-agent-workspaces.md]
     code:
       - agent/workspace/rungic-workspace
@@ -782,14 +782,14 @@ features:
     scenario: agent.desktop-work
     status: live
     platform: linux
-    summary: 工作区没人用时冻结其中的应用、很久不用就关掉；关闭像注销一样先请应用自己关，有未保存内容的报告给用户。
+    summary: 工作区无人使用时，系统冻结其中的应用。长期不用时，系统关闭工作区。关闭前先请求应用退出，并向用户报告未保存的内容。
     experience:
       - id: E1
-        text: 工作区安静（没有输入、没在显示、没有 Agent 在这里干活）60 秒后冻结其中的应用，安静 30 分钟后自动关闭；Agent 再用时先解冻，已关闭的自动重新启动。
+        text: 工作区安静（没有输入、没在显示、没有 Agent 在这里干活）60 秒后冻结其中的应用，安静 30 分钟后自动关闭。Agent 再用时先解冻，已关闭的自动重新启动。
         evidence:
           - {doc: docs/research/91-agent-workspaces.md, date: 2026-10-01, note: "测试 drop-in 10 秒冻结、45 秒关闭"}
       - id: E2
-        text: 关闭分两段：先把借来的应用还给用户，再请每个窗口关闭；有未保存内容、拒绝关闭的应用被报告出来、不替用户回答，工作区保留，除非强制关闭。
+        text: 关闭分两段：先把借来的应用还给用户，再请每个窗口关闭。有未保存内容、拒绝关闭的应用被报告出来、不替用户回答，工作区保留，除非强制关闭。
         evidence:
           - {doc: docs/research/91-agent-workspaces.md, date: 2026-10-01, note: "拒绝关闭的 GTK 程序出现在 remaining"}
       - id: E3
@@ -797,17 +797,17 @@ features:
         evidence:
           - {doc: docs/research/91-agent-workspaces.md, date: 2026-10-01, note: "stop 后 Kalk 退出，Result=success"}
       - id: E4
-        text: 不支持 WM_DELETE_WINDOW 的 X11 程序不会被“请求关闭”误杀，而是报告出来；没有 PID 的 X11 窗口按 WM_CLASS 识别。
+        text: 不支持 WM_DELETE_WINDOW 的 X11 程序不会被“请求关闭”误杀，而是报告出来。没有 PID 的 X11 窗口按 WM_CLASS 识别。
       - id: E5
         text: 关闭期间不冻结应用，关闭开始和停止单元前各解冻一次，强制关闭后不会留下活着的应用。
       - id: E6
-        text: 浮窗上的 ✕：Agent 正在这里干活时只隐藏，这一轮不再自动弹出；否则关闭工作区，有应用没关掉时发通知，提供“查看”和“不保存，直接关闭”。
+        text: 浮窗上的 ✕：Agent 正在这里干活时只隐藏，这一轮不再自动弹出。否则关闭工作区，有应用没关掉时发通知，提供“查看”和“不保存，直接关闭”。
     pitfalls:
       - text: keeper 的 systemctl 和 systemd-run 曾走了工作区自己的总线，冻结和自动关闭都失败。
         docs: [docs/research/91-agent-workspaces.md]
       - text: 工作区脚本收到 TERM 时 trap 里的 kill 失败，在 set -e 下以 1 退出，被建议卡误报为启动失败。
         docs: [docs/research/91-agent-workspaces.md]
-      - text: Wayland 没有“已修改”标志，“请窗口关闭、由应用自己决定提示”是唯一通用的做法；KWin 自带的 closeWaylandWindows 2 分钟后强制继续且不管 X11，所以不直接用。
+      - text: Wayland 没有“已修改”标志，“请窗口关闭、由应用自己决定提示”是唯一通用的做法。KWin 自带的 closeWaylandWindows 2 分钟后强制继续且不管 X11，所以不直接用。
         docs: [docs/research/91-agent-workspaces.md]
     code:
       - agent/workspace/keeper.cpp
@@ -822,18 +822,18 @@ features:
     status: live
     platform: linux
     interfaces: [platform-bridge]
-    summary: 用户开着桌面模式或电视显示桌面时，Agent 在用户的桌面上工作，否则在自己的工作区；用户可以指定。
+    summary: 用户启用桌面模式或在电视上显示桌面时，Agent 在用户的桌面上工作。其他情况下，Agent 使用自己的工作区。用户也可以指定工作位置。
     experience:
       - id: E1
-        text: 桌面模式开着或电视在显示桌面时，Agent 在用户的桌面（0 号工作区）上工作；否则在自己的工作区。
+        text: 桌面模式开着或电视在显示桌面时，Agent 在用户的桌面（0 号工作区）上工作。否则在自己的工作区。
         evidence:
           - {doc: docs/research/91-agent-workspaces.md, date: 2026-09-29, note: "where: desktop, why: desktop mode is on"}
       - id: E2
-        text: 用户说“在我的桌面上”或“在你自己那里”时听用户的，本次对话内有效；需要时打开桌面模式。
+        text: 用户说“在我的桌面上”或“在你自己那里”时听用户的，本次对话内有效。需要时打开桌面模式。
         evidence:
           - {doc: docs/research/91-agent-workspaces.md, date: 2026-09-29, note: "desktop_where desktop，Kalk 算 9×9"}
       - id: E3
-        text: 工作位置变化时，结果里附一行 where/why；没变化时不重复。
+        text: 工作位置变化时，结果里附一行 where/why。没变化时不重复。
       - id: E4
         text: 平台桥连不上时默认在 Agent 自己的工作区。
     code:
@@ -846,7 +846,7 @@ features:
     scenario: agent.desktop-work
     status: live
     platform: linux
-    summary: 能多开的应用在工作区另开一份；微信、浏览器这类只能跑一份的，征得用户同意后从用户那里借过来，用完自动还回去。
+    summary: 支持多实例的应用在工作区内启动新实例。微信、浏览器等单实例应用需要借用用户的实例。Agent 先征得用户同意，使用结束后自动归还。
     experience:
       - id: E1
         text: 关闭用户正在运行的那一份之前必须先征得同意：工具返回 needs_confirmation 和要问的话，只有带上 switch 才关闭。
@@ -855,13 +855,13 @@ features:
       - id: E2
         text: 应用正在用麦克风（通话、会议）时既不借走，也不在通话中归还。
       - id: E3
-        text: Agent 最后一轮结束约两分钟后，借来的应用自动还给用户会话（带用户原来的环境），并发一条通知；只归还本工作区借的。
+        text: Agent 最后一轮结束约两分钟后，借来的应用自动还给用户会话（带用户原来的环境），并发一条通知。只归还本工作区借的。
         evidence:
           - {doc: docs/research/91-agent-workspaces.md, date: 2026-09-29, note: "约 2.5 分钟后 restored to the phone"}
       - id: E4
         text: 按程序名认出应用（包括 firefox-bin 这样的可执行文件名），只处理主进程，用 SIGTERM 正常结束。
     pitfalls:
-      - text: 征求同意的问题要原样、中立地转述；语音曾加上“建议你选择可以”，还在用户答过后请他再说一遍。
+      - text: 征求同意的问题要原样、中立地转述。语音曾加上“建议你选择可以”，还在用户答过后请他再说一遍。
         docs: [docs/research/91-agent-workspaces.md]
       - text: 微信重启后是否需要在主力手机上确认登录尚未测试。
         docs: [docs/research/91-agent-workspaces.md]
@@ -875,16 +875,16 @@ features:
     scenario: agent.desktop-work
     status: live
     platform: linux
-    summary: Agent 在屏幕上操作时，它所在屏幕的浮窗底部用一句话说明它在做什么；语音也会转述。浮窗、导播台和电视上的画面见桌面模式领域。
+    summary: Agent 操作屏幕时，对应屏幕的浮窗底部用一句话说明当前操作。语音也会转述。浮窗、导播台和电视画面的要求见桌面模式领域。
     experience:
       - id: E1
-        text: Agent 操作时浮窗底部显示一句中文字幕（打开某应用、点击、输入…），结束时显示“完成 / 需要你回答 / 没做成 / 已停止”4 秒；写入方 120 秒没更新就视为已不在。
+        text: Agent 操作时浮窗底部显示一句中文字幕（打开某应用、点击、输入…），结束时显示“完成 / 需要你回答 / 没做成 / 已停止”4 秒。写入方 120 秒没更新就视为已不在。
         evidence:
           - {doc: docs/88-agent-visible-work.md, date: 2026-09-29, note: "goal 依次写出打开 Dolphin……完成"}
       - id: E2
-        text: 每个工作区的字幕各自独立，浮窗读自己工作区的那一份；语音服务取较新的那条转述。
+        text: 每个工作区的字幕各自独立，浮窗读自己工作区的那一份。语音服务取较新的那条转述。
       - id: E3
-        text: Luna 每批动作附一句不超过 15 个字的中文说明；模型没写时按动作类型生成（点击、输入“…”、按回车）。
+        text: Luna 每批动作附一句不超过 15 个字的中文说明。模型没写时按动作类型生成（点击、输入“…”、按回车）。
         evidence:
           - {doc: docs/88-agent-visible-work.md, date: 2026-09-29, note: "前两条之后都是 Luna 自己写的中文说明"}
     code:
@@ -898,10 +898,10 @@ features:
     scenario: agent.desktop-work
     status: live
     platform: android
-    summary: Agent 跑任务或工作区被占用时持有内核 wakelock，手机息屏也不挂起；空闲就释放。
+    summary: Agent 执行任务或工作区被占用时，系统持有内核 wakelock，使手机息屏后也不挂起。空闲时释放 wakelock。
     experience:
       - id: E1
-        text: Agent 在跑任务或工作区被认领时，系统持有 rungic_agent 唤醒锁；空闲后约 5 秒内释放；只认持有者进程还活着的标记。
+        text: Agent 在跑任务或工作区被认领时，系统持有 rungic_agent 唤醒锁。空闲后约 5 秒内释放。只认持有者进程还活着的标记。
         evidence:
           - {doc: docs/research/97-headless-agent-work.md, date: 2026-10-02, note: "§12 写入标记后出现 rungic_agent，删掉约 5 s 后释放"}
       - id: E2
@@ -909,9 +909,9 @@ features:
     pitfalls:
       - text: 此前息屏时 Agent 还能继续只是碰巧：audioserver 一直持有 AudioMix 唤醒锁。
         docs: [docs/research/97-headless-agent-work.md]
-      - text: 容器的 /sys 是只读的，服务在自己的挂载命名空间里把 /sys 重新挂成可写；ReadWritePaths= 做不到。
+      - text: 容器的 /sys 是只读的，服务在自己的挂载命名空间里把 /sys 重新挂成可写。ReadWritePaths= 做不到。
         docs: [docs/research/97-headless-agent-work.md]
-      - text: 内核唤醒锁没有 uid 归属，挡不住 Moto 冻结 Rungic 应用；Doze 会阻断容器里 uid ≥ 10000 的网络。
+      - text: 内核唤醒锁没有 uid 归属，挡不住 Moto 冻结 Rungic 应用。Doze 会阻断容器里 uid ≥ 10000 的网络。
         docs: [docs/research/97-headless-agent-work.md]
     code:
       - agent/workspace/rungic-agent-wakelock
@@ -926,37 +926,37 @@ features:
     scenario: agent.team
     status: experimental
     platform: linux
-    summary: 助理按 rungic-agent-team 技能当组长，用 Codex 子 Agent 分工；每个成员第一次要桌面时领到自己的工作区，在共享项目里按约定交付。
+    summary: 助理按 rungic-agent-team 技能担任组长，通过 Codex 子 Agent 分工。每个成员首次需要桌面时，系统分配独立工作区。成员在共享项目中按约定交付。
     experience:
       - id: E1
-        text: 子 Agent 第一次要桌面时各自领到一个空闲工作区，组长保留自己的；桌面模式开着也不去用户桌面；全部被占用时明确报错。
+        text: 子 Agent 第一次要桌面时各自领到一个空闲工作区，组长保留自己的。桌面模式开着也不去用户桌面。全部被占用时明确报错。
         evidence:
           - {doc: docs/research/91-agent-workspaces.md, date: 2026-10-01, note: "A 领 2 号、B 领 3 号，父 Agent 在 1 号"}
       - id: E2
-        text: 成员交付或关闭工作区时释放领取；进程结束或 20 分钟没有调用就视为失效，别人可以再领。
+        text: 成员交付或关闭工作区时释放领取。进程结束或 20 分钟没有调用就视为失效，别人可以再领。
         evidence:
           - {doc: docs/research/91-agent-workspaces.md, date: 2026-10-01, note: "领取记录随关闭释放，工作区单元没有失败"}
       - id: E3
         text: 组长按简报 → 一轮评审（每人一条、最多 8 点）→ 组长定稿 → 并行制作 → 汇总审查 → 交给用户的流程推进，成员之间不直接讨论。
         evidence:
           - {doc: docs/research/91-agent-workspaces.md, date: 2026-10-02, note: "野餐邀请卡约 15 分钟完成，没有受阻"}
-        device: 流程由真实模型按 rungic-agent-team 技能推进，替身模型只会重放脚本；是否按简报、评审、定稿、制作、汇总的顺序走、成员是否不直接讨论，只有用真实 Codex 在手机上跑一轮团队才看得出（看板阶段的代码由 team-board/E1 的测试检查）
+        device: 流程由真实模型按 rungic-agent-team 技能推进，替身模型只会重放脚本。是否按简报、评审、定稿、制作、汇总的顺序走、成员是否不直接讨论，只有用真实 Codex 在手机上跑一轮团队才看得出（看板阶段的代码由 team-board/E1 的测试检查）
       - id: E4
         text: 成员的每次工具调用翻成一句短话（“写 BRIEF.md”“运行 check.py”）显示在它的格子上，命令链按实际做的那一步描述，最多每 1.5 秒一句。
       - id: E5
-        text: 发言写进项目的 .team/journal.jsonl；成员结束时没说结果，自动补一条 ended。
+        text: 发言写进项目的 .team/journal.jsonl。成员结束时没说结果，自动补一条 ended。
       - id: E6
         text: 手机息屏、Rungic 应用被冻结时，团队照常继续。
     pitfalls:
-      - text: Codex 子 Agent 强制继承父 Agent 的环境和 MCP 配置，shell 里启动的图形程序会开到父 Agent 的桌面；要用 desktop_launch 或工具给的命令前缀。
+      - text: Codex 子 Agent 强制继承父 Agent 的环境和 MCP 配置，shell 里启动的图形程序会开到父 Agent 的桌面。要用 desktop_launch 或工具给的命令前缀。
         docs: [docs/research/91-agent-workspaces.md]
       - text: 工作区不能等进程退出才释放（子 Agent 汇报后服务进程一直留着），要在交付或关闭时主动释放。
         docs: [docs/research/91-agent-workspaces.md]
-      - text: 组长只核对尺寸和透明通道时美术风格会跑偏；简报要有“方向”一节，汇总时要看图、听声音。组长不要为了确认而把游戏挪到桌面模式上。
+      - text: 组长只核对尺寸和透明通道时美术风格会跑偏。简报要有“方向”一节，汇总时要看图、听声音。组长不要为了确认而把游戏挪到桌面模式上。
         docs: [docs/research/91-agent-workspaces.md]
-      - text: 多 Agent 的 token 是单 Agent 的 3–15 倍；手机上最多 3 个用桌面的成员。Agent 之间的消息在会话记录里是加密的，只有工具调用是明文。
+      - text: 多 Agent 的 token 是单 Agent 的 3–15 倍。手机上最多 3 个用桌面的成员。Agent 之间的消息在会话记录里是加密的，只有工具调用是明文。
         docs: [docs/research/91-agent-workspaces.md]
-      - text: 第一次团队验收时手机息屏后工作区起不来（当时还是 Android 后端），之后才改为默认无头；息屏下的团队运行尚未实测。
+      - text: 第一次团队验收时手机息屏后工作区起不来（当时还是 Android 后端），之后才改为默认无头。息屏下的团队运行尚未实测。
         docs: [docs/research/91-agent-workspaces.md, docs/research/97-headless-agent-work.md]
     code:
       - agent/computer-use/rungic_cua/team.py
@@ -973,18 +973,18 @@ features:
     scenario: agent.team
     status: experimental
     platform: linux
-    summary: 团队的阶段、简报、每个成员的状态、评审、决定和结果：看板数据给导播台的看板格（见桌面模式领域），并在组长的对话里显示为团队卡；重要时播报或通知。
+    summary: 团队看板记录阶段、简报、成员状态、评审、决定和结果。导播台的看板格显示这些数据，组长对话以团队卡显示。重要进展触发播报或通知。看板格见桌面模式领域。
     experience:
       - id: E1
-        text: 看板跟着团队从简报、评审、制作到完成；组长定稿后所有成员显示“制作中”；新组长发新简报时开一块新看板。
+        text: 看板跟着团队从简报、评审、制作到完成。组长定稿后所有成员显示“制作中”。新组长发新简报时开一块新看板。
       - id: E2
         text: 由助理会话当组长时，对话里有一张实时更新的团队卡：阶段、简报、每人一行，评审后折叠成“查看 N 份评审”，以及决定和结果。
         evidence:
           - {doc: docs/research/91-agent-workspaces.md, date: 2026-10-02, note: "两次实机验收，团队卡从评审到完成实时更新"}
       - id: E3
-        text: 只在重要时打扰：开工和成员完成只播报；提问、受阻、失败播报并发紧急通知；全队完成只通知；评审和进展只在卡片上。
+        text: 只在重要时打扰：开工和成员完成只播报。提问、受阻、失败播报并发紧急通知。全队完成只通知。评审和进展只在卡片上。
       - id: E4
-        text: 通知只在没人看对话时发，点“打开”进入组长的对话；平台桥不答时按“没人在看”处理，通知不被压住。
+        text: 通知只在没人看对话时发，点“打开”进入组长的对话。平台桥不答时按“没人在看”处理，通知不被压住。
         gap: 通知路径还没在实机上走到
       - id: E5
         text: 助理重启后第一次看到一块超过 60 秒没更新的看板时，不重播里面的旧发言。
@@ -1001,11 +1001,11 @@ features:
     title: 开发端脚本当组长的团队运行
     scenario: agent.team
     status: retired
-    keep: README 的团队演示和 research/91 的端到端记录引用这些脚本与请求原文，作为那次演示的可复现记录保留；不再作为启动团队的入口。
+    keep: README 的团队演示和 research/91 的端到端记录引用这些脚本与请求原文，作为那次演示的可复现记录保留。不再作为启动团队的入口。
     platform: linux
-    summary: 2026-10-01 的第一次团队验收：开发机上的 Agent 当组长，用脚本在手机上起三个 codex exec 成员；以及子 Agent 工具进程的探针实验。已由助理会话按 rungic-agent-team 技能当组长取代。
+    summary: 2026-10-01 的首次团队验收由开发机 Agent 担任组长，通过脚本在手机上启动三个 codex exec 成员。该记录还包括子 Agent 工具进程的探针实验。现由助理会话按 rungic-agent-team 技能担任组长的流程取代。
     pitfalls:
-      - text: 这一方式里 keeper 看不到成员，靠脚本写 busy 标记；三个成员会抢助理屏。这些已在领取机制和按工作区的浮窗里解决。
+      - text: 这一方式里 keeper 看不到成员，靠脚本写 busy 标记。三个成员会抢助理屏。这些已在领取机制和按工作区的浮窗里解决。
         docs: [docs/research/91-agent-workspaces.md]
     code:
       - tools/team/README.md
@@ -1021,14 +1021,14 @@ features:
     scenario: agent.calls
     status: experimental
     platform: linux
-    summary: 用户说“打电话”走手机卡，“打微信电话”走微信；每通电话一张卡，留在发起它的对话里，可旁听、文字指示、接过来和挂断。
+    summary: 用户说“打电话”时，Agent 使用手机卡。用户说“打微信电话”时，Agent 使用微信。每通电话有一张卡片，保留在发起通话的对话中。用户可以旁听、发送文字指示、接管或挂断。
     experience:
       - id: E1
-        text: 通道由用户的说法决定：没说就不默认微信，指定的通道不可用时不自动换另一种；参数冲突在建立通话前就拒绝，不拨号。
+        text: 通道由用户的说法决定：没说就不默认微信，指定的通道不可用时不自动换另一种。参数冲突在建立通话前就拒绝，不拨号。
       - id: E2
-        text: 能力查询只读：报告账户、音频接口和应用路由前提；“接口可用”和“端到端已验证”分开显示，连不上的记为未知而不是不支持。
+        text: 能力查询只读：报告账户、音频接口和应用路由前提。“接口可用”和“端到端已验证”分开显示，连不上的记为未知而不是不支持。
       - id: E3
-        text: 每通电话一张卡，留在发起它的对话里：状态、转写、错误、文字指示、接管、挂断和结果；切到别的对话再回来还是同一张卡，计时从实际接通开始。
+        text: 每通电话一张卡，留在发起它的对话里：状态、转写、错误、文字指示、接管、挂断和结果。切到别的对话再回来还是同一张卡，计时从实际接通开始。
         evidence:
           - {doc: docs/research/cellular-call-agent.md, date: 2026-09-29, note: "第三次 10000 实验：切换对话后 call ID 与 connectedAt 不变"}
       - id: E4
@@ -1058,16 +1058,16 @@ features:
     status: experimental
     platform: linux
     interfaces: [audio]
-    summary: 通话助理作为对方听到的“麦克风”，自己听、自己说，开场表明是 AI 助理；涉及约定和钱时先问用户；用户随时旁听或接过来。
+    summary: 通话助理接收对方的声音，并作为对方听到的“麦克风”发声。助理开场说明自己是 AI。涉及约定或钱时，助理先询问用户。用户可以随时旁听或接管。
     experience:
       - id: E1
-        text: 拨号前先核对聊天顶部就是这个联系人，否则什么都不按；以微信打开通话音频为拨出的依据，没拨出就如实报告。
+        text: 拨号前先核对聊天顶部就是这个联系人，否则什么都不按。以微信打开通话音频为拨出的依据，没拨出就如实报告。
       - id: E2
-        text: 接通以通话窗口里出现走动的计时为准，彩铃和回铃音得不到回应；确认后约 2 秒开口；开场白播完前不被对方的“嗯”打断。
+        text: 接通以通话窗口里出现走动的计时为准，彩铃和回铃音得不到回应。确认后约 2 秒开口。开场白播完前不被对方的“嗯”打断。
         evidence:
           - {doc: docs/63-call-proxy.md, date: 2026-09-25, note: "15:44 接通后约 2.3 s 播放开场白"}
       - id: E3
-        text: 涉及约定、答应事情和钱时先问用户：对方原话转给用户，同一句只问一次，用户答复后再转达；挂断前要求对方在用户答复之后又说过话。
+        text: 涉及约定、答应事情和钱时先问用户：对方原话转给用户，同一句只问一次，用户答复后再转达。挂断前要求对方在用户答复之后又说过话。
         evidence:
           - {doc: docs/63-call-proxy.md, date: 2026-09-25, note: "合成“对方”的离线流程：问用户、转达、道别、挂断并摘要"}
       - id: E4
@@ -1075,19 +1075,19 @@ features:
         evidence:
           - {doc: docs/63-call-proxy.md, date: 2026-09-25, note: "只单独测了路由切换"}
       - id: E5
-        text: 挂断时助理立即静音，在通话窗口里点挂断最多 3 次，以通话音频关闭为准；都失败时卡片提示去微信里挂断，并把通话转到手机本机。
+        text: 挂断时助理立即静音，在通话窗口里点挂断最多 3 次，以通话音频关闭为准。都失败时卡片提示去微信里挂断，并把通话转到手机本机。
       - id: E6
-        text: 通话期间主助理不播报进度和长汇报，只有通话助理向用户的提问出声；结束后用一两句汇报结果。
+        text: 通话期间主助理不播报进度和长汇报，只有通话助理向用户的提问出声。结束后用一两句汇报结果。
     pitfalls:
-      - text: PulseAudio 的 module-stream-restore 按应用名记住路由，微信通话流叫通用的“Chromium”，此后普通微信通话也会没声；改为 restore_device=false。
+      - text: PulseAudio 的 module-stream-restore 按应用名记住路由，微信通话流叫通用的“Chromium”，此后普通微信通话也会没声。改为 restore_device=false。
         docs: [docs/63-call-proxy.md]
-      - text: convergentwindows 曾把微信的竖向通话窗口当成手机尺寸的窗口放大，黑边加挂断按钮被挡；只放大应用的第一个窗口。
+      - text: convergentwindows 曾把微信的竖向通话窗口当成手机尺寸的窗口放大，黑边加挂断按钮被挡。只放大应用的第一个窗口。
         docs: [docs/63-call-proxy.md]
       - text: 测试时不要预设挂断：两次在用户已接听时挂断，对方突然没声。
         docs: [docs/63-call-proxy.md]
       - text: 通话中说什么、何时问用户、何时结束由 TypeSafe JEV 判断，没有它的 key 时没有完整的自主决策替代。
         docs: [docs/63-call-proxy.md, docs/research/cellular-call-agent.md]
-      - text: 用户在自己会话里登录的微信不在 Agent 工作区里；微信相关操作在微信当前所在的会话里执行。
+      - text: 用户在自己会话里登录的微信不在 Agent 工作区里。微信相关操作在微信当前所在的会话里执行。
         docs: [docs/research/91-agent-workspaces.md]
     code:
       - agent/assistant/call_proxy.py
@@ -1101,16 +1101,16 @@ features:
     status: experimental
     platform: android
     interfaces: [telephony]
-    summary: Android Telecom 拨号，Agent 的声音经系统通话上行发给对方、对方的声音从下行取出，复用同一个通话助理和卡片。
+    summary: Android Telecom 负责拨号。系统通话上行将 Agent 的声音发送给对方，下行提供对方的声音。手机卡通话复用同一个通话助理和卡片。
     experience:
       - id: E1
-        text: 拨号前先建立实时会话，就绪前用户取消就不拨；响铃和彩铃期间不打开 Agent 的音频。
+        text: 拨号前先建立实时会话，就绪前用户取消就不拨。响铃和彩铃期间不打开 Agent 的音频。
       - id: E2
-        text: 对方能听懂 Agent 说的话；对方的声音传给 Agent；整个过程中系统静音保持，用户房间里的声音不会混进通话。
+        text: 对方能听懂 Agent 说的话。对方的声音传给 Agent。整个过程中系统静音保持，用户房间里的声音不会混进通话。
         evidence:
           - {doc: docs/research/cellular-call-agent.md, date: 2026-09-29, note: "第四次 10000 实验：说出“湖南电信”后远端进入业务菜单（仅 G100）"}
       - id: E3
-        text: 点“我来接”保持原电话，释放 Agent 音频并恢复原静音状态；重复接管没有副作用；丢了 call ID 只交回、不重拨。
+        text: 点“我来接”保持原电话，释放 Agent 音频并恢复原静音状态。重复接管没有副作用。丢了 call ID 只交回、不重拨。
         evidence:
           - {doc: docs/research/cellular-call-agent.md, date: 2026-09-29, note: "原 call ID 仍 ACTIVE，静音恢复 false"}
       - id: E4
@@ -1123,15 +1123,15 @@ features:
       - id: E6
         text: 通话卡片或界面出错时，正在进行的通话和它的音频照常继续。
     pitfalls:
-      - text: 系统通话音频拦截是隐藏 API（CALL_AUDIO_INTERCEPTION），能力查询返回 true 也不是双向通话验收；CALL_ASSISTANT 重定向在本机进 voice_tx 却没有远端响应，改用 VOICE_COMMUNICATION 加显式的 TELEPHONY 输出（INCALL_MUSIC）。
+      - text: 系统通话音频拦截是隐藏 API（CALL_AUDIO_INTERCEPTION），能力查询返回 true 也不是双向通话验收。CALL_ASSISTANT 重定向在本机进 voice_tx 却没有远端响应，改用 VOICE_COMMUNICATION 加显式的 TELEPHONY 输出（INCALL_MUSIC）。
         docs: [docs/research/cellular-call-agent.md]
-      - text: 只在 G100（portov_cn）上验证过；G100 S 没插 SIM，没做通话验收；不能推广到其他机型或运营商。
+      - text: 只在 G100（portov_cn）上验证过。G100 S 没插 SIM，没做通话验收。不能推广到其他机型或运营商。
         docs: [docs/research/cellular-call-agent.md]
-      - text: 不能为了让对方听到而解除静音，那会把用户房间的声音混进通话；旧 Qualcomm HAL 的静音行为只是线索，不是本机证据。
+      - text: 不能为了让对方听到而解除静音，那会把用户房间的声音混进通话。旧 Qualcomm HAL 的静音行为只是线索，不是本机证据。
         docs: [docs/research/cellular-call-agent.md]
-      - text: 自动开场可能打断语音菜单，对“保持安静”等指示可能多说一句；私下语音指令和独立旁听仍关闭。
+      - text: 自动开场可能打断语音菜单，对“保持安静”等指示可能多说一句。私下语音指令和独立旁听仍关闭。
         docs: [docs/research/cellular-call-agent.md]
-      - text: 受限沙箱里 socket 测试被拒不是代码回归；Magisk root 上下文的 pm install 会遇到 Binder 失败，要在 Android shell 上下文安装。
+      - text: 受限沙箱里 socket 测试被拒不是代码回归。Magisk root 上下文的 pm install 会遇到 Binder 失败，要在 Android shell 上下文安装。
         docs: [docs/research/cellular-call-agent.md]
     code:
       - agent/assistant/cellular_audio.py
@@ -1150,17 +1150,17 @@ features:
     summary: Agent 在聊天应用里找到录音按钮，把合成的语音经虚拟麦克风录进去再发送。
     experience:
       - id: E1
-        text: 录音以音频路由报告“应用开始录音”为准再播放语音，语音播完才点发送；前后留白合计约 1 秒多，不发出空的或截断的语音。
+        text: 录音以音频路由报告“应用开始录音”为准再播放语音，语音播完才点发送。前后留白合计约 1 秒多，不发出空的或截断的语音。
         evidence:
           - {doc: docs/68-luna-computer-use.md, date: 2026-09-25, note: "文件传输助手：6.7 s 语音成为 8 秒消息，留白约 1.3 s"}
       - id: E2
         text: 只点真正的录音按钮，不点“语音输入/听写”（它会把语音转成文字发出去）。
-        gap: 录音按钮与“语音输入/听写”都会让应用经 Linux 麦克风录音，程序侧分不出；只靠当前执行模型看屏幕选对控件，需要真实模型在微信文件传输助手里验证，尚无记录
+        gap: 录音按钮与“语音输入/听写”都会让应用经 Linux 麦克风录音，程序侧分不出。只靠当前执行模型看屏幕选对控件，需要真实模型在微信文件传输助手里验证，尚无记录
       - id: E3
         text: 发送前先经用户确认。
-        gap: 发送前确认由 Agent 按 prompts/agent.md 执行，工具本身不拦截；离线没有真实模型无法检查，也还没有实机记录
+        gap: 发送前确认由 Agent 按 prompts/agent.md 执行，工具本身不拦截。离线没有真实模型无法检查，也还没有实机记录
     pitfalls:
-      - text: 找发送按钮的模型调用曾排在语音播完之后，结尾多出约 9 秒静音；改为录音一开始就并行去找。
+      - text: 找发送按钮的模型调用曾排在语音播完之后，结尾多出约 9 秒静音。改为录音一开始就并行去找。
         docs: [docs/68-luna-computer-use.md]
       - text: 测试不要打扰真实联系人，用文件传输助手。
         docs: [docs/68-luna-computer-use.md]
@@ -1179,26 +1179,26 @@ features:
     scenario: agent.care
     status: live
     platform: linux
-    summary: 系统记下崩溃、失败的服务、存储不足、软件包问题和适配缺口，同一问题只有一条记录；用户可以稍后、约定时间或不再提醒。
+    summary: 系统记录崩溃、服务失败、存储不足、软件包问题和适配缺口。同一问题只保留一条记录。用户可以稍后处理、约定提醒时间或关闭提醒。
     experience:
       - id: E1
-        text: 同一问题重复出现只更新原来那条记录，不新建、不重复提醒；同包同版本的崩溃可以合成一组展示，但各自的记录、调查和提醒保持独立。
+        text: 同一问题重复出现只更新原来那条记录，不新建、不重复提醒。同包同版本的崩溃可以合成一组展示，但各自的记录、调查和提醒保持独立。
         evidence:
           - {doc: docs/research/proactive-system-care.md, date: 2026-09-30, note: "两条真实历史崩溃显示为一个堆叠，打开为两条独立调查"}
       - id: E2
-        text: “稍后”和约定的提醒跨重启保留；到时先复核问题是否仍在，再按系统通知设置提醒；提醒不会自动开始修复；错过的最多补发一次。
+        text: “稍后”和约定的提醒跨重启保留。到时先复核问题是否仍在，再按系统通知设置提醒。提醒不会自动开始修复。错过的最多补发一次。
         evidence:
           - {doc: docs/research/proactive-system-care.md, date: 2026-09-30, note: "计算器在前台时到时通知真实出现，点开进入对应事项"}
       - id: E3
         text: “不再提醒”在问题重复出现、次数增加时仍然保持，用户可以恢复。
       - id: E4
-        text: 普通的优化机会不在使用应用期间弹出；每条记录只在有意义的新进展时提醒一次，已展示过的同一进展离开桌面后不再通知；证据过期就不提醒。
+        text: 普通的优化机会不在使用应用期间弹出。每条记录只在有意义的新进展时提醒一次，已展示过的同一进展离开桌面后不再通知。证据过期就不提醒。
         evidence:
           - {doc: docs/research/proactive-system-care.md, date: 2026-09-30, note: "20260930.10 只有进入视口的卡获得回执"}
       - id: E5
-        text: 上游合入或调查完成都不等于本机问题解决；问题消失只表示观测不再匹配，再出现时重新打开并保留原证据。
+        text: 上游合入或调查完成都不等于本机问题解决。问题消失只表示观测不再匹配，再出现时重新打开并保留原证据。
       - id: E6
-        text: 账本损坏时不覆盖；旧格式升级前先备份，保留用户的选择、对话和结果。
+        text: 账本损坏时不覆盖。旧格式升级前先备份，保留用户的选择、对话和结果。
         evidence:
           - {doc: docs/research/proactive-system-care.md, date: 2026-09-30, note: "schema 1 已备份并迁移，旧结果和对话保留"}
       - id: E7
@@ -1207,15 +1207,15 @@ features:
         text: 后台采集占用很小（服务约 13 MiB，单次采集 CPU 约 0.2 s），不在手机上自动编译、符号化或跑重负载探针。
         evidence:
           - {doc: docs/research/proactive-system-care.md, date: 2026-09-30, note: "RSS 约 12.6 MiB，单次 root 采集约 172 ms"}
-        device: 常驻内存和单次采集的 CPU 时间取决于手机上真实的崩溃记录、软件包数量和 CPU，容器里量出的数不代表手机；采集器只调用 dpkg-query、dpkg --audit 和 systemctl --failed（collector.cpp）
+        device: 常驻内存和单次采集的 CPU 时间取决于手机上真实的崩溃记录、软件包数量和 CPU，容器里量出的数不代表手机。采集器只调用 dpkg-query、dpkg --audit 和 systemctl --failed（collector.cpp）
     pitfalls:
-      - text: 日志里的 error 只是线索；SIGKILL、无响应和没有 core 都不能单独推出崩溃原因。Blender 的 CPU 渲染是用户选的策略，不能提示“修复为 GPU”。
+      - text: 日志里的 error 只是线索。SIGKILL、无响应和没有 core 都不能单独推出崩溃原因。Blender 的 CPU 渲染是用户选的策略，不能提示“修复为 GPU”。
         docs: [docs/research/proactive-system-care.md]
-      - text: 当前探针不覆盖 Android LMK、逐应用的 GPU/编解码实际使用和通话状态；通知只在 Plasma 里，Android 侧收不到。
+      - text: 当前探针不覆盖 Android LMK、逐应用的 GPU/编解码实际使用和通话状态。通知只在 Plasma 里，Android 侧收不到。
         docs: [docs/research/proactive-system-care.md, docs/research/97-headless-agent-work.md]
-      - text: 部署工具不会自动重启 rungic-suggestions 和 plasmashell，QML 或服务更新后要手动重启；默认冒烟包含摄像头探针，桌面验收要显式排除。
+      - text: 部署工具不会自动重启 rungic-suggestions 和 plasmashell，QML 或服务更新后要手动重启。默认冒烟包含摄像头探针，桌面验收要显式排除。
         docs: [docs/research/proactive-system-care.md]
-      - text: 迟到的旧 ID 回执曾经由非 const 的 QJsonObject::operator[] 插入空记录；读取统一用 value()。
+      - text: 迟到的旧 ID 回执曾经由非 const 的 QJsonObject::operator[] 插入空记录。读取统一用 value()。
         docs: [docs/research/proactive-system-care.md]
     code:
       - agent/suggestions/CMakeLists.txt
@@ -1243,38 +1243,38 @@ features:
     scenario: agent.care
     status: live
     platform: linux
-    summary: Folio 主屏上方的原生小组件只显示 Agent 整理出的少数几张卡，一次一张、上下滑看下一张；点开进入对话，由 Agent 逐项介绍。
+    summary: Folio 主屏上方的原生小组件显示 Agent 整理出的少量卡片。每次显示一张，用户上下滑动查看下一张。点击卡片进入对话，由 Agent 逐项介绍。
     experience:
       - id: E1
-        text: 小组件一次显示一张卡（最多 5 张），上下滑分页切换；底部收藏、壁纸留白、应用抽屉和原生编辑都照旧。
+        text: 小组件一次显示一张卡（最多 5 张），上下滑分页切换。底部收藏、壁纸留白、应用抽屉和原生编辑都照旧。
         evidence:
           - {doc: docs/research/proactive-system-care.md, date: 2026-09-30, note: "桌面显示 Codex 策展出的单张卡"}
       - id: E2
-        text: 很多不同的崩溃合成一张卡；点卡片开一个对话，首条消息是卡片按钮的文字，Agent 在聊天里逐项介绍；同一张卡再点回到同一个对话，连点不会开出两个。
+        text: 很多不同的崩溃合成一张卡。点卡片开一个对话，首条消息是卡片按钮的文字，Agent 在聊天里逐项介绍。同一张卡再点回到同一个对话，连点不会开出两个。
         evidence:
           - {doc: docs/research/proactive-system-care.md, date: 2026-09-30, note: "36 条记录合成一张卡；双击开两个对话已修正"}
       - id: E3
-        text: 只有实质变化才重新整理：防抖 2 分钟、至少隔 1 小时（结果待查看或严重故障 10 分钟）、一天最多 12 次；没变化不发送；可以关掉后台整理。
+        text: 只有实质变化才重新整理：防抖 2 分钟、至少隔 1 小时（结果待查看或严重故障 10 分钟）、一天最多 12 次。没变化不发送。可以关掉后台整理。
       - id: E4
-        text: 整理是不进会话列表的只读回合，输出严格校验；Agent 不可用、未登录、超限、超时或输出无效时显示回退卡，并分别说明是哪种情况。
+        text: 整理是不进会话列表的只读回合，输出严格校验。Agent 不可用、未登录、超限、超时或输出无效时显示回退卡，并分别说明是哪种情况。
       - id: E5
         text: 发给模型的是脱敏摘要（私人路径换成占位），不发 core 和完整日志。
       - id: E6
-        text: “暂不”把卡片隐藏到相关记录有实质变化为止；这条反馈进入下一次整理。
+        text: “暂不”把卡片隐藏到相关记录有实质变化为止。这条反馈进入下一次整理。
       - id: E7
-        text: 把小组件放上主屏时不覆盖用户已有的图标、组件和删除选择，满页时新增一页；用户删除后不再自动加回。
+        text: 把小组件放上主屏时不覆盖用户已有的图标、组件和删除选择，满页时新增一页。用户删除后不再自动加回。
         evidence:
           - {doc: docs/research/proactive-system-care.md, date: 2026-09-30, note: "20260930.7 原生小组件部署"}
       - id: E8
-        text: 卡片内滑动不会打开应用抽屉；在壁纸处上滑仍打开抽屉；长按进入原生调整。
+        text: 卡片内滑动不会打开应用抽屉。在壁纸处上滑仍打开抽屉。长按进入原生调整。
         evidence:
           - {doc: docs/research/proactive-system-care.md, date: 2026-09-30, note: "20260930.13 实际触摸注入"}
     pitfalls:
-      - text: 用户否定了全屏卡片主屏和逐记录卡片；建议放在原 Folio 上方的原生 widget 区域，由 Agent 决定展示哪几件事。
+      - text: 用户否定了全屏卡片主屏和逐记录卡片。建议放在原 Folio 上方的原生 widget 区域，由 Agent 决定展示哪几件事。
         docs: [docs/research/proactive-system-care.md, docs/research/96-agent-curated-briefing.md]
-      - text: Folio 的 SwipeArea 会抢走组件内的上滑；组件用 MouseArea.preventStealing 接管视口内的拖动。
+      - text: Folio 的 SwipeArea 会抢走组件内的上滑。组件用 MouseArea.preventStealing 接管视口内的拖动。
         docs: [docs/research/proactive-system-care.md]
-      - text: 按钮行“按子项可见性决定自身可见”时永远隐藏；未整理的回退卡曾误称“Codex 不可用”。
+      - text: 按钮行“按子项可见性决定自身可见”时永远隐藏。未整理的回退卡曾误称“Codex 不可用”。
         docs: [docs/research/proactive-system-care.md]
     code:
       - agent/suggestions/briefing.cpp
@@ -1303,24 +1303,24 @@ features:
     scenario: agent.care
     status: live
     platform: linux
-    summary: 用户点“检查原因”后 Agent 在对话里调查，结论、计划、验证和回退写回记录；只有用户确认了具体方案才应用修复。
+    summary: 用户点“检查原因”后 Agent 在对话里调查，结论、计划、验证和回退写回记录。只有用户确认了具体方案才应用修复。
     experience:
       - id: E1
-        text: 点“检查原因”后 Agent 在原对话里调查，结论、计划、验证和回退写回记录；关闭卡片或离开应用不取消任务。
+        text: 点“检查原因”后 Agent 在原对话里调查，结论、计划、验证和回退写回记录。关闭卡片或离开应用不取消任务。
         evidence:
           - {doc: docs/research/proactive-system-care.md, date: 2026-09-30, note: "真实 GPT-6 Luna 只读调查，结论“根因未知”，未修改系统"}
       - id: E2
-        text: 只有具体方案、验证和回退都齐全时才能“应用修复”；确认框里的方案若已变化，旧确认被拒绝，Agent 只读用户确认的那份快照。
+        text: 只有具体方案、验证和回退都齐全时才能“应用修复”。确认框里的方案若已变化，旧确认被拒绝，Agent 只读用户确认的那份快照。
         evidence:
           - {doc: docs/research/proactive-system-care.md, date: 2026-09-30, note: "20260930.9 方案 A 改为 B 后应用按钮禁用、提交 A 被拒"}
       - id: E3
-        text: 建议服务或 Agent 重启后，任务仍与原记录和原对话关联；迟到的旧任务事件不覆盖新任务；结果在送达界面前先保存。
+        text: 建议服务或 Agent 重启后，任务仍与原记录和原对话关联。迟到的旧任务事件不覆盖新任务。结果在送达界面前先保存。
         evidence:
           - {doc: docs/research/proactive-system-care.md, date: 2026-09-30, note: "调查期间重启建议服务，原任务 ID 与对话保持"}
       - id: E4
         text: 模型调用失败（包括未登录 401）显示为失败，保留原因和重试入口，不当作调查完成。
       - id: E5
-        text: 停止只作用于对应的任务，不影响别的对话；停止失败时任务保持运行并可再试。
+        text: 停止只作用于对应的任务，不影响别的对话。停止失败时任务保持运行并可再试。
       - id: E6
         text: 问题在调查中消失，任务和它的结果不丢，结果仍可稍后查看。
     pitfalls:
@@ -1339,20 +1339,20 @@ features:
     scenario: agent.care
     status: live
     platform: linux
-    summary: 仓库维护的兼容性条目（问题、优化、有意的策略）随包发布，发现和调查时先查它；上游协作只在本机准备脱敏材料。
+    summary: 仓库维护的兼容性条目随包发布，内容包括问题、优化和有意采用的策略。发现或调查问题时，先查询这些条目。上游协作的脱敏材料只在本机准备。
     experience:
       - id: E1
-        text: 条目必须有证据和精确的版本，不能带可执行内容；不合规的条目在校验时被拒。
+        text: 条目必须有证据和精确的版本，不能带可执行内容。不合规的条目在校验时被拒。
       - id: E2
-        text: 版本精确匹配：已带本地修复的 Qt Multimedia 不被未打补丁的规则误报；Blender 的 CPU 渲染策略不生成故障建议。
+        text: 版本精确匹配：已带本地修复的 Qt Multimedia 不被未打补丁的规则误报。Blender 的 CPU 渲染策略不生成故障建议。
         evidence:
           - {doc: docs/research/proactive-system-care.md, date: 2026-09-30, note: "20260930.3 知识匹配"}
       - id: E3
-        text: 反馈只在本机生成脱敏的事实材料，不自动对外提交 issue 或 PR；上游状态由维护者记录，与本机是否解决分开。
+        text: 反馈只在本机生成脱敏的事实材料，不自动对外提交 issue 或 PR。上游状态由维护者记录，与本机是否解决分开。
         evidence:
           - {doc: docs/research/proactive-system-care.md, date: 2026-09-30, note: "facts.json 不含 core 和完整日志，未对外发"}
     pitfalls:
-      - text: 没有记录表示未知，不能显示为“不兼容”；一个机型的测试不能推广到所有 Adreno。
+      - text: 没有记录表示未知，不能显示为“不兼容”。一个机型的测试不能推广到所有 Adreno。
         docs: [docs/research/proactive-system-care.md]
       - text: Mesa 现行规则禁止自主工具自动提交或参与 issue/MR，对外文字由维护者自己写。
         docs: [docs/research/proactive-system-care.md]
@@ -1366,22 +1366,22 @@ features:
     scenario: agent.care
     status: live
     platform: linux
-    summary: 主屏和应用里显示每个 Agent（Codex、Claude Code）的额度窗口、重置时间和本机 token 用量，各带自己的标志。
+    summary: 主屏和应用显示 Codex、Claude Code 等 Agent 的额度窗口、重置时间和本机 token 用量。每个 Agent 使用自己的标志。
     experience:
       - id: E1
-        text: 订阅账户显示真实的额度窗口和重置时间；API Key 账户不显示虚构的订阅额度和重置时间，只显示 token。
+        text: 订阅账户显示真实的额度窗口和重置时间。API Key 账户不显示虚构的订阅额度和重置时间，只显示 token。
         evidence:
           - {doc: docs/research/proactive-system-care.md, date: 2026-09-30, note: "API Key 显示无订阅重置；订阅账户只做了替身验证"}
       - id: E2
-        text: 本机 token 统计不重复计数：服务重启、重读同一事件后数值不变，同一回合内的多次请求不重复也不遗漏；按账户分开；不含实时语音。
+        text: 本机 token 统计不重复计数：服务重启、重读同一事件后数值不变，同一回合内的多次请求不重复也不遗漏。按账户分开。不含实时语音。
         evidence:
           - {doc: docs/research/proactive-system-care.md, date: 2026-09-30, note: "15,771 → 31,543，重启建议服务后不重复"}
       - id: E3
-        text: 每个 Agent 是一个提供方，由描述文件声明（系统目录或用户目录），各带自己的标志；契约之外的字段丢弃；多个 Agent 用切换片。
+        text: 每个 Agent 是一个提供方，由描述文件声明（系统目录或用户目录），各带自己的标志。契约之外的字段丢弃。多个 Agent 用切换片。
       - id: E4
-        text: Claude Code 的 token 来自其会话记录，每条消息只算一次；额度只取文档化的 statusline 数据，不用未文档化的接口。
+        text: Claude Code 的 token 来自其会话记录，每条消息只算一次。额度只取文档化的 statusline 数据，不用未文档化的接口。
       - id: E5
-        text: 读取失败、离线、未登录各自显示，不编造额度；账户切换期间读到的旧响应被丢弃，别的账户的 token 不会算进来。
+        text: 读取失败、离线、未登录各自显示，不编造额度。账户切换期间读到的旧响应被丢弃，别的账户的 token 不会算进来。
       - id: E6
         text: 额度的重置时间到了只标记“待刷新”，不在本地把已用额度清零。
       - id: E7
@@ -1391,7 +1391,7 @@ features:
     pitfalls:
       - text: 本机统计只是本机收到的 Codex 用量，不等于账单。
         docs: [docs/research/proactive-system-care.md, docs/research/95-agent-usage-providers.md]
-      - text: Claude Code 的会话记录是内部格式，按 ccusage 的方式去重；schema 2 提供方接口尚未在手机上验收。
+      - text: Claude Code 的会话记录是内部格式，按 ccusage 的方式去重。schema 2 提供方接口尚未在手机上验收。
         docs: [docs/research/95-agent-usage-providers.md]
     code:
       - agent/suggestions/usage.cpp

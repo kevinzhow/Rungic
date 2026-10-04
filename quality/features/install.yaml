@@ -1,25 +1,27 @@
 area: install
 title: 安装、首次进入与升级
 summary: >-
-  在已准备好的 Android 底座上单独安装 Rungic（CI1 设备底座/GKI → CI2 独立 RungicOS 镜像 → CI3 独立安装/升级，docs/75），
-  首次打开看到真实的准备进度、创建账户、进入桌面；之后每次打开或重启都回到桌面，升级保留账户与文件。
-  旧的整包刷机、一键重装、GSI 与精简 ROM 路线作为已退役功能记录。
+  在准备好的 Android 底座上单独安装 Rungic。
+  流程为 CI1 设备底座/GKI → CI2 独立 RungicOS 镜像 → CI3 独立安装/升级，见 docs/75。
+  首次打开显示实际准备进度，用户创建账户后进入桌面。
+  之后每次打开或重启都回到桌面。升级保留账户与文件。
+  旧整包刷机、一键重装、GSI 和精简 ROM 路线保留为退役功能记录。
 scenarios:
   - id: install.first-install
     title: 首次安装进入桌面
     summary: 兼容底座就绪后安装 Rungic，打开应用等待真实的准备阶段，创建 Rungic 账户，进入 Plasma 桌面。
   - id: install.everyday-start
     title: 每次打开都回到桌面
-    summary: 整机重启、应用被清数据或被强制停止之后，打开 Rungic 桌面照常回来；会话里有标准目录、登录环境和 SSH。
+    summary: 整机重启、应用被清数据或被强制停止之后，打开 Rungic 桌面照常回来。会话里有标准目录、登录环境和 SSH。
   - id: install.upgrade
     title: 升级与回滚
-    summary: 换新版本的系统时账户、文件和 Agent 登录保留；部署失败能回到之前的状态。
+    summary: 换新版本的系统时账户、文件和 Agent 登录保留。部署失败能回到之前的状态。
   - id: install.new-device
     title: 接入新机型、重刷底座
     summary: 为一款手机和固件固定 spec、构建自编 GKI 底座，构建独立 RungicOS 镜像和 Rungic 应用。
   - id: install.legacy-rom
     title: 旧整包与 ROM 路线（历史）
-    summary: 整包清数据刷入、v3 一键重装、原厂精简 product、离线 Magisk、GSI 和最小 Alpine 容器；均已被三段式独立安装取代。
+    summary: 整包清数据刷入、v3 一键重装、原厂精简 product、离线 Magisk、GSI 和最小 Alpine 容器均属于旧路线。这些路线已由三段式独立安装取代。
 
 features:
   # ------------------------------------------------------------------ 首次安装进入桌面
@@ -30,15 +32,17 @@ features:
     platform: android
     interfaces: []
     summary: >-
-      开发用 USB/ADB 入口（tools/ci/standalone.py pack/verify/install/status）把 CI2 镜像、Rungic 与 Termux APK、
-      LXC 宿主和 rootfs 装到已准备的 Android 上；不刷 Android 分区、不清 Android 数据。用户自助安装尚未实现。
+      开发用 USB/ADB 入口是 tools/ci/standalone.py pack/verify/install/status。
+      它将 CI2 镜像、Rungic 与 Termux APK、LXC 宿主和 rootfs 安装到已准备好的 Android 上。
+      它不刷写 Android 分区，不清除 Android 数据。
+      用户自助安装尚未实现。
     experience:
       - id: E1
-        text: 安装前核验精确的手机：序列号/端口、完整 fingerprint、机型、运行内核、SELinux Enforcing、槽位、电量和 boot 回读摘要；任何一项不符都在读 boot 或写入手机之前停止。
+        text: 安装前核验目标手机的序列号/端口、完整 fingerprint、机型、运行内核、SELinux Enforcing、槽位、电量和 boot 回读摘要。任何一项不符，都在读 boot 或写入手机前停止。
         evidence:
           - {doc: docs/91-x70-independent-install.md, date: 2026-09-30, note: "X70 .4 复用底座，boot_a 回读一致"}
       - id: E2
-        text: 只信调用者给的可信 manifest 摘要；组件损坏或截断、被换成符号链接、清单里有越界路径、release 名带 shell 字符时拒绝安装。
+        text: 只信调用者给的可信 manifest 摘要。组件损坏或截断、被换成符号链接、清单里有越界路径、release 名带 shell 字符时拒绝安装。
       - id: E3
         text: 一次安装自动完成：两个普通 APK、Termux 前缀、LXC 宿主、rootfs（解压后核对整镜像 SHA）、SSH 主机密钥和共享挂载准备，最后发布 ready / complete / error=none。
         evidence:
@@ -46,9 +50,9 @@ features:
           - {doc: docs/92-x70-android-base-end-to-end.md, date: 2026-09-30, note: "重刷 Android、清数据后无 Rungic/Termux 的纯底座"}
           - {doc: docs/93-x70-independent-image-revalidation.md, date: 2026-09-30, note: ".7 从空白 runtime 安装，verify → rootfs → ready"}
       - id: E4
-        text: 手机上已有 Rungic runtime 时拒绝首装；只允许重试同一 release、同一 manifest 的未完成安装，新 release 不覆盖已有安装。
+        text: 手机已有 Rungic runtime 时，安装器拒绝首装。未完成的安装只允许用同一 release、同一 manifest 重试。新 release 不覆盖已有安装。
       - id: E5
-        text: 重启后已选中的独立安装不会被旧 product 种子重新接管；选中的载荷缺失时失败关闭，不回落到旧入口。
+        text: 重启后已选中的独立安装不会被旧 product 种子重新接管。选中的载荷缺失时失败关闭，不回落到旧入口。
         evidence:
           - {doc: docs/91-x70-independent-install.md, date: 2026-09-30, note: "Android 重启后 product 旧路径走转发脚本，.4 只记 already installed"}
       - id: E6
@@ -56,27 +60,27 @@ features:
         evidence:
           - {doc: docs/93-x70-independent-image-revalidation.md, date: 2026-09-30, note: ".5/.7 首装没有 Magisk 授权弹窗"}
       - id: E7
-        text: 投屏组件是可选部分：缺失或安装失败只记日志，不阻止桌面安装；完好的已装组件不动，损坏的会被修复，记住的电视保留。
+        text: 投屏组件可选。组件缺失或安装失败时只记日志，不阻止桌面安装。完好的已装组件保留，损坏的组件修复，已记住的电视保留。
       - id: E8
         text: 组包时拒绝与当前源码不符的旧投屏组件（旧 JAR 曾让电视列表为空）。
       - id: E9
         text: 手机空间不足时在写镜像之前停止（保守预留整镜像加 512 MiB），不会写满 /data。
     pitfalls:
-      - text: "`install` 返回 installing 只表示后台任务已启动；必须继续核对 ready、账户和真实桌面。"
+      - text: "`install` 返回 installing 只表示后台任务已启动。必须继续核对 ready、账户和真实桌面。"
         docs: [docs/91-x70-independent-install.md]
-      - text: 底座准备仍有人工步骤：Android 初始设置与 USB 授权、补装完整 Magisk 管理器、修复运行环境、在超级用户页启用 Shell；不是无人值守刷机。Magisk 离线就绪、用户自助安装、完整镜像升级仍未实现。
+      - text: 底座准备仍有人工步骤：Android 初始设置与 USB 授权、补装完整 Magisk 管理器、修复运行环境、在超级用户页启用 Shell。不是无人值守刷机。Magisk 离线就绪、用户自助安装、完整镜像升级仍未实现。
         docs: [docs/92-x70-android-base-end-to-end.md, docs/75-image-build-separation.md]
-      - text: Android toybox 的 `dd conv=sparse` 帮助里有、实际不支持；16 GiB 稀疏镜像要用 ARM64 稀疏写入器写，并核对整镜像 SHA。
+      - text: Android toybox 的 `dd conv=sparse` 帮助里有、实际不支持。16 GiB 稀疏镜像要用 ARM64 稀疏写入器写，并核对整镜像 SHA。
         docs: [docs/80-g100-image-installation-retrospective.md]
       - text: 在临时 rootfs chroot 里生成 SSH 主机密钥要先挂载 dev/proc/sys，否则 configure 阶段失败（.2）。
         docs: [docs/91-x70-independent-install.md]
-      - text: 旧 init_boot 每次启动都从 product 重写 service.d，单独替换 service.d 接管不了；用 Magisk system/product 模块转发，并实测重启后生效。
+      - text: 旧 init_boot 每次启动都从 product 重写 service.d，单独替换 service.d 接管不了。用 Magisk system/product 模块转发，并实测重启后生效。
         docs: [docs/91-x70-independent-install.md]
-      - text: Magisk root 上下文的 `pm install`/`pm grant`/`appops set` 曾返回 Binder Failed transaction；普通 APK 安装与授权放在 Android shell 上下文。
+      - text: Magisk root 上下文的 `pm install`/`pm grant`/`appops set` 曾返回 Binder Failed transaction。普通 APK 安装与授权放在 Android shell 上下文。
         docs: [docs/79-g100-ci-execution.md, docs/93-x70-independent-image-revalidation.md]
-      - text: 同时有多个 ADB server（5037/5038）且重启时交替接管；每条设备命令绑定精确端口和序列号，单个端口没列出设备不代表手机没启动。
+      - text: 同时有多个 ADB server（5037/5038）且重启时交替接管。每条设备命令绑定精确端口和序列号，单个端口没列出设备不代表手机没启动。
         docs: [docs/92-x70-android-base-end-to-end.md, docs/80-g100-image-installation-retrospective.md]
-      - text: "`adb exec-out su -c 'tar ...'` 导出备份时 stderr 混进了二进制流，归档损坏而命令返回 0；先在手机写文件、记 SHA，再 adb pull 并两端核对。"
+      - text: "`adb exec-out su -c 'tar ...'` 导出备份时 stderr 混进了二进制流，归档损坏而命令返回 0。先在手机写文件、记 SHA，再 adb pull 并两端核对。"
         docs: [docs/92-x70-android-base-end-to-end.md]
     code:
       - tools/ci/standalone.py
@@ -101,7 +105,7 @@ features:
     status: live
     platform: android
     interfaces: []
-    summary: 安装还没完成时打开 Rungic，看到正在做的实际阶段、需要用户做的事和出错原因；安装就绪后才往下走。
+    summary: 安装期间，Rungic 显示实际准备阶段、需要用户执行的操作和出错原因。安装就绪后，才允许进入后续步骤。
     experience:
       - id: E1
         text: 显示实际阶段文字（检查安装文件、准备运行环境、展开桌面系统、配置系统、等待共享存储、完成初始化），用不定进度动画，不显示虚构的百分比或倒计时。
@@ -111,26 +115,26 @@ features:
       - id: E2
         text: 安装状态缺失、版本与本次 release 不符、内容截断或损坏、或是未知的未来 schema 时继续等待并在详情里说明原因，不打开账户表单。
       - id: E3
-        text: 失败按原因给出不同的说明：安装文件校验失败（重新获取安装包，重启不会修复）、空间不足、共享存储不可用、其他；不一律让用户重启。
+        text: 失败按原因给出不同的说明：安装文件校验失败（重新获取安装包，重启不会修复）、空间不足、共享存储不可用、其他。不一律让用户重启。
         evidence:
           - {doc: docs/91-x70-independent-install.md, date: 2026-09-30, note: ".2 configure 失败时界面显示 failed，没有提前进入账户表单"}
       - id: E4
-        text: 等待解锁时提示先解锁手机、解锁后自动继续；三分钟没有新阶段时只提示“较长时间未收到新的阶段状态”，不判为失败。
+        text: 等待解锁时提示先解锁手机、解锁后自动继续。三分钟没有新阶段时只提示“较长时间未收到新的阶段状态”，不判为失败。
       - id: E5
         text: 准备期间可以返回 Android，再打开时接着显示当前阶段。
-        gap: 返回 Android 再打开时的阶段显示由 MainActivity/StartupScreen 的生命周期决定，离线 Java 测试只覆盖状态文件的读取（FirstBootStateTest）；82 篇把“安装中进入/退出 Rungic”列为待做的首启场景，尚无实机记录
+        gap: 返回 Android 再打开时的阶段显示由 MainActivity/StartupScreen 的生命周期决定，离线 Java 测试只覆盖状态文件的读取（FirstBootStateTest）。82 篇把“安装中进入/退出 Rungic”列为待做的首启场景，尚无实机记录
       - id: E6
         text: 清除 Rungic 应用数据后再打开，不用重启手机：已完成的安装重新发布状态并直接放行，进行中的安装交给首启脚本，复用底座上的旧 product 种子不会让它一直等待。
         evidence:
           - {doc: docs/95-install-use-case-tests.md, date: 2026-09-30, note: "UC-app-data-cleared，G100 S 两个场景"}
     pitfalls:
-      - text: 只看 Android `sys.boot_completed=1` 证明不了 rootfs 已展开、共享目录已挂载或容器已就绪；按原子状态和真实条件放行，不靠固定延时。
+      - text: 只看 Android `sys.boot_completed=1` 证明不了 rootfs 已展开、共享目录已挂载或容器已就绪。按原子状态和真实条件放行，不靠固定延时。
         docs: [docs/80-g100-image-installation-retrospective.md]
-      - text: 应用私有的安装状态只是界面信号；root 控制器另外核对完成标记，界面 ready 不能代替。
+      - text: 应用私有的安装状态只是界面信号。root 控制器另外核对完成标记，界面 ready 不能代替。
         docs: [docs/80-g100-image-installation-retrospective.md, docs/82-first-run-ux-refactor.md]
-      - text: 状态只有阶段和更新时间，没有解压字节进度或工作心跳；不能用计时器伪装成进度。
+      - text: 状态只有阶段和更新时间，没有解压字节进度或工作心跳。不能用计时器伪装成进度。
         docs: [docs/82-first-run-ux-refactor.md]
-      - text: 桌面阶段 Android screencap 可能是黑的，而 KWin 截图和手机屏幕正常；不能用它判定黑屏。
+      - text: 桌面阶段 Android screencap 可能是黑的，而 KWin 截图和手机屏幕正常。不能用它判定黑屏。
         docs: [docs/91-x70-independent-install.md]
     code:
       - android/app/src/com/rungic/plasma/FirstBootState.java
@@ -153,41 +157,41 @@ features:
     summary: 系统准备就绪后，在 Android 原生表单里设置 Linux 用户名和密码（用于安装软件和系统设置，与手机解锁密码不同）。
     experience:
       - id: E1
-        text: 只有安装 ready、容器运行、账户工具在、共享存储已挂载、用户目录已建立后才出现表单；这些没就绪时显示为准备问题，不让用户靠重复输入密码碰运气。
+        text: 只有以下条件全部满足时，才显示账户表单：安装 ready、容器运行、账户工具存在、共享存储已挂载、用户目录已建立。条件未满足时，界面显示准备问题，不要求用户重复输入密码。
         evidence:
           - {doc: docs/93-x70-independent-image-revalidation.md, date: 2026-09-30, note: "ready 后 account-status=false 才出现表单"}
           - {doc: docs/80-g100-image-installation-retrospective.md, date: 2026-09-28, note: "G100 .5 纳入 account-prepare 门槛"}
       - id: E2
-        text: 不合规的用户名（须小写字母开头、最多 32 位、不是已有系统账户）和密码（至少 8 个字符、UTF-8 不超过 256 字节、无换行或空字符、两次一致）不会被接受：表单在字段上就地提示，账户助手在 root 一侧再校验一遍。
+        text: 用户名必须以小写字母开头，最多 32 位，且不能是已有系统账户。密码至少 8 个字符，UTF-8 最多 256 字节，不含换行或空字符，两次输入必须一致。表单在不合规字段旁提示，root 侧账户助手再次校验。
       - id: E3
-        text: 用户名已被使用或主目录已存在时表单保留、提示换一个名字；其他失败关闭表单、显示“账户设置尚未完成”，不自动重复提交密码。
+        text: 用户名已被使用或主目录已存在时表单保留、提示换一个名字。其他失败关闭表单、显示“账户设置尚未完成”，不自动重复提交密码。
         evidence:
           - {doc: docs/95-install-use-case-tests.md, date: 2026-09-30, note: "UC-account-taken，G100 S 真实输出交给修复后的判断"}
       - id: E4
-        text: 密码只经 root 进程的 stdin 传递，不进命令行、日志或持久状态；表单禁止截屏和自动填充，两个密码框都是掩码，可以切换显示。
+        text: 密码只通过 root 进程的 stdin 传递，不写入命令行、日志或持久状态。表单禁止截屏和自动填充。两个密码框默认掩码显示，用户可以切换显示。
         evidence:
           - {doc: docs/91-x70-independent-install.md, date: 2026-09-30, note: "UI 层级两个密码框 password=true，FLAG_SECURE 保留"}
       - id: E5
-        text: 创建失败时回到原状态（原锁定口令、附加组和登录名），不写完成标记；已有密码或已完成的账户不能经首装接口重置。
+        text: 创建失败时回到原状态（原锁定口令、附加组和登录名），不写完成标记。已有密码或已完成的账户不能经首装接口重置。
       - id: E6
         text: 提交后超时、切后台或重开，先查询真实结果：正在创建时显示“账户仍在设置中”，已完成的不再出现表单，不会创建第二个账户。
       - id: E7
-        text: 新账户是 UID 1000，加入 sudo 与 systemd-journal，软件管理和系统设置用这个密码授权；改名时 subuid/subgid 跟着新名字。
+        text: 新账户是 UID 1000，加入 sudo 与 systemd-journal，软件管理和系统设置用这个密码授权。改名时 subuid/subgid 跟着新名字。
         evidence:
           - {doc: docs/44-plasma-user-account.md, date: 2026-09-23, note: "用户首次设置后进入桌面"}
           - {doc: docs/93-x70-independent-image-revalidation.md, date: 2026-09-30, note: "原生表单创建临时账户，UID1000 会话"}
     pitfalls:
-      - text: G100 首装时账户反复提交失败，实际是容器的前置条件（音频 socket 目录、共享存储绑定）没准备好，失败发生在调用账户助手之前，与密码无关；现在由公共 start_container 统一准备。
+      - text: G100 首装时账户反复提交失败，实际是容器的前置条件（音频 socket 目录、共享存储绑定）没准备好，失败发生在调用账户助手之前，与密码无关。现在由公共 start_container 统一准备。
         docs: [docs/79-g100-ci-execution.md, docs/80-g100-image-installation-retrospective.md]
-      - text: 构建机的 .pyc 缓存 /home/kevinzhow 混入了 X70 镜像，让“kevinzhow”显示为已被使用；镜像构建器现在拒绝 home 里模板账户以外的条目，不能要求用户换名规避。
+      - text: 构建机的 .pyc 缓存 /home/kevinzhow 混入了 X70 镜像，让“kevinzhow”显示为已被使用。镜像构建器现在拒绝 home 里模板账户以外的条目，不能要求用户换名规避。
         docs: [docs/83-x70-air-pro-onboarding.md]
-      - text: 控制器给报错加前缀后，表单的完全匹配失效（d006ba6，已被占用的用户名会关掉表单）；只匹配控制器输出的最后一个非空行。
+      - text: 控制器给报错加前缀后，表单的完全匹配失效（d006ba6，已被占用的用户名会关掉表单）。只匹配控制器输出的最后一个非空行。
         docs: [docs/95-install-use-case-tests.md]
       - text: "`setSingleLine` 会覆盖密码转换器，输入类型和转换器要在它之后设置。"
         docs: [docs/91-x70-independent-install.md]
-      - text: Android 16 自带的旧 UI Automator runner 报测试中断却打印 OK；以实际账户状态为准。表单有 FLAG_SECURE，Android 截图是黑的，用 UI 层级和 account-status 核对。
+      - text: Android 16 自带的旧 UI Automator runner 报测试中断却打印 OK。以实际账户状态为准。表单有 FLAG_SECURE，Android 截图是黑的，用 UI 层级和 account-status 核对。
         docs: [docs/91-x70-independent-install.md, docs/93-x70-independent-image-revalidation.md]
-      - text: 手机锁屏仍由 Android 管；设置 Linux 密码不会开启第二层 Linux 锁屏。
+      - text: 手机锁屏仍由 Android 管。设置 Linux 密码不会开启第二层 Linux 锁屏。
         docs: [docs/44-plasma-user-account.md]
     code:
       - android/app/src/com/rungic/plasma/AccountSetup.java
@@ -206,32 +210,32 @@ features:
     status: live
     platform: android
     interfaces: [kwin-android-host]
-    summary: 账户完成后看着桌面启动，画面真正出现在手机上才移除 loading；通知和界面一致地告诉用户 Rungic 现在的状态。
+    summary: 账户设置完成后，界面显示桌面启动状态。手机实际显示画面后，才移除 loading。通知与界面显示一致的 Rungic 状态。
     experience:
       - id: E1
-        text: 启动时显示“正在启动桌面”，直到当前会话的手机帧真正显示后才移除 loading；旧帧、投屏输出或屏障之前的提交都不算。
+        text: 启动时显示“正在启动桌面”。当前会话的手机帧实际显示后，才移除 loading。旧帧、投屏输出和屏障前提交均不满足条件。
         evidence:
           - {doc: docs/82-first-run-ux-refactor.md, date: 2026-09-28, note: "G100 保留账户的候选 APK：显示确认后 loading 移除"}
       - id: E2
         text: 显示确认 60 秒没有到达时显示可恢复的“显示未确认”，可以重新检查，不强行放行。
-        gap: 显示确认超时的处理在 MainActivity（framePoll）里，依赖 Android 的 Activity、Surface 和 NativeBridge，离线 Java 测试只编译 FirstBootState；需要 Android 仪器测试，或实机首装时让显示反馈不到达（82 篇“后续整包必须覆盖的场景”第 4 条）
+        gap: 显示确认超时的处理在 MainActivity（framePoll）里，依赖 Android 的 Activity、Surface 和 NativeBridge，离线 Java 测试只编译 FirstBootState。需要 Android 仪器测试，或实机首装时让显示反馈不到达（82 篇“后续整包必须覆盖的场景”第 4 条）
       - id: E3
-        text: 首次进入直接到 Plasma 桌面，不出现 Plasma Mobile 欢迎向导；需要时仍可手动打开向导。
+        text: 首次进入直接到 Plasma 桌面，不出现 Plasma Mobile 欢迎向导。需要时仍可手动打开向导。
         evidence:
           - {doc: docs/82-first-run-ux-refactor.md, date: 2026-09-29, note: "G100 干净配置与现有账户，向导程序直接退出"}
       - id: E4
-        text: 通知随实际状态变化（正在准备 Rungic、等待设置账户、正在运行、需要处理），点通知回到 Rungic；新装时不声称桌面已在运行。
+        text: 通知随实际状态变化（正在准备 Rungic、等待设置账户、正在运行、需要处理），点通知回到 Rungic。新装时不声称桌面已在运行。
         evidence:
           - {doc: docs/82-first-run-ux-refactor.md, date: 2026-09-28, note: "通知为“Rungic 正在运行”"}
       - id: E5
-        text: 关闭会话前确认并说明会结束 Linux 应用；切到 Android 时会话继续运行。
-        gap: 关闭会话的确认对话框在 MainActivity 的宿主菜单里（AlertDialog），离线无法运行；82 篇只记录了切到 Android 后返回（2026-09-28），没有关闭会话确认的实机记录
+        text: 关闭会话前确认并说明会结束 Linux 应用。切到 Android 时会话继续运行。
+        gap: 关闭会话的确认对话框在 MainActivity 的宿主菜单里（AlertDialog），离线无法运行。82 篇只记录了切到 Android 后返回（2026-09-28），没有关闭会话确认的实机记录
     pitfalls:
       - text: 显示确认只证明手机图形输出链路，画面可能还是启动画面，不代表桌面服务和应用都已可交互。不支持帧时间反馈的设备会显示确认超时，不能假定与 G100 等价。
         docs: [docs/82-first-run-ux-refactor.md]
-      - text: KDE splash 会被图像探针当成“有画面”；验收要看完整主屏（亮区和颜色检查加人工确认）。
+      - text: KDE splash 会被图像探针当成“有画面”。验收要看完整主屏（亮区和颜色检查加人工确认）。
         docs: [docs/93-x70-independent-image-revalidation.md]
-      - text: 预装或普通安装都要实际启动应用验收；`pm path` 和默认权限通过不代表能用。
+      - text: 预装或普通安装都要实际启动应用验收。`pm path` 和默认权限通过不代表能用。
         docs: [docs/80-g100-image-installation-retrospective.md]
     code:
       - android/app/src/com/rungic/plasma/MainActivity.java
@@ -251,26 +255,26 @@ features:
     status: live
     platform: linux
     interfaces: []
-    summary: 装好后容器的 SSH 自动可用（用户 2026-09-29 要求），每台手机有自己的主机密钥，账户密码和密钥都能登录。
+    summary: 安装完成后，容器自动提供 SSH 连接，符合用户 2026-09-29 的要求。每台手机使用自己的主机密钥。用户可以用账户密码或密钥登录。
     experience:
       - id: E1
-        text: 新装的系统 ssh.socket 已启用并在 22 端口（IPv4 与 IPv6）监听，开机后自动可连；有连接时才启动 sshd。
+        text: 新装的系统 ssh.socket 已启用并在 22 端口（IPv4 与 IPv6）监听，开机后自动可连。有连接时才启动 sshd。
         evidence:
           - {doc: docs/91-x70-independent-install.md, date: 2026-09-30, note: "USB 转发读到 OpenSSH banner"}
           - {doc: docs/92-x70-android-base-end-to-end.md, date: 2026-09-30}
           - {doc: docs/93-x70-independent-image-revalidation.md, date: 2026-09-30, note: "三轮重启后 SSH 均启用"}
       - id: E2
-        text: 账户密码和 ~/.ssh/authorized_keys 里的密钥都能登录；root 只能用密钥。
+        text: 账户密码和 ~/.ssh/authorized_keys 里的密钥都能登录。root 只能用密钥。
         evidence:
           - {doc: docs/83-service-policy.md, date: 2026-09-28, note: "临时密钥登录成功，服务器声明 publickey,password；密码登录未实测"}
       - id: E3
-        text: 镜像里不带主机密钥；每台手机在安装时生成自己的三组主机密钥，之后缺失时自动补上。
+        text: 镜像里不带主机密钥。每台手机在安装时生成自己的三组主机密钥，之后缺失时自动补上。
         evidence:
           - {doc: docs/91-x70-independent-install.md, date: 2026-09-30, note: "镜像构建去除主机密钥，首装在设备生成"}
     pitfalls:
-      - text: 用户明确要求 SSH 自动开启；升级和排障时不得按旧文档“默认关闭”停用 SSH 或加关闭策略。2026-10-03 前 desktop/services/policy.json 的 SSH 默认值仍是 disabled，新装设备首装会停用 ssh.socket；现为 enabled（tools/system/tests/ssh_on_first_install.py）。deb-systemd-helper 的 enable 不会撤销它自己先前的 disable。
+      - text: 用户明确要求 SSH 自动开启。升级和排障时不得按旧文档“默认关闭”停用 SSH 或加关闭策略。2026-10-03 前 desktop/services/policy.json 的 SSH 默认值仍是 disabled，新装设备首装会停用 ssh.socket。现为 enabled（tools/system/tests/ssh_on_first_install.py）。deb-systemd-helper 的 enable 不会撤销它自己先前的 disable。
         docs: [docs/research/g100-system-update-20260929.md, docs/83-service-policy.md]
-      - text: 容器与 Android 共用网络命名空间，没有独立的局域网 IP，sshd 监听在手机自己的地址上；局域网连通先看 ARP 等证据。
+      - text: 容器与 Android 共用网络命名空间，没有独立的局域网 IP，sshd 监听在手机自己的地址上。局域网连通先看 ARP 等证据。
         docs: [docs/83-service-policy.md, docs/research/g100-ssh-connectivity-20260929.md]
     code:
       - system/config/etc/ssh/sshd_config.d/10-rungic.conf
@@ -292,12 +296,12 @@ features:
     summary: Android 重启后第一次打开 Rungic 就进入桌面，不需要重试或手动命令。
     experience:
       - id: E1
-        text: 整机重启后第一次打开 Rungic 就进入桌面，不点重试、不手动运行 account-prepare/start；X70 上从打开到完整主屏约 37 秒。
+        text: 整机重启后第一次打开 Rungic 就进入桌面，不点重试、不手动运行 account-prepare/start。X70 上从打开到完整主屏约 37 秒。
         evidence:
           - {doc: docs/93-x70-independent-image-revalidation.md, date: 2026-09-30, note: ".7 连续三轮 37.1/37.2/37.5 秒"}
           - {doc: docs/94-build-fingerprints.md, date: 2026-09-30, note: "G100 一轮整机重启"}
       - id: E2
-        text: 音频守护进程保存的旧 PID 被别的 Android 应用或内核线程复用时，音频照常启动；不杀别人的进程，也不起第二个音频守护进程。
+        text: 音频守护进程保存的旧 PID 被别的 Android 应用或内核线程复用时，音频照常启动。不杀别人的进程，也不起第二个音频守护进程。
         evidence:
           - {doc: docs/93-x70-independent-image-revalidation.md, date: 2026-09-30, note: "PID 被 imsserviceentitlement 复用的现场"}
           - {doc: docs/95-install-use-case-tests.md, date: 2026-09-30, note: "UC-audio-kthread-pid，G100 S"}
@@ -310,13 +314,13 @@ features:
         evidence:
           - {doc: docs/94-build-fingerprints.md, date: 2026-09-30}
     pitfalls:
-      - text: APK 的 umask 0077 曾让 LXC 的 payload cgroup 变成 0700，用户 systemd 建不了 init.scope、桌面起不来；只在 lxc-start 的子 shell 里设 022，不全局放宽 cgroup。
+      - text: APK 的 umask 0077 曾让 LXC 的 payload cgroup 变成 0700，用户 systemd 建不了 init.scope、桌面起不来。只在 lxc-start 的子 shell 里设 022，不全局放宽 cgroup。
         docs: [docs/93-x70-independent-image-revalidation.md]
-      - text: 音频 PID 文件在持久化的 /data 上跨重启保留；受限的 Termux UID 无权检查别的应用，PulseAudio 会拒绝启动。只在私有控制锁内核验 UID/exe/命令行后清理。
+      - text: 音频 PID 文件在持久化的 /data 上跨重启保留。受限的 Termux UID 无权检查别的应用，PulseAudio 会拒绝启动。只在私有控制锁内核验 UID/exe/命令行后清理。
         docs: [docs/93-x70-independent-image-revalidation.md]
-      - text: ADB root 手动启动会掩盖 umask 问题；重试成功代替不了连续整机重启后的首次打开验收。
+      - text: ADB root 手动启动会掩盖 umask 问题。重试成功代替不了连续整机重启后的首次打开验收。
         docs: [docs/93-x70-independent-image-revalidation.md]
-      - text: 首个会话的 kconf_update 迁移程序在 KWin 之前运行，没有合成器时会 SIGABRT 留下 core；迁移命令要指定 QT_QPA_PLATFORM=offscreen。
+      - text: 首个会话的 kconf_update 迁移程序在 KWin 之前运行，没有合成器时会 SIGABRT 留下 core。迁移命令要指定 QT_QPA_PLATFORM=offscreen。
         docs: [docs/92-x70-android-base-end-to-end.md]
       - text: Android 锁屏期间访问不到容器，不能据此判定镜像启动失败。
         docs: [docs/94-build-fingerprints.md]
@@ -336,16 +340,16 @@ features:
     status: live
     platform: android
     interfaces: [kwin-android-host]
-    summary: Rungic 应用的数据被清除、被强制停止或被系统杀掉后再打开，桌面自己回来，不需要人工处理。
+    summary: Rungic 应用在数据被清除、强制停止或被系统终止后，可以再次打开并自动恢复桌面，无需人工处理。
     experience:
       - id: E1
         text: 运行中清除 Rungic 应用数据后再打开，容器自动重启并绑定新的 socket 目录，约 15 秒内 KWin 和 plasmashell 恢复。
         evidence:
           - {doc: docs/96-desktop-recovery-after-apk-restart.md, date: 2026-09-30, note: "t15-A-pmclear"}
       - id: E2
-        text: 只有两边都读得到且确实不一致时才重启容器；目录没变或任一侧读取失败时不重启。
+        text: 只有两边都读得到且确实不一致时才重启容器。目录没变或任一侧读取失败时不重启。
       - id: E3
-        text: 应用被强制停止后再打开，plasmashell 不会停在 failed；点“重新检查”改为重启会话，5 秒内 plasmashell 和 KWin 恢复。
+        text: 应用被强制停止后再打开，plasmashell 不会停在 failed。点“重新检查”改为重启会话，5 秒内 plasmashell 和 KWin 恢复。
         evidence:
           - {doc: docs/96-desktop-recovery-after-apk-restart.md, date: 2026-09-30, note: "t11-retry-recovery"}
       - id: E4
@@ -357,9 +361,9 @@ features:
     pitfalls:
       - text: APK 重新建出 files/tmp 之前，所有经过 rungic-plasma-enter 的控制命令都会报 bind Android Wayland socket directory。
         docs: [docs/96-desktop-recovery-after-apk-restart.md]
-      - text: 只用 am force-stop 近似；Android 低内存真实杀掉 APK、卸载重装导致 uid 变化的场景还没验证。强制停止后立刻重开不复现，要隔 30 秒。
+      - text: 只用 am force-stop 近似。Android 低内存真实杀掉 APK、卸载重装导致 uid 变化的场景还没验证。强制停止后立刻重开不复现，要隔 30 秒。
         docs: [docs/96-desktop-recovery-after-apk-restart.md]
-      - text: pm clear 会撤销运行时权限、清掉 OCR 模型和 prefs；恢复文件后 restorecon 只给 s0，要按目录的完整 MLS 类别 chcon。toybox tar 不能打包 socket。
+      - text: pm clear 会撤销运行时权限、清掉 OCR 模型和 prefs。恢复文件后 restorecon 只给 s0，要按目录的完整 MLS 类别 chcon。toybox tar 不能打包 socket。
         docs: [docs/95-install-use-case-tests.md]
     code:
       - system/rungic-plasma
@@ -375,18 +379,18 @@ features:
     status: live
     platform: linux
     interfaces: []
-    summary: 首次进入就有下载、图片、音乐等标准目录，放在与 Android 共享的 Shared 里，应用按 XDG 目录找到它们。
+    summary: 首次进入时，用户已有下载、图片、音乐等标准目录。这些目录位于与 Android 共享的 Shared 中。应用通过 XDG 目录配置找到它们。
     experience:
       - id: E1
-        text: 账户准备时就建立标准目录：Downloads、Music、Pictures、Videos、Templates、Public 在 Shared 下，home 里是相对链接；Desktop、Documents 在本地；重复运行结果不变。
+        text: 账户准备时就建立标准目录：Downloads、Music、Pictures、Videos、Templates、Public 在 Shared 下，home 里是相对链接。Desktop、Documents 在本地。重复运行结果不变。
         evidence:
           - {doc: docs/83-x70-air-pro-onboarding.md, date: 2026-09-28, note: "Koko 打开空的 Pictures，Qt/GLib 目录查询一致"}
       - id: E2
-        text: 已有的文件、目录和自定义链接保留；同名的普通文件不删除，报错停止。
+        text: 已有的文件、目录和自定义链接保留。同名的普通文件不删除，报错停止。
       - id: E3
         text: 共享存储没挂载时拒绝运行，不在空挂载点下建假目录。
     pitfalls:
-      - text: 首装 home 只有模板，照片等应用报 Pictures 不存在；目录要在账户准备阶段统一建立，而不是留给第一个应用。
+      - text: 首装 home 只有模板，照片等应用报 Pictures 不存在。目录要在账户准备阶段统一建立，而不是留给第一个应用。
         docs: [docs/83-x70-air-pro-onboarding.md]
       - text: 共享目录的 bindfs 不能加 --direct-io，否则 SQLite WAL 等共享可写 mmap 失败（微信数据库反复“修复”）。
         docs: [docs/69-filesystem-capabilities.md]
@@ -406,11 +410,11 @@ features:
     summary: 桌面会话像显示管理器登录一样读入 ~/.profile，安装脚本放进 ~/.local/bin 的命令马上能用。
     experience:
       - id: E1
-        text: 桌面会话和 systemd 用户单元的 PATH 最前面是 ~/.local/bin、~/bin（目录还不存在也加上）；安装脚本放进去的新命令，同一个终端的下一条命令就能运行。
+        text: 桌面会话和 systemd 用户单元的 PATH 最前面是 ~/.local/bin、~/bin（目录还不存在也加上）。安装脚本放进去的新命令，同一个终端的下一条命令就能运行。
         evidence:
           - {doc: docs/100-login-environment.md, date: 2026-10-01, note: "G100 S，plasmashell、用户管理器、rungic-session.env 三处一致"}
       - id: E2
-        text: 用户 ~/.profile 的导出带进会话；会话自己决定的变量（Wayland、GPU、代理、输入法、XDG 目录等）不被覆盖。
+        text: 用户 ~/.profile 的导出带进会话。会话自己决定的变量（Wayland、GPU、代理、输入法、XDG 目录等）不被覆盖。
       - id: E3
         text: profile 出错或卡住（10 秒超时）时只丢掉它的结果，会话照常启动。
     pitfalls:
@@ -429,22 +433,22 @@ features:
     status: live
     platform: android
     interfaces: []
-    summary: 容器放在 Android 的内存 cgroup 里，Linux 程序吃内存时在容器内回收，不连累 Android 的 VPN 和桌面应用。
+    summary: 容器使用 Android 的内存 cgroup。Linux 程序占用过多内存时，系统在容器内回收内存，避免影响 Android 的 VPN 和桌面应用。
     experience:
       - id: E1
-        text: Linux 侧有内存上限（默认 4 GB，可选 2–6 GB 或不限）；超限时在容器内回收或结束进程，Android 低内存查杀不去杀 VPN 和 Rungic 应用。
+        text: Linux 侧有内存上限（默认 4 GB，可选 2–6 GB 或不限）。超限时在容器内回收或结束进程，Android 低内存查杀不去杀 VPN 和 Rungic 应用。
         evidence:
           - {doc: docs/61-delivery-diagnostics-plan.md, date: 2026-09-27, note: "发布 20260927.14"}
       - id: E2
-        text: 在设备面板改档位立即生效，已经在运行的容器进程连同内存计费一起迁入；容器重启后保持选定的上限。
+        text: 在设备面板改档位立即生效，已经在运行的容器进程连同内存计费一起迁入。容器重启后保持选定的上限。
         evidence:
           - {doc: docs/61-delivery-diagnostics-plan.md, date: 2026-09-27, note: "改为 5 GB 后内核上限 5368709120"}
       - id: E3
-        text: 换到 swap（zram，压缩后仍在 RAM 里）的部分也算进上限：内存加 swap 最多为档位的 1.25 倍；容器优先回收文件缓存，少把程序内存换出去。
+        text: 换到 swap（zram，压缩后仍在 RAM 里）的部分也算进上限：内存加 swap 最多为档位的 1.25 倍。容器优先回收文件缓存，少把程序内存换出去。
       - id: E4
         text: 设备面板除了总用量，还分开显示程序占用、文件缓存（其中内存文件）和已换出的 swap，用户能看出用量里哪些随时可以回收。
     pitfalls:
-      - text: Android 的 sh 只有 32 位整数，上限用 M 后缀写给内核；遍历进程只用 shell 内建命令（每个进程一次 grep 要一分钟）。
+      - text: Android 的 sh 只有 32 位整数，上限用 M 后缀写给内核。遍历进程只用 shell 内建命令（每个进程一次 grep 要一分钟）。
       - text: 只设 memory.limit_in_bytes 时，换出到 zram 的页不再计入上限，容器实际吃掉的 RAM 会超过档位（2026-10-03 G100 S：4 GB 上限下有 938 MiB 在 swap）。内核要求任何时刻 memsw 上限不小于内存上限，调低和调高的写入顺序相反。
         docs: [docs/61-delivery-diagnostics-plan.md]
         docs: [docs/61-delivery-diagnostics-plan.md]
@@ -463,11 +467,12 @@ features:
     platform: android
     interfaces: []
     summary: >-
-      Android 侧控制器（rungic-plasma）、LXC 配置、容器 init 和随系统安装的配置文件（system/、两个系统包）：
-      Ubuntu 容器以受限权限跑在 Android 上，其余领域的系统集成文件也从这里装进去。
+      Android 侧的 rungic-plasma 控制器、LXC 配置、容器 init 和系统配置共同支撑 Ubuntu 容器。
+      容器以受限权限运行在 Android 上。
+      system/ 和两个系统包也安装其他领域的系统集成文件。
     experience:
       - id: E1
-        text: 容器在 SELinux Enforcing 下运行，与 Android 共用网络但去掉 net_admin、net_raw、sys_module 等能力，只开放明确列出的设备（GPU、DMA heap、fuse、tun）；Android 重启后设备号变了也按当前设备号授权。
+        text: 容器在 SELinux Enforcing 下运行，与 Android 共用网络但去掉 net_admin、net_raw、sys_module 等能力，只开放明确列出的设备（GPU、DMA heap、fuse、tun）。Android 重启后设备号变了也按当前设备号授权。
       - id: E2
         text: 容器里 Flatpak 应用的沙箱能启动（/proc/sys/user 可写、有完整可见的 proc），其余 /proc/sys 仍只读。
         evidence:
@@ -475,13 +480,13 @@ features:
       - id: E3
         text: 控制命令串行执行：Surface 重建和显式重启同时发生时，不会并行启动两次容器或会话。
     pitfalls:
-      - text: home、崩溃记录、本机发布仓库和 Android 侧写给容器的文件放在 rootfs 镜像之外的 state/，以 bind 挂入；改名 D 阶段之前同时挂在旧名 /var/lib/moto-* 下。
+      - text: home、崩溃记录、本机发布仓库和 Android 侧写给容器的文件放在 rootfs 镜像之外的 state/，以 bind 挂入。改名 D 阶段之前同时挂在旧名 /var/lib/moto-* 下。
         docs: [docs/61-delivery-diagnostics-plan.md, docs/70-rungic-rebrand.md]
-      - text: toybox loop 的 autoclear 会在容器退出后留下失效的 dm 映射，下次启动前由 rootfs-image attach 检查并重建；LXC 早期日志目录要在镜像里预建。
+      - text: toybox loop 的 autoclear 会在容器退出后留下失效的 dm 映射，下次启动前由 rootfs-image attach 检查并重建。LXC 早期日志目录要在镜像里预建。
         docs: [docs/79-g100-ci-execution.md]
       - text: 手机 toybox 的 `flock -n 9` 对继承的 fd 报 Bad file descriptor，首启锁用 Magisk BusyBox 的 `flock -n 文件 命令`。
         docs: [docs/79-g100-ci-execution.md]
-      - text: 不要升级时擅自关闭 SSH 等用户要求开启的服务；服务默认状态只在首次安装配置包时落地一次。
+      - text: 不要升级时擅自关闭 SSH 等用户要求开启的服务。服务默认状态只在首次安装配置包时落地一次。
         docs: [docs/83-service-policy.md]
     code:
       - system/
@@ -499,15 +504,15 @@ features:
     status: live
     platform: android
     interfaces: []
-    summary: 系统 rootfs 是 ext4 镜像，部署前建 dm-snapshot，验收失败回到快照；用户数据不随系统回滚。
+    summary: 系统 rootfs 使用 ext4 镜像。部署前创建 dm-snapshot，验收失败时回滚到快照。用户数据不随系统回滚。
     experience:
       - id: E1
-        text: 部署前自动建快照，验收失败自动回到快照，回滚后发布版本与 dpkg 状态回到部署前；/home、崩溃记录和本机发布仓库不随系统回滚。
+        text: 部署前自动建快照，验收失败自动回到快照，回滚后发布版本与 dpkg 状态回到部署前。/home、崩溃记录和本机发布仓库不随系统回滚。
         evidence:
           - {doc: docs/61-delivery-diagnostics-plan.md, date: 2026-09-26, note: "20260926.10/.11 三次自动回到快照"}
       - id: E2
         text: 回滚后文件系统没有损坏：内核没有新的 ext4 错误，完整性检查 clean。
-        gap: 2026-09-27 一次快照回滚没有恢复被复用的块（docs/70），根因未查明，暂按包回滚；tools/rootfs_rollback_test.sh 只能在手机的测试镜像上手动运行。
+        gap: 2026-09-27 一次快照回滚没有恢复被复用的块（docs/70），根因未查明，暂按包回滚。tools/rootfs_rollback_test.sh 只能在手机的测试镜像上手动运行。
       - id: E3
         text: 镜像模式不比目录慢：容器到会话就绪 8.2 秒（目录 11.2 秒），读写与合成器帧时间和迁移前同一水平。
         evidence:
@@ -519,9 +524,9 @@ features:
     pitfalls:
       - text: B 阶段部署的快照回滚丢了被新包复用的块（76 个目录损坏），在查明之前以 --acceptance none 部署、按包回滚，回滚后检查 dmesg 的 EXT4-fs 错误并运行 rungic-integrity。
         docs: [docs/70-rungic-rebrand.md]
-      - text: 复现用的测试副本只改了 LXC= 没改 IMAGES=，在容器运行时把系统镜像以测试名第二次读写挂载；测试脚本现在拒绝仍含系统路径的副本。
+      - text: 复现用的测试副本只改了 LXC= 没改 IMAGES=，在容器运行时把系统镜像以测试名第二次读写挂载。测试脚本现在拒绝仍含系统路径的副本。
         docs: [docs/70-rungic-rebrand.md]
-      - text: toybox losetup 只接受 64 字节以内的路径且默认 autoclear；`mount -o context=` 被拒绝，改为给镜像打标签；snapshot-merge 状态读 dmctl 输出的最后一行。
+      - text: toybox losetup 只接受 64 字节以内的路径且默认 autoclear。`mount -o context=` 被拒绝，改为给镜像打标签。snapshot-merge 状态读 dmctl 输出的最后一行。
         docs: [docs/61-delivery-diagnostics-plan.md]
       - text: 回到改名前的发布时要先 rebrand down，原先验收失败的回滚路径漏了这一步。
         docs: [docs/70-rungic-rebrand.md]
@@ -540,7 +545,7 @@ features:
     status: experimental
     platform: android
     interfaces: []
-    summary: 把已装手机的 rootfs 换成新的独立 RungicOS 镜像，账户、文件和 Agent 登录保留。目前只有一次受控迁移，没有通用升级器。
+    summary: 已安装的手机可将 rootfs 换为新的独立 RungicOS 镜像，并保留账户、文件和 Agent 登录。目前只完成一次受控迁移，尚无通用升级器。
     experience:
       - id: E1
         text: 换新 rootfs 后 UID/GID、口令摘要、组、subuid/subgid、SSH 主机密钥、machine-id、home 和 Agent 登录配置都保留。
@@ -552,11 +557,11 @@ features:
           - {doc: docs/94-build-fingerprints.md, date: 2026-09-30}
       - id: E3
         text: 失败时恢复旧镜像、匹配的宿主版本和配置，数据迁移的回滚范围另行验证。
-        gap: 尚未实现通用回退；回退脚本已准备但没有执行回退验收（docs/91、docs/94）。
+        gap: 尚未实现通用回退。回退脚本已准备但没有执行回退验收（docs/91、docs/94）。
     pitfalls:
-      - text: standalone.py install 拒绝覆盖已有 runtime，它不是升级器；只把 rootfs 换回去不能算恢复成功。
+      - text: standalone.py install 拒绝覆盖已有 runtime，它不是升级器。只把 rootfs 换回去不能算恢复成功。
         docs: [docs/75-image-build-separation.md, docs/91-x70-independent-install.md]
-      - text: 账户迁移辅助脚本继承了 Android 的 PATH，找不到 Linux 管理命令；要显式设置 Linux PATH。
+      - text: 账户迁移辅助脚本继承了 Android 的 PATH，找不到 Linux 管理命令。要显式设置 Linux PATH。
         docs: [docs/94-build-fingerprints.md]
     code: []
     docs:
@@ -571,7 +576,7 @@ features:
     summary: 已装手机从 moto 名称迁到 Rungic：账户、家目录和用户设置跟着改名，回到改名前的发布时再交回。D 阶段清理尚未做。
     experience:
       - id: E1
-        text: 改名后账户、家目录（随登录名到 /home/<登录名>）、用户设置保留；已完成的 KDE 配置迁移不会重复执行（用户移除的快捷设置不会被加回）；只运行一次。
+        text: 改名后账户、家目录（随登录名到 /home/<登录名>）、用户设置保留。已完成的 KDE 配置迁移不会重复执行（用户移除的快捷设置不会被加回）。只运行一次。
         evidence:
           - {doc: docs/70-rungic-rebrand.md, date: 2026-09-27, note: "C1/C2 部署与重启验收"}
       - id: E2
@@ -606,20 +611,20 @@ features:
     status: live
     platform: android
     interfaces: []
-    summary: 每个机型/固件一份不可变 spec（身份、原厂摘要、内核配方、分区与刷写策略），原厂包按它核验后才使用。用户是开发者和 Agent。
+    summary: 开发者和 Agent 为每个机型及固件维护一份不可变 spec。它记录身份、原厂摘要、内核配方、分区和刷写策略。原厂包必须通过 spec 核验后才能使用。
     experience:
       - id: E1
-        text: 原厂包按精确 identity 核验后才解包（默认 G100，X70 用显式 identity）；错机型、多出的 super 分片、XML 摘要不符时在解包前拒绝，结果不发布。
+        text: 原厂包按精确 identity 核验后才解包（默认 G100，X70 用显式 identity）。错机型、多出的 super 分片、XML 摘要不符时在解包前拒绝，结果不发布。
       - id: E2
         text: 实机预检按 spec 核对身份、固件、槽位、电量和空间，不符时停止，不写设备。
     pitfalls:
-      - text: G100 S（mumba_cn）的镜像、哈希和刷机命令不能用于 G100（portov_cn）；同销售名、同 GPU、同 Android 版本都不能合并 spec。
+      - text: G100 S（mumba_cn）的镜像、哈希和刷机命令不能用于 G100（portov_cn）。同销售名、同 GPU、同 Android 版本都不能合并 spec。
         docs: [docs/78-g100-firmware-inventory.md, docs/75-image-build-separation.md]
-      - text: G100 有 32 个 super 分片、X70 有 41 个；X70 还有独立的 odm 逻辑分区，不能遗漏；分片按数字而不是词典序排列。
+      - text: G100 有 32 个 super 分片、X70 有 41 个。X70 还有独立的 odm 逻辑分区，不能遗漏。分片按数字而不是词典序排列。
         docs: [profiles/devices/motorola/vantage_cn/W2WV36.55-75-15-knowledge.md]
       - text: Motorola bootloader 的 fastboot 值与 Android 属性表示不同（多行、少末尾字符），两边分别记录、严格比对，不能为通过而放宽。
         docs: [docs/79-g100-ci-execution.md, profiles/devices/motorola/vantage_cn/W2WV36.55-75-15-knowledge.md]
-      - text: Android/fastbootd 回 bootloader 常只断开 USB、需要重插；bootloader 直接刷第二个 super 分片曾卡住并报 error -71。不要循环重刷，超级分区走 fastbootd，进入前清 fb_mode。
+      - text: Android/fastbootd 回 bootloader 常只断开 USB、需要重插。bootloader 直接刷第二个 super 分片曾卡住并报 error -71。不要循环重刷，超级分区走 fastbootd，进入前清 fb_mode。
         docs: [docs/79-g100-ci-execution.md, profiles/devices/motorola/vantage_cn/W2WV36.55-75-15-knowledge.md]
       - text: 改执行参数要发新的 adapter 和包，不能改已绑定哈希的旧 spec 后继续用。
         docs: [profiles/devices/motorola/vantage_cn/W2WV36.55-75-15-knowledge.md]
@@ -643,10 +648,10 @@ features:
     status: live
     platform: android
     interfaces: []
-    summary: 按机型固定 ACK/Kleaf 来源、配置和补丁，构建带 LXC 所需能力的 GKI，与原厂模块 ABI 兼容，Android 照常启动。
+    summary: 每个机型固定 ACK/Kleaf 来源、配置和补丁。构建的 GKI 提供 LXC 所需能力，与原厂模块 ABI 兼容，并保持 Android 正常启动。
     experience:
       - id: E1
-        text: 候选内核与原厂模块逐符号比对 CRC：GKI 可比较的引用 0 差异，并写明未覆盖的引用范围；正确解析 Android 15/16 的旧式与扩展 modversions。
+        text: 候选内核与原厂模块逐符号比对 CRC：GKI 可比较的引用 0 差异，并写明未覆盖的引用范围。正确解析 Android 15/16 的旧式与扩展 modversions。
         evidence:
           - {doc: docs/83-x70-air-pro-onboarding.md, date: 2026-09-28, note: "X70 v7 36,262 个可比较引用 0 差异"}
           - {doc: docs/80-g100-image-installation-retrospective.md, date: 2026-09-28, note: "G100 19,009 个引用 0 不匹配"}
@@ -659,13 +664,13 @@ features:
         evidence:
           - {doc: docs/17-lxc-installation.md, date: 2026-09-22, note: "G100 S 恢复证书后 441 个模块完整加载"}
     pitfalls:
-      - text: 直接开启 IPC、namespace 和额外 cgroup 配置曾造成 9,768 个 CRC 不匹配；要锁定与原厂匹配的 ACK 提交、构建号、页大小和证书，用 KABI 预留槽承载新字段。
+      - text: 直接开启 IPC、namespace 和额外 cgroup 配置曾造成 9,768 个 CRC 不匹配。要锁定与原厂匹配的 ACK 提交、构建号、页大小和证书，用 KABI 预留槽承载新字段。
         docs: [docs/80-g100-image-installation-retrospective.md]
-      - text: 早期重编出现 3,252 个符号 CRC 变化、97 个模块缺失；编译成功不等于能用，静态 ABI 和实机启动共同放行。
+      - text: 早期重编出现 3,252 个符号 CRC 变化、97 个模块缺失。编译成功不等于能用，静态 ABI 和实机启动共同放行。
         docs: [docs/75-image-build-separation.md]
       - text: X70 的 6.12 收敛 C 布局后还剩 Rust Binder 的 CRC 差异，需要单独的补丁。
         docs: [docs/83-x70-air-pro-onboarding.md]
-      - text: 每台手机有自己的内核产物，boot 二进制不跨机型复用；Magisk 也要在目标设备本机修补。
+      - text: 每台手机有自己的内核产物，boot 二进制不跨机型复用。Magisk 也要在目标设备本机修补。
         docs: [docs/75-image-build-separation.md]
     code:
       - packages/gki-android15-6.6/
@@ -686,18 +691,18 @@ features:
     status: live
     platform: linux
     interfaces: []
-    summary: 从干净的 ARM64 root 树和固定包集合做出 ext4 rootfs、压缩载荷、包锁和报告；不带个人数据，预装集合按清单。
+    summary: 构建器使用干净的 ARM64 root 树和固定包集合，生成 ext4 rootfs、压缩载荷、包锁和报告。镜像不含个人数据，预装集合遵循清单。
     experience:
       - id: E1
-        text: 镜像不带个人账户、密码、凭据或构建机痕迹：只有一个口令锁定的 UID 1000 模板账户，没有账户完成标记，home 里没有别的条目；违反时拒绝出镜像，报错里不出现口令哈希。
+        text: 镜像不带个人账户、密码、凭据或构建机痕迹：只有一个口令锁定的 UID 1000 模板账户，没有账户完成标记，home 里没有别的条目。违反时拒绝出镜像，报错里不出现口令哈希。
         evidence:
           - {doc: docs/83-x70-air-pro-onboarding.md, date: 2026-09-28, note: "受影响的 root 树被新检查拒绝"}
       - id: E2
-        text: 预装集合按清单：被排除的独立应用（Angelfish、Haruna、Journald Browser、KleverNotes、Marknote）不在镜像里，Emoji Selector 入口被 dpkg 排除，桌面与 Emoji 字体保留；旧树有残留时拒绝。
+        text: 预装集合按清单：被排除的独立应用（Angelfish、Haruna、Journald Browser、KleverNotes、Marknote）不在镜像里，Emoji Selector 入口被 dpkg 排除，桌面与 Emoji 字体保留。旧树有残留时拒绝。
         evidence:
           - {doc: docs/92-x70-android-base-end-to-end.md, date: 2026-09-30, note: "五个独立包未安装"}
       - id: E3
-        text: 镜像里的包安装干净：dpkg --audit、apt-get check、ext4 检查通过；APT pin 按本次 manifest 重新生成，不留旧 release 的 pin。
+        text: 镜像里的包安装干净：dpkg --audit、apt-get check、ext4 检查通过。APT pin 按本次 manifest 重新生成，不留旧 release 的 pin。
         evidence:
           - {doc: docs/93-x70-independent-image-revalidation.md, date: 2026-09-30}
           - {doc: docs/94-build-fingerprints.md, date: 2026-09-30}
@@ -708,15 +713,15 @@ features:
       - id: E5
         text: 在 x86 主机上构建 ARM64 root 树时，chroot 不继承宿主的 Python 设置和 HOME，但保留代理。
     pitfalls:
-      - text: PRoot 下 systemd 安装脚本的原子改名报 EXDEV；改用独立 user/mount namespace 的真实 chroot 加 QEMU。
+      - text: PRoot 下 systemd 安装脚本的原子改名报 EXDEV。改用独立 user/mount namespace 的真实 chroot 加 QEMU。
         docs: [docs/80-g100-image-installation-retrospective.md]
-      - text: 开发 venv 用 --system-site-packages 掩盖了包没声明的运行依赖；在干净 rootfs 里核验 dpkg --audit 和 pip check。
+      - text: 开发 venv 用 --system-site-packages 掩盖了包没声明的运行依赖。在干净 rootfs 里核验 dpkg --audit 和 pip check。
         docs: [docs/80-g100-image-installation-retrospective.md]
-      - text: 旧准备树的 /dev/null 曾被重定向写成普通文件；从清理过的 root 树开始，arm64_chroot 在私有挂载命名空间里绑定真实 /dev。
+      - text: 旧准备树的 /dev/null 曾被重定向写成普通文件。从清理过的 root 树开始，arm64_chroot 在私有挂载命名空间里绑定真实 /dev。
         docs: [docs/93-x70-independent-image-revalidation.md]
-      - text: build_rootfs_image.py 只打包已准备好的 root 树，不是包下载与全自动安装器；复用旧树前先在构建 chroot 里卸掉排除清单的包。
+      - text: build_rootfs_image.py 只打包已准备好的 root 树，不是包下载与全自动安装器。复用旧树前先在构建 chroot 里卸掉排除清单的包。
         docs: [docs/75-image-build-separation.md, .agents/skills/rungic-three-stage-image/references/tool-map.md]
-      - text: 组合 rootfs/host 的执行器要在 podman unshare 内运行，不能在其中再启动 Podman；mtime 不进缓存键，不承诺逐字节可复现。
+      - text: 组合 rootfs/host 的执行器要在 podman unshare 内运行，不能在其中再启动 Podman。mtime 不进缓存键，不承诺逐字节可复现。
         docs: [docs/94-build-fingerprints.md]
     code:
       - tools/ci/build_rootfs_image.py
@@ -744,14 +749,14 @@ features:
     status: live
     platform: android
     interfaces: [kwin-android-host]
-    summary: 交叉编译宿主原生库，和 Java 代码、资源一起打成用开发签名签好的 APK。用户是开发者和 Agent。
+    summary: 开发者和 Agent 交叉编译宿主原生库，再与 Java 代码及资源一起打包为 APK。APK 使用开发签名。
     experience:
       - id: E1
-        text: APK 带着本次编译的 ARM64 原生库一起打包，用仓库的开发签名签名并通过 apksigner 校验；只改 Java 时可以复用已装 APK 的原生库，并留下逐个库的 SHA。
+        text: APK 带着本次编译的 ARM64 原生库一起打包，用仓库的开发签名签名并通过 apksigner 校验。只改 Java 时可以复用已装 APK 的原生库，并留下逐个库的 SHA。
         evidence:
           - {doc: docs/93-x70-independent-image-revalidation.md, date: 2026-09-30, note: "APK 2.27 复用 2.26 的 JNI，native-reuse.json 记录摘要"}
     pitfalls:
-      - text: APK 与原生库必须一起构建、一起验收；只更新 APK 的结果代替不了新镜像的流程验收。
+      - text: APK 与原生库必须一起构建、一起验收。只更新 APK 的结果代替不了新镜像的流程验收。
         docs: [docs/82-first-run-ux-refactor.md]
       - text: 宿主合成器的单元测试依赖 Android（oboe、NDK），只能交叉编译后经 adb 在手机上跑。
         docs: [docs/72-kwin-android-host-isolation.md]
@@ -774,28 +779,29 @@ features:
     interfaces: []
     summary: >-
       把原厂 Android、自编 GKI、Magisk 引导和 RungicOS 种子合成一个完整刷机包，清数据一次刷入（G100 portov-20260928.5、X70 vantage-20260928.x）。
-      2026-09-30 改为三段式独立安装，旧整包已删除；AGENTS.md 要求这些工具保留给明确指定的历史复现/恢复，删除前由用户决定。
+      2026-09-30 改为三段式独立安装，旧整包已删除。
+      AGENTS.md 要求这些工具保留给明确指定的历史复现/恢复，删除前由用户决定。
     experience:
       - id: E1
         text: 整包清数据刷入后，Android 与 Magisk 初始化、Rungic 部署、账户和桌面自动完成。
         evidence:
           - {doc: docs/80-g100-image-installation-retrospective.md, date: 2026-09-28, note: "portov-20260928.5，用户确认进入 Plasma"}
       - id: E2
-        text: 电脑端刷写实时显示 fastboot 输出、阶段和分片编号；无输出超时或设备失败时停止该命令。
+        text: 电脑端刷写实时显示 fastboot 输出、阶段和分片编号。无输出超时或设备失败时停止该命令。
       - id: E3
-        text: 只接受 spec/adapter 记录的 bootloader 值和已核验的刷写计划；错固件、错 spec 或未验证的计划在写入前被拒绝。
+        text: 只接受 spec/adapter 记录的 bootloader 值和已核验的刷写计划。错固件、错 spec 或未验证的计划在写入前被拒绝。
       - id: E4
-        text: 清数据首启时早期缺少 /data/adb 只记延迟标志，Android 启动完成后准备 Magisk 运行文件并自动重启一次；已安装的 runtime 不被替换。
+        text: 清数据首启时早期缺少 /data/adb 只记延迟标志，Android 启动完成后准备 Magisk 运行文件并自动重启一次。已安装的 runtime 不被替换。
         evidence:
           - {doc: docs/79-g100-ci-execution.md, date: 2026-09-28, note: ".3 清数据首启成功"}
     pitfalls:
-      - text: 整包清数据后反复进入 Recovery，核心差异在干净首启：Magisk 31 在 /data/adb 不存在时到 boot-complete 才创建它；只换部署触发器（service.d）不够。
+      - text: 整包清数据后反复进入 Recovery，核心差异在干净首启：Magisk 31 在 /data/adb 不存在时到 boot-complete 才创建它。只换部署触发器（service.d）不够。
         docs: [docs/79-g100-ci-execution.md, docs/80-g100-image-installation-retrospective.md]
-      - text: APK 复制进 product/app 时漏了压缩的 ARM64 JNI 库（libc++_shared.so），启动即崩；pm install -r 临时修好不能代替只读镜像验收。
+      - text: APK 复制进 product/app 时漏了压缩的 ARM64 JNI 库（libc++_shared.so），启动即崩。pm install -r 临时修好不能代替只读镜像验收。
         docs: [docs/79-g100-ci-execution.md, docs/80-g100-image-installation-retrospective.md]
-      - text: Magisk 不能作为系统应用预装（v2 的教训）；离线首启要让 Magisk 自己把完整 APK 装成普通应用。
+      - text: Magisk 不能作为系统应用预装（v2 的教训）。离线首启要让 Magisk 自己把完整 APK 装成普通应用。
         docs: [docs/13-offline-magisk-user-app.md]
-      - text: Motorola bootloader 拒绝重新封装的 super.img，改走 fastbootd 的分区刷写；oem fb_mode_set 后进入 fastbootd 前要清除标志。
+      - text: Motorola bootloader 拒绝重新封装的 super.img，改走 fastbootd 的分区刷写。oem fb_mode_set 后进入 fastbootd 前要清除标志。
         docs: [docs/11-stock-install.md]
     code:
       - tools/ci/assemble_product.py
@@ -817,17 +823,17 @@ features:
     title: G100 S v3 一键完整重装包
     scenario: install.legacy-rom
     status: retired
-    keep: G100 S 是用户的日常机，v3 整包是它清数据重装的恢复手段；按 AGENTS.md 保留给恢复工作。
+    keep: G100 S 是用户的日常机，v3 整包是它清数据重装的恢复手段。按 AGENTS.md 保留给恢复工作。
     platform: android
     interfaces: []
-    summary: XT2537-4 / mumba_cn 原厂 Android 16 加精简 product 与离线 Magisk 的一键清数据重装包（差分封装，约 9.78 GB），不含 RungicOS。
+    summary: 旧一键重装包用于 XT2537-4 / mumba_cn，以清数据方式安装原厂 Android 16、精简 product 和离线 Magisk。包采用差分封装，约 9.78 GB，不含 RungicOS。
     experience:
       - id: E1
-        text: 刷写顺序固定：原厂分片 → 精简 product → Magisk init_boot → 最后清数据；任何一步失败都不清数据，错机型、锁定或新 bootloader 时不写入。
+        text: 刷写顺序固定：原厂分片 → 精简 product → Magisk init_boot → 最后清数据。任何一步失败都不清数据，错机型、锁定或新 bootloader 时不写入。
         evidence:
           - {doc: docs/14-oneclick-package.md, date: 2026-09-22, note: "16 项模拟测试；整机清数据流程只做了模拟"}
       - id: E2
-        text: 差分还原出与已验证镜像字节一致的 product；源文件损坏、越界、空间不足时在生成可刷写镜像之前停止。
+        text: 差分还原出与已验证镜像字节一致的 product。源文件损坏、越界、空间不足时在生成可刷写镜像之前停止。
     pitfalls:
       - text: 只支持该 bootloader 版本的 mumba_cn，不承担底层固件损坏救援或跨版本降级。
         docs: [docs/14-oneclick-package.md]
@@ -844,7 +850,7 @@ features:
     title: 原厂精简 product（G100 S W1WAA36）
     scenario: install.legacy-rom
     status: retired
-    keep: v3 整包与 tools/ci 的 product 组装仍用到这些工具（erofs_inventory 等）；按 AGENTS.md 保留给恢复工作。
+    keep: v3 整包与 tools/ci 的 product 组装仍用到这些工具（erofs_inventory 等）。按 AGENTS.md 保留给恢复工作。
     platform: android
     interfaces: []
     summary: 从原厂 product 删除 15 个第三方预装、保留其余文件元数据，重建 product 镜像与纯净 ROM 目录。
@@ -869,19 +875,19 @@ features:
     title: 离线 Magisk 首启（G100 S product 种子）
     scenario: install.legacy-rom
     status: retired
-    keep: v3 整包的离线 Magisk 种子由它们生成和核验；按 AGENTS.md 保留给恢复工作。
+    keep: v3 整包的离线 Magisk 种子由它们生成和核验。按 AGENTS.md 保留给恢复工作。
     platform: android
     interfaces: []
     summary: 精简 product 携带官方完整 Magisk APK 和运行文件种子，断网首启时 Magisk 自己把完整管理器装成普通应用。
     experience:
       - id: E1
-        text: 断网首启自动装上完整 Magisk 管理器（普通应用，无 UPDATED_SYSTEM_APP），env_check 为 0，root 可用；正常重启不重复安装。
+        text: 断网首启自动装上完整 Magisk 管理器（普通应用，无 UPDATED_SYSTEM_APP），env_check 为 0，root 可用。正常重启不重复安装。
         evidence:
           - {doc: docs/13-offline-magisk-user-app.md, date: 2026-09-22}
     pitfalls:
-      - text: v2 把 Magisk 放在 product/app，变成系统应用，Magisk 不支持；v2 不得发布。
+      - text: v2 把 Magisk 放在 product/app，变成系统应用，Magisk 不支持。v2 不得发布。
         docs: [docs/12-offline-magisk.md]
-      - text: 这条路径只在保留其他用户数据的状态下验证过；X70 的全清首启仍需重新验证，不能宣称 Magisk 离线就绪已完成。
+      - text: 这条路径只在保留其他用户数据的状态下验证过。X70 的全清首启仍需重新验证，不能宣称 Magisk 离线就绪已完成。
         docs: [docs/92-x70-android-base-end-to-end.md]
     code:
       - tools/install_offline_v2.py
@@ -895,7 +901,7 @@ features:
     title: 原厂手工 root 与恢复原厂（G100 S）
     scenario: install.legacy-rom
     status: retired
-    keep: 从远端原厂包取单个镜像是恢复原厂时的手段；按 AGENTS.md 保留给恢复工作。
+    keep: 从远端原厂包取单个镜像是恢复原厂时的手段。按 AGENTS.md 保留给恢复工作。
     platform: android
     interfaces: []
     summary: 早期在 G100 S 上手工修补 init_boot 取得 Magisk root、从远端原厂包取单个镜像、回到官方系统的流程与命令。
@@ -916,10 +922,10 @@ features:
     status: retired
     platform: android
     interfaces: []
-    summary: 在 G100 S 上以官方 Android 17 GSI 替换系统层（DSU 试验、永久刷入）的路线；已被原厂系统加 LXC 容器取代。
+    summary: 在 G100 S 上以官方 Android 17 GSI 替换系统层（DSU 试验、永久刷入）的路线。已被原厂系统加 LXC 容器取代。
     experience: []
     pitfalls:
-      - text: 用 GSI 的 vbmeta 覆盖原厂 vbmeta 是最伤的一次错误；这些坑只适用于那台机器和那条路线。
+      - text: 用 GSI 的 vbmeta 覆盖原厂 vbmeta 是最伤的一次错误。这些坑只适用于那台机器和那条路线。
         docs: [docs/06-pitfalls.md]
     code: []
     docs:
@@ -932,13 +938,13 @@ features:
     title: 最小 Alpine 测试容器
     scenario: install.legacy-rom
     status: retired
-    keep: lxc/rungic-lxc 仍被 tools/ci/build_host_seed.py 打进宿主种子；从种子里去掉要随下一次独立首装验证。
+    keep: lxc/rungic-lxc 仍被 tools/ci/build_host_seed.py 打进宿主种子。从种子里去掉要随下一次独立首装验证。
     platform: android
     interfaces: []
-    summary: 第一个在原厂 Android 16 上跑通的 LXC 容器（Alpine 3.22.6、BusyBox init、只有 loopback），以及 Termux 里的 lxc 快捷命令。Plasma 容器取代了它。
+    summary: 早期 LXC 容器在原厂 Android 16 上运行，使用 Alpine 3.22.6、BusyBox init 和仅有 loopback 的网络。Termux 的 lxc 命令用于管理该容器。现已由 Plasma 容器取代。
     experience: []
     pitfalls:
-      - text: lxc/rungic-lxc 仍被 tools/ci/build_host_seed.py 打进宿主种子（/data/adb/rungic-lxc/rungic-lxc），删除时要一并改掉；LXC 6.0.4 的 Alpine 宿主 runtime 本身仍在用，不能一起删。
+      - text: lxc/rungic-lxc 仍被 tools/ci/build_host_seed.py 打进宿主种子（/data/adb/rungic-lxc/rungic-lxc），删除时要一并改掉。LXC 6.0.4 的 Alpine 宿主 runtime 本身仍在用，不能一起删。
         docs: [docs/17-lxc-installation.md]
     code:
       - lxc/rungic-lxc
@@ -951,10 +957,10 @@ features:
     status: retired
     platform: android
     interfaces: []
-    summary: 为 G100 S 编的带 PID/IPC/USER namespace 的 android15-6.6 内核，以及只适用于那两个本地镜像的证书恢复脚本；现由 packages/gki-* 配方取代。
+    summary: 旧 G100 S android15-6.6 内核增加了 PID/IPC/USER namespace。配套证书恢复脚本仅适用于当时两个本地镜像。当前实现使用 packages/gki-* 配方。
     experience: []
     pitfalls:
-      - text: 旧 boot-gki-userns.img 直接用于原厂系统会缺 97 个模块、阻碍开机；恢复原厂 GKI 信任证书后 441 个模块完整加载。证书恢复脚本只适用于两个哈希固定的镜像。
+      - text: 旧 boot-gki-userns.img 直接用于原厂系统会缺 97 个模块、阻碍开机。恢复原厂 GKI 信任证书后 441 个模块完整加载。证书恢复脚本只适用于两个哈希固定的镜像。
         docs: [docs/17-lxc-installation.md, docs/75-image-build-separation.md]
     code: []
     docs:

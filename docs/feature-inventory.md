@@ -16,47 +16,47 @@
 
 #### 按住说话的语音对话
 
-`agent.voice` · Linux 系统功能 — 常驻语音服务（GPT Realtime 在前、Codex 执行）：按住说话、松手发送，助手先回应再交给 Agent 去做，并朗读结果。
+`agent.voice` · Linux 系统功能 — 常驻语音服务由 GPT Realtime 处理对话，由 Codex 执行任务。用户按住说话，松手发送。助手先回应，再将任务交给 Agent 执行，并朗读结果。
 
 经由接口：`audio`、`platform-bridge`
 
-- **E1** 一次按住只算一句话：中间停顿不会被切成几段，松手后才整句发出；按下时正在播的回答立即停下。（单元测试、人工）
+- **E1** 一次按住只算一句话：中间停顿不会被切成几段，松手后才整句发出。按下时正在播的回答立即停下。（单元测试、人工）
 - **E2** 按住时滑到 × 取消，什么都不发出，被取消的半句也不会并进下一句。（单元测试、人工）
 - **E3** 从哪块屏发起，回复就从哪里播放：手机上发起在手机本机（耳机优先，否则扬声器），电视上发起在电视。（单元测试、人工；只能在手机上看：手机本机里耳机优先还是扬声器、电视那一路由 Android 的音频路由决定，系统测试只能核对 Linux 选了哪个 sink，声音实际从哪里出来要在手机上听）
 - **E4** 回复连续播放，不快进、不卡顿、不丢句。（单元测试、人工；只能在手机上看：回复是否连续、不快进、不卡顿取决于 PulseAudio 到 Android 音频桥的缓冲与时序，只有手机上实际播出的声音能判断）
 - **E5** 点“停止”立即停播并中止当前任务，任务显示“已停止”，之后不再播出残句。（单元测试、人工）
-- **E6** 关闭“朗读回答”后不播语音回复；点某条回答的“朗读”只出声，不多出一条消息、不写进记录。（单元测试、人工）
-- **E7** 按住说话、发文字和朗读总是作用在用户正在看的对话上；用浮层说过话再回到 App 说话，不会进到别的对话。（单元测试、人工）
-- **E8** 没配 OpenAI API Key 时只有语音不可用并提示去配置，打字照常；没装 Codex 时服务不退出，对话里提示先安装。（单元测试）
+- **E6** 关闭“朗读回答”后不播语音回复。点某条回答的“朗读”只出声，不多出一条消息、不写进记录。（单元测试、人工）
+- **E7** 按住说话、发文字和朗读总是作用在用户正在看的对话上。用浮层说过话再回到 App 说话，不会进到别的对话。（单元测试、人工）
+- **E8** 没配 OpenAI API Key 时只有语音不可用并提示去配置，打字照常。没装 Codex 时服务不退出，对话里提示先安装。（单元测试）
 
 注意：
-- Codex 的实时会话固定用服务端 VAD（静音 500 ms 即结束一轮），app-server 不提供修改或手动提交的接口；所以按住期间先存本地、松手后整段上传并补 900 ms 静音。 [docs/59-voice-agent.md](../docs/59-voice-agent.md) [docs/87-agent-app-redesign.md](../docs/87-agent-app-redesign.md)
-- Codex 用 WebSocket 连实时语音时只接受 API Key（ChatGPT 登录也要另配 Key）；WebRTC 走 UDP，用户的 HTTP 代理转发不了。 [docs/59-voice-agent.md](../docs/59-voice-agent.md) [docs/101-codex-sign-in-and-api-key.md](../docs/101-codex-sign-in-and-api-key.md)
-- 语音模型的指令要经 thread/realtime/start 的 prompt 传入；realtimeStartInstructions 只进 Agent 上下文。 [docs/59-voice-agent.md](../docs/59-voice-agent.md)
+- Codex 的实时会话固定用服务端 VAD（静音 500 ms 即结束一轮），app-server 不提供修改或手动提交的接口。所以按住期间先存本地、松手后整段上传并补 900 ms 静音。 [docs/59-voice-agent.md](../docs/59-voice-agent.md) [docs/87-agent-app-redesign.md](../docs/87-agent-app-redesign.md)
+- Codex 用 WebSocket 连实时语音时只接受 API Key（ChatGPT 登录也要另配 Key）。WebRTC 走 UDP，用户的 HTTP 代理转发不了。 [docs/59-voice-agent.md](../docs/59-voice-agent.md) [docs/101-codex-sign-in-and-api-key.md](../docs/101-codex-sign-in-and-api-key.md)
+- 语音模型的指令要经 thread/realtime/start 的 prompt 传入。realtimeStartInstructions 只进 Agent 上下文。 [docs/59-voice-agent.md](../docs/59-voice-agent.md)
 - 用手机扬声器外放合成语音再由手机麦克风录入的自测不成立：Android 采集带回声消除，会把本机播放的声音抵消掉。 [docs/59-voice-agent.md](../docs/59-voice-agent.md)
-- 投屏时音量键调的是电视那一路；手机扬声器的媒体音量要在未投屏时调。输入转写常为繁体，显示时转简体。 [docs/59-voice-agent.md](../docs/59-voice-agent.md)
-- 实时模型对“情绪不增加话语”这类规则执行得不严格；语气未经人耳评估。 [docs/59-voice-agent.md](../docs/59-voice-agent.md)
+- 投屏时音量键调的是电视那一路。手机扬声器的媒体音量要在未投屏时调。输入转写常为繁体，显示时转简体。 [docs/59-voice-agent.md](../docs/59-voice-agent.md)
+- 实时模型对“情绪不增加话语”这类规则执行得不严格。语气未经人耳评估。 [docs/59-voice-agent.md](../docs/59-voice-agent.md)
 
 文档：[docs/59-voice-agent.md](../docs/59-voice-agent.md)、[docs/87-agent-app-redesign.md](../docs/87-agent-app-redesign.md)、[docs/89-agent-progress.md](../docs/89-agent-progress.md)、[docs/agent-ready-interfaces.md](../docs/agent-ready-interfaces.md)
 
 #### 长按 Home 呼出语音助手
 
-`agent.home-hold` · Linux 系统功能 — 在导航栏 Home 上按住即开始说话，松手发送；浮层显示聆听、识别、处理中和回答，始终在同一个“语音助手”对话里。
+`agent.home-hold` · Linux 系统功能 — 用户按住导航栏 Home 开始说话，松手发送。浮层显示聆听、识别、处理和回答状态。消息始终进入同一个“语音助手”对话。
 
-- **E1** 在 Home 上按住约 400 ms 呼出浮层并开始听，松手即发送；长按不再触发回主屏，浮层出现在按下 Home 的那块屏上。（单元测试、系统测试、人工）
+- **E1** 在 Home 上按住约 400 ms 呼出浮层并开始听，松手即发送。长按不再触发回主屏，浮层出现在按下 Home 的那块屏上。（单元测试、系统测试、人工）
 - **E2** 按住后没说话就松手，转为免提继续听：说完自动发送，8 秒没听到说话就取消，什么都不发送。（单元测试、人工）
-- **E3** 点浮层外、下滑或单击 Home 收起浮层：正在听的这句丢弃、正在播的停下；Agent 的工作继续，完成后浮层自动弹出结果（不开麦克风）。（单元测试、人工）
-- **E4** 按下后不必等连接：服务和浮层常驻预热，按下约 0.1 s 内开始录音，实时连接在后台建立，期间的录音按顺序补发。（人工；只能在手机上看：按下到开始录音的时延取决于手机上 Android 麦克风经 PulseAudio 的采集链路和 CPU 调度，无头系统里没有这条采集链路，测不出 0.1 s；浮层常驻不显示由 tools/system/tests/assistant_app.py 检查）
+- **E3** 点浮层外、下滑或单击 Home 收起浮层：正在听的这句丢弃、正在播的停下。Agent 的工作继续，完成后浮层自动弹出结果（不开麦克风）。（单元测试、人工）
+- **E4** 按下后不必等连接：服务和浮层常驻预热，按下约 0.1 s 内开始录音，实时连接在后台建立，期间的录音按顺序补发。（人工；只能在手机上看：按下到开始录音的时延取决于手机上 Android 麦克风经 PulseAudio 的采集链路和 CPU 调度，无头系统里没有这条采集链路，测不出 0.1 s。浮层常驻不显示由 tools/system/tests/assistant_app.py 检查）
 - **E5** 一次按住超过 60 秒视为松开事件丢失：关闭浮层、取消录音，已说的内容不发送，麦克风不会一直开着。（单元测试）
-- **E6** 在设置里关闭“长按 Home 呼出”后，长按 Home 不再呼出浮层；浮层跟随应用的主题设置。（单元测试）
+- **E6** 在设置里关闭“长按 Home 呼出”后，长按 Home 不再呼出浮层。浮层跟随应用的主题设置。（单元测试）
 - **E7** 会话启动时浮层等 plasmashell 在总线上就绪再启动，熄屏时 plasmashell 起得慢也不会启动失败。（单元测试、人工）
-- **E8** 浮层只在显示期间加载 KWin 的模糊和对比度特效，隐藏后卸载；用户自己加载的不动。（系统测试、人工）
+- **E8** 浮层只在显示期间加载 KWin 的模糊和对比度特效，隐藏后卸载。用户自己加载的不动。（系统测试、人工）
 
 注意：
-- Plasma Mobile 的导航栏按钮原本没有长按，全局快捷键也只有“按下”没有“松开”；长按与松开经补丁里的 holdable 按钮和明确的 D-Bus Hold 接口传给浮层。 [docs/67-home-assistant.md](../docs/67-home-assistant.md)
+- Plasma Mobile 的导航栏按钮原本没有长按，全局快捷键也只有“按下”没有“松开”。长按与松开经补丁里的 holdable 按钮和明确的 D-Bus Hold 接口传给浮层。 [docs/67-home-assistant.md](../docs/67-home-assistant.md)
 - 手势导航模式没有 Home 按钮、电视（docked）没有导航栏，这两种情况下目前没有长按入口。 [docs/67-home-assistant.md](../docs/67-home-assistant.md)
-- 服务先发 listen-cancelled 再发状态变化，浮层曾把后者当成“说完等回复”而误显示“正在处理”；浮层改为按视图（listen、sending、work、answer）显式切换。 [docs/87-agent-app-redesign.md](../docs/87-agent-app-redesign.md)
-- 光效用 layer 反而让帧数翻倍；聆听时 GPU 约 70%，其中模糊约占一半。 [docs/67-home-assistant.md](../docs/67-home-assistant.md)
+- 服务先发 listen-cancelled 再发状态变化，浮层曾把后者当成“说完等回复”而误显示“正在处理”。浮层改为按视图（listen、sending、work、answer）显式切换。 [docs/87-agent-app-redesign.md](../docs/87-agent-app-redesign.md)
+- 光效用 layer 反而让帧数翻倍。聆听时 GPU 约 70%，其中模糊约占一半。 [docs/67-home-assistant.md](../docs/67-home-assistant.md)
 
 文档：[docs/67-home-assistant.md](../docs/67-home-assistant.md)、[docs/87-agent-app-redesign.md](../docs/87-agent-app-redesign.md)
 
@@ -64,63 +64,63 @@
 
 `agent.chat-app` · Linux 系统功能 — 聊天式的 Agent 应用：侧边栏按日期分组的对话、新对话的建议、打字和语音输入、折叠的工作卡片、复制和朗读、设置。
 
-- **E1** 点开一段对话立即显示内容，不等 Codex 恢复线程；超过 150 ms 才显示“正在打开…”，空对话界面只在确实没有内容时出现。（单元测试、人工）
-- **E2** 往上翻历史时视图停在拖到的位置，不跳回底部，不拉出空白、不闪动；离开底部后出现“回到最新”。（单元测试、人工）
+- **E1** 点开一段对话立即显示内容，不等 Codex 恢复线程。超过 150 ms 才显示“正在打开…”，空对话界面只在确实没有内容时出现。（单元测试、人工）
+- **E2** 往上翻历史时视图停在拖到的位置，不跳回底部，不拉出空白、不闪动。离开底部后出现“回到最新”。（单元测试、人工）
 - **E3** 应用静止时不重画（0 帧），看不见的动画不让窗口空转。（单元测试、人工）
-- **E4** 一轮工作折叠成一张卡：运行中显示“正在处理 · N 秒”和当前步骤，完成后是可展开的“已处理 N 步 · 用时 N 秒”；显示过的条目不会再被移走；回答下有复制和朗读。（单元测试、人工）
+- **E4** 一轮工作折叠成一张卡：运行中显示“正在处理 · N 秒”和当前步骤，完成后是可展开的“已处理 N 步 · 用时 N 秒”。显示过的条目不会再被移走。回答下有复制和朗读。（单元测试、人工）
 - **E5** 语音服务重启或崩溃后，应用自动重开当前对话，原来卡在“正在处理”的回合标为已结束，不一直计时。（单元测试、人工）
 - **E6** 应用是单实例：再次启动（浮层“在应用中查看”、通知、桌面卡片）把要打开的对话交给已运行的窗口并带到前台，不重开实时连接。（单元测试、系统测试、人工）
-- **E7** 状态栏和导航栏与应用同色；切换浅色、深色或跟随系统时，应用、面板和浮层同时变，重启后保留。（单元测试、人工）
+- **E7** 状态栏和导航栏与应用同色。切换浅色、深色或跟随系统时，应用、面板和浮层同时变，重启后保留。（单元测试、人工）
 - **E8** 应用打开时不会卡死：附件面板的照片网格无论有几张照片都能完成布局，空闲时 CPU 为 0。（单元测试、人工）
-- **E9** 侧边栏可以搜索对话、新建、按日分组（今天、昨天、M月D日、更早）、长按删除；删除对话同时归档它的 Codex 线程。（单元测试）
+- **E9** 侧边栏可以搜索对话、新建、按日分组（今天、昨天、M月D日、更早）、长按删除。删除对话同时归档它的 Codex 线程。（单元测试）
 
 注意：
-- 可交互的 ScrollBar 会把 0–1 的位置写回列表，越界时把内容一下拉回边界；触屏上用只显示的 ScrollIndicator。 [docs/59-voice-agent.md](../docs/59-voice-agent.md)
+- 可交互的 ScrollBar 会把 0–1 的位置写回列表，越界时把内容一下拉回边界。触屏上用只显示的 ScrollIndicator。 [docs/59-voice-agent.md](../docs/59-voice-agent.md)
 - 定位器（Row/Column/Grid/Flow）里子项的尺寸不能依赖定位器自身的宽高，否则布局不收敛、主线程满载。 [docs/87-agent-app-redesign.md](../docs/87-agent-app-redesign.md)
-- Codex app-server 逐个处理请求，快速连点多个对话时恢复会排队；界面不等它，所以不再被挡住。 [docs/59-voice-agent.md](../docs/59-voice-agent.md)
-- 部署工具不会自动重启已打开的应用；离屏 software 后端不绘制 MultiEffect，带图的状态只能在真实屏幕上核对。 [docs/87-agent-app-redesign.md](../docs/87-agent-app-redesign.md)
+- Codex app-server 逐个处理请求，快速连点多个对话时恢复会排队。界面不等它，所以不再被挡住。 [docs/59-voice-agent.md](../docs/59-voice-agent.md)
+- 部署工具不会自动重启已打开的应用。离屏 software 后端不绘制 MultiEffect，带图的状态只能在真实屏幕上核对。 [docs/87-agent-app-redesign.md](../docs/87-agent-app-redesign.md)
 - 宽屏分栏、附件缩略图的圆角裁切、长 GIF 的资源占用尚未验收。 [docs/87-agent-app-redesign.md](../docs/87-agent-app-redesign.md) [docs/88-agent-visible-work.md](../docs/88-agent-visible-work.md)
 
 文档：[docs/59-voice-agent.md](../docs/59-voice-agent.md)、[docs/87-agent-app-redesign.md](../docs/87-agent-app-redesign.md)、[docs/67-home-assistant.md](../docs/67-home-assistant.md)
 
 #### 对话里的图片、文件和附件
 
-`agent.attachments` · Linux 系统功能 — Agent 回答里的图片直接显示、文件以卡片出现；用户可以发照片、文件和视频，动图会动，视频抽帧给 Agent 看。
+`agent.attachments` · Linux 系统功能 — 对话直接显示 Agent 回答中的图片，以卡片显示文件。用户可以发送照片、文件和视频。界面播放动图，并从视频中抽帧供 Agent 查看。
 
-- **E1** Agent 回答里的本机图片显示在这一轮下方（语音朗读过的回合也显示），其他本机文件显示为文件卡片；点图片看大图，正文里没有加载失败的空图。（单元测试、人工）
-- **E2** GIF 和动态 WebP 在对话、大图和预览里会动；小图不被放大，看不见时暂停。（单元测试、人工）
-- **E3** 用户可以发照片和文件：图片作为图片交给 Agent，其他文件给出路径由 Agent 自己读；带图发送后 Agent 能描述图片内容，气泡上方显示缩略图。（单元测试、人工）
-- **E4** 视频和动图附件先抽 2–8 帧（约每 2 秒一帧，长边不超过 1024）随消息交给 Agent，并写明时长、尺寸和有无声音；没有 ffmpeg 或读不出时只附路径；用户消息先显示，不等抽帧。（单元测试、人工）
-- **E5** 打开附件面板时键盘收起，面板占据键盘原来的位置；最近照片取自“图片”目录，4 列显示。（单元测试、人工）
+- **E1** Agent 回答里的本机图片显示在这一轮下方（语音朗读过的回合也显示），其他本机文件显示为文件卡片。点图片看大图，正文里没有加载失败的空图。（单元测试、人工）
+- **E2** GIF 和动态 WebP 在对话、大图和预览里会动。小图不被放大，看不见时暂停。（单元测试、人工）
+- **E3** 用户可以发照片和文件：图片作为图片交给 Agent，其他文件给出路径由 Agent 自己读。带图发送后 Agent 能描述图片内容，气泡上方显示缩略图。（单元测试、人工）
+- **E4** 视频和动图附件先抽 2–8 帧（约每 2 秒一帧，长边不超过 1024）随消息交给 Agent，并写明时长、尺寸和有无声音。没有 ffmpeg 或读不出时只附路径。用户消息先显示，不等抽帧。（单元测试、人工）
+- **E5** 打开附件面板时键盘收起，面板占据键盘原来的位置。最近照片取自“图片”目录，4 列显示。（单元测试、人工）
 
 注意：
-- Markdown 文本控件按应用自己的 qrc 基址解析裸路径；本机图片要改写为 file:// 才加载得出来。 [docs/88-agent-visible-work.md](../docs/88-agent-visible-work.md)
+- Markdown 文本控件按应用自己的 qrc 基址解析裸路径。本机图片要改写为 file:// 才加载得出来。 [docs/88-agent-visible-work.md](../docs/88-agent-visible-work.md)
 - Codex 只收静态图（GIF 只取第一帧，动态 WebP 原样发出），所以动图和视频由我们抽帧。 [docs/88-agent-visible-work.md](../docs/88-agent-visible-work.md)
-- 容器的 Qt 图片插件原本没有 WebP，所有 Qt 应用都打不开 WebP；rungic-design 依赖 qt6-image-formats-plugins。 [docs/88-agent-visible-work.md](../docs/88-agent-visible-work.md)
-- AnimatedImage 在界面线程同步打开本地文件、会拉伸 GIF，不能直接替换 Image；视频在对话里还只显示为文件卡片；“拍照”因没有相机入口而隐藏。 [docs/88-agent-visible-work.md](../docs/88-agent-visible-work.md) [docs/87-agent-app-redesign.md](../docs/87-agent-app-redesign.md)
+- 容器的 Qt 图片插件原本没有 WebP，所有 Qt 应用都打不开 WebP。rungic-design 依赖 qt6-image-formats-plugins。 [docs/88-agent-visible-work.md](../docs/88-agent-visible-work.md)
+- AnimatedImage 在界面线程同步打开本地文件、会拉伸 GIF，不能直接替换 Image。视频在对话里还只显示为文件卡片。“拍照”因没有相机入口而隐藏。 [docs/88-agent-visible-work.md](../docs/88-agent-visible-work.md) [docs/87-agent-app-redesign.md](../docs/87-agent-app-redesign.md)
 
 文档：[docs/88-agent-visible-work.md](../docs/88-agent-visible-work.md)、[docs/87-agent-app-redesign.md](../docs/87-agent-app-redesign.md)
 
 #### 任务进度：计划、任务卡和语音汇报
 
-`agent.progress` · Linux 系统功能 — Agent 干活时屏幕上详细、连续地显示计划和当前步骤，语音只在里程碑处说一句，并按用户是否在看调节频率。
+`agent.progress` · Linux 系统功能 — Agent 执行任务时，屏幕持续显示详细计划和当前步骤。语音只在里程碑处简短汇报，并根据用户是否正在观看调整频率。
 
 经由接口：`platform-bridge`
 
-- **E1** 多步任务一开始列出 2–6 步计划，步骤状态随进度更新；回合结束后计划、改动的文件和步骤保存在记录里，展开“已处理 N 步”可以看到。（单元测试、人工）
+- **E1** 多步任务一开始列出 2–6 步计划，步骤状态随进度更新。回合结束后计划、改动的文件和步骤保存在记录里，展开“已处理 N 步”可以看到。（单元测试、人工）
 - **E2** 命令显示为人话（“读取 x.py”“在后台运行 Blender（make_donut.py）”），运行中的命令显示最后一行输出，只认明确的进度（百分比、x/y）。（单元测试）
-- **E3** 语音按事件汇报：报一次计划、进入下一步说一句、单步很久才报进展；有人在看时间隔更长；超过 90 秒只道歉一次；不再每隔几十秒说“还在处理”。（单元测试、人工）
+- **E3** 语音按事件汇报：报一次计划、进入下一步说一句、单步很久才报进展。有人在看时间隔更长。超过 90 秒只道歉一次。不再每隔几十秒说“还在处理”。（单元测试、人工）
 - **E4** 语音不把打算说成已做：交给语音的事实分成已完成、进行中、接下来打算，进度消息注明不是用户说的话。（单元测试、人工）
-- **E5** Agent 在屏幕上操作时，字幕作为“在助理屏上：…”交给语音转述；回合结束时仍显示“进行中”的字幕改为完成。（单元测试）
+- **E5** Agent 在屏幕上操作时，字幕作为“在助理屏上：…”交给语音转述。回合结束时仍显示“进行中”的字幕改为完成。（单元测试）
 - **E6** 任务卡的实时预览图只来自这一轮产生的图片。（单元测试）
 - **E7** 中文桌面上，任务卡上的步骤和说明是中文。（单元测试）
 - **E8** 服务端把一轮改派给别的模型时，任务卡注明“改由 X 继续（原为 Y）”。（缺口：实机上还没发生过改派，无法构造）
 
 注意：
 - Codex 的 update_plan 默认关闭，要在线程配置里开 tools.update_plan.enabled。 [docs/89-agent-progress.md](../docs/89-agent-progress.md)
-- Codex 自己会把 agentMessage 旁白以 [BACKEND] 消息交给实时语音；服务再转述一次，同一句就说两遍。 [docs/89-agent-progress.md](../docs/89-agent-progress.md)
-- 是否在看要同时看应用窗口是否激活和平台桥 status 的 foreground；熄屏或回到 Android 桌面时为 false。平台桥不答时要按“没人在看”处理。 [docs/89-agent-progress.md](../docs/89-agent-progress.md) [docs/research/97-headless-agent-work.md](../docs/research/97-headless-agent-work.md)
-- 一轮 Blender 任务约 128 秒，约 100 秒花在模型往返和逐字写代码上，Blender 本身约 25 秒；提速靠高层积木库和写进技能的稳定事实（调研，未实施）。 [docs/research/92-agent-task-speed.md](../docs/research/92-agent-task-speed.md)
+- Codex 自己会把 agentMessage 旁白以 [BACKEND] 消息交给实时语音。服务再转述一次，同一句就说两遍。 [docs/89-agent-progress.md](../docs/89-agent-progress.md)
+- 是否在看要同时看应用窗口是否激活和平台桥 status 的 foreground。熄屏或回到 Android 桌面时为 false。平台桥不答时要按“没人在看”处理。 [docs/89-agent-progress.md](../docs/89-agent-progress.md) [docs/research/97-headless-agent-work.md](../docs/research/97-headless-agent-work.md)
+- 一轮 Blender 任务约 128 秒，约 100 秒花在模型往返和逐字写代码上，Blender 本身约 25 秒。提速靠高层积木库和写进技能的稳定事实（调研，未实施）。 [docs/research/92-agent-task-speed.md](../docs/research/92-agent-task-speed.md)
 
 文档：[docs/89-agent-progress.md](../docs/89-agent-progress.md)、[docs/88-agent-visible-work.md](../docs/88-agent-visible-work.md)、[docs/research/92-agent-task-speed.md](../docs/research/92-agent-task-speed.md)
 
@@ -130,30 +130,30 @@
 
 经由接口：`communication-audio`、`platform-bridge`
 
-- **E1** Agent 的回合开始、结束不会影响电话会话；协调器意外退出后，下一次使用时自动恢复，不需要用户重开应用。（单元测试）
-- **E2** 只读任务不能调用任何可能改动外部的 MCP 工具；可写任务独占自己的工具进程。（单元测试）
-- **E3** 用户开口就停止播报，已有任务继续；只有明确的停止请求或任务卡片的停止按钮才取消任务，取消显示“正在停止”，直到 Codex 真的停下才显示已停止。（单元测试、人工）
-- **E4** 挂断、Plasma 被遮住、音频或网络断开时关闭话音连接，任务继续执行；返回后不自动恢复，要再点“和 Agent 通话”。（单元测试、人工）
-- **E5** 只按完整的最终转写开始任务：同一句话最多开始一个任务，句中停顿不提前执行，连接就绪前说了一半的话要求重说；执行器拿到的是转写原文，不是模型改写的话。（单元测试、人工）
-- **E6** 任务需要用户回答时，问题出现在任务卡上，必须由用户回答，不自动选默认；答案只能回到提问的那个任务，已停止的任务不会被迟到的问题复活。（单元测试）
-- **E7** 任务和它的历史留在发起它的对话里；一句更正只送到一个任务，目标不明确时先问。（单元测试）
-- **E8** 静音关闭物理麦克风、播放继续；挂断后通话音频和麦克风都释放。（单元测试、人工）
+- **E1** Agent 的回合开始、结束不会影响电话会话。协调器意外退出后，下一次使用时自动恢复，不需要用户重开应用。（单元测试）
+- **E2** 只读任务不能调用任何可能改动外部的 MCP 工具。可写任务独占自己的工具进程。（单元测试）
+- **E3** 用户开口就停止播报，已有任务继续。只有明确的停止请求或任务卡片的停止按钮才取消任务，取消显示“正在停止”，直到 Codex 真的停下才显示已停止。（单元测试、人工）
+- **E4** 挂断、Plasma 被遮住、音频或网络断开时关闭话音连接，任务继续执行。返回后不自动恢复，要再点“和 Agent 通话”。（单元测试、人工）
+- **E5** 只按完整的最终转写开始任务：同一句话最多开始一个任务，句中停顿不提前执行，连接就绪前说了一半的话要求重说。执行器拿到的是转写原文，不是模型改写的话。（单元测试、人工）
+- **E6** 任务需要用户回答时，问题出现在任务卡上，必须由用户回答，不自动选默认。答案只能回到提问的那个任务，已停止的任务不会被迟到的问题复活。（单元测试）
+- **E7** 任务和它的历史留在发起它的对话里。一句更正只送到一个任务，目标不明确时先问。（单元测试）
+- **E8** 静音关闭物理麦克风、播放继续。挂断后通话音频和麦克风都释放。（单元测试、人工）
 - **E9** 有效语音到播报静音 P95 不超过 200 ms，完整话语到首音 P95 不超过 2.5 s（兜底 4 s），意图路由大样本不低于 95%，可连续进行 30 分钟。（缺口：只有小样本云端探针和传输层测试，未做声学实测、大样本和 30 分钟真人对话）
-- **E10** 停止任务或撤销它的工具租约时，只结束这个任务的工具进程组（包括忽略 SIGTERM 的后代和工具进程意外退出后留下的），用户自己运行的应用不受影响；没有租约的工具调用被拒绝。（单元测试）
+- **E10** 停止任务或撤销它的工具租约时，只结束这个任务的工具进程组（包括忽略 SIGTERM 的后代和工具进程意外退出后留下的），用户自己运行的应用不受影响。没有租约的工具调用被拒绝。（单元测试）
 - **E11** 按用户实际说的语言识别和回答，不强制用桌面界面的语言。（单元测试）
 - **E12** 服务重启后不重放排队中或做到一半的任务，按后端的实际状态恢复显示（标为已中断）。（单元测试）
-- **E13** 对话顶栏的电话按钮在当前对话里开始通话，对话列表的“和 Agent 通话”新开一段对话再开始；不能开始时（Agent 正在替你打电话、另一段对话在通话）按钮显示为不可用，点一下说明原因。（单元测试）
-- **E14** 通话中顶栏下方的通话条按“正在连接、等你回答、正在回答、正在听、正在处理、麦克风已关、通话中”显示当前状态和通话时长，可静音、挂断，点开是通话面板（打断、这次通话的任务及其状态、去回答）；通话在别的对话时显示“前往”；重新打开应用后按会话快照恢复。（单元测试）
+- **E13** 对话顶栏的电话按钮在当前对话里开始通话，对话列表的“和 Agent 通话”新开一段对话再开始。不能开始时（Agent 正在替你打电话、另一段对话在通话）按钮显示为不可用，点一下说明原因。（单元测试）
+- **E14** 顶栏下方的通话条显示当前状态和通话时长。状态包括“正在连接、等你回答、正在回答、正在听、正在处理、麦克风已关、通话中”。用户可以静音、挂断或打开通话面板。面板提供打断、通话任务及状态和“去回答”。通话属于其他对话时，通话条显示“前往”。重新打开应用时，界面根据会话快照恢复。（单元测试）
 - **E15** 通话结束在对话里留下摘要：时长、这次通话发起和完成的任务数，有任务在等回答时可直接去回答，也可以再打给它。（单元测试）
-- **E16** Agent 说话连贯不卡：回复的声音按 Android 实际播放的进度送出，Android 不因等数据而停顿；停顿之后不会把空档补成一阵突发。（单元测试、系统测试、人工）
+- **E16** Agent 说话连贯不卡：回复的声音按 Android 实际播放的进度送出，Android 不因等数据而停顿。停顿之后不会把空档补成一阵突发。（单元测试、系统测试、人工）
 
 注意：
 - 发给协调器的每条指令都必须带 id，否则回复不带 id，曾让读取线程退出并杀掉协调器。 [docs/101-full-duplex-phone-mode.md](../docs/101-full-duplex-phone-mode.md)
-- Codex app-server 的 Realtime 封装把任务入口固定为 background_agent/remain_silent，VAD 也由它内部设置；所以电话模式直接连同一个 Realtime 模型，按住说话仍用原封装。 [docs/101-full-duplex-phone-mode.md](../docs/101-full-duplex-phone-mode.md)
+- Codex app-server 的 Realtime 封装把任务入口固定为 background_agent/remain_silent，VAD 也由它内部设置。所以电话模式直接连同一个 Realtime 模型，按住说话仍用原封装。 [docs/101-full-duplex-phone-mode.md](../docs/101-full-duplex-phone-mode.md)
 - semantic VAD 可能延迟很久，改为等本地静默和完整最终转写，2 秒仍未提交时手动 commit。 [docs/101-full-duplex-phone-mode.md](../docs/101-full-duplex-phone-mode.md)
 - 播放游标读取不等于“用户听到了什么”，截断位置仍有边界误差，必须声学实测。 [docs/101-full-duplex-phone-mode.md](../docs/101-full-duplex-phone-mode.md)
-- G100 的 Home 键返回同一个入口，不能用它测试“隐藏”；2026-10-03 的协调器修复尚未部署。 [docs/101-full-duplex-phone-mode.md](../docs/101-full-duplex-phone-mode.md)
-- 断线直接结束通话（不重连），所以通话条的“正在重新连接”状态目前不会出现；对话列表也还没有通话中的标记。 [docs/101-full-duplex-phone-mode.md](../docs/101-full-duplex-phone-mode.md)
+- G100 的 Home 键返回同一个入口，不能用它测试“隐藏”。2026-10-03 的协调器修复尚未部署。 [docs/101-full-duplex-phone-mode.md](../docs/101-full-duplex-phone-mode.md)
+- 断线直接结束通话（不重连），所以通话条的“正在重新连接”状态目前不会出现。对话列表也还没有通话中的标记。 [docs/101-full-duplex-phone-mode.md](../docs/101-full-duplex-phone-mode.md)
 
 文档：[docs/101-full-duplex-phone-mode.md](../docs/101-full-duplex-phone-mode.md)
 
@@ -163,177 +163,177 @@ Agent 在自己的工作区（或用户指定的桌面）上打开应用、看�
 
 #### Agent 看画面操作桌面应用
 
-`agent.computer-use` · Linux 系统功能 — 默认由 Codex 用当前模型和登录看截图操作桌面；Luna API 可显式选择，输入和窗口管理复用 KWin 与标准门户。
+`agent.computer-use` · Linux 系统功能 — Codex 默认使用当前模型和登录凭据，根据截图操作桌面。用户可以显式选择 Luna API。输入和窗口管理复用 KWin 与标准门户。
 
-- **E1** Agent 能点击、双击、拖动、滚动、按键和输入任何语言的文字来操作图形应用；应用收到的是普通的键盘鼠标事件，Plasma 在后台时也能输入。（系统测试、人工；只能在手机上看：任何语言的文字靠 KWin 的 commitText 提交，这是 Rungic 的 KWin 补丁（virtualkeyboard-commit-text），系统测试容器里是 Ubuntu 原版 KWin，只测了按键和指针；“Plasma 在后台”指 Android 前台是别的应用，只有手机能造出）
-- **E2** 截图只截任务所在的窗口（连同它的弹出菜单和对话框），范围变化时用一句话告诉模型；点击坐标误差约 1 像素。（单元测试、系统测试、人工；只能在手机上看：截图的像素由 KWin 的 ScreenShot2 渲染，需要 OpenGL 合成；系统测试容器没有 GPU 渲染节点，KWin 退回 QPainter，截图被取消，真实画面和点击误差只能在手机上看）
-- **E3** 默认 Codex 用 desktop_screenshot 和 desktop_act 逐步操作并核验结果；API 备选保留 desktop_goal 的完成、提问、失败和中止。（单元测试、系统测试、人工）
+- **E1** Agent 能点击、双击、拖动、滚动、按键和输入任何语言的文字来操作图形应用。应用收到的是普通的键盘鼠标事件，Plasma 在后台时也能输入。（系统测试、人工；只能在手机上看：任何语言的文字靠 KWin 的 commitText 提交，这是 Rungic 的 KWin 补丁（virtualkeyboard-commit-text），系统测试容器里是 Ubuntu 原版 KWin，只测了按键和指针。“Plasma 在后台”指 Android 前台是别的应用，只有手机能造出）
+- **E2** 截图只截任务所在的窗口（连同它的弹出菜单和对话框），范围变化时用一句话告诉模型。点击坐标误差约 1 像素。（单元测试、系统测试、人工；只能在手机上看：截图的像素由 KWin 的 ScreenShot2 渲染，需要 OpenGL 合成。系统测试容器没有 GPU 渲染节点，KWin 退回 QPainter，截图被取消，真实画面和点击误差只能在手机上看）
+- **E3** 默认 Codex 用 desktop_screenshot 和 desktop_act 逐步操作并核验结果。API 备选保留 desktop_goal 的完成、提问、失败和中止。（单元测试、系统测试、人工）
 - **E4** 程序被一个看不见的对话框挡住时（门户的“另存为”没有回来），工具结果直接说明，Agent 不会一直点菜单。（单元测试、人工）
-- **E5** 窗口的关闭、最小化、最大化和移屏由窗口管理器完成（desktop_window），一次关上；应用要询问保存时返回 still_open。（系统测试、人工）
-- **E6** desktop_launch 按桌面文件 id 或任何语言的名称启动应用，返回已激活的窗口；已开的不重复启动；应用在自己的 scope 里，语音服务重启不会把它一起结束。（单元测试、系统测试、人工）
+- **E5** 窗口的关闭、最小化、最大化和移屏由窗口管理器完成（desktop_window），一次关上。应用要询问保存时返回 still_open。（系统测试、人工）
+- **E6** desktop_launch 按桌面文件 id 或任何语言的名称启动应用，返回已激活的窗口。已开的不重复启动。应用在自己的 scope 里，语音服务重启不会把它一起结束。（单元测试、系统测试、人工）
 - **E7** 即使 Codex 给 MCP 的环境很精简，工具也从 systemd 取图形会话的环境，Firefox 这类应用照样能启动。（单元测试、人工）
-- **E8** 桌面操作默认沿用 Codex 的登录和模型，不隐式调用独立视觉 API；显式 API 备选保留，已有模式选择不被覆盖。（单元测试、系统测试、人工）
+- **E8** 桌面操作默认沿用 Codex 的登录和模型，不隐式调用独立视觉 API。显式 API 备选保留，已有模式选择不被覆盖。（单元测试、系统测试、人工）
 - **E9** 当前任务或通话未结束时拒绝切换桌面操作方式，保持原模式和工作状态。（单元测试、人工）
 
 注意：
-- Codex 的命令沙箱连不上 D-Bus 和 Wayland，桌面操作必须做成沙箱外的 MCP 服务；没有注解的 MCP 工具每次都要审批，只读工具要标 readOnlyHint。 [docs/60-computer-use.md](../docs/60-computer-use.md)
-- 弹出菜单和对话框在 Wayland 下是独立窗口，CaptureWindow 不包括它们；CaptureArea 按最高缩放（手机 3 倍）出图，要缩回目标屏的缩放，否则 token 多近三倍。 [docs/68-luna-computer-use.md](../docs/68-luna-computer-use.md)
-- 续接对话后接口只接受 computer_call_output 回传的图片；函数调用只回文字，由模型再请求截图。 [docs/68-luna-computer-use.md](../docs/68-luna-computer-use.md)
+- Codex 的命令沙箱连不上 D-Bus 和 Wayland，桌面操作必须做成沙箱外的 MCP 服务。没有注解的 MCP 工具每次都要审批，只读工具要标 readOnlyHint。 [docs/60-computer-use.md](../docs/60-computer-use.md)
+- 弹出菜单和对话框在 Wayland 下是独立窗口，CaptureWindow 不包括它们。CaptureArea 按最高缩放（手机 3 倍）出图，要缩回目标屏的缩放，否则 token 多近三倍。 [docs/68-luna-computer-use.md](../docs/68-luna-computer-use.md)
+- 续接对话后接口只接受 computer_call_output 回传的图片。函数调用只回文字，由模型再请求截图。 [docs/68-luna-computer-use.md](../docs/68-luna-computer-use.md)
 - computer 工具没有“按住直到外部信号”的动作，按住说话类的录音控件在方案一下不支持。 [docs/68-luna-computer-use.md](../docs/68-luna-computer-use.md)
-- RemoteDesktop 门户第一次要用户批准；每次新会话会弹“远程控制会话已开始”通知并挡住窗口顶部，要在 notifyrc 里关掉。 [docs/60-computer-use.md](../docs/60-computer-use.md)
-- 标题栏是 KWin 画的装饰，不在应用的无障碍树里；窗口操作要走 desktop_window。 [docs/60-computer-use.md](../docs/60-computer-use.md)
+- RemoteDesktop 门户第一次要用户批准。每次新会话会弹“远程控制会话已开始”通知并挡住窗口顶部，要在 notifyrc 里关掉。 [docs/60-computer-use.md](../docs/60-computer-use.md)
+- 标题栏是 KWin 画的装饰，不在应用的无障碍树里。窗口操作要走 desktop_window。 [docs/60-computer-use.md](../docs/60-computer-use.md)
 
 文档：[docs/68-luna-computer-use.md](../docs/68-luna-computer-use.md)、[docs/60-computer-use.md](../docs/60-computer-use.md)、[docs/103-krita-save-dialog-hang.md](../docs/103-krita-save-dialog-hang.md)、[docs/agent-ready-interfaces.md](../docs/agent-ready-interfaces.md)、[docs/106-codex-desktop-operation.md](../docs/106-codex-desktop-operation.md)
 
 #### 方案二：无障碍树 + OCR + JEV 操作桌面（实验）
 
-`agent.plan-two` · Linux 系统功能 — 备用的电脑操作方案（rungic-cua plan atspi）：读应用的无障碍树和手机 GPU 上的 OCR，由 TypeSafe JEV 逐步选控件；含按读音找人。
+`agent.plan-two` · Linux 系统功能 — rungic-cua plan atspi 提供备用电脑操作方案。它读取应用无障碍树和手机 GPU OCR 结果，由 TypeSafe JEV 逐步选择控件。该方案也支持按读音找人。
 
 经由接口：`ocr`
 
-- **E1** rungic-cua plan atspi 切换后，工具换成 desktop_observe、desktop_run、desktop_find_name 和 JEV 版的 desktop_goal；切回 luna 恢复（重启语音服务后生效）。（单元测试）
-- **E2** OCR 在手机 GPU 上识别整屏约 0.5 s（PP-OCRv6 Small，fp16）；模型还没下载好或 GPU 不可用时立即改用容器 CPU 上的 RapidOCR（约 2 s），不卡住。（单元测试、人工；只能在手机上看：整屏约 0.5 s 是手机 Adreno GPU 上 LiteRT 的速度，OCR 在安卓应用里运行，系统测试里没有这块 GPU；CPU 约 2 s 也取决于手机 CPU）
-- **E3** OCR 模型在第一次请求时由 Rungic 应用后台下载，按固定的地址和 SHA-256 校验；下载完成前请求立即返回错误。（缺口：模型下载和 SHA-256 校验在 Rungic 应用的 OcrBridge.java 里，没有 Android 侧的离线测试，也没有实机记录；Linux 一侧收到“下载中”后立即改用 CPU 已由 tools/tests/test_cua_tools.py 检查（E2））
-- **E4** 语音识别写错的人名按读音找：同音得 1.0、近音 0.9，按分区标题区分联系人和搜索建议；两个不同的人都达到 0.9 时先问用户。（系统测试、人工）
-- **E5** 一次观察约 0.5–1 s；控件坐标按窗口根节点换算，应用的错误窗口坐标（微信内置 Qt）和阴影边距不影响点击。（单元测试、人工；只能在手机上看：一次观察 0.5–1 s 是手机上 AT-SPI 往返的耗时（每个属性约 50 ms，取决于手机和应用）；微信内置 Qt 的错误窗口坐标只有真实微信能复现，测试里是按其症状做的替身）
+- **E1** rungic-cua plan atspi 切换后，工具换成 desktop_observe、desktop_run、desktop_find_name 和 JEV 版的 desktop_goal。切回 luna 恢复（重启语音服务后生效）。（单元测试）
+- **E2** OCR 在手机 GPU 上识别整屏约 0.5 s（PP-OCRv6 Small，fp16）。模型还没下载好或 GPU 不可用时立即改用容器 CPU 上的 RapidOCR（约 2 s），不卡住。（单元测试、人工；只能在手机上看：整屏约 0.5 s 是手机 Adreno GPU 上 LiteRT 的速度，OCR 在安卓应用里运行，系统测试里没有这块 GPU。CPU 约 2 s 也取决于手机 CPU）
+- **E3** OCR 模型在第一次请求时由 Rungic 应用后台下载，按固定的地址和 SHA-256 校验。下载完成前请求立即返回错误。（缺口：模型下载和 SHA-256 校验在 Rungic 应用的 OcrBridge.java 里，没有 Android 侧的离线测试，也没有实机记录。Linux 一侧收到“下载中”后立即改用 CPU 已由 tools/tests/test_cua_tools.py 检查（E2））
+- **E4** 语音识别写错的人名按读音找：同音得 1.0、近音 0.9，按分区标题区分联系人和搜索建议。两个不同的人都达到 0.9 时先问用户。（系统测试、人工）
+- **E5** 一次观察约 0.5–1 s。控件坐标按窗口根节点换算，应用的错误窗口坐标（微信内置 Qt）和阴影边距不影响点击。（单元测试、人工；只能在手机上看：一次观察 0.5–1 s 是手机上 AT-SPI 往返的耗时（每个属性约 50 ms，取决于手机和应用）。微信内置 Qt 的错误窗口坐标只有真实微信能复现，测试里是按其症状做的替身）
 
 注意：
-- Qt 没有实现 AT-SPI 缓存和 GetAll，逐个属性查询每个节点约 50 ms；改为同一层的请求一次发出。 [docs/60-computer-use.md](../docs/60-computer-use.md)
-- 本机 Hexagon CDSP 关闭、没有 NNAPI，能用的加速器只有 Adreno（OpenCL）；模型卡称 fp16 下部分张量用例不过，请求可带 fp32。 [docs/64-goal-computer-use.md](../docs/64-goal-computer-use.md)
-- 需要 TypeSafe JEV 的 key；写手模型生成输入文字约 7–8 s；滚动固定在窗口中心，多窗格应用会滚错区域。 [docs/64-goal-computer-use.md](../docs/64-goal-computer-use.md)
-- 上游测试会清掉 CLICKER_PLATFORM，测试永远不会操作本机；Linux 适配器只在启动器设置该变量时启用。 [docs/64-goal-computer-use.md](../docs/64-goal-computer-use.md)
+- Qt 没有实现 AT-SPI 缓存和 GetAll，逐个属性查询每个节点约 50 ms。改为同一层的请求一次发出。 [docs/60-computer-use.md](../docs/60-computer-use.md)
+- 本机 Hexagon CDSP 关闭、没有 NNAPI，能用的加速器只有 Adreno（OpenCL）。模型卡称 fp16 下部分张量用例不过，请求可带 fp32。 [docs/64-goal-computer-use.md](../docs/64-goal-computer-use.md)
+- 需要 TypeSafe JEV 的 key。写手模型生成输入文字约 7–8 s。滚动固定在窗口中心，多窗格应用会滚错区域。 [docs/64-goal-computer-use.md](../docs/64-goal-computer-use.md)
+- 上游测试会清掉 CLICKER_PLATFORM，测试永远不会操作本机。Linux 适配器只在启动器设置该变量时启用。 [docs/64-goal-computer-use.md](../docs/64-goal-computer-use.md)
 - 60、64 篇里的 vendor/、plasma/native-apk 等路径已不存在，现为 packages/ 配方和 android/app/jni/ocr。 [docs/60-computer-use.md](../docs/60-computer-use.md) [docs/64-goal-computer-use.md](../docs/64-goal-computer-use.md)
 
 文档：[docs/64-goal-computer-use.md](../docs/64-goal-computer-use.md)、[docs/60-computer-use.md](../docs/60-computer-use.md)
 
 #### Agent 自己的工作区
 
-`agent.workspaces` · Linux 系统功能 — 每个 Agent 一个独立的 KWin（默认无头）、自己的 D-Bus、Xwayland、无障碍总线和声音；Agent 在那里打开应用、点击和输入，不打扰用户的手机。
+`agent.workspaces` · Linux 系统功能 — 每个 Agent 使用独立的 KWin，默认无头运行。工作区有自己的 D-Bus、Xwayland、无障碍总线和声音。Agent 在工作区内打开和操作应用，不干扰用户的手机。
 
 经由接口：`platform-bridge`、`kwin-android-host`
 
-- **E1** Agent 打开的应用只出现在它的工作区里，第一帧就在那里；它的点击和打字不抢用户手机上的焦点、指针和当前屏。（系统测试、人工）
-- **E2** 工作区默认无头：手机锁屏、息屏、Rungic 应用被冻结时，工作区照常启动、运行应用、截图和操作。（系统测试、人工；只能在手机上看：截图要经 KWin 在手机 GPU 上渲染，容器里的 KWin 没有 GPU，ScreenShot2 一律取消；Android 锁屏、息屏和冻结 Rungic 应用也只在手机上发生）
-- **E3** 宿主不响应时，需要宿主的工作区约 3 秒内明确失败并说明原因，Agent 能如实转告；冻结期间桌面工具每次约 1 秒，不每次等满超时。（单元测试、人工）
-- **E4** 工作区有自己的无障碍总线，不会抢走用户会话的；工作区重启后，用户手机上读控件和文字输入照常。（系统测试、人工）
-- **E5** 工作区的环境按 Plasma 桌面会话设置（文件对话框在进程内），把命令交还用户会话时恢复用户原来的值；工作区的变量不泄漏进用户的 systemd 环境。（单元测试、人工）
-- **E6** 工作区里的声音进它自己的 null sink，没人看时用户听不到；显示时接到默认输出；停止后 sink 和回环都清理掉。（系统测试、人工）
+- **E1** Agent 打开的应用只出现在它的工作区里，第一帧就在那里。它的点击和打字不抢用户手机上的焦点、指针和当前屏。（系统测试、人工）
+- **E2** 工作区默认无头：手机锁屏、息屏、Rungic 应用被冻结时，工作区照常启动、运行应用、截图和操作。（系统测试、人工；只能在手机上看：截图要经 KWin 在手机 GPU 上渲染，容器里的 KWin 没有 GPU，ScreenShot2 一律取消。Android 锁屏、息屏和冻结 Rungic 应用也只在手机上发生）
+- **E3** 宿主不响应时，需要宿主的工作区约 3 秒内明确失败并说明原因，Agent 能如实转告。冻结期间桌面工具每次约 1 秒，不每次等满超时。（单元测试、人工）
+- **E4** 工作区有自己的无障碍总线，不会抢走用户会话的。工作区重启后，用户手机上读控件和文字输入照常。（系统测试、人工）
+- **E5** 工作区的环境按 Plasma 桌面会话设置（文件对话框在进程内），把命令交还用户会话时恢复用户原来的值。工作区的变量不泄漏进用户的 systemd 环境。（单元测试、人工）
+- **E6** 工作区里的声音进它自己的 null sink，没人看时用户听不到。显示时接到默认输出。停止后 sink 和回环都清理掉。（系统测试、人工）
 - **E7** 用户界面重启（装 Rungic 应用、Plasma 崩溃）不会停掉 Agent 的工作区。（单元测试、系统测试）
 - **E8** 工作区重启后，Agent 的桌面工具自动换用新的会话，不会一直报 “The connection is closed”。（单元测试）
 
 注意：
 - KWin 只有一个座席（一个指针、一个键盘焦点、一个活动窗口），要隔离输入只能每个工作区一个合成器。 [docs/research/91-agent-workspaces.md](../docs/research/91-agent-workspaces.md)
-- 工作区与用户共用缓存目录时 ksycoca 被两边轮流重建，主屏幕每秒重载应用列表；工作区要有自己的 XDG_CACHE_HOME。 [docs/research/91-agent-workspaces.md](../docs/research/91-agent-workspaces.md)
-- 私有总线上没有 systemd：busctl --user、systemctl 冻结等要显式走用户会话总线；工作区里 KIO 直接 fork，应用会落进语音服务的 cgroup，要用 systemd-run 的 scope。 [docs/research/91-agent-workspaces.md](../docs/research/91-agent-workspaces.md)
-- 容器的 cgroup2 没有控制器，MemoryMax、CPUWeight 静默失效；整个容器只有 4 GiB 的 Android memcg，现实上同时只能跑 1 个重型 GUI 应用、2 个工作区。 [docs/research/91-agent-workspaces.md](../docs/research/91-agent-workspaces.md)
-- Motorola 中国版 ROM 的 SmartFreezer 在息屏后会冻结 Rungic 应用（前台服务也不例外），冻结后 Unix socket 的连接只排队、不唤醒；不带超时的 connect 会永久阻塞。 [docs/research/97-headless-agent-work.md](../docs/research/97-headless-agent-work.md)
-- KWin 的 virtual 后端只枚举 /dev/dri，容器里只有 /dev/kgsl-3d0，需要补丁指定渲染节点；后端只能启动时选定，不能热切换。 [docs/research/97-headless-agent-work.md](../docs/research/97-headless-agent-work.md)
-- 测试时在测试工作区里用 rungic-cua launch 会把用户手机上的助理屏切过去；测试用 systemd-run 直接启动应用。 [docs/research/91-agent-workspaces.md](../docs/research/91-agent-workspaces.md)
+- 工作区与用户共用缓存目录时 ksycoca 被两边轮流重建，主屏幕每秒重载应用列表。工作区要有自己的 XDG_CACHE_HOME。 [docs/research/91-agent-workspaces.md](../docs/research/91-agent-workspaces.md)
+- 私有总线上没有 systemd：busctl --user、systemctl 冻结等要显式走用户会话总线。工作区里 KIO 直接 fork，应用会落进语音服务的 cgroup，要用 systemd-run 的 scope。 [docs/research/91-agent-workspaces.md](../docs/research/91-agent-workspaces.md)
+- 容器的 cgroup2 没有控制器，MemoryMax、CPUWeight 静默失效。整个容器只有 4 GiB 的 Android memcg，现实上同时只能跑 1 个重型 GUI 应用、2 个工作区。 [docs/research/91-agent-workspaces.md](../docs/research/91-agent-workspaces.md)
+- Motorola 中国版 ROM 的 SmartFreezer 在息屏后会冻结 Rungic 应用（前台服务也不例外），冻结后 Unix socket 的连接只排队、不唤醒。不带超时的 connect 会永久阻塞。 [docs/research/97-headless-agent-work.md](../docs/research/97-headless-agent-work.md)
+- KWin 的 virtual 后端只枚举 /dev/dri，容器里只有 /dev/kgsl-3d0，需要补丁指定渲染节点。后端只能启动时选定，不能热切换。 [docs/research/97-headless-agent-work.md](../docs/research/97-headless-agent-work.md)
+- 测试时在测试工作区里用 rungic-cua launch 会把用户手机上的助理屏切过去。测试用 systemd-run 直接启动应用。 [docs/research/91-agent-workspaces.md](../docs/research/91-agent-workspaces.md)
 
 文档：[docs/research/91-agent-workspaces.md](../docs/research/91-agent-workspaces.md)、[docs/research/97-headless-agent-work.md](../docs/research/97-headless-agent-work.md)、[docs/agent-ready-interfaces.md](../docs/agent-ready-interfaces.md)
 
 #### 工作区空闲冻结与关闭
 
-`agent.workspace-lifecycle` · Linux 系统功能 — 工作区没人用时冻结其中的应用、很久不用就关掉；关闭像注销一样先请应用自己关，有未保存内容的报告给用户。
+`agent.workspace-lifecycle` · Linux 系统功能 — 工作区无人使用时，系统冻结其中的应用。长期不用时，系统关闭工作区。关闭前先请求应用退出，并向用户报告未保存的内容。
 
-- **E1** 工作区安静（没有输入、没在显示、没有 Agent 在这里干活）60 秒后冻结其中的应用，安静 30 分钟后自动关闭；Agent 再用时先解冻，已关闭的自动重新启动。（单元测试、人工）
-- **E2** 关闭分两段：先把借来的应用还给用户，再请每个窗口关闭；有未保存内容、拒绝关闭的应用被报告出来、不替用户回答，工作区保留，除非强制关闭。（单元测试、人工）
+- **E1** 工作区安静（没有输入、没在显示、没有 Agent 在这里干活）60 秒后冻结其中的应用，安静 30 分钟后自动关闭。Agent 再用时先解冻，已关闭的自动重新启动。（单元测试、人工）
+- **E2** 关闭分两段：先把借来的应用还给用户，再请每个窗口关闭。有未保存内容、拒绝关闭的应用被报告出来、不替用户回答，工作区保留，除非强制关闭。（单元测试、人工）
 - **E3** 应用随工作区结束：工作区停止时其中的应用一起停止，单元以成功结束而不是 failed。（单元测试、人工）
-- **E4** 不支持 WM_DELETE_WINDOW 的 X11 程序不会被“请求关闭”误杀，而是报告出来；没有 PID 的 X11 窗口按 WM_CLASS 识别。（单元测试）
+- **E4** 不支持 WM_DELETE_WINDOW 的 X11 程序不会被“请求关闭”误杀，而是报告出来。没有 PID 的 X11 窗口按 WM_CLASS 识别。（单元测试）
 - **E5** 关闭期间不冻结应用，关闭开始和停止单元前各解冻一次，强制关闭后不会留下活着的应用。（单元测试）
-- **E6** 浮窗上的 ✕：Agent 正在这里干活时只隐藏，这一轮不再自动弹出；否则关闭工作区，有应用没关掉时发通知，提供“查看”和“不保存，直接关闭”。（单元测试）
+- **E6** 浮窗上的 ✕：Agent 正在这里干活时只隐藏，这一轮不再自动弹出。否则关闭工作区，有应用没关掉时发通知，提供“查看”和“不保存，直接关闭”。（单元测试）
 
 注意：
 - keeper 的 systemctl 和 systemd-run 曾走了工作区自己的总线，冻结和自动关闭都失败。 [docs/research/91-agent-workspaces.md](../docs/research/91-agent-workspaces.md)
 - 工作区脚本收到 TERM 时 trap 里的 kill 失败，在 set -e 下以 1 退出，被建议卡误报为启动失败。 [docs/research/91-agent-workspaces.md](../docs/research/91-agent-workspaces.md)
-- Wayland 没有“已修改”标志，“请窗口关闭、由应用自己决定提示”是唯一通用的做法；KWin 自带的 closeWaylandWindows 2 分钟后强制继续且不管 X11，所以不直接用。 [docs/research/91-agent-workspaces.md](../docs/research/91-agent-workspaces.md)
+- Wayland 没有“已修改”标志，“请窗口关闭、由应用自己决定提示”是唯一通用的做法。KWin 自带的 closeWaylandWindows 2 分钟后强制继续且不管 X11，所以不直接用。 [docs/research/91-agent-workspaces.md](../docs/research/91-agent-workspaces.md)
 
 文档：[docs/research/91-agent-workspaces.md](../docs/research/91-agent-workspaces.md)
 
 #### Agent 在哪块屏上工作
 
-`agent.where` · Linux 系统功能 — 用户开着桌面模式或电视显示桌面时，Agent 在用户的桌面上工作，否则在自己的工作区；用户可以指定。
+`agent.where` · Linux 系统功能 — 用户启用桌面模式或在电视上显示桌面时，Agent 在用户的桌面上工作。其他情况下，Agent 使用自己的工作区。用户也可以指定工作位置。
 
 经由接口：`platform-bridge`
 
-- **E1** 桌面模式开着或电视在显示桌面时，Agent 在用户的桌面（0 号工作区）上工作；否则在自己的工作区。（单元测试、人工）
-- **E2** 用户说“在我的桌面上”或“在你自己那里”时听用户的，本次对话内有效；需要时打开桌面模式。（单元测试、人工）
-- **E3** 工作位置变化时，结果里附一行 where/why；没变化时不重复。（单元测试）
+- **E1** 桌面模式开着或电视在显示桌面时，Agent 在用户的桌面（0 号工作区）上工作。否则在自己的工作区。（单元测试、人工）
+- **E2** 用户说“在我的桌面上”或“在你自己那里”时听用户的，本次对话内有效。需要时打开桌面模式。（单元测试、人工）
+- **E3** 工作位置变化时，结果里附一行 where/why。没变化时不重复。（单元测试）
 - **E4** 平台桥连不上时默认在 Agent 自己的工作区。（单元测试）
 
 文档：[docs/research/91-agent-workspaces.md](../docs/research/91-agent-workspaces.md)、[docs/agent-ready-interfaces.md](../docs/agent-ready-interfaces.md)
 
 #### 只能开一份的应用按需借用
 
-`agent.app-switching` · Linux 系统功能 — 能多开的应用在工作区另开一份；微信、浏览器这类只能跑一份的，征得用户同意后从用户那里借过来，用完自动还回去。
+`agent.app-switching` · Linux 系统功能 — 支持多实例的应用在工作区内启动新实例。微信、浏览器等单实例应用需要借用用户的实例。Agent 先征得用户同意，使用结束后自动归还。
 
 - **E1** 关闭用户正在运行的那一份之前必须先征得同意：工具返回 needs_confirmation 和要问的话，只有带上 switch 才关闭。（单元测试、人工）
 - **E2** 应用正在用麦克风（通话、会议）时既不借走，也不在通话中归还。（单元测试）
-- **E3** Agent 最后一轮结束约两分钟后，借来的应用自动还给用户会话（带用户原来的环境），并发一条通知；只归还本工作区借的。（单元测试、人工）
+- **E3** Agent 最后一轮结束约两分钟后，借来的应用自动还给用户会话（带用户原来的环境），并发一条通知。只归还本工作区借的。（单元测试、人工）
 - **E4** 按程序名认出应用（包括 firefox-bin 这样的可执行文件名），只处理主进程，用 SIGTERM 正常结束。（单元测试）
 
 注意：
-- 征求同意的问题要原样、中立地转述；语音曾加上“建议你选择可以”，还在用户答过后请他再说一遍。 [docs/research/91-agent-workspaces.md](../docs/research/91-agent-workspaces.md)
+- 征求同意的问题要原样、中立地转述。语音曾加上“建议你选择可以”，还在用户答过后请他再说一遍。 [docs/research/91-agent-workspaces.md](../docs/research/91-agent-workspaces.md)
 - 微信重启后是否需要在主力手机上确认登录尚未测试。 [docs/research/91-agent-workspaces.md](../docs/research/91-agent-workspaces.md)
 
 文档：[docs/research/91-agent-workspaces.md](../docs/research/91-agent-workspaces.md)
 
 #### Agent 操作时的字幕
 
-`agent.watch-work` · Linux 系统功能 — Agent 在屏幕上操作时，它所在屏幕的浮窗底部用一句话说明它在做什么；语音也会转述。浮窗、导播台和电视上的画面见桌面模式领域。
+`agent.watch-work` · Linux 系统功能 — Agent 操作屏幕时，对应屏幕的浮窗底部用一句话说明当前操作。语音也会转述。浮窗、导播台和电视画面的要求见桌面模式领域。
 
-- **E1** Agent 操作时浮窗底部显示一句中文字幕（打开某应用、点击、输入…），结束时显示“完成 / 需要你回答 / 没做成 / 已停止”4 秒；写入方 120 秒没更新就视为已不在。（单元测试、系统测试、人工）
-- **E2** 每个工作区的字幕各自独立，浮窗读自己工作区的那一份；语音服务取较新的那条转述。（单元测试、系统测试）
-- **E3** Luna 每批动作附一句不超过 15 个字的中文说明；模型没写时按动作类型生成（点击、输入“…”、按回车）。（单元测试、人工）
+- **E1** Agent 操作时浮窗底部显示一句中文字幕（打开某应用、点击、输入…），结束时显示“完成 / 需要你回答 / 没做成 / 已停止”4 秒。写入方 120 秒没更新就视为已不在。（单元测试、系统测试、人工）
+- **E2** 每个工作区的字幕各自独立，浮窗读自己工作区的那一份。语音服务取较新的那条转述。（单元测试、系统测试）
+- **E3** Luna 每批动作附一句不超过 15 个字的中文说明。模型没写时按动作类型生成（点击、输入“…”、按回车）。（单元测试、人工）
 
 文档：[docs/88-agent-visible-work.md](../docs/88-agent-visible-work.md)、[docs/research/91-agent-workspaces.md](../docs/research/91-agent-workspaces.md)
 
 #### Agent 忙时手机不睡
 
-`agent.keep-awake` · 依赖安卓 — Agent 跑任务或工作区被占用时持有内核 wakelock，手机息屏也不挂起；空闲就释放。
+`agent.keep-awake` · 依赖安卓 — Agent 执行任务或工作区被占用时，系统持有内核 wakelock，使手机息屏后也不挂起。空闲时释放 wakelock。
 
-- **E1** Agent 在跑任务或工作区被认领时，系统持有 rungic_agent 唤醒锁；空闲后约 5 秒内释放；只认持有者进程还活着的标记。（单元测试、人工）
+- **E1** Agent 在跑任务或工作区被认领时，系统持有 rungic_agent 唤醒锁。空闲后约 5 秒内释放。只认持有者进程还活着的标记。（单元测试、人工）
 - **E2** 唤醒服务自己挂掉时，锁最多 60 秒后自动失效，不会让手机一直醒着。（单元测试）
 
 注意：
 - 此前息屏时 Agent 还能继续只是碰巧：audioserver 一直持有 AudioMix 唤醒锁。 [docs/research/97-headless-agent-work.md](../docs/research/97-headless-agent-work.md)
-- 容器的 /sys 是只读的，服务在自己的挂载命名空间里把 /sys 重新挂成可写；ReadWritePaths= 做不到。 [docs/research/97-headless-agent-work.md](../docs/research/97-headless-agent-work.md)
-- 内核唤醒锁没有 uid 归属，挡不住 Moto 冻结 Rungic 应用；Doze 会阻断容器里 uid ≥ 10000 的网络。 [docs/research/97-headless-agent-work.md](../docs/research/97-headless-agent-work.md)
+- 容器的 /sys 是只读的，服务在自己的挂载命名空间里把 /sys 重新挂成可写。ReadWritePaths= 做不到。 [docs/research/97-headless-agent-work.md](../docs/research/97-headless-agent-work.md)
+- 内核唤醒锁没有 uid 归属，挡不住 Moto 冻结 Rungic 应用。Doze 会阻断容器里 uid ≥ 10000 的网络。 [docs/research/97-headless-agent-work.md](../docs/research/97-headless-agent-work.md)
 
 文档：[docs/research/97-headless-agent-work.md](../docs/research/97-headless-agent-work.md)
 
 ### 让几个 Agent 组队完成大任务
 
-由助理当组长，成员各用一个工作区并行制作，用户在导播台和对话里看到团队的进展。
+助理按 rungic-agent-team 技能担任组长，通过 Codex 子 Agent 分工。每个成员首次需要桌面时，系统分配独立工作区。成员在共享项目中按约定交付。
 
 #### 组队：组长派成员各用一个工作区（实验）
 
-`agent.team` · Linux 系统功能 — 助理按 rungic-agent-team 技能当组长，用 Codex 子 Agent 分工；每个成员第一次要桌面时领到自己的工作区，在共享项目里按约定交付。
+`agent.team` · Linux 系统功能 — 助理按 rungic-agent-team 技能担任组长，通过 Codex 子 Agent 分工。每个成员首次需要桌面时，系统分配独立工作区。成员在共享项目中按约定交付。
 
-- **E1** 子 Agent 第一次要桌面时各自领到一个空闲工作区，组长保留自己的；桌面模式开着也不去用户桌面；全部被占用时明确报错。（单元测试、人工）
-- **E2** 成员交付或关闭工作区时释放领取；进程结束或 20 分钟没有调用就视为失效，别人可以再领。（单元测试、人工）
-- **E3** 组长按简报 → 一轮评审（每人一条、最多 8 点）→ 组长定稿 → 并行制作 → 汇总审查 → 交给用户的流程推进，成员之间不直接讨论。（人工；只能在手机上看：流程由真实模型按 rungic-agent-team 技能推进，替身模型只会重放脚本；是否按简报、评审、定稿、制作、汇总的顺序走、成员是否不直接讨论，只有用真实 Codex 在手机上跑一轮团队才看得出（看板阶段的代码由 team-board/E1 的测试检查））
+- **E1** 子 Agent 第一次要桌面时各自领到一个空闲工作区，组长保留自己的。桌面模式开着也不去用户桌面。全部被占用时明确报错。（单元测试、人工）
+- **E2** 成员交付或关闭工作区时释放领取。进程结束或 20 分钟没有调用就视为失效，别人可以再领。（单元测试、人工）
+- **E3** 组长按简报 → 一轮评审（每人一条、最多 8 点）→ 组长定稿 → 并行制作 → 汇总审查 → 交给用户的流程推进，成员之间不直接讨论。（人工；只能在手机上看：流程由真实模型按 rungic-agent-team 技能推进，替身模型只会重放脚本。是否按简报、评审、定稿、制作、汇总的顺序走、成员是否不直接讨论，只有用真实 Codex 在手机上跑一轮团队才看得出（看板阶段的代码由 team-board/E1 的测试检查））
 - **E4** 成员的每次工具调用翻成一句短话（“写 BRIEF.md”“运行 check.py”）显示在它的格子上，命令链按实际做的那一步描述，最多每 1.5 秒一句。（单元测试）
-- **E5** 发言写进项目的 .team/journal.jsonl；成员结束时没说结果，自动补一条 ended。（单元测试）
+- **E5** 发言写进项目的 .team/journal.jsonl。成员结束时没说结果，自动补一条 ended。（单元测试）
 - **E6** 手机息屏、Rungic 应用被冻结时，团队照常继续。（单元测试）
 
 注意：
-- Codex 子 Agent 强制继承父 Agent 的环境和 MCP 配置，shell 里启动的图形程序会开到父 Agent 的桌面；要用 desktop_launch 或工具给的命令前缀。 [docs/research/91-agent-workspaces.md](../docs/research/91-agent-workspaces.md)
+- Codex 子 Agent 强制继承父 Agent 的环境和 MCP 配置，shell 里启动的图形程序会开到父 Agent 的桌面。要用 desktop_launch 或工具给的命令前缀。 [docs/research/91-agent-workspaces.md](../docs/research/91-agent-workspaces.md)
 - 工作区不能等进程退出才释放（子 Agent 汇报后服务进程一直留着），要在交付或关闭时主动释放。 [docs/research/91-agent-workspaces.md](../docs/research/91-agent-workspaces.md)
-- 组长只核对尺寸和透明通道时美术风格会跑偏；简报要有“方向”一节，汇总时要看图、听声音。组长不要为了确认而把游戏挪到桌面模式上。 [docs/research/91-agent-workspaces.md](../docs/research/91-agent-workspaces.md)
-- 多 Agent 的 token 是单 Agent 的 3–15 倍；手机上最多 3 个用桌面的成员。Agent 之间的消息在会话记录里是加密的，只有工具调用是明文。 [docs/research/91-agent-workspaces.md](../docs/research/91-agent-workspaces.md)
-- 第一次团队验收时手机息屏后工作区起不来（当时还是 Android 后端），之后才改为默认无头；息屏下的团队运行尚未实测。 [docs/research/91-agent-workspaces.md](../docs/research/91-agent-workspaces.md) [docs/research/97-headless-agent-work.md](../docs/research/97-headless-agent-work.md)
+- 组长只核对尺寸和透明通道时美术风格会跑偏。简报要有“方向”一节，汇总时要看图、听声音。组长不要为了确认而把游戏挪到桌面模式上。 [docs/research/91-agent-workspaces.md](../docs/research/91-agent-workspaces.md)
+- 多 Agent 的 token 是单 Agent 的 3–15 倍。手机上最多 3 个用桌面的成员。Agent 之间的消息在会话记录里是加密的，只有工具调用是明文。 [docs/research/91-agent-workspaces.md](../docs/research/91-agent-workspaces.md)
+- 第一次团队验收时手机息屏后工作区起不来（当时还是 Android 后端），之后才改为默认无头。息屏下的团队运行尚未实测。 [docs/research/91-agent-workspaces.md](../docs/research/91-agent-workspaces.md) [docs/research/97-headless-agent-work.md](../docs/research/97-headless-agent-work.md)
 
 文档：[docs/research/91-agent-workspaces.md](../docs/research/91-agent-workspaces.md)
 
 #### 团队看板：导播台和对话里的团队卡（实验）
 
-`agent.team-board` · Linux 系统功能 — 团队的阶段、简报、每个成员的状态、评审、决定和结果：看板数据给导播台的看板格（见桌面模式领域），并在组长的对话里显示为团队卡；重要时播报或通知。
+`agent.team-board` · Linux 系统功能 — 团队看板记录阶段、简报、成员状态、评审、决定和结果。导播台的看板格显示这些数据，组长对话以团队卡显示。重要进展触发播报或通知。看板格见桌面模式领域。
 
-- **E1** 看板跟着团队从简报、评审、制作到完成；组长定稿后所有成员显示“制作中”；新组长发新简报时开一块新看板。（单元测试）
+- **E1** 看板跟着团队从简报、评审、制作到完成。组长定稿后所有成员显示“制作中”。新组长发新简报时开一块新看板。（单元测试）
 - **E2** 由助理会话当组长时，对话里有一张实时更新的团队卡：阶段、简报、每人一行，评审后折叠成“查看 N 份评审”，以及决定和结果。（单元测试、人工）
-- **E3** 只在重要时打扰：开工和成员完成只播报；提问、受阻、失败播报并发紧急通知；全队完成只通知；评审和进展只在卡片上。（单元测试）
-- **E4** 通知只在没人看对话时发，点“打开”进入组长的对话；平台桥不答时按“没人在看”处理，通知不被压住。（缺口：通知路径还没在实机上走到）
+- **E3** 只在重要时打扰：开工和成员完成只播报。提问、受阻、失败播报并发紧急通知。全队完成只通知。评审和进展只在卡片上。（单元测试）
+- **E4** 通知只在没人看对话时发，点“打开”进入组长的对话。平台桥不答时按“没人在看”处理，通知不被压住。（缺口：通知路径还没在实机上走到）
 - **E5** 助理重启后第一次看到一块超过 60 秒没更新的看板时，不重播里面的旧发言。（单元测试）
 
 注意：
@@ -343,23 +343,23 @@ Agent 在自己的工作区（或用户指定的桌面）上打开应用、看�
 
 #### 开发端脚本当组长的团队运行（已退役）
 
-`agent.team-script-run` · Linux 系统功能 — 2026-10-01 的第一次团队验收：开发机上的 Agent 当组长，用脚本在手机上起三个 codex exec 成员；以及子 Agent 工具进程的探针实验。已由助理会话按 rungic-agent-team 技能当组长取代。
+`agent.team-script-run` · Linux 系统功能 — 2026-10-01 的首次团队验收由开发机 Agent 担任组长，通过脚本在手机上启动三个 codex exec 成员。该记录还包括子 Agent 工具进程的探针实验。现由助理会话按 rungic-agent-team 技能担任组长的流程取代。
 
 
 注意：
-- 这一方式里 keeper 看不到成员，靠脚本写 busy 标记；三个成员会抢助理屏。这些已在领取机制和按工作区的浮窗里解决。 [docs/research/91-agent-workspaces.md](../docs/research/91-agent-workspaces.md)
+- 这一方式里 keeper 看不到成员，靠脚本写 busy 标记。三个成员会抢助理屏。这些已在领取机制和按工作区的浮窗里解决。 [docs/research/91-agent-workspaces.md](../docs/research/91-agent-workspaces.md)
 
 ### 让 Agent 替我打电话、发语音
 
-用手机卡或微信替用户通话，随时旁听、接过来或挂断；在聊天应用里代发语音消息。
+用手机卡或微信替用户通话，随时旁听、接过来或挂断。在聊天应用里代发语音消息。
 
 #### 通话入口与通话卡片（实验）
 
-`agent.call-card` · Linux 系统功能 — 用户说“打电话”走手机卡，“打微信电话”走微信；每通电话一张卡，留在发起它的对话里，可旁听、文字指示、接过来和挂断。
+`agent.call-card` · Linux 系统功能 — 用户说“打电话”时，Agent 使用手机卡。用户说“打微信电话”时，Agent 使用微信。每通电话有一张卡片，保留在发起通话的对话中。用户可以旁听、发送文字指示、接管或挂断。
 
-- **E1** 通道由用户的说法决定：没说就不默认微信，指定的通道不可用时不自动换另一种；参数冲突在建立通话前就拒绝，不拨号。（单元测试）
-- **E2** 能力查询只读：报告账户、音频接口和应用路由前提；“接口可用”和“端到端已验证”分开显示，连不上的记为未知而不是不支持。（单元测试）
-- **E3** 每通电话一张卡，留在发起它的对话里：状态、转写、错误、文字指示、接管、挂断和结果；切到别的对话再回来还是同一张卡，计时从实际接通开始。（单元测试、人工）
+- **E1** 通道由用户的说法决定：没说就不默认微信，指定的通道不可用时不自动换另一种。参数冲突在建立通话前就拒绝，不拨号。（单元测试）
+- **E2** 能力查询只读：报告账户、音频接口和应用路由前提。“接口可用”和“端到端已验证”分开显示，连不上的记为未知而不是不支持。（单元测试）
+- **E3** 每通电话一张卡，留在发起它的对话里：状态、转写、错误、文字指示、接管、挂断和结果。切到别的对话再回来还是同一张卡，计时从实际接通开始。（单元测试、人工）
 - **E4** 旧卡片不能控制下一通电话，迟到的旧通话事件不会暂停新通话或在别的对话里播报。（单元测试）
 - **E5** 离开助理后，屏幕上的微缩通话条显示对象、通话状态和挂断按钮，不挡住其他应用的操作。（单元测试、人工）
 
@@ -371,45 +371,45 @@ Agent 在自己的工作区（或用户指定的桌面）上打开应用、看�
 
 #### 代打微信电话（实验）
 
-`agent.call-proxy` · Linux 系统功能 — 通话助理作为对方听到的“麦克风”，自己听、自己说，开场表明是 AI 助理；涉及约定和钱时先问用户；用户随时旁听或接过来。
+`agent.call-proxy` · Linux 系统功能 — 通话助理接收对方的声音，并作为对方听到的“麦克风”发声。助理开场说明自己是 AI。涉及约定或钱时，助理先询问用户。用户可以随时旁听或接管。
 
 经由接口：`audio`
 
-- **E1** 拨号前先核对聊天顶部就是这个联系人，否则什么都不按；以微信打开通话音频为拨出的依据，没拨出就如实报告。（单元测试）
-- **E2** 接通以通话窗口里出现走动的计时为准，彩铃和回铃音得不到回应；确认后约 2 秒开口；开场白播完前不被对方的“嗯”打断。（单元测试、人工）
-- **E3** 涉及约定、答应事情和钱时先问用户：对方原话转给用户，同一句只问一次，用户答复后再转达；挂断前要求对方在用户答复之后又说过话。（单元测试、人工）
+- **E1** 拨号前先核对聊天顶部就是这个联系人，否则什么都不按。以微信打开通话音频为拨出的依据，没拨出就如实报告。（单元测试）
+- **E2** 接通以通话窗口里出现走动的计时为准，彩铃和回铃音得不到回应。确认后约 2 秒开口。开场白播完前不被对方的“嗯”打断。（单元测试、人工）
+- **E3** 涉及约定、答应事情和钱时先问用户：对方原话转给用户，同一句只问一次，用户答复后再转达。挂断前要求对方在用户答复之后又说过话。（单元测试、人工）
 - **E4** 点“我来接”后微信的声音切到手机本机的扬声器和麦克风，语音助手暂停，挂断后自动恢复。（单元测试、人工）
-- **E5** 挂断时助理立即静音，在通话窗口里点挂断最多 3 次，以通话音频关闭为准；都失败时卡片提示去微信里挂断，并把通话转到手机本机。（单元测试）
-- **E6** 通话期间主助理不播报进度和长汇报，只有通话助理向用户的提问出声；结束后用一两句汇报结果。（单元测试）
+- **E5** 挂断时助理立即静音，在通话窗口里点挂断最多 3 次，以通话音频关闭为准。都失败时卡片提示去微信里挂断，并把通话转到手机本机。（单元测试）
+- **E6** 通话期间主助理不播报进度和长汇报，只有通话助理向用户的提问出声。结束后用一两句汇报结果。（单元测试）
 
 注意：
-- PulseAudio 的 module-stream-restore 按应用名记住路由，微信通话流叫通用的“Chromium”，此后普通微信通话也会没声；改为 restore_device=false。 [docs/63-call-proxy.md](../docs/63-call-proxy.md)
-- convergentwindows 曾把微信的竖向通话窗口当成手机尺寸的窗口放大，黑边加挂断按钮被挡；只放大应用的第一个窗口。 [docs/63-call-proxy.md](../docs/63-call-proxy.md)
+- PulseAudio 的 module-stream-restore 按应用名记住路由，微信通话流叫通用的“Chromium”，此后普通微信通话也会没声。改为 restore_device=false。 [docs/63-call-proxy.md](../docs/63-call-proxy.md)
+- convergentwindows 曾把微信的竖向通话窗口当成手机尺寸的窗口放大，黑边加挂断按钮被挡。只放大应用的第一个窗口。 [docs/63-call-proxy.md](../docs/63-call-proxy.md)
 - 测试时不要预设挂断：两次在用户已接听时挂断，对方突然没声。 [docs/63-call-proxy.md](../docs/63-call-proxy.md)
 - 通话中说什么、何时问用户、何时结束由 TypeSafe JEV 判断，没有它的 key 时没有完整的自主决策替代。 [docs/63-call-proxy.md](../docs/63-call-proxy.md) [docs/research/cellular-call-agent.md](../docs/research/cellular-call-agent.md)
-- 用户在自己会话里登录的微信不在 Agent 工作区里；微信相关操作在微信当前所在的会话里执行。 [docs/research/91-agent-workspaces.md](../docs/research/91-agent-workspaces.md)
+- 用户在自己会话里登录的微信不在 Agent 工作区里。微信相关操作在微信当前所在的会话里执行。 [docs/research/91-agent-workspaces.md](../docs/research/91-agent-workspaces.md)
 
 文档：[docs/63-call-proxy.md](../docs/63-call-proxy.md)
 
 #### 代打手机电话（SIM）（实验）
 
-`agent.cellular-call` · 依赖安卓 — Android Telecom 拨号，Agent 的声音经系统通话上行发给对方、对方的声音从下行取出，复用同一个通话助理和卡片。
+`agent.cellular-call` · 依赖安卓 — Android Telecom 负责拨号。系统通话上行将 Agent 的声音发送给对方，下行提供对方的声音。手机卡通话复用同一个通话助理和卡片。
 
 经由接口：`telephony`
 
-- **E1** 拨号前先建立实时会话，就绪前用户取消就不拨；响铃和彩铃期间不打开 Agent 的音频。（单元测试）
-- **E2** 对方能听懂 Agent 说的话；对方的声音传给 Agent；整个过程中系统静音保持，用户房间里的声音不会混进通话。（人工）
-- **E3** 点“我来接”保持原电话，释放 Agent 音频并恢复原静音状态；重复接管没有副作用；丢了 call ID 只交回、不重拨。（单元测试、人工）
+- **E1** 拨号前先建立实时会话，就绪前用户取消就不拨。响铃和彩铃期间不打开 Agent 的音频。（单元测试）
+- **E2** 对方能听懂 Agent 说的话。对方的声音传给 Agent。整个过程中系统静音保持，用户房间里的声音不会混进通话。（人工）
+- **E3** 点“我来接”保持原电话，释放 Agent 音频并恢复原静音状态。重复接管没有副作用。丢了 call ID 只交回、不重拨。（单元测试、人工）
 - **E4** 挂断以 Telecom 回到空闲为准（正在挂断 → 通话结束），不把控制请求当作挂断确认，结束后没有残留通话。（单元测试、人工）
 - **E5** 通话音频握手不丢第一段 PCM，错误不会被当成音频播放，取消握手干净退出，打断时丢弃还没说出的音频。（单元测试）
 - **E6** 通话卡片或界面出错时，正在进行的通话和它的音频照常继续。（单元测试）
 
 注意：
-- 系统通话音频拦截是隐藏 API（CALL_AUDIO_INTERCEPTION），能力查询返回 true 也不是双向通话验收；CALL_ASSISTANT 重定向在本机进 voice_tx 却没有远端响应，改用 VOICE_COMMUNICATION 加显式的 TELEPHONY 输出（INCALL_MUSIC）。 [docs/research/cellular-call-agent.md](../docs/research/cellular-call-agent.md)
-- 只在 G100（portov_cn）上验证过；G100 S 没插 SIM，没做通话验收；不能推广到其他机型或运营商。 [docs/research/cellular-call-agent.md](../docs/research/cellular-call-agent.md)
-- 不能为了让对方听到而解除静音，那会把用户房间的声音混进通话；旧 Qualcomm HAL 的静音行为只是线索，不是本机证据。 [docs/research/cellular-call-agent.md](../docs/research/cellular-call-agent.md)
-- 自动开场可能打断语音菜单，对“保持安静”等指示可能多说一句；私下语音指令和独立旁听仍关闭。 [docs/research/cellular-call-agent.md](../docs/research/cellular-call-agent.md)
-- 受限沙箱里 socket 测试被拒不是代码回归；Magisk root 上下文的 pm install 会遇到 Binder 失败，要在 Android shell 上下文安装。 [docs/research/cellular-call-agent.md](../docs/research/cellular-call-agent.md)
+- 系统通话音频拦截是隐藏 API（CALL_AUDIO_INTERCEPTION），能力查询返回 true 也不是双向通话验收。CALL_ASSISTANT 重定向在本机进 voice_tx 却没有远端响应，改用 VOICE_COMMUNICATION 加显式的 TELEPHONY 输出（INCALL_MUSIC）。 [docs/research/cellular-call-agent.md](../docs/research/cellular-call-agent.md)
+- 只在 G100（portov_cn）上验证过。G100 S 没插 SIM，没做通话验收。不能推广到其他机型或运营商。 [docs/research/cellular-call-agent.md](../docs/research/cellular-call-agent.md)
+- 不能为了让对方听到而解除静音，那会把用户房间的声音混进通话。旧 Qualcomm HAL 的静音行为只是线索，不是本机证据。 [docs/research/cellular-call-agent.md](../docs/research/cellular-call-agent.md)
+- 自动开场可能打断语音菜单，对“保持安静”等指示可能多说一句。私下语音指令和独立旁听仍关闭。 [docs/research/cellular-call-agent.md](../docs/research/cellular-call-agent.md)
+- 受限沙箱里 socket 测试被拒不是代码回归。Magisk root 上下文的 pm install 会遇到 Binder 失败，要在 Android shell 上下文安装。 [docs/research/cellular-call-agent.md](../docs/research/cellular-call-agent.md)
 
 文档：[docs/research/cellular-call-agent.md](../docs/research/cellular-call-agent.md)、[docs/63-call-proxy.md](../docs/63-call-proxy.md)、[docs/106-codex-desktop-operation.md](../docs/106-codex-desktop-operation.md)
 
@@ -417,70 +417,70 @@ Agent 在自己的工作区（或用户指定的桌面）上打开应用、看�
 
 `agent.voice-message` · Linux 系统功能 — Agent 在聊天应用里找到录音按钮，把合成的语音经虚拟麦克风录进去再发送。
 
-- **E1** 录音以音频路由报告“应用开始录音”为准再播放语音，语音播完才点发送；前后留白合计约 1 秒多，不发出空的或截断的语音。（单元测试、系统测试、人工）
-- **E2** 只点真正的录音按钮，不点“语音输入/听写”（它会把语音转成文字发出去）。（缺口：录音按钮与“语音输入/听写”都会让应用经 Linux 麦克风录音，程序侧分不出；只靠当前执行模型看屏幕选对控件，需要真实模型在微信文件传输助手里验证，尚无记录）
-- **E3** 发送前先经用户确认。（缺口：发送前确认由 Agent 按 prompts/agent.md 执行，工具本身不拦截；离线没有真实模型无法检查，也还没有实机记录）
+- **E1** 录音以音频路由报告“应用开始录音”为准再播放语音，语音播完才点发送。前后留白合计约 1 秒多，不发出空的或截断的语音。（单元测试、系统测试、人工）
+- **E2** 只点真正的录音按钮，不点“语音输入/听写”（它会把语音转成文字发出去）。（缺口：录音按钮与“语音输入/听写”都会让应用经 Linux 麦克风录音，程序侧分不出。只靠当前执行模型看屏幕选对控件，需要真实模型在微信文件传输助手里验证，尚无记录）
+- **E3** 发送前先经用户确认。（缺口：发送前确认由 Agent 按 prompts/agent.md 执行，工具本身不拦截。离线没有真实模型无法检查，也还没有实机记录）
 
 注意：
-- 找发送按钮的模型调用曾排在语音播完之后，结尾多出约 9 秒静音；改为录音一开始就并行去找。 [docs/68-luna-computer-use.md](../docs/68-luna-computer-use.md)
+- 找发送按钮的模型调用曾排在语音播完之后，结尾多出约 9 秒静音。改为录音一开始就并行去找。 [docs/68-luna-computer-use.md](../docs/68-luna-computer-use.md)
 - 测试不要打扰真实联系人，用文件传输助手。 [docs/68-luna-computer-use.md](../docs/68-luna-computer-use.md)
 
 文档：[docs/68-luna-computer-use.md](../docs/68-luna-computer-use.md)、[docs/106-codex-desktop-operation.md](../docs/106-codex-desktop-operation.md)
 
 ### 系统主动照看自己
 
-系统发现崩溃、故障和适配问题，Agent 整理成主屏上的少数几张卡，用户择机让它调查和修复；主屏上还能看到 Agent 的用量。
+系统发现崩溃、故障和适配问题，Agent 整理成主屏上的少数几张卡，用户择机让它调查和修复。主屏上还能看到 Agent 的用量。
 
 #### 问题记录与择机提醒
 
-`agent.care-ledger` · Linux 系统功能 — 系统记下崩溃、失败的服务、存储不足、软件包问题和适配缺口，同一问题只有一条记录；用户可以稍后、约定时间或不再提醒。
+`agent.care-ledger` · Linux 系统功能 — 系统记录崩溃、服务失败、存储不足、软件包问题和适配缺口。同一问题只保留一条记录。用户可以稍后处理、约定提醒时间或关闭提醒。
 
-- **E1** 同一问题重复出现只更新原来那条记录，不新建、不重复提醒；同包同版本的崩溃可以合成一组展示，但各自的记录、调查和提醒保持独立。（单元测试、系统测试、人工）
-- **E2** “稍后”和约定的提醒跨重启保留；到时先复核问题是否仍在，再按系统通知设置提醒；提醒不会自动开始修复；错过的最多补发一次。（单元测试、系统测试、人工）
+- **E1** 同一问题重复出现只更新原来那条记录，不新建、不重复提醒。同包同版本的崩溃可以合成一组展示，但各自的记录、调查和提醒保持独立。（单元测试、系统测试、人工）
+- **E2** “稍后”和约定的提醒跨重启保留。到时先复核问题是否仍在，再按系统通知设置提醒。提醒不会自动开始修复。错过的最多补发一次。（单元测试、系统测试、人工）
 - **E3** “不再提醒”在问题重复出现、次数增加时仍然保持，用户可以恢复。（单元测试、系统测试）
-- **E4** 普通的优化机会不在使用应用期间弹出；每条记录只在有意义的新进展时提醒一次，已展示过的同一进展离开桌面后不再通知；证据过期就不提醒。（单元测试、系统测试、人工）
-- **E5** 上游合入或调查完成都不等于本机问题解决；问题消失只表示观测不再匹配，再出现时重新打开并保留原证据。（单元测试）
-- **E6** 账本损坏时不覆盖；旧格式升级前先备份，保留用户的选择、对话和结果。（单元测试、人工）
+- **E4** 普通的优化机会不在使用应用期间弹出。每条记录只在有意义的新进展时提醒一次，已展示过的同一进展离开桌面后不再通知。证据过期就不提醒。（单元测试、系统测试、人工）
+- **E5** 上游合入或调查完成都不等于本机问题解决。问题消失只表示观测不再匹配，再出现时重新打开并保留原证据。（单元测试）
+- **E6** 账本损坏时不覆盖。旧格式升级前先备份，保留用户的选择、对话和结果。（单元测试、人工）
 - **E7** 不把进程名当作应用实例：没有“应用关闭后提醒”这一项，服务也拒绝它。（单元测试）
-- **E8** 后台采集占用很小（服务约 13 MiB，单次采集 CPU 约 0.2 s），不在手机上自动编译、符号化或跑重负载探针。（人工；只能在手机上看：常驻内存和单次采集的 CPU 时间取决于手机上真实的崩溃记录、软件包数量和 CPU，容器里量出的数不代表手机；采集器只调用 dpkg-query、dpkg --audit 和 systemctl --failed（collector.cpp））
+- **E8** 后台采集占用很小（服务约 13 MiB，单次采集 CPU 约 0.2 s），不在手机上自动编译、符号化或跑重负载探针。（人工；只能在手机上看：常驻内存和单次采集的 CPU 时间取决于手机上真实的崩溃记录、软件包数量和 CPU，容器里量出的数不代表手机。采集器只调用 dpkg-query、dpkg --audit 和 systemctl --failed（collector.cpp））
 
 注意：
-- 日志里的 error 只是线索；SIGKILL、无响应和没有 core 都不能单独推出崩溃原因。Blender 的 CPU 渲染是用户选的策略，不能提示“修复为 GPU”。 [docs/research/proactive-system-care.md](../docs/research/proactive-system-care.md)
-- 当前探针不覆盖 Android LMK、逐应用的 GPU/编解码实际使用和通话状态；通知只在 Plasma 里，Android 侧收不到。 [docs/research/proactive-system-care.md](../docs/research/proactive-system-care.md) [docs/research/97-headless-agent-work.md](../docs/research/97-headless-agent-work.md)
-- 部署工具不会自动重启 rungic-suggestions 和 plasmashell，QML 或服务更新后要手动重启；默认冒烟包含摄像头探针，桌面验收要显式排除。 [docs/research/proactive-system-care.md](../docs/research/proactive-system-care.md)
-- 迟到的旧 ID 回执曾经由非 const 的 QJsonObject::operator[] 插入空记录；读取统一用 value()。 [docs/research/proactive-system-care.md](../docs/research/proactive-system-care.md)
+- 日志里的 error 只是线索。SIGKILL、无响应和没有 core 都不能单独推出崩溃原因。Blender 的 CPU 渲染是用户选的策略，不能提示“修复为 GPU”。 [docs/research/proactive-system-care.md](../docs/research/proactive-system-care.md)
+- 当前探针不覆盖 Android LMK、逐应用的 GPU/编解码实际使用和通话状态。通知只在 Plasma 里，Android 侧收不到。 [docs/research/proactive-system-care.md](../docs/research/proactive-system-care.md) [docs/research/97-headless-agent-work.md](../docs/research/97-headless-agent-work.md)
+- 部署工具不会自动重启 rungic-suggestions 和 plasmashell，QML 或服务更新后要手动重启。默认冒烟包含摄像头探针，桌面验收要显式排除。 [docs/research/proactive-system-care.md](../docs/research/proactive-system-care.md)
+- 迟到的旧 ID 回执曾经由非 const 的 QJsonObject::operator[] 插入空记录。读取统一用 value()。 [docs/research/proactive-system-care.md](../docs/research/proactive-system-care.md)
 
 文档：[docs/research/proactive-system-care.md](../docs/research/proactive-system-care.md)、[docs/agent-ready-interfaces.md](../docs/agent-ready-interfaces.md)
 
 #### 主屏上的 Agent 建议卡
 
-`agent.briefing` · Linux 系统功能 — Folio 主屏上方的原生小组件只显示 Agent 整理出的少数几张卡，一次一张、上下滑看下一张；点开进入对话，由 Agent 逐项介绍。
+`agent.briefing` · Linux 系统功能 — Folio 主屏上方的原生小组件显示 Agent 整理出的少量卡片。每次显示一张，用户上下滑动查看下一张。点击卡片进入对话，由 Agent 逐项介绍。
 
-- **E1** 小组件一次显示一张卡（最多 5 张），上下滑分页切换；底部收藏、壁纸留白、应用抽屉和原生编辑都照旧。（单元测试、人工）
-- **E2** 很多不同的崩溃合成一张卡；点卡片开一个对话，首条消息是卡片按钮的文字，Agent 在聊天里逐项介绍；同一张卡再点回到同一个对话，连点不会开出两个。（单元测试、人工）
-- **E3** 只有实质变化才重新整理：防抖 2 分钟、至少隔 1 小时（结果待查看或严重故障 10 分钟）、一天最多 12 次；没变化不发送；可以关掉后台整理。（单元测试）
-- **E4** 整理是不进会话列表的只读回合，输出严格校验；Agent 不可用、未登录、超限、超时或输出无效时显示回退卡，并分别说明是哪种情况。（单元测试）
+- **E1** 小组件一次显示一张卡（最多 5 张），上下滑分页切换。底部收藏、壁纸留白、应用抽屉和原生编辑都照旧。（单元测试、人工）
+- **E2** 很多不同的崩溃合成一张卡。点卡片开一个对话，首条消息是卡片按钮的文字，Agent 在聊天里逐项介绍。同一张卡再点回到同一个对话，连点不会开出两个。（单元测试、人工）
+- **E3** 只有实质变化才重新整理：防抖 2 分钟、至少隔 1 小时（结果待查看或严重故障 10 分钟）、一天最多 12 次。没变化不发送。可以关掉后台整理。（单元测试）
+- **E4** 整理是不进会话列表的只读回合，输出严格校验。Agent 不可用、未登录、超限、超时或输出无效时显示回退卡，并分别说明是哪种情况。（单元测试）
 - **E5** 发给模型的是脱敏摘要（私人路径换成占位），不发 core 和完整日志。（单元测试）
-- **E6** “暂不”把卡片隐藏到相关记录有实质变化为止；这条反馈进入下一次整理。（单元测试）
-- **E7** 把小组件放上主屏时不覆盖用户已有的图标、组件和删除选择，满页时新增一页；用户删除后不再自动加回。（单元测试、人工）
-- **E8** 卡片内滑动不会打开应用抽屉；在壁纸处上滑仍打开抽屉；长按进入原生调整。（单元测试、人工）
+- **E6** “暂不”把卡片隐藏到相关记录有实质变化为止。这条反馈进入下一次整理。（单元测试）
+- **E7** 把小组件放上主屏时不覆盖用户已有的图标、组件和删除选择，满页时新增一页。用户删除后不再自动加回。（单元测试、人工）
+- **E8** 卡片内滑动不会打开应用抽屉。在壁纸处上滑仍打开抽屉。长按进入原生调整。（单元测试、人工）
 
 注意：
-- 用户否定了全屏卡片主屏和逐记录卡片；建议放在原 Folio 上方的原生 widget 区域，由 Agent 决定展示哪几件事。 [docs/research/proactive-system-care.md](../docs/research/proactive-system-care.md) [docs/research/96-agent-curated-briefing.md](../docs/research/96-agent-curated-briefing.md)
-- Folio 的 SwipeArea 会抢走组件内的上滑；组件用 MouseArea.preventStealing 接管视口内的拖动。 [docs/research/proactive-system-care.md](../docs/research/proactive-system-care.md)
-- 按钮行“按子项可见性决定自身可见”时永远隐藏；未整理的回退卡曾误称“Codex 不可用”。 [docs/research/proactive-system-care.md](../docs/research/proactive-system-care.md)
+- 用户否定了全屏卡片主屏和逐记录卡片。建议放在原 Folio 上方的原生 widget 区域，由 Agent 决定展示哪几件事。 [docs/research/proactive-system-care.md](../docs/research/proactive-system-care.md) [docs/research/96-agent-curated-briefing.md](../docs/research/96-agent-curated-briefing.md)
+- Folio 的 SwipeArea 会抢走组件内的上滑。组件用 MouseArea.preventStealing 接管视口内的拖动。 [docs/research/proactive-system-care.md](../docs/research/proactive-system-care.md)
+- 按钮行“按子项可见性决定自身可见”时永远隐藏。未整理的回退卡曾误称“Codex 不可用”。 [docs/research/proactive-system-care.md](../docs/research/proactive-system-care.md)
 
 文档：[docs/research/96-agent-curated-briefing.md](../docs/research/96-agent-curated-briefing.md)、[docs/research/proactive-system-care.md](../docs/research/proactive-system-care.md)
 
 #### 让 Agent 调查和修复
 
-`agent.suggestion-tasks` · Linux 系统功能 — 用户点“检查原因”后 Agent 在对话里调查，结论、计划、验证和回退写回记录；只有用户确认了具体方案才应用修复。
+`agent.suggestion-tasks` · Linux 系统功能 — 用户点“检查原因”后 Agent 在对话里调查，结论、计划、验证和回退写回记录。只有用户确认了具体方案才应用修复。
 
-- **E1** 点“检查原因”后 Agent 在原对话里调查，结论、计划、验证和回退写回记录；关闭卡片或离开应用不取消任务。（系统测试、人工）
-- **E2** 只有具体方案、验证和回退都齐全时才能“应用修复”；确认框里的方案若已变化，旧确认被拒绝，Agent 只读用户确认的那份快照。（单元测试、系统测试、人工）
-- **E3** 建议服务或 Agent 重启后，任务仍与原记录和原对话关联；迟到的旧任务事件不覆盖新任务；结果在送达界面前先保存。（单元测试、系统测试、人工）
+- **E1** 点“检查原因”后 Agent 在原对话里调查，结论、计划、验证和回退写回记录。关闭卡片或离开应用不取消任务。（系统测试、人工）
+- **E2** 只有具体方案、验证和回退都齐全时才能“应用修复”。确认框里的方案若已变化，旧确认被拒绝，Agent 只读用户确认的那份快照。（单元测试、系统测试、人工）
+- **E3** 建议服务或 Agent 重启后，任务仍与原记录和原对话关联。迟到的旧任务事件不覆盖新任务。结果在送达界面前先保存。（单元测试、系统测试、人工）
 - **E4** 模型调用失败（包括未登录 401）显示为失败，保留原因和重试入口，不当作调查完成。（单元测试、系统测试）
-- **E5** 停止只作用于对应的任务，不影响别的对话；停止失败时任务保持运行并可再试。（单元测试）
+- **E5** 停止只作用于对应的任务，不影响别的对话。停止失败时任务保持运行并可再试。（单元测试）
 - **E6** 问题在调查中消失，任务和它的结果不丢，结果仍可稍后查看。（单元测试、系统测试）
 
 注意：
@@ -491,118 +491,118 @@ Agent 在自己的工作区（或用户指定的桌面）上打开应用、看�
 
 #### 软件兼容性知识库
 
-`agent.compat-knowledge` · Linux 系统功能 — 仓库维护的兼容性条目（问题、优化、有意的策略）随包发布，发现和调查时先查它；上游协作只在本机准备脱敏材料。
+`agent.compat-knowledge` · Linux 系统功能 — 仓库维护的兼容性条目随包发布，内容包括问题、优化和有意采用的策略。发现或调查问题时，先查询这些条目。上游协作的脱敏材料只在本机准备。
 
-- **E1** 条目必须有证据和精确的版本，不能带可执行内容；不合规的条目在校验时被拒。（单元测试）
-- **E2** 版本精确匹配：已带本地修复的 Qt Multimedia 不被未打补丁的规则误报；Blender 的 CPU 渲染策略不生成故障建议。（系统测试、人工）
-- **E3** 反馈只在本机生成脱敏的事实材料，不自动对外提交 issue 或 PR；上游状态由维护者记录，与本机是否解决分开。（系统测试、人工）
+- **E1** 条目必须有证据和精确的版本，不能带可执行内容。不合规的条目在校验时被拒。（单元测试）
+- **E2** 版本精确匹配：已带本地修复的 Qt Multimedia 不被未打补丁的规则误报。Blender 的 CPU 渲染策略不生成故障建议。（系统测试、人工）
+- **E3** 反馈只在本机生成脱敏的事实材料，不自动对外提交 issue 或 PR。上游状态由维护者记录，与本机是否解决分开。（系统测试、人工）
 
 注意：
-- 没有记录表示未知，不能显示为“不兼容”；一个机型的测试不能推广到所有 Adreno。 [docs/research/proactive-system-care.md](../docs/research/proactive-system-care.md)
+- 没有记录表示未知，不能显示为“不兼容”。一个机型的测试不能推广到所有 Adreno。 [docs/research/proactive-system-care.md](../docs/research/proactive-system-care.md)
 - Mesa 现行规则禁止自主工具自动提交或参与 issue/MR，对外文字由维护者自己写。 [docs/research/proactive-system-care.md](../docs/research/proactive-system-care.md)
 
 文档：[docs/research/proactive-system-care.md](../docs/research/proactive-system-care.md)
 
 #### Agent 用量小组件
 
-`agent.usage-widget` · Linux 系统功能 — 主屏和应用里显示每个 Agent（Codex、Claude Code）的额度窗口、重置时间和本机 token 用量，各带自己的标志。
+`agent.usage-widget` · Linux 系统功能 — 主屏和应用显示 Codex、Claude Code 等 Agent 的额度窗口、重置时间和本机 token 用量。每个 Agent 使用自己的标志。
 
-- **E1** 订阅账户显示真实的额度窗口和重置时间；API Key 账户不显示虚构的订阅额度和重置时间，只显示 token。（单元测试、人工）
-- **E2** 本机 token 统计不重复计数：服务重启、重读同一事件后数值不变，同一回合内的多次请求不重复也不遗漏；按账户分开；不含实时语音。（单元测试、人工）
-- **E3** 每个 Agent 是一个提供方，由描述文件声明（系统目录或用户目录），各带自己的标志；契约之外的字段丢弃；多个 Agent 用切换片。（单元测试）
-- **E4** Claude Code 的 token 来自其会话记录，每条消息只算一次；额度只取文档化的 statusline 数据，不用未文档化的接口。（单元测试）
-- **E5** 读取失败、离线、未登录各自显示，不编造额度；账户切换期间读到的旧响应被丢弃，别的账户的 token 不会算进来。（单元测试）
+- **E1** 订阅账户显示真实的额度窗口和重置时间。API Key 账户不显示虚构的订阅额度和重置时间，只显示 token。（单元测试、人工）
+- **E2** 本机 token 统计不重复计数：服务重启、重读同一事件后数值不变，同一回合内的多次请求不重复也不遗漏。按账户分开。不含实时语音。（单元测试、人工）
+- **E3** 每个 Agent 是一个提供方，由描述文件声明（系统目录或用户目录），各带自己的标志。契约之外的字段丢弃。多个 Agent 用切换片。（单元测试）
+- **E4** Claude Code 的 token 来自其会话记录，每条消息只算一次。额度只取文档化的 statusline 数据，不用未文档化的接口。（单元测试）
+- **E5** 读取失败、离线、未登录各自显示，不编造额度。账户切换期间读到的旧响应被丢弃，别的账户的 token 不会算进来。（单元测试）
 - **E6** 额度的重置时间到了只标记“待刷新”，不在本地把已用额度清零。（单元测试）
 - **E7** 点用量进入应用的用量页，点像素标志回到 Agent 对话。（单元测试、人工）
 
 注意：
 - 本机统计只是本机收到的 Codex 用量，不等于账单。 [docs/research/proactive-system-care.md](../docs/research/proactive-system-care.md) [docs/research/95-agent-usage-providers.md](../docs/research/95-agent-usage-providers.md)
-- Claude Code 的会话记录是内部格式，按 ccusage 的方式去重；schema 2 提供方接口尚未在手机上验收。 [docs/research/95-agent-usage-providers.md](../docs/research/95-agent-usage-providers.md)
+- Claude Code 的会话记录是内部格式，按 ccusage 的方式去重。schema 2 提供方接口尚未在手机上验收。 [docs/research/95-agent-usage-providers.md](../docs/research/95-agent-usage-providers.md)
 
 文档：[docs/research/95-agent-usage-providers.md](../docs/research/95-agent-usage-providers.md)、[docs/research/proactive-system-care.md](../docs/research/proactive-system-care.md)
 
 ### 安装、设置和接入 Agent
 
-安装和更新 Codex、登录、选模型、改指令和技能；开发用的 Agent 也能经诊断接口查看手机。
+安装和更新 Codex、登录、选模型、改指令和技能。开发用的 Agent 也能经诊断接口查看手机。
 
 #### Codex 的安装与更新
 
-`agent.codex-install` · Linux 系统功能 — 系统不自带 Codex；设置里用官方脚本一键安装到用户目录，有新的正式版时提示更新。
+`agent.codex-install` · Linux 系统功能 — 系统不自带 Codex。设置里用官方脚本一键安装到用户目录，有新的正式版时提示更新。
 
-- **E1** 设置里显示 Codex 已安装、未安装或正在安装；未安装时一键用官方脚本装到 ~/.codex，期间语音服务不退出，对话里提示“还差一步：安装 Codex”。（单元测试、人工）
-- **E2** 只跟正式版：有新版本时设置显示“可更新到 X”，预发布版和带后缀的标签不算；结果缓存 6 小时，离线时保留上次的结果。（单元测试、人工）
+- **E1** 设置里显示 Codex 已安装、未安装或正在安装。未安装时一键用官方脚本装到 ~/.codex，期间语音服务不退出，对话里提示“还差一步：安装 Codex”。（单元测试、人工）
+- **E2** 只跟正式版：有新版本时设置显示“可更新到 X”，预发布版和带后缀的标签不算。结果缓存 6 小时，离线时保留上次的结果。（单元测试、人工）
 - **E3** 安装或更新完成后，等没有任务在跑、也没人在说话（最多 30 分钟）再重启 app-server，模型列表随之重新读取。（单元测试）
-- **E4** /usr/bin/codex 对所有调用者（助手的 app-server、命令行、实时语音）运行用户的独立安装版本，并带上手机代理；没装时提示去设置安装，退出码 127。（单元测试、人工）
+- **E4** /usr/bin/codex 对所有调用者（助手的 app-server、命令行、实时语音）运行用户的独立安装版本，并带上手机代理。没装时提示去设置安装，退出码 127。（单元测试、人工）
 
 注意：
-- OpenAI 按客户端版本下发模型目录：同一账户 0.156.1 看不到 GPT-6.1-Sol；所以 Codex 要跟最新正式版。 [docs/99-codex-standalone.md](../docs/99-codex-standalone.md) [docs/98-agent-model-selection.md](../docs/98-agent-model-selection.md)
-- Codex 在用户目录里，不随发布锁定、不随快照回滚；验收记录要写上当时 Codex 的实际版本。 [docs/99-codex-standalone.md](../docs/99-codex-standalone.md)
-- 完整包里的 codex-code-mode-host 是执行命令所必需的；单独的 CLI 二进制缺它时 Agent 无法执行命令。 [docs/59-voice-agent.md](../docs/59-voice-agent.md)
+- OpenAI 按客户端版本下发模型目录：同一账户 0.156.1 看不到 GPT-6.1-Sol。所以 Codex 要跟最新正式版。 [docs/99-codex-standalone.md](../docs/99-codex-standalone.md) [docs/98-agent-model-selection.md](../docs/98-agent-model-selection.md)
+- Codex 在用户目录里，不随发布锁定、不随快照回滚。验收记录要写上当时 Codex 的实际版本。 [docs/99-codex-standalone.md](../docs/99-codex-standalone.md)
+- 完整包里的 codex-code-mode-host 是执行命令所必需的。单独的 CLI 二进制缺它时 Agent 无法执行命令。 [docs/59-voice-agent.md](../docs/59-voice-agent.md)
 
 文档：[docs/99-codex-standalone.md](../docs/99-codex-standalone.md)
 
 #### Codex 登录与 OpenAI API Key
 
-`agent.sign-in` · Linux 系统功能 — 两套凭据分开讲清楚：Codex 的登录（ChatGPT 套餐或 API Key）用于 Agent 执行任务；单独的 OpenAI API Key 用于语音、转文字和代打电话。
+`agent.sign-in` · Linux 系统功能 — Codex 登录与单独的 OpenAI API Key 使用不同凭据。Codex 通过 ChatGPT 套餐或 API Key 登录，用于执行任务。单独的 OpenAI API Key 用于语音、转文字和代打电话。
 
 - **E1** 设置首页分开显示 Codex 的登录方式（“ChatGPT 套餐（Team）”“API Key”或“未登录”）和 OpenAI API Key，各自说明计费归属。（单元测试、人工）
-- **E2** ChatGPT 设备码登录：15 分钟内再点显示同一个验证码，不让 Codex 顶替；被顶替或取消的那次结束不在页面上报错；重新打开页面恢复进行中的验证码。（单元测试、人工）
-- **E3** 改用 API Key 登录 Codex 前要确认，并写明 Agent 的任务改按 API 用量计费；没设置 Key 时这一项不可选；改用 API Key 时丢掉进行中的设备码登录。（单元测试）
+- **E2** ChatGPT 设备码登录：15 分钟内再点显示同一个验证码，不让 Codex 顶替。被顶替或取消的那次结束不在页面上报错。重新打开页面恢复进行中的验证码。（单元测试、人工）
+- **E3** 改用 API Key 登录 Codex 前要确认，并写明 Agent 的任务改按 API 用量计费。没设置 Key 时这一项不可选。改用 API Key 时丢掉进行中的设备码登录。（单元测试）
 - **E4** 切换登录方式时语音服务不退出：被主动替换的 app-server 退出只记日志，只有意外退出才交给 systemd 恢复。（单元测试、人工）
-- **E5** API Key 保存前用 /v1/models 实测，没测过的密钥打开页面时自动测一次；明文保存在权限 600 的文件里，界面写明本用户的程序（包括 Agent）都能读到它。（单元测试）
+- **E5** API Key 保存前用 /v1/models 实测，没测过的密钥打开页面时自动测一次。明文保存在权限 600 的文件里，界面写明本用户的程序（包括 Agent）都能读到它。（单元测试）
 
 注意：
-- 容器里 KDE 钥匙串（ksecretd）缺 QCA OpenSSL 插件，第一次写入还会弹英文建钱包向导并卡住调用方；用户决定 Key 明文存文件。 [docs/87-agent-app-redesign.md](../docs/87-agent-app-redesign.md)
+- 容器里 KDE 钥匙串（ksecretd）缺 QCA OpenSSL 插件，第一次写入还会弹英文建钱包向导并卡住调用方。用户决定 Key 明文存文件。 [docs/87-agent-app-redesign.md](../docs/87-agent-app-redesign.md)
 - 旧 API Key 页上“改用 API Key 登录”点一下就切换、不提示计费变化，用户的 Codex 曾因此被切到 API Key。 [docs/101-codex-sign-in-and-api-key.md](../docs/101-codex-sign-in-and-api-key.md)
 - account/read 和 auth.json 分不出是设备码还是浏览器登录，界面按套餐称呼。 [docs/101-codex-sign-in-and-api-key.md](../docs/101-codex-sign-in-and-api-key.md)
-- 每次 account/login/start 都会顶替进行中的登录，旧登录以 “Login was not completed” 结束；要按 loginId 核对通知。 [docs/101-codex-sign-in-and-api-key.md](../docs/101-codex-sign-in-and-api-key.md)
+- 每次 account/login/start 都会顶替进行中的登录，旧登录以 “Login was not completed” 结束。要按 loginId 核对通知。 [docs/101-codex-sign-in-and-api-key.md](../docs/101-codex-sign-in-and-api-key.md)
 
 文档：[docs/101-codex-sign-in-and-api-key.md](../docs/101-codex-sign-in-and-api-key.md)、[docs/87-agent-app-redesign.md](../docs/87-agent-app-redesign.md)
 
 #### 选择 Agent 的模型和推理强度
 
-`agent.model-choice` · Linux 系统功能 — 默认跟随账户默认模型；也可以从账户可用的模型里选，并选该模型支持的推理强度。接口为以后别的 provider 留了位置。
+`agent.model-choice` · Linux 系统功能 — Agent 默认使用账户的默认模型。用户也可以选择账户可用的其他模型及其支持的推理强度。接口预留其他 provider 的接入位置。
 
-- **E1** 可选的模型和强度来自账户的模型目录（隐藏的不列出）；不在目录里的模型、该模型不支持的强度都被拒绝，不保存。（单元测试、人工）
+- **E1** 可选的模型和强度来自账户的模型目录（隐藏的不列出）。不在目录里的模型、该模型不支持的强度都被拒绝，不保存。（单元测试、人工）
 - **E2** 选的模型不再提供或强度不支持时，退回账户默认或模型默认，设置里的“模型”行首显示红点。（单元测试）
-- **E3** 改设置后，空闲的对话立即换到新模型并恢复语音；有任务在跑、正在说话或还没有过一轮时，等这一轮结束再换；已经是目标模型时不重载。（单元测试、人工）
-- **E4** 模型目录读取失败时保留上次的目录，缓存 10 分钟；账户变化后重新读取，选择不再成立时提示。（单元测试）
+- **E3** 改设置后，空闲的对话立即换到新模型并恢复语音。有任务在跑、正在说话或还没有过一轮时，等这一轮结束再换。已经是目标模型时不重载。（单元测试、人工）
+- **E4** 模型目录读取失败时保留上次的目录，缓存 10 分钟。账户变化后重新读取，选择不再成立时提示。（单元测试）
 - **E5** 用量面板报告实际使用的模型名称。（单元测试、人工）
 
 注意：
-- 已加载的会话再 thread/resume 模型不变，要先 thread/unsubscribe 再 resume；还没有过任何一轮的会话无法 resume。 [docs/98-agent-model-selection.md](../docs/98-agent-model-selection.md)
+- 已加载的会话再 thread/resume 模型不变，要先 thread/unsubscribe 再 resume。还没有过任何一轮的会话无法 resume。 [docs/98-agent-model-selection.md](../docs/98-agent-model-selection.md)
 - 语音触发的任务由实时模型经 background_agent 发起，沿用会话当前模型，不经过我们的 turn/start。 [docs/98-agent-model-selection.md](../docs/98-agent-model-selection.md)
-- 实时语音、通话画面判断仍写死模型；建议整理用自己的 CURATE_MODEL，不跟用户的选择。 [docs/98-agent-model-selection.md](../docs/98-agent-model-selection.md)
+- 实时语音、通话画面判断仍写死模型。建议整理用自己的 CURATE_MODEL，不跟用户的选择。 [docs/98-agent-model-selection.md](../docs/98-agent-model-selection.md)
 
 文档：[docs/98-agent-model-selection.md](../docs/98-agent-model-selection.md)
 
 #### 指令和技能归用户，改了就生效
 
-`agent.instructions` · Linux 系统功能 — Agent 的提示词和技能在用户目录里有可编辑的副本，升级不覆盖用户的修改，改动在进行中的对话里也很快生效。
+`agent.instructions` · Linux 系统功能 — 用户目录保留可编辑的 Agent 提示词和技能副本。升级不覆盖用户修改。改动也能在进行中的对话里很快生效。
 
-- **E1** 提示词（agent.md、realtime.md）和每个技能在用户目录有真实的副本；升级时没改过的副本跟随新默认，改过的保留，新默认另存为 NAME.default。（单元测试、人工）
-- **E2** 改了 agent.md 或技能后约 30 秒内（Agent 空闲、没在说话时），进行中的对话也用上新指令；改了 realtime.md 在空闲时重启实时会话。（单元测试、人工）
+- **E1** 提示词（agent.md、realtime.md）和每个技能在用户目录有真实的副本。升级时没改过的副本跟随新默认，改过的保留，新默认另存为 NAME.default。（单元测试、人工）
+- **E2** 改了 agent.md 或技能后约 30 秒内（Agent 空闲、没在说话时），进行中的对话也用上新指令。改了 realtime.md 在空闲时重启实时会话。（单元测试、人工）
 - **E3** 包里删掉的默认技能，用户没改过的副本一起删掉，改过的保留。（单元测试）
 - **E4** 每个桌面用户首次登录时自动配好 rungic-desktop MCP 服务和技能目录（kconf_update，重复执行无副作用）。（单元测试）
 
 注意：
-- Codex 把开发者指令固定在对话加载的那一刻；同一个 app-server 里再次恢复只是重新加入；包升级只 reload systemd、不重启用户服务。所以要注入新指令，而不是等下次打开。 [docs/59-voice-agent.md](../docs/59-voice-agent.md) [docs/88-agent-visible-work.md](../docs/88-agent-visible-work.md)
-- Agent 在沙箱里看不到桌面进程（ps/pgrep），不能从 shell 启动图形程序；这些规则写在技能里。 [docs/60-computer-use.md](../docs/60-computer-use.md)
+- Codex 把开发者指令固定在对话加载的那一刻。同一个 app-server 里再次恢复只是重新加入。包升级只 reload systemd、不重启用户服务。所以要注入新指令，而不是等下次打开。 [docs/59-voice-agent.md](../docs/59-voice-agent.md) [docs/88-agent-visible-work.md](../docs/88-agent-visible-work.md)
+- Agent 在沙箱里看不到桌面进程（ps/pgrep），不能从 shell 启动图形程序。这些规则写在技能里。 [docs/60-computer-use.md](../docs/60-computer-use.md)
 
 文档：[docs/59-voice-agent.md](../docs/59-voice-agent.md)、[docs/88-agent-visible-work.md](../docs/88-agent-visible-work.md)
 
 #### 开发用 Agent 的诊断接口
 
-`agent.dev-diagnostics` · 依赖安卓 — 开发机上的 rungic MCP 服务让开发用的 Agent 查看手机：状态、合并日志、崩溃、完整性、截图、证据包、控件、追踪和构建状态。
+`agent.dev-diagnostics` · 依赖安卓 — 开发机上的 rungic MCP 服务为开发 Agent 提供手机诊断接口。接口包括状态、合并日志、崩溃、完整性、截图、证据包、控件、追踪和构建状态。
 
-- **E1** rungic MCP 提供 21 个工具；只读工具不改变设备状态，会改变设备的（符号化、控件操作、追踪采集）在说明里标明。（单元测试）
+- **E1** rungic MCP 提供 21 个工具。只读工具不改变设备状态，会改变设备的（符号化、控件操作、追踪采集）在说明里标明。（单元测试）
 - **E2** 多个 ADB 服务器、多台手机同时在线时，按配置的端口和序列号操作那一台，不沿用工具的历史默认设备。（单元测试）
 - **E3** 按无障碍名称在启动器里打开和关闭应用（ui_launch_check），每一步对照进程表和 AT-SPI 核对，点错就失败，不悄悄测错对象。（实机验收）
 - **E4** 合并日志把 Android、容器和内核日志按同一时钟排成一条时间线。（单元测试）
 
 注意：
-- 在手机上做重活（例如 gdb 符号化）会被 LMK 连带杀掉 VPN 和桌面；符号化走构建机。 [docs/55-agent-native-debugging.md](../docs/55-agent-native-debugging.md) [docs/research/proactive-system-care.md](../docs/research/proactive-system-care.md)
-- 通用 ui_tap 对 Qt 弹出层使用未计入弹出层偏移的 AT-SPI 坐标，会点到按钮上方；不能把工具点错当成按钮失效。 [docs/research/proactive-system-care.md](../docs/research/proactive-system-care.md)
+- 在手机上做重活（例如 gdb 符号化）会被 LMK 连带杀掉 VPN 和桌面。符号化走构建机。 [docs/55-agent-native-debugging.md](../docs/55-agent-native-debugging.md) [docs/research/proactive-system-care.md](../docs/research/proactive-system-care.md)
+- 通用 ui_tap 对 Qt 弹出层使用未计入弹出层偏移的 AT-SPI 坐标，会点到按钮上方。不能把工具点错当成按钮失效。 [docs/research/proactive-system-care.md](../docs/research/proactive-system-care.md)
 - 每次经 adb 的 AT-SPI 查询约 3 秒，等待位置稳定的超时要够长。 [docs/agent-ready-interfaces.md](../docs/agent-ready-interfaces.md)
 
 文档：[docs/55-agent-native-debugging.md](../docs/55-agent-native-debugging.md)、[docs/agent-ready-interfaces.md](../docs/agent-ready-interfaces.md)
@@ -617,7 +617,7 @@ Agent 在自己的工作区（或用户指定的桌面）上打开应用、看�
 
 #### 应用商店与 pkgcli 安装应用
 
-`apps.store` · Linux 系统功能 — Discover（PackageKit APT 后端）和 pkgcli 能搜到、装上、卸掉 Ubuntu 的 ARM64 应用，授权用系统的密码框。
+`apps.store` · Linux 系统功能 — Discover 的 PackageKit APT 后端和 pkgcli 提供 Ubuntu ARM64 应用的搜索、安装和卸载。授权使用系统密码框。
 
 - **E1** Discover 能显示应用的介绍、版本和安装按钮（AppStream/DEP11 元数据与图标已下载）。（人工）
 - **E2** 从 Discover 用 APT 装应用，同一进程约 5 分钟内只问一次密码（auth_admin_keep），不会每一步都要密码。（人工）
@@ -626,8 +626,8 @@ Agent 在自己的工作区（或用户指定的桌面）上打开应用、看�
 - **E5** 系统的定制 Mesa、KWin 等包不会被一次普通的 PackageKit 更新换回发行版版本。（缺口：只核对过当时的更新清单，没有覆盖第三方源的依赖求解）
 
 注意：
-- 会话由服务经 PAM 创建时没有 seat，logind 当它是非本地会话，polkit 对 Discover、Flatpak 一律 auth_admin，每步都要密码；服务里必须有 XDG_SEAT=seat0。 [docs/45-plasma-app-store.md](../docs/45-plasma-app-store.md)
-- 带 http_proxy 的 pkgcli 在 LXC attach 上下文会报 “failed to get the session”；批量 CLI 去掉代理环境，下载交给 APT 已配置的代理。 [docs/45-plasma-app-store.md](../docs/45-plasma-app-store.md)
+- 会话由服务经 PAM 创建时没有 seat，logind 当它是非本地会话，polkit 对 Discover、Flatpak 一律 auth_admin，每步都要密码。服务里必须有 XDG_SEAT=seat0。 [docs/45-plasma-app-store.md](../docs/45-plasma-app-store.md)
+- 带 http_proxy 的 pkgcli 在 LXC attach 上下文会报 “failed to get the session”。批量 CLI 去掉代理环境，下载交给 APT 已配置的代理。 [docs/45-plasma-app-store.md](../docs/45-plasma-app-store.md)
 - 用户明确要求真实用户名密码，不要加免密码的 polkit 规则。 [docs/45-plasma-app-store.md](../docs/45-plasma-app-store.md)
 - Kalk 的 AppStream 地址是 appstream://org.kde.kalk，带 .desktop 会匹配失败。 [docs/45-plasma-app-store.md](../docs/45-plasma-app-store.md)
 - 安装成功不等于功能可用：Angelfish、KClock 定时唤醒、Marble 自动定位等仍各有缺口，要单独验收。 [docs/45-plasma-app-store.md](../docs/45-plasma-app-store.md)
@@ -636,17 +636,17 @@ Agent 在自己的工作区（或用户指定的桌面）上打开应用、看�
 
 #### Flatpak 应用能装、能在沙箱里运行
 
-`apps.flatpak` · Linux 系统功能 — 在 LXC 容器里，Flatpak 的 bubblewrap 沙箱能建起来，Flathub 应用装得上、跑得起。
+`apps.flatpak` · Linux 系统功能 — Flatpak 在 LXC 容器内建立 bubblewrap 沙箱。用户可以安装和运行 Flathub 应用。
 
-- **E1** 从 Discover 装 extra-data 类型的 Flatpak 应用（VS Code）能完整装完，不会在部署应用本体时失败并回滚运行时。（人工；只能在手机上看：装应用时 bubblewrap 要在手机的 LXC 容器里建沙箱，成败取决于容器的 proc:mixed 挂载、/proc/sys/user 与安卓内核的用户命名空间；系统测试的 Docker 容器没有这些限制，测不出它们）
-- **E2** 沙箱的防逃逸限制仍然有效：沙箱里写全局 sysctl 被拒，嵌套的 unshare -U 被禁止。（人工；只能在手机上看：防逃逸限制靠手机 LXC 容器只读的 /proc/sys 与安卓内核的命名空间设置；Docker 测试容器的 /proc 与权限不同，结果不代表手机）
+- **E1** 从 Discover 装 extra-data 类型的 Flatpak 应用（VS Code）能完整装完，不会在部署应用本体时失败并回滚运行时。（人工；只能在手机上看：装应用时 bubblewrap 要在手机的 LXC 容器里建沙箱，成败取决于容器的 proc:mixed 挂载、/proc/sys/user 与安卓内核的用户命名空间。系统测试的 Docker 容器没有这些限制，测不出它们）
+- **E2** 沙箱的防逃逸限制仍然有效：沙箱里写全局 sysctl 被拒，嵌套的 unshare -U 被禁止。（人工；只能在手机上看：防逃逸限制靠手机 LXC 容器只读的 /proc/sys 与安卓内核的命名空间设置。Docker 测试容器的 /proc 与权限不同，结果不代表手机）
 - **E3** 容器 init 准备沙箱条件失败时只记日志，容器和桌面照常启动。（系统测试）
 
 注意：
-- LXC 的 proc:mixed 把 /proc/sys 挂为只读，bwrap 写 user.max_user_namespaces 失败；只把 /proc/sys/user 重挂可写，其余保持只读。 [docs/45-plasma-app-store.md](../docs/45-plasma-app-store.md)
-- 新 PID 命名空间挂 proc 要求有一个完全可见的 proc；LXC 的遮盖挂载让 /proc 不完全可见，要在仅 root 可进的 /run/rungic-proc 另挂一个。 [docs/45-plasma-app-store.md](../docs/45-plasma-app-store.md)
-- flatpak 以 root 跑的安装后触发器用 --unshare-net，容器没有 net_admin，会报 loopback RTM_NEWADDR 错误；应用本身不受影响。 [docs/45-plasma-app-store.md](../docs/45-plasma-app-store.md)
-- Qt 的 Flatpak 应用看到 AT_SPI_BUS_ADDRESS 就无条件开无障碍桥，Telegram 因此一直提示读屏模式；共享层不接无障碍总线会让 rungic-cua 无法自动化它们，尚未决定。 [docs/49-plasma-performance.md](../docs/49-plasma-performance.md)
+- LXC 的 proc:mixed 把 /proc/sys 挂为只读，bwrap 写 user.max_user_namespaces 失败。只把 /proc/sys/user 重挂可写，其余保持只读。 [docs/45-plasma-app-store.md](../docs/45-plasma-app-store.md)
+- 新 PID 命名空间挂 proc 要求有一个完全可见的 proc。LXC 的遮盖挂载让 /proc 不完全可见，要在仅 root 可进的 /run/rungic-proc 另挂一个。 [docs/45-plasma-app-store.md](../docs/45-plasma-app-store.md)
+- flatpak 以 root 跑的安装后触发器用 --unshare-net，容器没有 net_admin，会报 loopback RTM_NEWADDR 错误。应用本身不受影响。 [docs/45-plasma-app-store.md](../docs/45-plasma-app-store.md)
+- Qt 的 Flatpak 应用看到 AT_SPI_BUS_ADDRESS 就无条件开无障碍桥，Telegram 因此一直提示读屏模式。共享层不接无障碍总线会让 rungic-cua 无法自动化它们，尚未决定。 [docs/49-plasma-performance.md](../docs/49-plasma-performance.md)
 
 文档：[docs/45-plasma-app-store.md](../docs/45-plasma-app-store.md)
 
@@ -656,37 +656,37 @@ Agent 在自己的工作区（或用户指定的桌面）上打开应用、看�
 
 #### 应用在手机 GPU 上绘制（OpenGL / GLES）
 
-`apps.gpu` · Linux 系统功能 — 桌面和原生 Wayland 应用经本项目的 Mesa（KGSL 上的 freedreno）用 Adreno 710 画画面，Qt Quick 和 GTK 默认 GL。
+`apps.gpu` · Linux 系统功能 — 桌面和原生 Wayland 应用通过本项目的 Mesa 使用 Adreno 710 渲染。Mesa 使用 KGSL 上的 freedreno。Qt Quick 和 GTK 默认使用 GL。
 
 经由接口：`kwin-android-host`
 
-- **E1** 普通用户的应用拿到的是硬件 GL（渲染器 FD710，GLES 3.2 / GL 4.6），不是 llvmpipe 或 softpipe。（人工；只能在手机上看：渲染器是不是 FD710 取决于手机的 Adreno 710 与 /dev/kgsl-3d0；系统测试容器没有 GPU，只有软件渲染）
-- **E2** Qt Quick 应用和 plasmashell 滚动、切换时没有整屏灰色闪帧（会话默认 QSG_RHI_BACKEND=opengl）。（单元测试、人工；只能在手机上看：整屏灰色闪帧要在手机 GPU 上逐帧检测（docs/56）；会话默认的 GL 设置由 tools/tests/test_gpu_env.py 检查）
+- **E1** 普通用户的应用拿到的是硬件 GL（渲染器 FD710，GLES 3.2 / GL 4.6），不是 llvmpipe 或 softpipe。（人工；只能在手机上看：渲染器是不是 FD710 取决于手机的 Adreno 710 与 /dev/kgsl-3d0。系统测试容器没有 GPU，只有软件渲染）
+- **E2** Qt Quick 应用和 plasmashell 滚动、切换时没有整屏灰色闪帧（会话默认 QSG_RHI_BACKEND=opengl）。（单元测试、人工；只能在手机上看：整屏灰色闪帧要在手机 GPU 上逐帧检测（docs/56）。会话默认的 GL 设置由 tools/tests/test_gpu_env.py 检查）
 - **E3** 应用抽屉滑动时 Surface 呈现间隔超过 12.6 ms 的比例低于 1%（GLES 合成）。（实机验收、人工；只能在手机上看：呈现间隔是手机 GPU 与安卓刷新下的性能，只能在手机上量）
-- **E4** 系统 Mesa 的包不会被发行版更新覆盖，升级 Mesa 后 KWin 不会因图形复位而中止。（缺口：只能在手机上换包重启工作区验证；没有自动检查）
+- **E4** 系统 Mesa 的包不会被发行版更新覆盖，升级 Mesa 后 KWin 不会因图形复位而中止。（缺口：只能在手机上换包重启工作区验证。没有自动检查）
 
 注意：
-- KGSL 不是 DRM 设备，没有 /dev/dri；所有依赖 drmGetDevice2、DRM 渲染节点或 PCI 信息的路径（Firefox VA-API、wlroots、ksystemstats、Xwayland glamor）都要单独处理，不能伪造 DRM 节点。 [docs/research/74-vaapi-feasibility.md](../docs/research/74-vaapi-feasibility.md) [docs/research/93-xwayland-kgsl-gpu.md](../docs/research/93-xwayland-kgsl-gpu.md)
+- KGSL 不是 DRM 设备，没有 /dev/dri。所有依赖 drmGetDevice2、DRM 渲染节点或 PCI 信息的路径（Firefox VA-API、wlroots、ksystemstats、Xwayland glamor）都要单独处理，不能伪造 DRM 节点。 [docs/research/74-vaapi-feasibility.md](../docs/research/74-vaapi-feasibility.md) [docs/research/93-xwayland-kgsl-gpu.md](../docs/research/93-xwayland-kgsl-gpu.md)
 - 会话环境 gpu-env 必须带 MESA_LOADER_DRIVER_OVERRIDE=kgsl、FD_KGSL_ENABLE_DMABUF=1，并清掉 LIBGL_ALWAYS_SOFTWARE 和遗留的 QT_QUICK_BACKEND=software。 [docs/40-plasma-mobile-integration.md](../docs/40-plasma-mobile-integration.md)
-- 2026-09-26 全局把 Qt Quick 改成 Vulkan 后语音助手整屏灰色闪帧，当天撤回；评估渲染后端必须做逐帧画面检测，不能只看帧间隔和 CPU。 [docs/56-kwin-vulkan-quantification.md](../docs/56-kwin-vulkan-quantification.md)
-- KWin 经 Zink 合成更慢（慢帧 5.06% 对 0.57%），KWin 原生 Vulkan 只省约 0.7–1.5 ms/帧 CPU，不值得维护分支；桌面合成保持 GLES。 [docs/51-plasma-vulkan-benchmark.md](../docs/51-plasma-vulkan-benchmark.md) [docs/56-kwin-vulkan-quantification.md](../docs/56-kwin-vulkan-quantification.md)
-- Mesa 换到上游 main 的尝试失败：freedreno 一渲染就 GPU hang，工作区 KWin abort；已退回 lfdevs 分支 98f3d622 加 4 个补丁。再试前要先二分定位上游回归。 [docs/research/94-mesa-base.md](../docs/research/94-mesa-base.md)
+- 2026-09-26 全局把 Qt Quick 改成 Vulkan 后语音助手整屏灰色闪帧，当天撤回。评估渲染后端必须做逐帧画面检测，不能只看帧间隔和 CPU。 [docs/56-kwin-vulkan-quantification.md](../docs/56-kwin-vulkan-quantification.md)
+- KWin 经 Zink 合成更慢（慢帧 5.06% 对 0.57%），KWin 原生 Vulkan 只省约 0.7–1.5 ms/帧 CPU，不值得维护分支。桌面合成保持 GLES。 [docs/51-plasma-vulkan-benchmark.md](../docs/51-plasma-vulkan-benchmark.md) [docs/56-kwin-vulkan-quantification.md](../docs/56-kwin-vulkan-quantification.md)
+- Mesa 换到上游 main 的尝试失败：freedreno 一渲染就 GPU hang，工作区 KWin abort。已退回 lfdevs 分支 98f3d622 加 4 个补丁。再试前要先二分定位上游回归。 [docs/research/94-mesa-base.md](../docs/research/94-mesa-base.md)
 - lfdevs 分支的 Termux 专用改动（1274 修饰符、dri3_x11_connect 失败也返回成功）是 Flatpak 崩溃和 Xwayland 黑窗的来源，换底座或升级时要逐条核对。 [docs/research/94-mesa-base.md](../docs/research/94-mesa-base.md) [docs/49-plasma-performance.md](../docs/49-plasma-performance.md)
-- freedreno 的 OpenGL 在 Blender 按物体取数据的路径上出错（物体位置、大小、颜色串位），同一 GPU 的 Turnip 正确；具体出错位置未查明。 [docs/90-blender-vulkan-incident.md](../docs/90-blender-vulkan-incident.md)
+- freedreno 的 OpenGL 在 Blender 按物体取数据的路径上出错（物体位置、大小、颜色串位），同一 GPU 的 Turnip 正确。具体出错位置未查明。 [docs/90-blender-vulkan-incident.md](../docs/90-blender-vulkan-incident.md)
 - GPU 与 CPU 共用 7.3 GB 内存，EEVEE 一类 GPU 负载要多占约 1 GB，内存吃紧时安卓会按 LOW_MEMORY 结束进程。 [docs/90-blender-vulkan-incident.md](../docs/90-blender-vulkan-incident.md)
-- 性能对照要交错执行、每轮重启并确认热状态为 0，不锁频不改温控；Surface 呈现间隔、Qt frameSwapped 与 GPU 执行时间是不同的量，不能混用。 [docs/51-plasma-vulkan-benchmark.md](../docs/51-plasma-vulkan-benchmark.md) [desktop/bench/README.md](../desktop/bench/README.md)
+- 性能对照要交错执行、每轮重启并确认热状态为 0，不锁频不改温控。Surface 呈现间隔、Qt frameSwapped 与 GPU 执行时间是不同的量，不能混用。 [docs/51-plasma-vulkan-benchmark.md](../docs/51-plasma-vulkan-benchmark.md) [desktop/bench/README.md](../desktop/bench/README.md)
 
 文档：[docs/51-plasma-vulkan-benchmark.md](../docs/51-plasma-vulkan-benchmark.md)、[docs/56-kwin-vulkan-quantification.md](../docs/56-kwin-vulkan-quantification.md)、[docs/research/94-mesa-base.md](../docs/research/94-mesa-base.md)、[desktop/bench/README.md](../desktop/bench/README.md)、[benchmarks/README.md](../benchmarks/README.md)
 
 #### Vulkan 应用（Turnip）
 
-`apps.vulkan` · Linux 系统功能 — 需要 Vulkan 的应用（vkcube、Blender 的 Vulkan 视口、选用 Vulkan 的 Qt 程序）拿到 Adreno 710 上的 Turnip Vulkan 1.4。
+`apps.vulkan` · Linux 系统功能 — Vulkan 应用使用 Adreno 710 上的 Turnip Vulkan 1.4。应用包括 vkcube、Blender Vulkan 视口和选用 Vulkan 的 Qt 程序。
 
 经由接口：`kwin-android-host`
 
-- **E1** 普通用户的 Vulkan 程序识别到 Turnip Adreno 710（API 1.4，不是 lavapipe），vkcube 经 Wayland WSI 正常显示。（人工；只能在手机上看：Turnip 驱动 Adreno 710 只在手机上有；系统测试容器里只有 lavapipe）
+- **E1** 普通用户的 Vulkan 程序识别到 Turnip Adreno 710（API 1.4，不是 lavapipe），vkcube 经 Wayland WSI 正常显示。（人工；只能在手机上看：Turnip 驱动 Adreno 710 只在手机上有。系统测试容器里只有 lavapipe）
 - **E2** 单个 Qt 程序设 QSG_RHI_BACKEND=vulkan 能用原生 Vulkan 显示，不影响其他应用。（人工；只能在手机上看：原生 Vulkan 显示要手机的 Turnip 与 KGSL）
-- **E3** Vulkan 窗口在 KGSL 上呈现时没有整屏灰色闪帧。（缺口：已知 Turnip WSI 在 KGSL 上会闪屏，原因未查（docs/56）；没有修复）
+- **E3** Vulkan 窗口在 KGSL 上呈现时没有整屏灰色闪帧。（缺口：已知 Turnip WSI 在 KGSL 上会闪屏，原因未查（docs/56）。没有修复）
 
 注意：
 - Turnip 的 Wayland 呈现在 KGSL 上会闪出整屏灰色帧，可能与 WSI 同步有关，所以桌面和 Qt Quick 默认不用 Vulkan。 [docs/56-kwin-vulkan-quantification.md](../docs/56-kwin-vulkan-quantification.md)
@@ -697,27 +697,27 @@ Agent 在自己的工作区（或用户指定的桌面）上打开应用、看�
 
 #### X11 应用用 GPU（Xwayland glamor / DRI3）
 
-`apps.xwayland-gpu` · Linux 系统功能 — 只能走 X11 的程序（Qt5、微信、Wine、老游戏）经 Xwayland 的 glamor 和 DRI3 在 FD710 上绘制，不再用 softpipe。
+`apps.xwayland-gpu` · Linux 系统功能 — 仅支持 X11 的应用通过 Xwayland 的 glamor 和 DRI3 使用 FD710 渲染，替代 softpipe。应用包括 Qt5、微信、Wine 和老游戏。
 
 经由接口：`kwin-android-host`
 
-- **E1** Xwayland 提供 DRI3 和 Present，X11 GL 程序 direct rendering 为 Yes、Accelerated yes、渲染器 FD710。（人工；只能在手机上看：Xwayland 的补丁只在有 /dev/kgsl-3d0 时走 glamor/DRI3（KGSL 不是 DRM 设备）；系统测试容器没有 KGSL）
+- **E1** Xwayland 提供 DRI3 和 Present，X11 GL 程序 direct rendering 为 Yes、Accelerated yes、渲染器 FD710。（人工；只能在手机上看：Xwayland 的补丁只在有 /dev/kgsl-3d0 时走 glamor/DRI3（KGSL 不是 DRM 设备）。系统测试容器没有 KGSL）
 - **E2** X11 GL 窗口画出内容（不是黑窗），两个 GL 程序同时运行时各自内容正确、画面在动。（人工；只能在手机上看：X11 GL 窗口在 KGSL 上导入、呈现缓冲，系统测试容器没有 KGSL）
 - **E3** 纯 2D 的 X11 程序（以 xcb 运行的 Dolphin）由 glamor 绘制，显示正确。（人工；只能在手机上看：glamor 在 KGSL 上绘制，系统测试容器没有 KGSL）
 - **E4** X11 下的 GL 性能与原生 Wayland 相当（glmark2 全套分数不低于原生 Wayland）。（人工；只能在手机上看：glmark2 分数是手机 GPU 的性能）
 - **E5** 改变窗口大小、连续运行 30 分钟不卡死、画面不采样到旧内容。（缺口：research/93 列为未做，需实机长时间运行）
 
 注意：
-- KWin 的安卓宿主后端只提供 linux-dmabuf v3、没有 wl_drm，上游 Xwayland 因此直接放弃 glamor；补丁在 dmabuf v3 且有 /dev/kgsl-3d0 时用这个节点，跳过 drmGetDevice2 和认证。 [docs/research/93-xwayland-kgsl-gpu.md](../docs/research/93-xwayland-kgsl-gpu.md)
-- Mesa 分支把 LINEAR 写成 1274，gbm_bo_import 不认，DRI3 返回 BadAlloc；Xwayland 补丁里改回 LINEAR。 [docs/research/93-xwayland-kgsl-gpu.md](../docs/research/93-xwayland-kgsl-gpu.md)
-- 分支在 KGSL 上把未标共享的导入缓冲导出时影子复制成新缓冲，Present 翻页交出空缓冲，GL 窗口全黑；Mesa 补丁把导入标为共享。 [docs/research/93-xwayland-kgsl-gpu.md](../docs/research/93-xwayland-kgsl-gpu.md)
-- KGSL 不在 dma-buf reservation 上挂隐式 fence，Xwayland 拿不到有效等待；目前没发现问题，也没专门测过。 [docs/research/93-xwayland-kgsl-gpu.md](../docs/research/93-xwayland-kgsl-gpu.md)
+- KWin 的安卓宿主后端只提供 linux-dmabuf v3、没有 wl_drm，上游 Xwayland 因此直接放弃 glamor。补丁在 dmabuf v3 且有 /dev/kgsl-3d0 时用这个节点，跳过 drmGetDevice2 和认证。 [docs/research/93-xwayland-kgsl-gpu.md](../docs/research/93-xwayland-kgsl-gpu.md)
+- Mesa 分支把 LINEAR 写成 1274，gbm_bo_import 不认，DRI3 返回 BadAlloc。Xwayland 补丁里改回 LINEAR。 [docs/research/93-xwayland-kgsl-gpu.md](../docs/research/93-xwayland-kgsl-gpu.md)
+- 分支在 KGSL 上把未标共享的导入缓冲导出时影子复制成新缓冲，Present 翻页交出空缓冲，GL 窗口全黑。Mesa 补丁把导入标为共享。 [docs/research/93-xwayland-kgsl-gpu.md](../docs/research/93-xwayland-kgsl-gpu.md)
+- KGSL 不在 dma-buf reservation 上挂隐式 fence，Xwayland 拿不到有效等待。目前没发现问题，也没专门测过。 [docs/research/93-xwayland-kgsl-gpu.md](../docs/research/93-xwayland-kgsl-gpu.md)
 
 文档：[docs/research/93-xwayland-kgsl-gpu.md](../docs/research/93-xwayland-kgsl-gpu.md)
 
 #### Flatpak 应用用 GPU
 
-`apps.flatpak-gpu` · Linux 系统功能 — Flatpak 应用经 GL 扩展 org.freedesktop.Platform.GL.rungic 用本项目的 Mesa 在 KGSL 上绘制；拿不到 GPU 时退到软件渲染而不崩溃。
+`apps.flatpak-gpu` · Linux 系统功能 — Flatpak 应用通过 GL 扩展 org.freedesktop.Platform.GL.rungic 使用本项目的 Mesa，在 KGSL 上渲染。GPU 不可用时，应用回退到软件渲染，不崩溃。
 
 - **E1** Freedesktop 25.08 运行时的应用（Telegram、VS Code）用 FD710 绘制，不再是 llvmpipe。（人工；只能在手机上看：Flatpak 应用经 GL 扩展用 FD710，要手机的 Adreno 与 KGSL）
 - **E2** 只声明 --device=dri 的应用在沙箱里也能看到 /dev/kgsl-3d0 和 /dev/dma_heap/system，安卓的其他 DMA 堆仍在沙箱外。（人工；只能在手机上看：/dev/kgsl-3d0 与安卓的 DMA 堆是手机内核的设备节点，系统测试容器里没有）
@@ -725,34 +725,34 @@ Agent 在自己的工作区（或用户指定的桌面）上打开应用、看�
 - **E4** 扩展只在存在时才启用（FLATPAK_GL_DRIVERS=rungic），从 Plasma 启动的 Flatpak 应用都继承它。（缺口：只有会话环境的实机检查，没有离线测试）
 
 注意：
-- 系统 Mesa 链接 Ubuntu 的 glibc 2.43，运行时只有 2.42，不能把系统 Mesa 直接挂进沙箱；扩展要在 freedesktopsdk/sdk:25.08-aarch64 里用同一份补丁源码另行构建。 [docs/49-plasma-performance.md](../docs/49-plasma-performance.md)
-- 扩展只为 25.08 分支构建；系统 Mesa 补丁更新后扩展要跟着重建，否则 X11 Flatpak 应用仍走旧路径（+rungic3 时尚未重建）。 [docs/49-plasma-performance.md](../docs/49-plasma-performance.md) [docs/research/93-xwayland-kgsl-gpu.md](../docs/research/93-xwayland-kgsl-gpu.md)
+- 系统 Mesa 链接 Ubuntu 的 glibc 2.43，运行时只有 2.42，不能把系统 Mesa 直接挂进沙箱。扩展要在 freedesktopsdk/sdk:25.08-aarch64 里用同一份补丁源码另行构建。 [docs/49-plasma-performance.md](../docs/49-plasma-performance.md)
+- 扩展只为 25.08 分支构建。系统 Mesa 补丁更新后扩展要跟着重建，否则 X11 Flatpak 应用仍走旧路径（+rungic3 时尚未重建）。 [docs/49-plasma-performance.md](../docs/49-plasma-performance.md) [docs/research/93-xwayland-kgsl-gpu.md](../docs/research/93-xwayland-kgsl-gpu.md)
 - 只走 X11 的 Flatpak 应用要真正用上 GPU，还要 Xwayland 有 DRI3。 [docs/49-plasma-performance.md](../docs/49-plasma-performance.md)
-- 不要逐个给应用加 LIBGL_ALWAYS_SOFTWARE 或放宽权限；缺设备就在 flatpak 的设备列表里补。 [docs/49-plasma-performance.md](../docs/49-plasma-performance.md)
+- 不要逐个给应用加 LIBGL_ALWAYS_SOFTWARE 或放宽权限。缺设备就在 flatpak 的设备列表里补。 [docs/49-plasma-performance.md](../docs/49-plasma-performance.md)
 
 文档：[docs/49-plasma-performance.md](../docs/49-plasma-performance.md)
 
 #### Blender 渲染与视口
 
-`apps.blender` · Linux 系统功能 — Blender 默认用 CPU 的 Cycles、一半核心渲染，编辑视口用 Vulkan 正确显示，渲染过程中画面逐步变清晰。
+`apps.blender` · Linux 系统功能 — Blender 默认使用 CPU Cycles 渲染，并使用一半核心。编辑视口使用 Vulkan 正确显示。渲染过程中，画面逐步变清晰。
 
 - **E1** 新场景默认 Cycles CPU，渲染时最多用一半 CPU 线程，脚本设成自动或 8 线程也被限制为 4。（单元测试、人工）
-- **E2** 编辑视口（实体、材质预览）里的物体位置、大小、颜色正确：每次以图形界面启动都把 GPU 后端偏好保持为 Vulkan，退出时自动保存的也是 Vulkan。（单元测试、人工；只能在手机上看：视口画得对不对取决于 Adreno 上 freedreno/Turnip 的绘制，只有手机能看；保持 Vulkan 偏好的逻辑由 tools/tests/test_blender_render.py 检查）
+- **E2** 编辑视口（实体、材质预览）里的物体位置、大小、颜色正确：每次以图形界面启动都把 GPU 后端偏好保持为 Vulkan，退出时自动保存的也是 Vulkan。（单元测试、人工；只能在手机上看：视口画得对不对取决于 Adreno 上 freedreno/Turnip 的绘制，只有手机能看。保持 Vulkan 偏好的逻辑由 tools/tests/test_blender_render.py 检查）
 - **E3** 在 Blender 的 config/rungic-gpu-backend 写 OPENGL 就保留 OpenGL，不被启动模块改掉。（单元测试）
 - **E4** 在界面里渲染时窗口保持响应，渲染窗口按批次（4、12、28、60 采样）换上预览，最终图与一次渲染无差别。（单元测试、人工）
 
 注意：
-- 渲染在 Blender 主线程上时界面必然 Not Responding，这时关窗 KWin 会强制结束 Blender；渲染中不要关闭或结束它。 [docs/90-blender-vulkan-incident.md](../docs/90-blender-vulkan-incident.md)
+- 渲染在 Blender 主线程上时界面必然 Not Responding，这时关窗 KWin 会强制结束 Blender。渲染中不要关闭或结束它。 [docs/90-blender-vulkan-incident.md](../docs/90-blender-vulkan-incident.md)
 - 只设一次 Vulkan 偏好会失效：还在用 OpenGL 的旧实例退出时会把 OpenGL 写回偏好。 [docs/90-blender-vulkan-incident.md](../docs/90-blender-vulkan-incident.md)
-- “Vulkan 出故障、OpenGL 正常”曾是误判，真正的共同条件是内存吃紧；EEVEE 无论哪个后端都多占约 1 GB 共享内存。 [docs/90-blender-vulkan-incident.md](../docs/90-blender-vulkan-incident.md)
-- Blender 5.0 后台合成器的 Denoise 实测不执行，渐进渲染第一版不降噪；Blender 不对外开放渲染中的像素，只能分批渲染。 [docs/90-blender-vulkan-incident.md](../docs/90-blender-vulkan-incident.md)
+- “Vulkan 出故障、OpenGL 正常”曾是误判，真正的共同条件是内存吃紧。EEVEE 无论哪个后端都多占约 1 GB 共享内存。 [docs/90-blender-vulkan-incident.md](../docs/90-blender-vulkan-incident.md)
+- Blender 5.0 后台合成器的 Denoise 实测不执行，渐进渲染第一版不降噪。Blender 不对外开放渲染中的像素，只能分批渲染。 [docs/90-blender-vulkan-incident.md](../docs/90-blender-vulkan-incident.md)
 - Turnip 在 KGSL 上的闪屏可能也影响 Blender 窗口，尚未逐帧检测。 [docs/90-blender-vulkan-incident.md](../docs/90-blender-vulkan-incident.md) [docs/56-kwin-vulkan-quantification.md](../docs/56-kwin-vulkan-quantification.md)
 
 文档：[docs/90-blender-vulkan-incident.md](../docs/90-blender-vulkan-incident.md)
 
 #### Krita 绘画
 
-`apps.krita` · Linux 系统功能 — Ubuntu 的 Krita 6 原生 Wayland 在 GPU 上绘制，“另存为”能正常保存；Flathub 的 Krita 5 不再崩溃或卡住。
+`apps.krita` · Linux 系统功能 — Ubuntu 的 Krita 6 使用原生 Wayland 和 GPU 渲染，“另存为”可以正常保存。Flathub 的 Krita 5 不再崩溃或卡住。
 
 - **E1** Krita 6 原生 Wayland 下画布的渲染器是 FD710。（人工；只能在手机上看：画布的渲染器 FD710 是手机的 GPU）
 - **E2** 经门户“另存为”保存后文件写出，菜单和工具栏照常可点，不会被看不见的空壳对话框挡住。（人工）
@@ -760,8 +760,8 @@ Agent 在自己的工作区（或用户指定的桌面）上打开应用、看�
 - **E4** Flathub Krita 5（X11）画布用 GPU 绘制，不卡顿。（缺口：Flatpak GL 扩展还没用 +rungic3 重建，X11 Flatpak 应用 GPU 未验收（research/93））
 
 注意：
-- Krita 在建 KisApplication 前用临时 QGuiApplication 探测 OpenGL；startplasmamobile 写死的 QT_QPA_PLATFORMTHEME=KDE 让 KDE 主题在临时应用里连上会话总线，恢复派发随临时应用一起被删，会话总线永久暂停，门户的 Response 信号收不到。 [docs/103-krita-save-dialog-hang.md](../docs/103-krita-save-dialog-hang.md)
-- 缺陷本身在 Qt（恢复派发挂在连接时的 qApp 上），上游未改；本项目改环境不改应用，Qt 补丁暂不做。 [docs/103-krita-save-dialog-hang.md](../docs/103-krita-save-dialog-hang.md)
+- Krita 在建 KisApplication 前用临时 QGuiApplication 探测 OpenGL。startplasmamobile 写死的 QT_QPA_PLATFORMTHEME=KDE 让 KDE 主题在临时应用里连上会话总线，恢复派发随临时应用一起被删，会话总线永久暂停，门户的 Response 信号收不到。 [docs/103-krita-save-dialog-hang.md](../docs/103-krita-save-dialog-hang.md)
+- 缺陷本身在 Qt（恢复派发挂在连接时的 qApp 上），上游未改。本项目改环境不改应用，Qt 补丁暂不做。 [docs/103-krita-save-dialog-hang.md](../docs/103-krita-save-dialog-hang.md)
 
 文档：[docs/103-krita-save-dialog-hang.md](../docs/103-krita-save-dialog-hang.md)
 
@@ -770,10 +770,10 @@ Agent 在自己的工作区（或用户指定的桌面）上打开应用、看�
 `apps.telegram` · Linux 系统功能 — Flathub 的 Telegram 用 GPU 绘制，聊天列表滑动比 CPU 渲染时流畅得多。
 
 - **E1** 聊天列表滑动时 Telegram CPU 低于 60%（llvmpipe 时约 196%），超过 12 ms 的帧间隔低于 40%。（人工；只能在手机上看：CPU 占用与帧间隔是手机上的性能）
-- **E2** 无障碍关闭时 Telegram 不显示 “working in Screen Reader”。（缺口：尚未决定是否在共享层不接无障碍总线（docs/49）；可在 Telegram 设置里单独关闭）
+- **E2** 无障碍关闭时 Telegram 不显示 “working in Screen Reader”。（缺口：尚未决定是否在共享层不接无障碍总线（docs/49）。可在 Telegram 设置里单独关闭）
 
 注意：
-- 剩余开销在 Telegram 主线程：界面用 Qt Widgets 在 CPU 上光栅化，动画节拍 8 ms；属应用自身，没有再改。 [docs/49-plasma-performance.md](../docs/49-plasma-performance.md)
+- 剩余开销在 Telegram 主线程：界面用 Qt Widgets 在 CPU 上光栅化，动画节拍 8 ms。属应用自身，没有再改。 [docs/49-plasma-performance.md](../docs/49-plasma-performance.md)
 
 文档：[docs/49-plasma-performance.md](../docs/49-plasma-performance.md)
 
@@ -785,68 +785,68 @@ Linux 应用用手机的相机拍照录像，用手机的扬声器和麦克风�
 
 `apps.wechat` · Linux 系统功能 — arm64 的 Linux 微信能登录、保留聊天数据，通话声音可以交给程序接管。
 
-- **E1** 打开微信直接进入主界面，不会反复提示“数据库损坏”并修复。（人工；只能在手机上看：数据库损坏出在安卓共享存储（MediaProvider 的 FUSE，经 bindfs）上的 SQLite WAL，系统测试没有安卓的 FUSE；Linux 一侧（文档目录在本地、bindfs 不带 direct-io）由 test_user_dirs 与 test_shared_storage_mount 检查）
+- **E1** 打开微信直接进入主界面，不会反复提示“数据库损坏”并修复。（人工；只能在手机上看：数据库损坏出在安卓共享存储（MediaProvider 的 FUSE，经 bindfs）上的 SQLite WAL，系统测试没有安卓的 FUSE。Linux 一侧（文档目录在本地、bindfs 不带 direct-io）由 test_user_dirs 与 test_shared_storage_mount 检查）
 - **E2** 微信通话的录音流和播放流可以临时切到 Linux 麦克风和 Linux 扬声器，挂断后回到原设备，不影响其他 Chromium/Electron 应用。（系统测试、人工）
 - **E3** 微信经 Xwayland 用 GPU 绘制。（缺口：research/93 未验收微信）
 
 注意：
-- 微信把账号数据库放在 $XDG_DOCUMENTS_DIR/xwechat_files，全部 SQLite WAL；放在 FUSE direct-io 挂载上会 disk I/O error。 [docs/69-filesystem-capabilities.md](../docs/69-filesystem-capabilities.md)
-- 微信 4.1 的通话音频在 PulseAudio 里叫通用的 “Chromium”；用 pactl move 会被 stream-restore 按名字记住、波及其他应用，要按 application.process.binary 匹配并用不保存的移动。 [docs/62-linux-virtual-audio.md](../docs/62-linux-virtual-audio.md)
+- 微信把账号数据库放在 $XDG_DOCUMENTS_DIR/xwechat_files，全部 SQLite WAL。放在 FUSE direct-io 挂载上会 disk I/O error。 [docs/69-filesystem-capabilities.md](../docs/69-filesystem-capabilities.md)
+- 微信 4.1 的通话音频在 PulseAudio 里叫通用的 “Chromium”。用 pactl move 会被 stream-restore 按名字记住、波及其他应用，要按 application.process.binary 匹配并用不保存的移动。 [docs/62-linux-virtual-audio.md](../docs/62-linux-virtual-audio.md)
 - 微信包是 arm64 的 .deb，不要按安卓理解成“手机装不了”。 [docs/59-voice-agent.md](../docs/59-voice-agent.md)
 
 文档：[docs/69-filesystem-capabilities.md](../docs/69-filesystem-capabilities.md)、[docs/62-linux-virtual-audio.md](../docs/62-linux-virtual-audio.md)
 
 #### Linux 应用使用手机相机
 
-`apps.camera` · Linux 系统功能 — 手机的前后摄像头是 PipeWire 的 Video/Source 节点（rungic.camera.0/1），任何 PipeWire 应用按需使用。
+`apps.camera` · Linux 系统功能 — 手机前后摄像头以 PipeWire Video/Source 节点提供，名称为 rungic.camera.0/1。PipeWire 应用可以按需使用相机。
 
 经由接口：`camera`
 
 - **E1** 前后两个摄像头节点都能送出画面：有变化的帧、时间戳递增，约 30 fps、720×1280。（系统测试、实机验收、人工）
 - **E2** 只在有应用使用时才打开安卓相机，应用停止后节点回到 idle/suspended，相机被释放。（系统测试、实机验收）
-- **E3** 离开 Linux 桌面（APK 到后台）时释放相机，安卓 CameraService 里没有活动客户端；回到前台后节点重新出现。（系统测试）
-- **E4** 节点只暴露已实现的能力（尺寸、自动拍摄）；画面方向随 Android 旋转元数据转正。（系统测试）
+- **E3** 离开 Linux 桌面（APK 到后台）时释放相机，安卓 CameraService 里没有活动客户端。回到前台后节点重新出现。（系统测试）
+- **E4** 节点只暴露已实现的能力（尺寸、自动拍摄）。画面方向随 Android 旋转元数据转正。（系统测试）
 
 注意：
-- 没有 RTKit 的容器里 Realtime portal 返回 RTTimeUSecMax=0，视频客户端的 module-rt 把 RLIMIT_RTTIME 设为 0 后被内核 SIGKILL；视频客户端要 module.rt=false。 [docs/research/33-capture-integration.md](../docs/research/33-capture-integration.md)
-- 帧时间戳不能是 -1，否则预览正常但 MP4 没有有效时间戳；源写入收到帧时的 CLOCK_MONOTONIC，不等于传感器曝光时间。 [docs/research/33-capture-integration.md](../docs/research/33-capture-integration.md)
-- 一次只占一个物理摄像头；背面贴桌时后摄黑画面是真实输入，不是故障。 [docs/research/33-capture-integration.md](../docs/research/33-capture-integration.md)
-- 照片也取自 720p 这一路，不是原厂全分辨率；没有 HDR、多镜头和横屏方向协商。 [docs/research/33-capture-integration.md](../docs/research/33-capture-integration.md) [docs/48-plasma-media-pipelines.md](../docs/48-plasma-media-pipelines.md)
+- 没有 RTKit 的容器里 Realtime portal 返回 RTTimeUSecMax=0，视频客户端的 module-rt 把 RLIMIT_RTTIME 设为 0 后被内核 SIGKILL。视频客户端要 module.rt=false。 [docs/research/33-capture-integration.md](../docs/research/33-capture-integration.md)
+- 帧时间戳不能是 -1，否则预览正常但 MP4 没有有效时间戳。源写入收到帧时的 CLOCK_MONOTONIC，不等于传感器曝光时间。 [docs/research/33-capture-integration.md](../docs/research/33-capture-integration.md)
+- 一次只占一个物理摄像头。背面贴桌时后摄黑画面是真实输入，不是故障。 [docs/research/33-capture-integration.md](../docs/research/33-capture-integration.md)
+- 照片也取自 720p 这一路，不是原厂全分辨率。没有 HDR、多镜头和横屏方向协商。 [docs/research/33-capture-integration.md](../docs/research/33-capture-integration.md) [docs/48-plasma-media-pipelines.md](../docs/48-plasma-media-pipelines.md)
 - WirePlumber 的 libcamera 硬件发现保持禁用，避免与 libcamera virtual 管线反向重复发现。 [docs/48-plasma-media-pipelines.md](../docs/48-plasma-media-pipelines.md)
-- 只认 V4L2 的程序不在支持范围内；没有新增 v4l2loopback 或 /dev/video 节点。 [docs/48-plasma-media-pipelines.md](../docs/48-plasma-media-pipelines.md) [docs/research/33-capture-integration.md](../docs/research/33-capture-integration.md)
+- 只认 V4L2 的程序不在支持范围内。没有新增 v4l2loopback 或 /dev/video 节点。 [docs/48-plasma-media-pipelines.md](../docs/48-plasma-media-pipelines.md) [docs/research/33-capture-integration.md](../docs/research/33-capture-integration.md)
 
 文档：[docs/research/33-capture-integration.md](../docs/research/33-capture-integration.md)、[docs/48-plasma-media-pipelines.md](../docs/48-plasma-media-pipelines.md)
 
 #### 相机应用 Snapshot 拍照录像
 
-`apps.snapshot` · Linux 系统功能 — GNOME Snapshot 51 切前后摄、拍照、录带声音的视频，开着“硬件编码”时用安卓的 H.264 硬件编码器，文件存到图片、视频目录。
+`apps.snapshot` · Linux 系统功能 — GNOME Snapshot 51 支持切换前后摄、拍照和录制带声音的视频。启用“硬件编码”时，应用使用 Android H.264 硬件编码器。文件保存到图片和视频目录。
 
 经由接口：`camera`、`codec`
 
 - **E1** 前后摄可切换，JPEG 照片和带声音的 H.264 录像保存到共享的图片、视频目录。（人工；只能在手机上看：前后摄、照片和有声录像来自安卓的相机、麦克风与高通编码器）
-- **E2** 开着硬件编码开关时录像实际用 rungich264enc（高通 c2.qti.avc.encoder），关掉时不用它。（缺口：要构建 Snapshot（Rust，捆绑 Cargo 依赖）并有相机输入，系统测试镜像都没有；开关打开时用高通编码器只有 Phosh 时期的实机记录（research/35，2026-09-23，帧数吻合），关掉时不用它没有记录）
-- **E3** 正常停止的录像能完整解码，音视频时长接近，没有零字节文件。（缺口：要 Snapshot 与相机、麦克风录一段再解码核对时长，系统测试镜像没有 Snapshot；research/35 只记了两次有声 MP4 的帧数（Phosh 时期））
+- **E2** 开着硬件编码开关时录像实际用 rungich264enc（高通 c2.qti.avc.encoder），关掉时不用它。（缺口：要构建 Snapshot（Rust，捆绑 Cargo 依赖）并有相机输入，系统测试镜像都没有。开关打开时用高通编码器只有 Phosh 时期的实机记录（research/35，2026-09-23，帧数吻合），关掉时不用它没有记录）
+- **E3** 正常停止的录像能完整解码，音视频时长接近，没有零字节文件。（缺口：要 Snapshot 与相机、麦克风录一段再解码核对时长，系统测试镜像没有 Snapshot。research/35 只记了两次有声 MP4 的帧数（Phosh 时期））
 
 注意：
-- 录像要先点停止、等保存完，再切回安卓：离开桌面会释放相机，Snapshot 取消录像，中断的文件缺 moov 不能播放；没有后台录像。 [docs/research/33-capture-integration.md](../docs/research/33-capture-integration.md) [docs/research/35-hardware-codec-integration.md](../docs/research/35-hardware-codec-integration.md)
+- 录像要先点停止、等保存完，再切回安卓：离开桌面会释放相机，Snapshot 取消录像，中断的文件缺 moov 不能播放。没有后台录像。 [docs/research/33-capture-integration.md](../docs/research/33-capture-integration.md) [docs/research/35-hardware-codec-integration.md](../docs/research/35-hardware-codec-integration.md)
 - 安卓相机源不提供自己的管线时钟（provide-clock=false、do-timestamp=true），否则增减音频源时出现 EOS 等待和零字节文件。 [docs/research/35-hardware-codec-integration.md](../docs/research/35-hardware-codec-integration.md)
-- 第一次前摄拍照曾等待约 14 秒；录像音频编码是软件。 [docs/40-plasma-mobile-integration.md](../docs/40-plasma-mobile-integration.md)
+- 第一次前摄拍照曾等待约 14 秒。录像音频编码是软件。 [docs/40-plasma-mobile-integration.md](../docs/40-plasma-mobile-integration.md)
 
 文档：[docs/research/35-hardware-codec-integration.md](../docs/research/35-hardware-codec-integration.md)
 
 #### Plasma Camera 与 libcamera 应用（实验）
 
-`apps.plasma-camera` · Linux 系统功能 — libcamera 的 virtual 管线从已有的 PipeWire 相机取帧，Plasma Camera、cam 等 libcamera 客户端看到前后两个相机。
+`apps.plasma-camera` · Linux 系统功能 — libcamera 的 virtual 管线从已有 PipeWire 相机获取帧。Plasma Camera、cam 等 libcamera 客户端可以看到前后两个相机。
 
 经由接口：`camera`
 
 - **E1** libcamera 列出“Android 后置相机”“Android 前置相机”两个设备，cam 能连续取 30 帧。（人工）
 - **E2** Plasma Camera 前摄预览显示实际场景，能保存照片。（人工；只能在手机上看：预览里的是安卓相机拍到的实际场景）
-- **E3** Plasma Camera 录像的时间戳单调，生成的 H.264 文件完整、没有负 duration 警告。（缺口：帧时间戳已修，仍有 Qt FFmpeg 按相邻 PTS 估 B 帧 duration 的负值警告；私有插件候选未通过，未进 Qt 补丁队列）
+- **E3** Plasma Camera 录像的时间戳单调，生成的 H.264 文件完整、没有负 duration 警告。（缺口：帧时间戳已修，仍有 Qt FFmpeg 按相邻 PTS 估 B 帧 duration 的负值警告。私有插件候选未通过，未进 Qt 补丁队列）
 - **E4** 第一次切换相机没有绿色帧，启动没有明显延迟。（缺口：docs/48 记为待核验）
 
 注意：
-- Plasma Camera 2.1.1 直接调用 libcamera，只改 QT_MEDIA_BACKEND 解决不了设备枚举；适配放在 libcamera Pipeline Handler，不把安卓相机代码写进应用。 [docs/48-plasma-media-pipelines.md](../docs/48-plasma-media-pipelines.md)
+- Plasma Camera 2.1.1 直接调用 libcamera，只改 QT_MEDIA_BACKEND 解决不了设备枚举。适配放在 libcamera Pipeline Handler，不把安卓相机代码写进应用。 [docs/48-plasma-media-pipelines.md](../docs/48-plasma-media-pipelines.md)
 - Plasma Camera 重复提交共享的 QVideoFrame 并改写时间戳是应用自身缺陷，补丁为每次提交建独立帧元数据（有源码证据的应用补丁例外）。 [docs/48-plasma-media-pipelines.md](../docs/48-plasma-media-pipelines.md)
 - 容器只读授予 DMA system heap，libcamera 以读写打开失败时要退为只读打开。 [docs/48-plasma-media-pipelines.md](../docs/48-plasma-media-pipelines.md)
 - desktop/patches/qt-video-duration.patch 是未验收实验，未进入 Qt 补丁队列，不要当作已修复。 [docs/48-plasma-media-pipelines.md](../docs/48-plasma-media-pipelines.md)
@@ -855,91 +855,91 @@ Linux 应用用手机的相机拍照录像，用手机的扬声器和麦克风�
 
 #### 应用用手机的扬声器和麦克风
 
-`apps.phone-audio` · Linux 系统功能 — PulseAudio 的默认输出是安卓（android），默认输入是手机麦克风（android_microphone），所有 Linux 应用共用。
+`apps.phone-audio` · Linux 系统功能 — 所有 Linux 应用共用 PulseAudio 默认设备。默认输出是 Android 的 android，默认输入是手机麦克风 android_microphone。
 
 经由接口：`audio`
 
-- **E1** 默认输出是 android、默认输入是 android_microphone；android.monitor 不会被当作麦克风。（系统测试、人工）
-- **E2** 播放流进入默认输出，播完后输出重新挂起；播放—空闲—恢复反复多次都能出声。（系统测试、实机验收、人工）
+- **E1** 默认输出是 android、默认输入是 android_microphone。android.monitor 不会被当作麦克风。（系统测试、人工）
+- **E2** 播放流进入默认输出，播完后输出重新挂起。播放—空闲—恢复反复多次都能出声。（系统测试、实机验收、人工）
 - **E3** 只在有应用录音时才打开安卓 AudioRecord，录到非零电平，录音结束后麦克风停止、源挂起。（系统测试、实机验收）
 - **E4** Qt Multimedia 应用（KRecorder 等）播放的声音没有周期性插零，与参考 PCM 相关性约 1.0。（人工）
 - **E5** 安卓一侧的专用 PulseAudio 卡住后能自动恢复（约 30 秒），持久化的旧 PID 被别的进程复用时不会误杀它。（缺口：由 system/android-audio 的测试（tools/ci/test_android_audio.py）和 X70 冷启动记录（docs/93）覆盖，归属另一领域）
 - **E6** 录屏、录像的音频支路不会因负的段偏移跳过环形缓冲而丢声。（实机验收）
 
 注意：
-- Qt 6.10 的 PulseAudio sink 以 1024 帧设 maxlength，转发链路的请求块超过它时每 1024 个样本插入 62 个零；修复在 Qt 公共库，不改录音机。Qt 6.11.2 仍是同样写法。 [docs/48-plasma-media-pipelines.md](../docs/48-plasma-media-pipelines.md)
+- Qt 6.10 的 PulseAudio sink 以 1024 帧设 maxlength，转发链路的请求块超过它时每 1024 个样本插入 62 个零。修复在 Qt 公共库，不改录音机。Qt 6.11.2 仍是同样写法。 [docs/48-plasma-media-pipelines.md](../docs/48-plasma-media-pipelines.md)
 - PulseAudio 17 的 module-tunnel-sink-new 没有 latency_msec 参数，不能套用旧 tunnel 文档。 [docs/48-plasma-media-pipelines.md](../docs/48-plasma-media-pipelines.md)
-- 中文应用名会触发 PA17 JSON exporter 错误；消费者检测用 LC_ALL=C 的 pactl 文本输出。 [docs/research/33-capture-integration.md](../docs/research/33-capture-integration.md)
-- 用默认缓冲录音时结束录音进程会丢尾部数据；测量要用 --latency-msec=20。 [docs/62-linux-virtual-audio.md](../docs/62-linux-virtual-audio.md)
-- 物理麦克风是单声道，应用录成双声道不等于立体声采集；没有回声消除、耳机/蓝牙路由与长会议验收。 [docs/research/33-capture-integration.md](../docs/research/33-capture-integration.md)
+- 中文应用名会触发 PA17 JSON exporter 错误。消费者检测用 LC_ALL=C 的 pactl 文本输出。 [docs/research/33-capture-integration.md](../docs/research/33-capture-integration.md)
+- 用默认缓冲录音时结束录音进程会丢尾部数据。测量要用 --latency-msec=20。 [docs/62-linux-virtual-audio.md](../docs/62-linux-virtual-audio.md)
+- 物理麦克风是单声道，应用录成双声道不等于立体声采集。没有回声消除、耳机/蓝牙路由与长会议验收。 [docs/research/33-capture-integration.md](../docs/research/33-capture-integration.md)
 
 文档：[docs/48-plasma-media-pipelines.md](../docs/48-plasma-media-pipelines.md)、[docs/research/33-capture-integration.md](../docs/research/33-capture-integration.md)
 
 #### Linux 扬声器与 Linux 麦克风（虚拟音频设备）
 
-`apps.virtual-audio` · Linux 系统功能 — 系统级、名称中性的虚拟输出和虚拟麦克风，让程序代替人听和说，例如助理代接通话、代发语音消息。
+`apps.virtual-audio` · Linux 系统功能 — 系统提供名称中性的虚拟输出和虚拟麦克风，供程序接收和发送声音。例如助理代接通话或代发语音消息。
 
 经由接口：`audio`
 
-- **E1** 安卓输出出现后才创建 Linux 扬声器、Linux 麦克风；它们不会成为默认设备，落到它们上时立即交还 android / android_microphone。（系统测试、人工）
-- **E2** 往“Linux 麦克风输入”播放的声音从 Linux 麦克风无损录回（增益 1）；播到 Linux 扬声器的声音能从其 monitor 录到。（系统测试、人工）
+- **E1** 安卓输出出现后才创建 Linux 扬声器、Linux 麦克风。它们不会成为默认设备，落到它们上时立即交还 android / android_microphone。（系统测试、人工）
+- **E2** 往“Linux 麦克风输入”播放的声音从 Linux 麦克风无损录回（增益 1）。播到 Linux 扬声器的声音能从其 monitor 录到。（系统测试、人工）
 - **E3** 虚拟设备创建失败只记警告，安卓麦克风和“手机本机”输出照常工作。（系统测试）
-- **E4** rungic-audio-route 运行期间把指定程序的流（含之后新建的流）移到虚拟设备，收到 SIGTERM/SIGINT 或标准输入关闭时把每条流移回原设备；第一行输出总是 ready。（系统测试、人工）
+- **E4** rungic-audio-route 运行期间把指定程序的流（含之后新建的流）移到虚拟设备，收到 SIGTERM/SIGINT 或标准输入关闭时把每条流移回原设备。第一行输出总是 ready。（系统测试、人工）
 - **E5** 代发语音时，应用的录音流没有在 4 秒内移到 Linux 麦克风就不播放、点取消并报错，真麦克风录到的内容不会被发出。（单元测试）
 
 注意：
 - 描述里有空格时整个属性列表要加引号，否则 Module initialization failed。 [docs/62-linux-virtual-audio.md](../docs/62-linux-virtual-audio.md)
-- 首版把虚拟设备创建失败当成音频服务不可用，连带停掉了手机输出；虚拟设备必须与原有设备隔离。 [docs/62-linux-virtual-audio.md](../docs/62-linux-virtual-audio.md)
+- 首版把虚拟设备创建失败当成音频服务不可用，连带停掉了手机输出。虚拟设备必须与原有设备隔离。 [docs/62-linux-virtual-audio.md](../docs/62-linux-virtual-audio.md)
 - stream-restore 要设 restore_device=false，否则 pactl move 会按应用名记住设备、波及同名的其他应用。 [docs/62-linux-virtual-audio.md](../docs/62-linux-virtual-audio.md)
-- 安卓一侧的 PulseAudio 停掉时隧道 sink android 随之消失，PulseAudio 把默认输出改到 linux_speaker（2026-10-03 系统测试里停掉替身时看到），这段时间应用的声音进了无声的虚拟设备；桥只在创建虚拟设备时交还默认设备，隧道回来后是 PulseAudio 自己切回 android。停掉期间该落到哪里（例如“手机本机”）尚未决定。 [docs/62-linux-virtual-audio.md](../docs/62-linux-virtual-audio.md)
-- 按住说话（hold）的代发语音没在 4 秒内移到 Linux 麦克风时只能松开，而松开就是发送，真麦克风录到的那几秒可能被发出；点按模式会点取消。这类应用怎样取消录音尚未知道。 [docs/62-linux-virtual-audio.md](../docs/62-linux-virtual-audio.md)
+- 安卓一侧的 PulseAudio 停掉时隧道 sink android 随之消失，PulseAudio 把默认输出改到 linux_speaker（2026-10-03 系统测试里停掉替身时看到），这段时间应用的声音进了无声的虚拟设备。桥只在创建虚拟设备时交还默认设备，隧道回来后是 PulseAudio 自己切回 android。停掉期间该落到哪里（例如“手机本机”）尚未决定。 [docs/62-linux-virtual-audio.md](../docs/62-linux-virtual-audio.md)
+- 按住说话（hold）的代发语音没在 4 秒内移到 Linux 麦克风时只能松开，而松开就是发送，真麦克风录到的那几秒可能被发出。点按模式会点取消。这类应用怎样取消录音尚未知道。 [docs/62-linux-virtual-audio.md](../docs/62-linux-virtual-audio.md)
 
 文档：[docs/62-linux-virtual-audio.md](../docs/62-linux-virtual-audio.md)
 
 #### 视频硬件编解码（GStreamer 与 FFmpeg）
 
-`apps.hw-codec` · Linux 系统功能 — Linux 的 GStreamer 播放器、相机、录屏和私有 FFmpeg 经 APK 用安卓 MediaCodec（高通 c2.qti）做 H.264/HEVC 编解码和 VP9 解码（含 10bit 解码）。
+`apps.hw-codec` · Linux 系统功能 — Linux 的 GStreamer 播放器、相机、录屏和私有 FFmpeg 通过 APK 使用 Android MediaCodec（高通 c2.qti）。它们支持 H.264/HEVC 编解码及 VP9 解码，包括 10bit 解码。
 
 经由接口：`codec`
 
 - **E1** playbin3 播放 H.264/HEVC/VP9 时自动选中硬件解码元素（rungich264dec 等，rank PRIMARY+32），seek、暂停/恢复、EOS 正常。（系统测试、人工）
 - **E2** 硬件 H.264 编码 90 帧测试图样后，经私有 FFmpeg 的 h264_rungic 解码，帧数、时长、分辨率都对。（实机验收；只能在手机上看：编码由安卓的 c2.qti.avc.encoder 完成（替身不编码），解码用的私有 FFmpeg 只在手机上构建（rungic-codec 的 build 为 device））
-- **E3** 要求硬件的编码器（rungich264enc、h264_rungic）在拿不到硬件组件时报错，不悄悄换成软件编码；混合编码器 h264_rungic_auto 打开失败时回退软件。（单元测试、系统测试、人工）
-- **E4** 带 B 帧的 H.264 解码时间戳正确；seek 后 FLUSH 不会让后续响应错位。（单元测试、系统测试、人工）
+- **E3** 要求硬件的编码器（rungich264enc、h264_rungic）在拿不到硬件组件时报错，不悄悄换成软件编码。混合编码器 h264_rungic_auto 打开失败时回退软件。（单元测试、系统测试、人工）
+- **E4** 带 B 帧的 H.264 解码时间戳正确。seek 后 FLUSH 不会让后续响应错位。（单元测试、系统测试、人工）
 - **E5** 编码跟不上设定帧率时丢掉编码前的帧而不是积压，停止后收尾在 1 秒内完成。（实机验收、人工；只能在手机上看：编码跟不上取决于手机硬件编码器经宿主桥接的吞吐（约 50 fps），收尾时间也是手机上的时序）
-- **E6** 解码帧留在解码器自己的缓冲里（DMA-BUF，每个缓冲只传一次描述符、只映射一次），APK 里不再复制；GStreamer 直接输出 NV12（下游不接受时 I420），与 FFmpeg 软解逐字节一致。（单元测试、人工）
-- **E7** 10bit 的 HEVC Main10、VP9 Profile 2 由硬件解码，输出 P010，不悄悄压成 8bit；不支持时打开失败，交给软件解码。（单元测试、人工）
-- **E8** 新的 Linux 端遇到旧 APK（通道版本 1）自动退回共享内存，8bit 照常硬件解码；手机的解码缓冲读不了时同样退回。（单元测试、人工）
-- **E9** 有高通 msm_vidc 解码节点（/dev/video32）的手机，解码直接走 V4L2，不经过 APK：实时 1080p60 约占一个核的 23%（MediaCodec 桥约 105%），1080p 吞吐约 240 帧/秒；没有这个节点、显式关掉或在 Firefox 的沙箱里，照旧用 MediaCodec 桥。（单元测试、人工）
-- **E10** 有 msm_vidc 编码节点（/dev/video33）的手机，H.264/HEVC 编码直接走 V4L2：录屏 1080×2400@30 能跟上实时，编码本身约占一个核的 2–3%（MediaCodec 桥约 75% 以上且跟不上 30 帧）；参数集单独给出，关键帧可强制；NV12 输入原样收下。录屏的颜色转换在 GPU 上做，转好的纹理由 GPU 直接写进编码器的输入缓冲，KWin 给录屏的画面是 DMA-BUF，整个过程不经过 CPU 拷贝。（单元测试、人工）
-- **E11** 用系统 FFmpeg 的应用（mpv/Haruna、VLC、Qt Multimedia、缩略图）默认选中硬件解码器 h264/hevc/vp9_rungic，打不开硬件时回退软件；应用默认的软件编码器不变。（单元测试、人工）
-- **E12** Flatpak 里用 GStreamer 的应用（Freedesktop/GNOME 运行时）经扩展 org.freedesktop.Platform.GStreamer.rungic 用上 V4L2 硬件编解码；没有设备权限的应用照常软件解码。（单元测试、人工）
-- **E13** 走 MediaCodec 桥的解码（Firefox、没有 msm_vidc 的手机）在 APK 的原生线程里运行（AMediaCodec 异步回调、AImageReader、原生 socket），协议与 Java 会话相同，编码仍交给 Java；各格式（含 10bit）与软解逐字节一致，APK 里我们自己的代码不到 1%。（单元测试、人工）
+- **E6** 解码帧留在解码器自己的缓冲里（DMA-BUF，每个缓冲只传一次描述符、只映射一次），APK 里不再复制。GStreamer 直接输出 NV12（下游不接受时 I420），与 FFmpeg 软解逐字节一致。（单元测试、人工）
+- **E7** 10bit 的 HEVC Main10、VP9 Profile 2 由硬件解码，输出 P010，不悄悄压成 8bit。不支持时打开失败，交给软件解码。（单元测试、人工）
+- **E8** 新的 Linux 端遇到旧 APK（通道版本 1）自动退回共享内存，8bit 照常硬件解码。手机的解码缓冲读不了时同样退回。（单元测试、人工）
+- **E9** 手机具有高通 msm_vidc 解码节点（/dev/video32）时，解码直接使用 V4L2，不经过 APK。实时 1080p60 约占单核的 23%，MediaCodec 桥约为 105%。1080p 吞吐约 240 帧/秒。节点缺失、显式关闭直通或在 Firefox 沙箱内时，解码仍使用 MediaCodec 桥。（单元测试、人工）
+- **E10** 手机具有 msm_vidc 编码节点（/dev/video33）时，H.264/HEVC 编码直接使用 V4L2。1080×2400@30 录屏能实时编码，编码约占单核的 2–3%。MediaCodec 桥约占 75% 以上，且无法跟上 30 帧。编码器单独提供参数集，支持强制关键帧，并原样接收 NV12 输入。GPU 执行录屏颜色转换，再将纹理直接写入编码器输入缓冲。KWin 提供 DMA-BUF 画面，全程没有 CPU 拷贝。（单元测试、人工）
+- **E11** 用系统 FFmpeg 的应用（mpv/Haruna、VLC、Qt Multimedia、缩略图）默认选中硬件解码器 h264/hevc/vp9_rungic，打不开硬件时回退软件。应用默认的软件编码器不变。（单元测试、人工）
+- **E12** Flatpak 里用 GStreamer 的应用（Freedesktop/GNOME 运行时）经扩展 org.freedesktop.Platform.GStreamer.rungic 用上 V4L2 硬件编解码。没有设备权限的应用照常软件解码。（单元测试、人工）
+- **E13** MediaCodec 桥解码用于 Firefox 和没有 msm_vidc 的手机。解码在 APK 原生线程运行，使用 AMediaCodec 异步回调、AImageReader 和原生 socket。协议与 Java 会话相同，编码仍由 Java 执行。各格式（含 10bit）的解码与软解逐字节一致。APK 中我们自己的代码不到 1%。（单元测试、人工）
 
 注意：
-- Mozilla 官方 arm64 Firefox 没有启用 MOZ_ENABLE_V4L2，RDD 的沙箱 broker 拒绝打开 /dev/video*；Firefox 仍走 MediaCodec 桥。沙箱前预开 DMA 堆不解决问题，还会把它交给所有内容进程，不要这么做。 [docs/108-codec-bridge-buffers.md](../docs/108-codec-bridge-buffers.md)
-- 安卓宿主的缓冲租借（gpu_allocator.rs）只给 RGBA 顺序（ABGR8888/XBGR8888）。KWin 录屏原来只按输出格式 ARGB8888 要 DMA-BUF，要不到就悄悄退回 memfd，每帧 CPU 读回再上传；补丁 screencast-dmabuf-other-rgb-format 改为换格式再试。 [docs/108-codec-bridge-buffers.md](../docs/108-codec-bridge-buffers.md)
-- 编码元素直接用 GLMemory 的纹理 ID 前必须以 GST_MAP_GL 映射；经过直通元素时 GStreamer 推迟上传，纹理是空的（编出几乎不变的画面）。 [docs/108-codec-bridge-buffers.md](../docs/108-codec-bridge-buffers.md)
+- Mozilla 官方 arm64 Firefox 没有启用 MOZ_ENABLE_V4L2，RDD 的沙箱 broker 拒绝打开 /dev/video*。Firefox 仍走 MediaCodec 桥。沙箱前预开 DMA 堆不解决问题，还会把它交给所有内容进程，不要这么做。 [docs/108-codec-bridge-buffers.md](../docs/108-codec-bridge-buffers.md)
+- 安卓宿主的缓冲租借（gpu_allocator.rs）只给 RGBA 顺序（ABGR8888/XBGR8888）。KWin 录屏原来只按输出格式 ARGB8888 要 DMA-BUF，要不到就悄悄退回 memfd，每帧 CPU 读回再上传。补丁 screencast-dmabuf-other-rgb-format 改为换格式再试。 [docs/108-codec-bridge-buffers.md](../docs/108-codec-bridge-buffers.md)
+- 编码元素直接用 GLMemory 的纹理 ID 前必须以 GST_MAP_GL 映射。经过直通元素时 GStreamer 推迟上传，纹理是空的（编出几乎不变的画面）。 [docs/108-codec-bridge-buffers.md](../docs/108-codec-bridge-buffers.md)
 - 不要在手机上把整段原始视频写进容器 /tmp（3.7 GB tmpfs）或整块读入比较：2026-10-04 因此内存耗尽，VPN 被杀、内核 panic 重启。只抽少量帧，或传回电脑计算。 [docs/108-codec-bridge-buffers.md](../docs/108-codec-bridge-buffers.md)
 - NDK 的 AImageReader 按配置格式严格检查缓冲：配成 YCBCR_P010 时会拒收高通解码器自己的 P010（0x7fa30c0a），第二帧起取不到图（Java 的 ImageReader 不拒）。10bit 用 PRIVATE 格式的 reader。 [docs/108-codec-bridge-buffers.md](../docs/108-codec-bridge-buffers.md)
 - mpv 默认在主线程解码，硬件解码器的出帧时序抖动让约 10% 的帧在 vo 端被判来晚丢掉（解码速度足够，vd-queue-enable=yes 时为 0）。 [docs/108-codec-bridge-buffers.md](../docs/108-codec-bridge-buffers.md)
-- msm_vidc 的 V4L2 编码器必须先开图像（OUTPUT）流、再开码流（CAPTURE），两路都开流后才能排缓冲；先排码流缓冲再送第一张图，固件同样断言复位。 [docs/108-codec-bridge-buffers.md](../docs/108-codec-bridge-buffers.md)
-- msm_vidc 的 V4L2 解码只收 DMA-BUF；OUTPUT 开流前排入码流、或 CAPTURE 配好前排入第二个码流单元，会让固件断言并复位整个视频核心（Android 正在用的解码一起中断）。codec-v4l2.c 严格按“开 OUTPUT → 一个单元 → 等 SOURCE_CHANGE → 配 NV12/P010 的 CAPTURE”的顺序，刷新时整段重开。 [docs/108-codec-bridge-buffers.md](../docs/108-codec-bridge-buffers.md)
-- 经 APK 的 MediaCodec 桥，CPU 大头是 Codec2 框架和高通编解码服务每帧的消息、binder 和缓冲交接（每帧约 12 ms CPU）；去掉复制、改异步只省了约 10%，实时 1080p60 仍约一个核，吞吐被 Codec2 按码流帧率设定的时钟限在约 83 帧/秒。这是 V4L2 直通的理由，桥只作回退。 [docs/108-codec-bridge-buffers.md](../docs/108-codec-bridge-buffers.md)
-- 渲染到 Surface 时高通解码器默认写 UBWC 压缩格式，要设 vendor.qti-ext-dec-forceNonUBWC.value=1；读平面布局不能用 Image.getPlanes()，遇到 UBWC 缓冲框架会直接 abort，连同桌面一起崩溃。 [docs/108-codec-bridge-buffers.md](../docs/108-codec-bridge-buffers.md)
-- 解码输入块设成 16 MiB 时，Codec2 每帧映射、解映射一次，光解映射就占 APK 解码线程约 1/5；按分辨率设置。 [docs/108-codec-bridge-buffers.md](../docs/108-codec-bridge-buffers.md)
-- 硬件编码经宿主桥接的吞吐约 50 fps：1080×2400@60 单路被拒，两路大分辨率同时编码第二路 CodecException；多屏或 60 fps 时把每路缩到长边 ≤1920。 [docs/48-plasma-media-pipelines.md](../docs/48-plasma-media-pipelines.md)
+- msm_vidc 的 V4L2 编码器必须先开图像（OUTPUT）流、再开码流（CAPTURE），两路都开流后才能排缓冲。先排码流缓冲再送第一张图，固件同样断言复位。 [docs/108-codec-bridge-buffers.md](../docs/108-codec-bridge-buffers.md)
+- msm_vidc 的 V4L2 解码只收 DMA-BUF。OUTPUT 开流前排入码流、或 CAPTURE 配好前排入第二个码流单元，会让固件断言并复位整个视频核心（Android 正在用的解码一起中断）。codec-v4l2.c 严格按“开 OUTPUT → 一个单元 → 等 SOURCE_CHANGE → 配 NV12/P010 的 CAPTURE”的顺序，刷新时整段重开。 [docs/108-codec-bridge-buffers.md](../docs/108-codec-bridge-buffers.md)
+- 经 APK 的 MediaCodec 桥，CPU 大头是 Codec2 框架和高通编解码服务每帧的消息、binder 和缓冲交接（每帧约 12 ms CPU）。去掉复制、改异步只省了约 10%，实时 1080p60 仍约一个核，吞吐被 Codec2 按码流帧率设定的时钟限在约 83 帧/秒。这是 V4L2 直通的理由，桥只作回退。 [docs/108-codec-bridge-buffers.md](../docs/108-codec-bridge-buffers.md)
+- 渲染到 Surface 时高通解码器默认写 UBWC 压缩格式，要设 vendor.qti-ext-dec-forceNonUBWC.value=1。读平面布局不能用 Image.getPlanes()，遇到 UBWC 缓冲框架会直接 abort，连同桌面一起崩溃。 [docs/108-codec-bridge-buffers.md](../docs/108-codec-bridge-buffers.md)
+- 解码输入块设成 16 MiB 时，Codec2 每帧映射、解映射一次，光解映射就占 APK 解码线程约 1/5。按分辨率设置。 [docs/108-codec-bridge-buffers.md](../docs/108-codec-bridge-buffers.md)
+- 硬件编码经宿主桥接的吞吐约 50 fps：1080×2400@60 单路被拒，两路大分辨率同时编码第二路 CodecException。多屏或 60 fps 时把每路缩到长边 ≤1920。 [docs/48-plasma-media-pipelines.md](../docs/48-plasma-media-pipelines.md)
 - Android SharedMemory 可能是 st_size=0 的 ashmem 字符设备，不能只接受普通 memfd。 [docs/research/35-hardware-codec-integration.md](../docs/research/35-hardware-codec-integration.md)
-- 做成 VA-API 驱动换不掉 FFmpeg 补丁、Snapshot 补丁和 Firefox 预加载（Firefox 的 glxtest 在 KGSL 软件 EGL 设备处就关掉 VA-API），维持现状；VA-API 只能作为另一项新能力单独立项。 [docs/research/74-vaapi-feasibility.md](../docs/research/74-vaapi-feasibility.md)
-- 上游 Iris 驱动不支持 parrot，也不能和原厂 msm_video 共存；用的是原厂驱动的 V4L2 接口（容器只多映射了 /dev/video32，DMA 堆本来就为 GPU 映射了）。 [docs/108-codec-bridge-buffers.md](../docs/108-codec-bridge-buffers.md) [docs/research/34-hardware-codec-audit.md](../docs/research/34-hardware-codec-audit.md)
-- VP8、AV1 在本机只有软件组件，不能宣称硬件编解码；没有 4K（上限 2560×1440）、HDR 显示和 DRM 视频；10bit 只在解码侧。 [docs/research/34-hardware-codec-audit.md](../docs/research/34-hardware-codec-audit.md)
+- 做成 VA-API 驱动换不掉 FFmpeg 补丁、Snapshot 补丁和 Firefox 预加载（Firefox 的 glxtest 在 KGSL 软件 EGL 设备处就关掉 VA-API），维持现状。VA-API 只能作为另一项新能力单独立项。 [docs/research/74-vaapi-feasibility.md](../docs/research/74-vaapi-feasibility.md)
+- 上游 Iris 驱动不支持 parrot，也不能和原厂 msm_video 共存。用的是原厂驱动的 V4L2 接口（容器只多映射了 /dev/video32，DMA 堆本来就为 GPU 映射了）。 [docs/108-codec-bridge-buffers.md](../docs/108-codec-bridge-buffers.md) [docs/research/34-hardware-codec-audit.md](../docs/research/34-hardware-codec-audit.md)
+- VP8、AV1 在本机只有软件组件，不能宣称硬件编解码。没有 4K（上限 2560×1440）、HDR 显示和 DRM 视频。10bit 只在解码侧。 [docs/research/34-hardware-codec-audit.md](../docs/research/34-hardware-codec-audit.md)
 - broker 只允许 UID 0/1000，最多 64 条连接、6 个活动 codec，只接受编解码固定命令。 [docs/research/35-hardware-codec-integration.md](../docs/research/35-hardware-codec-integration.md)
 
 文档：[docs/research/34-hardware-codec-audit.md](../docs/research/34-hardware-codec-audit.md)、[docs/research/35-hardware-codec-integration.md](../docs/research/35-hardware-codec-integration.md)、[docs/research/74-vaapi-feasibility.md](../docs/research/74-vaapi-feasibility.md)、[docs/108-codec-bridge-buffers.md](../docs/108-codec-bridge-buffers.md)
 
 #### 屏幕共享门户
 
-`apps.screen-sharing` · Linux 系统功能 — 网页和会议应用经 xdg-desktop-portal 的 ScreenCast 请求屏幕，用户在权限框里选屏，画面以 PipeWire 流送出。
+`apps.screen-sharing` · Linux 系统功能 — 网页和会议应用通过 xdg-desktop-portal ScreenCast 请求屏幕共享。用户在权限框选择屏幕，应用通过 PipeWire 流接收画面。
 
 - **E1** ScreenCast 弹出权限框，用户选屏后三个阶段都返回 Response=0，PipeWire 收到画面帧。（人工）
 - **E2** 门户的权限框在手机上不超出屏幕宽度。（人工）
@@ -958,22 +958,22 @@ Linux 应用用手机的相机拍照录像，用手机的扬声器和麦克风�
 
 #### Firefox 浏览器
 
-`apps.firefox` · Linux 系统功能 — Mozilla 官方 APT 的 Firefox 156，手机上用 mobile-config-firefox 的移动版界面和安卓 UA，独立桌面和工作区里是桌面版，WebRender 用 GPU。
+`apps.firefox` · Linux 系统功能 — 浏览器使用 Mozilla 官方 APT 的 Firefox 156，并通过 GPU 运行 WebRender。手机使用 mobile-config-firefox 的移动界面和 Android UA。独立桌面和工作区使用桌面界面。
 
 经由接口：`camera`、`audio`
 
 - **E1** 手机上 Firefox 是移动版：UA 为 Android 16; Mobile，maxTouchPoints 为 1，网站会跳到移动版（m.bilibili.com）。（人工）
 - **E2** 独立桌面和 Agent 工作区里（RUNGIC_WORKSPACE 非空）不加载移动配置：Linux 桌面 UA、maxTouchPoints 为 0、没有 about:mobile。（人工）
 - **E3** 屏幕键盘在地址栏输入英文和中文候选都能提交，不崩溃。（人工）
-- **E4** WebRender 和 WebGL 1/2 在 FD710 上运行，浏览器内容沙箱保持开启。（缺口：Firefox 156 上 WebRender、WebGL 1/2 与内容沙箱没有当前版本的检查记录（research/30 的结果是 Phosh 时期的 Firefox 154）；要在手机的 FD710 上看，系统测试镜像也没有 Firefox）
-- **E5** 网站经正常授权使用 PipeWire 摄像头和麦克风，同步录制。（缺口：40 篇（2026-09-23）记有浏览器前后摄、麦克风采集通过，没有记音画同步的录制；要手机的真实摄像头和麦克风，本轮不碰手机）
-- **E6** 浏览器按系统代理联网，界面是中文。（缺口：40 篇记有 Firefox 156 的中文界面，按系统代理联网只有 Phosh 时期的记录（research/30）；系统测试镜像没有 Firefox，要在手机上核对）
+- **E4** WebRender 和 WebGL 1/2 在 FD710 上运行，浏览器内容沙箱保持开启。（缺口：Firefox 156 上 WebRender、WebGL 1/2 与内容沙箱没有当前版本的检查记录（research/30 的结果是 Phosh 时期的 Firefox 154）。要在手机的 FD710 上看，系统测试镜像也没有 Firefox）
+- **E5** 网站经正常授权使用 PipeWire 摄像头和麦克风，同步录制。（缺口：40 篇（2026-09-23）记有浏览器前后摄、麦克风采集通过，没有记音画同步的录制。要手机的真实摄像头和麦克风，本轮不碰手机）
+- **E6** 浏览器按系统代理联网，界面是中文。（缺口：40 篇记有 Firefox 156 的中文界面，按系统代理联网只有 Phosh 时期的记录（research/30）。系统测试镜像没有 Firefox，要在手机上核对）
 
 注意：
-- 自动化把 focusmanager.testmode=true 留在日常 profile，会让 Firefox 在输入法提交时空指针崩溃；自动化只用独立测试 profile，验收后要核对日常 profile 里没有测试偏好。 [docs/36-firefox-input-fix.md](../docs/36-firefox-input-fix.md)
-- KGSL 没有 DRM 节点，Firefox 会误判软件显卡；策略里把 gfx.webrender.all 设为可更改的默认 true。 [docs/research/74-vaapi-feasibility.md](../docs/research/74-vaapi-feasibility.md)
-- 用 RUNGIC_WORKSPACE 判断桌面，不能用 PLASMA_PLATFORM（它会由 startplasma 串进工作区的 systemd 环境）；Firefox 不能在两边同时运行。 [docs/research/97-headless-agent-work.md](../docs/research/97-headless-agent-work.md)
-- 用户在 about:mobile 或 about:config 里改的设置两边都生效；网站记在 cookie 里的移动版可能还会跳。 [docs/research/97-headless-agent-work.md](../docs/research/97-headless-agent-work.md)
+- 自动化把 focusmanager.testmode=true 留在日常 profile，会让 Firefox 在输入法提交时空指针崩溃。自动化只用独立测试 profile，验收后要核对日常 profile 里没有测试偏好。 [docs/36-firefox-input-fix.md](../docs/36-firefox-input-fix.md)
+- KGSL 没有 DRM 节点，Firefox 会误判软件显卡。策略里把 gfx.webrender.all 设为可更改的默认 true。 [docs/research/74-vaapi-feasibility.md](../docs/research/74-vaapi-feasibility.md)
+- 用 RUNGIC_WORKSPACE 判断桌面，不能用 PLASMA_PLATFORM（它会由 startplasma 串进工作区的 systemd 环境）。Firefox 不能在两边同时运行。 [docs/research/97-headless-agent-work.md](../docs/research/97-headless-agent-work.md)
+- 用户在 about:mobile 或 about:config 里改的设置两边都生效。网站记在 cookie 里的移动版可能还会跳。 [docs/research/97-headless-agent-work.md](../docs/research/97-headless-agent-work.md)
 - Firefox 156 的 WebRender 在 Linux 上只有 OpenGL 和软件路径，没有 Vulkan 合成选项。 [docs/56-kwin-vulkan-quantification.md](../docs/56-kwin-vulkan-quantification.md)
 
 文档：[docs/36-firefox-input-fix.md](../docs/36-firefox-input-fix.md)
@@ -984,42 +984,42 @@ Linux 应用用手机的相机拍照录像，用手机的扬声器和麦克风�
 
 经由接口：`codec`
 
-- **E1** 网页 H.264 / VP9 视频由高通硬件解码播放，seek、暂停正常，内容和 RDD 沙箱保持开启。（人工；只能在手机上看：网页视频由高通硬件解码，要手机的 MediaCodec；Firefox 156 与私有 FFmpeg 只装在手机上）
+- **E1** 网页 H.264 / VP9 视频由高通硬件解码播放，seek、暂停正常，内容和 RDD 沙箱保持开启。（人工；只能在手机上看：网页视频由高通硬件解码，要手机的 MediaCodec。Firefox 156 与私有 FFmpeg 只装在手机上）
 - **E2** WebCodecs（no-preference）H.264 编码再解码，帧数和时间戳完整。（人工；只能在手机上看：WebCodecs 的 H.264 编码用安卓的硬件编码器，要手机的 MediaCodec）
 - **E3** WebRTC 协商 H.264 并使用硬件编码，结束后高通组件释放。（人工；只能在手机上看：WebRTC 的硬件编码与高通组件的释放都在手机的 MediaCodec 上）
-- **E4** 硬件打开失败时编解码回退软件，播放和 WebCodecs 仍可用。（缺口：回退软件只在 Phosh 时期（Firefox 154、Alpine）做过故障注入（research/35，2026-09-23）；当前的 Firefox 156 与私有 FFmpeg 只装在手机上，系统测试镜像里没有）
-- **E5** MediaRecorder 录 WebM（VP8/Opus）可用；MP4 AVC 如实报告不支持。（缺口：40 篇（2026-09-23）记有 MediaRecorder WebM 可用、MP4 返回不支持；系统测试镜像没有 Firefox 156，暂无可重复的检查）
+- **E4** 硬件打开失败时编解码回退软件，播放和 WebCodecs 仍可用。（缺口：回退软件只在 Phosh 时期（Firefox 154、Alpine）做过故障注入（research/35，2026-09-23）。当前的 Firefox 156 与私有 FFmpeg 只装在手机上，系统测试镜像里没有）
+- **E5** MediaRecorder 录 WebM（VP8/Opus）可用。MP4 AVC 如实报告不支持。（缺口：40 篇（2026-09-23）记有 MediaRecorder WebM 可用、MP4 返回不支持。系统测试镜像没有 Firefox 156，暂无可重复的检查）
 
 注意：
-- 只设 LD_LIBRARY_PATH/LD_PRELOAD 不够：部分内容进程从应用目录另行加载发行版 FFmpeg，私有 FFmpeg 的运行库要放进 /usr/lib/firefox；/usr/bin/firefox 被转移为包装入口。 [docs/research/35-hardware-codec-integration.md](../docs/research/35-hardware-codec-integration.md)
-- 内容/RDD 沙箱禁止新建 codec.sock 连接；包装预加载传输库，在沙箱建立前预连 broker，fork 出的子进程各建一条，不关闭沙箱。 [docs/research/35-hardware-codec-integration.md](../docs/research/35-hardware-codec-integration.md) [docs/research/74-vaapi-feasibility.md](../docs/research/74-vaapi-feasibility.md)
+- 只设 LD_LIBRARY_PATH/LD_PRELOAD 不够：部分内容进程从应用目录另行加载发行版 FFmpeg，私有 FFmpeg 的运行库要放进 /usr/lib/firefox。/usr/bin/firefox 被转移为包装入口。 [docs/research/35-hardware-codec-integration.md](../docs/research/35-hardware-codec-integration.md)
+- 内容/RDD 沙箱禁止新建 codec.sock 连接。包装预加载传输库，在沙箱建立前预连 broker，fork 出的子进程各建一条，不关闭沙箱。 [docs/research/35-hardware-codec-integration.md](../docs/research/35-hardware-codec-integration.md) [docs/research/74-vaapi-feasibility.md](../docs/research/74-vaapi-feasibility.md)
 - 私有库里把 x264 改名为 libx264_sw，否则 Firefox 按名字直接选 x264、绕过混合编码器。 [docs/research/35-hardware-codec-integration.md](../docs/research/35-hardware-codec-integration.md)
 - Firefox 日志可能把混合编码器归为 software，判断是否硬件要看 MotoCodec/RungicCodec OPEN c2.qti.* 和实际帧数。 [docs/research/35-hardware-codec-integration.md](../docs/research/35-hardware-codec-integration.md)
-- WebRTC 短测约 20 fps 发送、13 fps 接收，有丢帧，不能宣称满 30 fps 或长会议已验收；prefer-hardware 分类不支持。 [docs/research/35-hardware-codec-integration.md](../docs/research/35-hardware-codec-integration.md)
-- 升级 Firefox 或 FFmpeg 后要重新核验包装、私有库 ABI 和偏好；不要沿用早期针对 Firefox main 的远程编码 pref。 [docs/research/35-hardware-codec-integration.md](../docs/research/35-hardware-codec-integration.md)
+- WebRTC 短测约 20 fps 发送、13 fps 接收，有丢帧，不能宣称满 30 fps 或长会议已验收。prefer-hardware 分类不支持。 [docs/research/35-hardware-codec-integration.md](../docs/research/35-hardware-codec-integration.md)
+- 升级 Firefox 或 FFmpeg 后要重新核验包装、私有库 ABI 和偏好。不要沿用早期针对 Firefox main 的远程编码 pref。 [docs/research/35-hardware-codec-integration.md](../docs/research/35-hardware-codec-integration.md)
 
 文档：[docs/research/35-hardware-codec-integration.md](../docs/research/35-hardware-codec-integration.md)
 
 ### 文件与安卓互通
 
-下载、图片、视频、音乐放在安卓共享存储里，两边都能看到；应用的保存对话框在手机上好用。
+下载、图片、视频、音乐放在安卓共享存储里，两边都能看到。应用的保存对话框在手机上好用。
 
 #### 与安卓共享的文件目录（~/Shared）
 
-`apps.shared-storage` · 依赖安卓 — 安卓内部存储的 Plasma 目录经 bindfs 挂成 ~/Shared，下载、图片、视频、音乐、模板、公共目录链接到这里，文档和桌面是本地目录。
+`apps.shared-storage` · 依赖安卓 — Android 内部存储的 Plasma 目录通过 bindfs 挂载为 ~/Shared。下载、图片、视频、音乐、模板和公共目录链接到这里。文档和桌面目录保留在本地。
 
-- **E1** 新账户第一次登录就有 8 个标准目录：下载、音乐、图片、视频、模板、公共链接到 Shared，文档和桌面是本地目录；重复运行结果不变。（单元测试、人工）
+- **E1** 新账户第一次登录就有 8 个标准目录：下载、音乐、图片、视频、模板、公共链接到 Shared，文档和桌面是本地目录。重复运行结果不变。（单元测试、人工）
 - **E2** 已有的目录内容、自定义链接和同名文件不会被覆盖或删除。（单元测试）
 - **E3** 共享存储没挂上时明确失败，不在主目录里造出假目录。（单元测试）
 - **E4** ~/Shared 上可写共享映射和 SQLite WAL 正常，rungic-fs-audit 的必需项全部通过。（人工）
 - **E5** 会话启动后标准目录不会被 xdg-user-dirs-update 改回主目录，录屏、截图、下载存到对应目录。（人工）
-- **E6** 安卓一侧改过的文件，Linux 下次打开时就能看到；bindfs 意外退出留下的断开挂载在服务重启时被清掉，不会无限重启。（单元测试）
+- **E6** 安卓一侧改过的文件，Linux 下次打开时就能看到。bindfs 意外退出留下的断开挂载在服务重启时被清掉，不会无限重启。（单元测试）
 
 注意：
 - bindfs 不能带 --direct-io：FUSE 对 direct-io 拒绝可写共享映射，SQLite WAL、LMDB、MMKV 都会 I/O error。 [docs/69-filesystem-capabilities.md](../docs/69-filesystem-capabilities.md)
-- 共享存储不支持符号链接、硬链接、区分大小写、执行、chmod、xattr、Unix 套接字和 FIFO；应用私有数据、数据库、源码仓库和可执行程序放本地目录。 [docs/69-filesystem-capabilities.md](../docs/69-filesystem-capabilities.md)
+- 共享存储不支持符号链接、硬链接、区分大小写、执行、chmod、xattr、Unix 套接字和 FIFO。应用私有数据、数据库、源码仓库和可执行程序放本地目录。 [docs/69-filesystem-capabilities.md](../docs/69-filesystem-capabilities.md)
 - 下载到共享存储的 AppImage 不能直接运行（两层 noexec，安卓 FUSE 存不下执行位），尚未决定。 [docs/69-filesystem-capabilities.md](../docs/69-filesystem-capabilities.md)
-- bindfs 在前台运行时 systemd 会在挂载完成前就判定服务已启动，会话抢先启动导致目录被重置；服务要等挂载点就绪。 [docs/48-plasma-media-pipelines.md](../docs/48-plasma-media-pipelines.md)
+- bindfs 在前台运行时 systemd 会在挂载完成前就判定服务已启动，会话抢先启动导致目录被重置。服务要等挂载点就绪。 [docs/48-plasma-media-pipelines.md](../docs/48-plasma-media-pipelines.md)
 - 新增挂载或某个应用只在某目录出问题时，先跑 rungic-fs-audit，结果记入 69 篇。 [docs/69-filesystem-capabilities.md](../docs/69-filesystem-capabilities.md)
 - Documents、Desktop 已改为本地目录，在安卓上不再可见。 [docs/69-filesystem-capabilities.md](../docs/69-filesystem-capabilities.md)
 
@@ -1030,12 +1030,12 @@ Linux 应用用手机的相机拍照录像，用手机的扬声器和麦克风�
 `apps.file-dialog` · Linux 系统功能 — 应用经门户打开的手机版文件选择器预填建议的文件名，输入完整路径也能存到那里。
 
 - **E1** 应用给了建议名（current_name）时，文件名框里预填它，直接确认就存到建议的目录。（人工）
-- **E2** 输入以 / 开头的完整路径或 file:// 地址时原样使用；只输入名字时放进当前目录；名字里的空格、井号、问号不截断文件名。（单元测试、人工）
-- **E3** 文件名为空时不能保存；在文件名框里按回车也能保存。（单元测试、人工）
+- **E2** 输入以 / 开头的完整路径或 file:// 地址时原样使用。只输入名字时放进当前目录。名字里的空格、井号、问号不截断文件名。（单元测试、人工）
+- **E3** 文件名为空时不能保存。在文件名框里按回车也能保存。（单元测试、人工）
 - **E4** 打开文件时选择共享下载目录里的文件，门户返回它的 file URI。（人工）
 
 注意：
-- 原手机版选择器把输入直接拼在当前目录后，输完整路径会得到不存在的目录；门户丢弃路径时 Qt 的 QFileDialog::accept() 不关闭也不报错，留下挡住输入的空壳。 [docs/103-krita-save-dialog-hang.md](../docs/103-krita-save-dialog-hang.md)
+- 原手机版选择器把输入直接拼在当前目录后，输完整路径会得到不存在的目录。门户丢弃路径时 Qt 的 QFileDialog::accept() 不关闭也不报错，留下挡住输入的空壳。 [docs/103-krita-save-dialog-hang.md](../docs/103-krita-save-dialog-hang.md)
 - 用户屏幕上由 Qt 应用发起的完整“另存为”没有实测（会弹到用户屏幕上），只在工作区里端到端测过。 [docs/103-krita-save-dialog-hang.md](../docs/103-krita-save-dialog-hang.md)
 
 文档：[docs/103-krita-save-dialog-hang.md](../docs/103-krita-save-dialog-hang.md)
@@ -1052,27 +1052,27 @@ Linux 应用用手机的相机拍照录像，用手机的扬声器和麦克风�
 - **E2** VS Code 的 GPU 进程映射扩展里的 libEGL_mesa、libgallium，持有 /dev/kgsl-3d0，窗口正常绘制。（人工；只能在手机上看：GPU 进程持有 /dev/kgsl-3d0、映射扩展里的 Mesa，要手机的 KGSL）
 
 注意：
-- Electron/Chromium 的 SingletonLock 和单实例套接字要符号链接和 Unix 套接字，放在 ~/Shared 上会失败；工程和数据放本地目录。 [docs/69-filesystem-capabilities.md](../docs/69-filesystem-capabilities.md)
-- nofile 硬上限 32768、inotify 128 个实例，监视大目录的大型 IDE 可能不够；这些是安卓内核全局设置。 [docs/69-filesystem-capabilities.md](../docs/69-filesystem-capabilities.md)
+- Electron/Chromium 的 SingletonLock 和单实例套接字要符号链接和 Unix 套接字，放在 ~/Shared 上会失败。工程和数据放本地目录。 [docs/69-filesystem-capabilities.md](../docs/69-filesystem-capabilities.md)
+- nofile 硬上限 32768、inotify 128 个实例，监视大目录的大型 IDE 可能不够。这些是安卓内核全局设置。 [docs/69-filesystem-capabilities.md](../docs/69-filesystem-capabilities.md)
 
 文档：[docs/45-plasma-app-store.md](../docs/45-plasma-app-store.md)
 
 #### 容器里的 rootless Docker
 
-`apps.docker` · Linux 系统功能 — 每个用户在容器里跑 rootless Docker 和 Compose，在设置→服务里开关，不需要把 net_admin 还给容器，也不碰安卓网络。
+`apps.docker` · Linux 系统功能 — 每个用户可以在容器内运行 rootless Docker 和 Compose，并在设置→服务中开关。容器无需恢复 net_admin 权限，也不改变 Android 网络。
 
-- **E1** hello-world、镜像已有目录写入、bridge 网络出网、Compose 按服务名互访都能用。（人工；只能在手机上看：rootless Docker 的网络（iptables-legacy、自加 MASQUERADE、slirp4netns 与 TUN）是按手机内核（没有 nftables、xt_addrtype）和 LXC 的设备许可做的；无特权的系统测试容器里 rootlesskit/dockerd 跑不起来，也不代表手机）
+- **E1** hello-world、镜像已有目录写入、bridge 网络出网、Compose 按服务名互访都能用。（人工；只能在手机上看：rootless Docker 的网络（iptables-legacy、自加 MASQUERADE、slirp4netns 与 TUN）是按手机内核（没有 nftables、xt_addrtype）和 LXC 的设备许可做的。无特权的系统测试容器里 rootlesskit/dockerd 跑不起来，也不代表手机）
 - **E2** -p 发布的端口在容器内和安卓的 127.0.0.1 都能访问。（人工；只能在手机上看：端口要在安卓的 127.0.0.1 上访问，只有手机有安卓的网络）
-- **E3** 桌面的 /proc/sys 仍只读；rootless 一侧的进程写安卓的网络参数被拒，安卓的转发设置不变。（人工；只能在手机上看：/proc/sys 只读、写安卓网络参数被拒，取决于手机 LXC 的 proc 挂载和与安卓共用的网络命名空间）
-- **E4** 在设置→服务里开启时先确认再弹密码框，密码晚于 25 秒输入也能当场启动；关闭时当场停止，页面状态与实际一致。（人工）
-- **E5** 开机自动准备 /dev/net/tun、从属 UID/GID 段和按 UID 的数据目录；账户改名后数据不丢、从属 ID 段随之迁移。（系统测试、人工）
+- **E3** 桌面的 /proc/sys 仍只读。rootless 一侧的进程写安卓的网络参数被拒，安卓的转发设置不变。（人工；只能在手机上看：/proc/sys 只读、写安卓网络参数被拒，取决于手机 LXC 的 proc 挂载和与安卓共用的网络命名空间）
+- **E4** 在设置→服务里开启时先确认再弹密码框，密码晚于 25 秒输入也能当场启动。关闭时当场停止，页面状态与实际一致。（人工）
+- **E5** 开机自动准备 /dev/net/tun、从属 UID/GID 段和按 UID 的数据目录。账户改名后数据不丢、从属 ID 段随之迁移。（系统测试、人工）
 - **E6** rootful 的 docker.service、containerd.service 被屏蔽，不会开机失败。（系统测试、人工）
 
 注意：
-- 容器与安卓共用网络命名空间且没有 net_admin/net_raw，rootful Docker 不可用；不要为它把 net_admin 还给整个容器。 [docs/85-lxc-rootless-docker.md](../docs/85-lxc-rootless-docker.md)
-- 曾把可写的 /proc/sys/net 绑到整个容器，容器 root 实际能写安卓的网络 sysctl；只能在 rootless Docker 自己的 mount namespace 里绑定。 [docs/85-lxc-rootless-docker.md](../docs/85-lxc-rootless-docker.md)
+- 容器与安卓共用网络命名空间且没有 net_admin/net_raw，rootful Docker 不可用。不要为它把 net_admin 还给整个容器。 [docs/85-lxc-rootless-docker.md](../docs/85-lxc-rootless-docker.md)
+- 曾把可写的 /proc/sys/net 绑到整个容器，容器 root 实际能写安卓的网络 sysctl。只能在 rootless Docker 自己的 mount namespace 里绑定。 [docs/85-lxc-rootless-docker.md](../docs/85-lxc-rootless-docker.md)
 - 安卓把 memory/cpu 等控制器放在 cgroup v1，Docker 的 --memory 等单容器资源限制不生效。 [docs/85-lxc-rootless-docker.md](../docs/85-lxc-rootless-docker.md)
-- 内核没有 nftables 和 xt_addrtype：要 iptables-legacy、--iptables=false 并自己加 MASQUERADE；pasta 端口不可达，用 slirp4netns 加 builtin 端口驱动；不加 --pidns。 [docs/85-lxc-rootless-docker.md](../docs/85-lxc-rootless-docker.md)
+- 内核没有 nftables 和 xt_addrtype：要 iptables-legacy、--iptables=false 并自己加 MASQUERADE。pasta 端口不可达，用 slirp4netns 加 builtin 端口驱动。不加 --pidns。 [docs/85-lxc-rootless-docker.md](../docs/85-lxc-rootless-docker.md)
 - /home 是安卓的 f2fs，overlayfs 不接受，数据目录放在 /var/lib/rungic-docker/<UID>。 [docs/85-lxc-rootless-docker.md](../docs/85-lxc-rootless-docker.md)
 - usermod --login 不迁移 /etc/subuid、/etc/subgid 里按登录名记的段，账户改名要另外迁移。 [docs/85-lxc-rootless-docker.md](../docs/85-lxc-rootless-docker.md)
 
@@ -1080,28 +1080,28 @@ Linux 应用用手机的相机拍照录像，用手机的扬声器和麦克风�
 
 #### 安卓侧的独立 Docker（已取代）（已退役）
 
-`apps.android-docker` · 依赖安卓 — 早期在安卓一侧运行的独立 Alpine Docker（/data/adb/rungic-docker），2026-09-29 已从手机清除，由容器里的 rootless Docker 取代。
+`apps.android-docker` · 依赖安卓 — 早期的独立 Alpine Docker 运行在 Android 的 /data/adb/rungic-docker。该环境已于 2026-09-29 从手机清除，由容器内的 rootless Docker 取代。
 
 - **E1** 手机的内部存储目录能 bind mount 进 Docker 容器，和命名卷同时使用。（**未检查**）
 
 注意：
-- 代码（最后一版见提交 86f56970）和 19、20 篇都已删除；仍适用的共享目录结论在 69 篇末节，内核核对在 85 篇末节。 [docs/69-filesystem-capabilities.md](../docs/69-filesystem-capabilities.md) [docs/85-lxc-rootless-docker.md](../docs/85-lxc-rootless-docker.md)
+- 代码（最后一版见提交 86f56970）和 19、20 篇都已删除。仍适用的共享目录结论在 69 篇末节，内核核对在 85 篇末节。 [docs/69-filesystem-capabilities.md](../docs/69-filesystem-capabilities.md) [docs/85-lxc-rootless-docker.md](../docs/85-lxc-rootless-docker.md)
 
 #### 系统监视器里的 GPU 与磁盘
 
-`apps.system-monitor` · Linux 系统功能 — 系统监视器和小组件的 GPU 饼图、曲线和磁盘条有数据，ksystemstats 从 KGSL sysfs 和 mountinfo 取值。
+`apps.system-monitor` · Linux 系统功能 — 系统监视器和小组件显示 GPU 饼图、曲线和磁盘条。ksystemstats 从 KGSL sysfs 和 mountinfo 读取数据。
 
-- **E1** 概览和历史页不再提示 “This page is missing some sensors”。（人工；只能在手机上看：传感器齐不齐取决于手机 KGSL 的 sysfs（gpu_clock_stats、频率、温度）与容器的 mountinfo；补丁里的 kgsltest、mountinfotest 用的是固定样本）
-- **E2** GPU 名称显示 Adreno 710；使用率与 KGSL 的 gpu_clock_stats 增量一致（满载 85–89%，空闲约 0），还有频率和温度；不编造显存和功耗。（单元测试、人工）
-- **E3** 磁盘显示“系统”和“主目录”两个卷，容量与 df 一致，读写速率随实际读写变化；同一设备挂多处只算一次。（单元测试、人工）
+- **E1** 概览和历史页不再提示 “This page is missing some sensors”。（人工；只能在手机上看：传感器齐不齐取决于手机 KGSL 的 sysfs（gpu_clock_stats、频率、温度）与容器的 mountinfo。补丁里的 kgsltest、mountinfotest 用的是固定样本）
+- **E2** GPU 名称显示 Adreno 710。使用率与 KGSL 的 gpu_clock_stats 增量一致（满载 85–89%，空闲约 0），还有频率和温度。不编造显存和功耗。（单元测试、人工）
+- **E3** 磁盘显示“系统”和“主目录”两个卷，容量与 df 一致，读写速率随实际读写变化。同一设备挂多处只算一次。（单元测试、人工）
 - **E4** 手机会话和独立桌面（工作区 0）的 ksystemstats 给出相同的传感器和数值。（人工；只能在手机上看：两个会话在手机上读同一块 KGSL 的 sysfs，要在手机上同时看两边）
 - **E5** 只在传感器被订阅时才读 sysfs 和 diskstats，打开概览页时 ksystemstats 的 CPU 不超过单核 1%。（人工；只能在手机上看：CPU 占用是手机上的性能）
 
 注意：
-- 上游 GPU 插件只认 DRM 设备，KGSL 没有 DRM 节点，sysfs 的 card0 是显示控制器；上游 MR !149 的 msm DRM 方案不能直接用。 [docs/104-system-monitor-gpu-disks.md](../docs/104-system-monitor-gpu-disks.md)
-- 不要读 devfreq/gpu_load：读取会重置调频器的统计；gpubusy 按上电时间计，会放大短暂负载，只作后备。 [docs/104-system-monitor-gpu-disks.md](../docs/104-system-monitor-gpu-disks.md)
-- 容器里没有 udev 和 UDisks2，Solid 列不出卷；不要为监视器补整套设备管理，mountinfo 只在 Solid 没有卷时作后备。 [docs/104-system-monitor-gpu-disks.md](../docs/104-system-monitor-gpu-disks.md)
-- 根文件系统镜像本身是 userdata 上的文件，disk/all/total 的物理空间有重叠；没有按进程的 GPU 使用；挂载只在 ksystemstats 启动时读一次。 [docs/104-system-monitor-gpu-disks.md](../docs/104-system-monitor-gpu-disks.md)
+- 上游 GPU 插件只认 DRM 设备，KGSL 没有 DRM 节点，sysfs 的 card0 是显示控制器。上游 MR !149 的 msm DRM 方案不能直接用。 [docs/104-system-monitor-gpu-disks.md](../docs/104-system-monitor-gpu-disks.md)
+- 不要读 devfreq/gpu_load：读取会重置调频器的统计。gpubusy 按上电时间计，会放大短暂负载，只作后备。 [docs/104-system-monitor-gpu-disks.md](../docs/104-system-monitor-gpu-disks.md)
+- 容器里没有 udev 和 UDisks2，Solid 列不出卷。不要为监视器补整套设备管理，mountinfo 只在 Solid 没有卷时作后备。 [docs/104-system-monitor-gpu-disks.md](../docs/104-system-monitor-gpu-disks.md)
+- 根文件系统镜像本身是 userdata 上的文件，disk/all/total 的物理空间有重叠。没有按进程的 GPU 使用。挂载只在 ksystemstats 启动时读一次。 [docs/104-system-monitor-gpu-disks.md](../docs/104-system-monitor-gpu-disks.md)
 - 补丁里的单元测试（kgsltest、mountinfotest）只在单独的测试构建里跑，Ubuntu 打包关闭了测试。 [docs/104-system-monitor-gpu-disks.md](../docs/104-system-monitor-gpu-disks.md)
 
 文档：[docs/104-system-monitor-gpu-disks.md](../docs/104-system-monitor-gpu-disks.md)
@@ -1116,20 +1116,20 @@ Linux 应用用手机的相机拍照录像，用手机的扬声器和麦克风�
 
 #### 开发覆盖：工作区改动装到手机上
 
-`delivery.dev-overlay` · Linux 系统功能 — rungic_dev.py deploy 从工作区（含未提交改动）构建指定的包或上游组件，装在已安装发布之上；状态看得见，reset 回到发布。
+`delivery.dev-overlay` · Linux 系统功能 — rungic_dev.py deploy 从工作区构建指定包或上游组件，包括未提交改动。产物作为开发覆盖安装在现有发布之上。用户可以查看覆盖状态，并用 reset 恢复发布版本。
 
-- **E1** 开发版本是“发布里的版本+dev<UTC 时间>.<短 sha>[.dirty]”，排在该发布版本之后、下一个发布之前；apt 和 Discover 把开发覆盖当作已装系统（每个覆盖 Installed 等于 Candidate），不提示把我们的包“更新”回去。（单元测试、人工）
-- **E2** 手机说得出自己偏离了哪个发布、偏离了什么：status 和 /usr/share/rungic/release.json 列出基线发布及每个覆盖的版本、提交、是否 dirty、构建时间；完整性检查的 release.dev 列出覆盖，state 为 development。（单元测试、人工）
+- **E1** 开发版本是“发布里的版本+dev<UTC 时间>.<短 sha>[.dirty]”，排在该发布版本之后、下一个发布之前。apt 和 Discover 把开发覆盖当作已装系统（每个覆盖 Installed 等于 Candidate），不提示把我们的包“更新”回去。（单元测试、人工）
+- **E2** 手机说得出自己偏离了哪个发布、偏离了什么：status 和 /usr/share/rungic/release.json 列出基线发布及每个覆盖的版本、提交、是否 dirty、构建时间。完整性检查的 release.dev 列出覆盖，state 为 development。（单元测试、人工）
 - **E3** 再次部署时之前的覆盖保留，开发元包的基线始终是原来那个发布。（单元测试）
-- **E4** reset [包|组件] 回到发布版本（发布里还没有的组件回到手机上原来的发行版版本）；先装好基线版本，成功后才删开发的源、pin 和仓库。（单元测试）
+- **E4** reset [包|组件] 回到发布版本（发布里还没有的组件回到手机上原来的发行版版本）。先装好基线版本，成功后才删开发的源、pin 和仓库。（单元测试）
 - **E5** 发布要重建的上游组件（packages/<名>）也能直接 deploy：用补丁队列构建，有 obj 树时增量构建，只覆盖发布里登记、手机已装的那几个二进制包。（单元测试、人工）
-- **E6** 在 Mac mini 上构建的包由手机直接从构建机取（wire.net、局域网依次试），每个文件核对大小与 SHA-256，最多三次；被新覆盖替换掉的包从本机记录和构建机上一并删掉。三个包同步约 25 秒，整次部署约 5.5 分钟。（单元测试、人工）
-- **E7** 正式发布部署成功、写好发布 pin 之后，开发覆盖的源、pin 和仓库被清掉；安装失败时开发覆盖和它的包保持原样。（缺口：这一步还没有在实机走通过（docs/97 §事故））
+- **E6** 在 Mac mini 上构建的包由手机直接从构建机取（wire.net、局域网依次试），每个文件核对大小与 SHA-256，最多三次。被新覆盖替换掉的包从本机记录和构建机上一并删掉。三个包同步约 25 秒，整次部署约 5.5 分钟。（单元测试、人工）
+- **E7** 正式发布部署成功、写好发布 pin 之后，开发覆盖的源、pin 和仓库被清掉。安装失败时开发覆盖和它的包保持原样。（缺口：这一步还没有在实机走通过（docs/97 §事故））
 - **E8** 覆盖更新使用工作区当前的系统服务名称重启对应部件，旧发布清单中的名称不会让已更新的桥接服务继续运行旧代码。（单元测试、人工）
 
 注意：
 - 不要 dpkg -i 或直接替换容器里的文件：装上的版本和发布 pin 冲突，Discover 会提示“有更新”，完整性检查报漂移。试验一律走开发覆盖。 [docs/97-local-development-deploy.md](../docs/97-local-development-deploy.md) [docs/61-delivery-diagnostics-plan.md](../docs/61-delivery-diagnostics-plan.md)
-- 开发覆盖不做 rootfs 快照；上一次发布的快照未 commit 时也能部署，但之后执行 rollback --snapshot 会把覆盖一起丢掉。 [docs/97-local-development-deploy.md](../docs/97-local-development-deploy.md)
+- 开发覆盖不做 rootfs 快照。上一次发布的快照未 commit 时也能部署，但之后执行 rollback --snapshot 会把覆盖一起丢掉。 [docs/97-local-development-deploy.md](../docs/97-local-development-deploy.md)
 - APK、rungic-plasma 控制器和发布清单里 android 列出的文件没有开发覆盖，要单独安装并在文档里记录。 [docs/97-local-development-deploy.md](../docs/97-local-development-deploy.md)
 - 不要用 --host phone：会把 Qt、CMake 等构建依赖装进用户的日常机（G100 S），重任务还会引发低内存查杀。 [.agents/skills/rungic-dev-release/SKILL.md](../.agents/skills/rungic-dev-release/SKILL.md)
 - 2026-09-30 一个离线部署测试替换了 rungic_release.run，却没拦住 rungic_device.run，在真手机上删掉了开发覆盖。部署流程里新加的设备操作必须走调用方模块的 run 或由参数传入 runner。 [docs/97-local-development-deploy.md](../docs/97-local-development-deploy.md)
@@ -1139,18 +1139,18 @@ Linux 应用用手机的相机拍照录像，用手机的扬声器和麦克风�
 
 #### 在 Mac mini 或手机上构建 ARM64 包
 
-`delivery.build-hosts` · Linux 系统功能 — 设备包和上游组件在 Mac mini 的 Ubuntu 26.04 ARM64 容器里构建（手机为后备），产物进发布或开发仓库。
+`delivery.build-hosts` · Linux 系统功能 — 设备包和上游组件默认在 Mac mini 的 Ubuntu 26.04 ARM64 容器中构建。手机作为后备构建端。产物进入发布仓库或开发仓库。
 
-- **E1** 默认构建机是 Mac mini，速度远快于手机：KWin 含 LTO 的完整构建约 6 分钟，手机上一小时以上；构建期间手机不受影响。（单元测试、人工；只能在手机上看：构建耗时取决于 Mac mini 与手机的硬件，只能在两台机器上实测；默认构建机和不碰手机由单元测试检查）
+- **E1** 默认构建机是 Mac mini，速度远快于手机：KWin 含 LTO 的完整构建约 6 分钟，手机上一小时以上。构建期间手机不受影响。（单元测试、人工；只能在手机上看：构建耗时取决于 Mac mini 与手机的硬件，只能在两台机器上实测。默认构建机和不碰手机由单元测试检查）
 - **E2** 增量构建只重编改动的文件：源码树用 rsync --checksum 同步，未改文件保留时间戳，保留上次的 obj 树，并按生成文件选择 make 或 Ninja。（单元测试、人工）
 - **E3** 与构建机之间的每次传输都核对大小与 SHA-256，不一致就重试，不会把截断的包收进仓库。（单元测试、人工）
 - **E4** 手机用自己的受限密钥直连构建机，只能 put/get /root/rungic-build 下的相对路径，其他命令、绝对路径和 .. 都被拒绝。（单元测试、人工）
-- **E5** Mac mini 上的构建结果与手机上的完整构建逐文件一致（ELF 去掉 build-id 与 debuglink 后比较），差异只来自可解释的原因。（人工；只能在手机上看：要在手机容器里做一次完整构建（一小时以上）再与 Mac mini 的产物逐文件比较；系统测试只有 Mac mini 一台构建环境，替代不了手机上的那一份）
+- **E5** Mac mini 上的构建结果与手机上的完整构建逐文件一致（ELF 去掉 build-id 与 debuglink 后比较），差异只来自可解释的原因。（人工；只能在手机上看：要在手机容器里做一次完整构建（一小时以上）再与 Mac mini 的产物逐文件比较。系统测试只有 Mac mini 一台构建环境，替代不了手机上的那一份）
 - **E6** 构建容器里每条联网命令都带上 Mac mini 的系统代理（scutil 读取，以 host.docker.internal 代替本机地址）。（单元测试）
 
 注意：
-- 经 ssh 执行的命令和 Docker 容器都不会自动使用 Mac mini 的系统代理（Surge 127.0.0.1:6152），要显式传入；容器 DNS 把 macmini.wire.net 解析成公网地址，手机直连要用 10.77.0.20 或 192.168.5.45。 [AGENTS.md](../AGENTS.md) [docs/71-upstream-patch-queue.md](../docs/71-upstream-patch-queue.md)
-- qmlcachegen 按构建环境里已安装的 QML 模块决定能预编译哪些绑定，所以构建机镜像装了手机的整套桌面（arm64-host-packages.txt）；手机新装包后要刷新这份清单。 [docs/71-upstream-patch-queue.md](../docs/71-upstream-patch-queue.md)
+- 经 ssh 执行的命令和 Docker 容器都不会自动使用 Mac mini 的系统代理（Surge 127.0.0.1:6152），要显式传入。容器 DNS 把 macmini.wire.net 解析成公网地址，手机直连要用 10.77.0.20 或 192.168.5.45。 [AGENTS.md](../AGENTS.md) [docs/71-upstream-patch-queue.md](../docs/71-upstream-patch-queue.md)
+- qmlcachegen 按构建环境里已安装的 QML 模块决定能预编译哪些绑定，所以构建机镜像装了手机的整套桌面（arm64-host-packages.txt）。手机新装包后要刷新这份清单。 [docs/71-upstream-patch-queue.md](../docs/71-upstream-patch-queue.md)
 - 比较 aarch64 二进制要用 llvm-objcopy：主机的 objcopy 不认识 aarch64，出错时输出为空，两边哈希会“相同”。 [docs/71-upstream-patch-queue.md](../docs/71-upstream-patch-queue.md)
 - 在手机容器里跑重任务（构建、gdb 加载调试信息）会让 Android 的低内存查杀杀掉 VPN 和 Plasma APK，失去对手机的访问。 [docs/61-delivery-diagnostics-plan.md](../docs/61-delivery-diagnostics-plan.md)
 
@@ -1158,123 +1158,123 @@ Linux 应用用手机的相机拍照录像，用手机的扬声器和麦克风�
 
 #### 开发环境一条命令就绪
 
-`delivery.dev-env` · Linux 系统功能 — dev-setup.sh 建开发用 Python，work-env.sh 把缓存和构建输出引到 .work/，Android 交叉编译器包装脚本可由环境变量指向本机工具链。
+`delivery.dev-env` · Linux 系统功能 — dev-setup.sh 准备开发用 Python 环境。work-env.sh 将缓存和构建输出放入 .work/。Android 交叉编译器包装脚本通过环境变量选择本机工具链。
 
-- **E1** source tools/work-env.sh 之后 Python 字节码缓存、Cargo 输出都在 .work/ 下，并启用 .work/venv；源码目录里不出现缓存。（单元测试）
-- **E2** sh tools/dev-setup.sh 一次装好开发用 Python（PySide6、pytest）并打印 PySide6 版本；这些依赖只用于原型和测试，不进入镜像或软件包。（单元测试）
+- **E1** source tools/work-env.sh 之后 Python 字节码缓存、Cargo 输出都在 .work/ 下，并启用 .work/venv。源码目录里不出现缓存。（单元测试）
+- **E2** sh tools/dev-setup.sh 一次装好开发用 Python（PySide6、pytest）并打印 PySide6 版本。这些依赖只用于原型和测试，不进入镜像或软件包。（单元测试）
 - **E3** Android 交叉编译器（tools/toolchains/android-clang、android-clang++）可由 RUNGIC_ANDROID_CLANG、RUNGIC_ANDROID_SYSROOT 等变量指向本机的 clang 与 sysroot。（单元测试）
 
 注意：
-- 交叉编译器包装脚本的默认路径写死在 /home/kevinzhow/android-kernel；SDK/NDK、Rust 依赖和 Android 链接库要另行准备，源码齐备不等于任意机器一键构建。 [docs/52-git-repository-scope.md](../docs/52-git-repository-scope.md) [docs/53-remote-system-development.md](../docs/53-remote-system-development.md)
+- 交叉编译器包装脚本的默认路径写死在 /home/kevinzhow/android-kernel。SDK/NDK、Rust 依赖和 Android 链接库要另行准备，源码齐备不等于任意机器一键构建。 [docs/52-git-repository-scope.md](../docs/52-git-repository-scope.md) [docs/53-remote-system-development.md](../docs/53-remote-system-development.md)
 - PySide6 这类依赖只服务于开发时的原型与测试，进入生产的部分用 C++ 等重写或用设备自带的库（用户 2026-09-29 明确）。 [AGENTS.md](../AGENTS.md) [docs/52-git-repository-scope.md](../docs/52-git-repository-scope.md)
 
 文档：[docs/52-git-repository-scope.md](../docs/52-git-repository-scope.md)
 
 #### 设计系统状态总览截图
 
-`delivery.design-gallery` · Linux 系统功能 — design_gallery.py 把设计系统每个控件的各种状态渲染成浅色、深色两套图，本机离线或在手机上都能做，用于界面改动的前后对照。
+`delivery.design-gallery` · Linux 系统功能 — design_gallery.py 将设计系统各控件的状态渲染为浅色和深色两套图。开发机可离线渲染，也可在手机上渲染。截图用于界面改动前后的对照。
 
-- **E1** local 在本机用 PySide6 渲染 desktop/design/qml，每节浅深两张图并拼成 sheet.png；--rev 渲染某个提交的 QML，用于改动前后对照。（单元测试、人工）
+- **E1** local 在本机用 PySide6 渲染 desktop/design/qml，每节浅深两张图并拼成 sheet.png。--rev 渲染某个提交的 QML，用于改动前后对照。（单元测试、人工）
 - **E2** phone 以桌面用户、offscreen 平台运行已安装的 rungic-design-gallery，不在用户屏幕上开窗口，截图取回本机。（单元测试、人工）
 
 注意：
-- software 后端不画 MultiEffect，Thumbnail 和 LivePicture 的示例图是空的；这不是回退，这类控件要在真实会话里另行确认。 [.agents/skills/rungic-dev-release/SKILL.md](../.agents/skills/rungic-dev-release/SKILL.md) [docs/87-agent-app-redesign.md](../docs/87-agent-app-redesign.md)
+- software 后端不画 MultiEffect，Thumbnail 和 LivePicture 的示例图是空的。这不是回退，这类控件要在真实会话里另行确认。 [.agents/skills/rungic-dev-release/SKILL.md](../.agents/skills/rungic-dev-release/SKILL.md) [docs/87-agent-app-redesign.md](../docs/87-agent-app-redesign.md)
 
 文档：[docs/87-agent-app-redesign.md](../docs/87-agent-app-redesign.md)
 
 #### 离线测试一次跑完
 
-`delivery.offline-tests` · Linux 系统功能 — tools/run-tests.sh 在开发机上一次跑完 pytest、APK 的纯 Java 测试和 shell 语法检查，不碰手机。
+`delivery.offline-tests` · Linux 系统功能 — tools/run-tests.sh 在开发机上统一运行 pytest、APK 纯 Java 测试和 shell 语法检查，不操作手机。
 
 - **E1** 一条命令跑完全部离线测试（tools/ci、tools、tools/tests、system/account 的 pytest，APK 纯 Java 测试，已跟踪 sh 脚本的语法），最后列出失败的部分或报告全部通过。（单元测试）
 - **E2** 离线测试碰不到手机：任何测试一旦走到 rungic_device 的 adb 调用就直接失败。（单元测试）
 - **E3** 没有 PySide6 时跳过需要它的 QML 测试，并提示 sh tools/dev-setup.sh。（单元测试）
 
 注意：
-- 2026-09-30 一个部署测试走到了没有被替换的 rungic_device.run，删掉了真手机上的开发覆盖；之后 conftest.py 给 tools/ 下所有测试加了 adb 保护。 [docs/97-local-development-deploy.md](../docs/97-local-development-deploy.md)
+- 2026-09-30 一个部署测试走到了没有被替换的 rungic_device.run，删掉了真手机上的开发覆盖。之后 conftest.py 给 tools/ 下所有测试加了 adb 保护。 [docs/97-local-development-deploy.md](../docs/97-local-development-deploy.md)
 - 在模块顶层调用 unittest.main() 的测试会中断 pytest 收集（system/account/test_setup.py 曾如此）。 [docs/95-install-use-case-tests.md](../docs/95-install-use-case-tests.md)
 
 文档：[docs/95-install-use-case-tests.md](../docs/95-install-use-case-tests.md)
 
 #### 不接手机测试系统功能（实验）
 
-`delivery.system-tests` · Linux 系统功能 — 与安卓无关的 Linux 系统功能在 Mac mini 的无头 KWin 里测试；它和安卓之间的接口按契约两头分别测，Linux 一侧对着替身，安卓一侧在手机上。
+`delivery.system-tests` · Linux 系统功能 — 与 Android 无关的 Linux 功能在 Mac mini 的无头 KWin 中测试。跨系统接口的使用方和提供方分别按同一契约检查。Linux 使用方对着替身检查，Android 提供方在手机上检查。
 
 经由接口：`platform-bridge`
 
-- **E1** tools/system_test.py 在 Mac mini 的一次性 arm64 容器里用工作区的代码构建并运行系统测试，不碰手机；结果逐条写进 .work/system-tests/。（单元测试、人工）
-- **E2** 接口契约（quality/contracts/）给出每个查询和使用方依赖的回复字段；替身按契约回答并记下请求，同一份契约在手机上核对提供方。（单元测试）
-- **E3** Linux 程序都经 RUNGIC_PLATFORM_SOCKET 找平台桥，测试可以换成替身；不设时仍是手机上的路径。（单元测试）
+- **E1** tools/system_test.py 在 Mac mini 的一次性 arm64 容器里用工作区的代码构建并运行系统测试，不碰手机。结果逐条写进 .work/system-tests/。（单元测试、人工）
+- **E2** 接口契约（quality/contracts/）给出每个查询和使用方依赖的回复字段。替身按契约回答并记下请求，同一份契约在手机上核对提供方。（单元测试）
+- **E3** Linux 程序都经 RUNGIC_PLATFORM_SOCKET 找平台桥，测试可以换成替身。不设时仍是手机上的路径。（单元测试）
 
 注意：
-- 测试 KWin 要 KWIN_WAYLAND_NO_PERMISSION_CHECKS=1 才接受模拟输入，容器要 --cap-add SYS_NICE（kwin_wayland 带文件能力）；Docker 构建上下文要 USTAR 格式的 tar。 [quality/README.md](../quality/README.md)
+- 测试 KWin 要 KWIN_WAYLAND_NO_PERMISSION_CHECKS=1 才接受模拟输入，容器要 --cap-add SYS_NICE（kwin_wayland 带文件能力）。Docker 构建上下文要 USTAR 格式的 tar。 [quality/README.md](../quality/README.md)
 - 在手机上核对提供方的检查只能读不能切换：桌面模式的第一版检查把状态读成空，关掉了用户正在用的桌面。 [quality/README.md](../quality/README.md)
 
 文档：[quality/README.md](../quality/README.md)
 
 ### 出一个正式发布并能回退
 
-从干净的提交构建全部包，生成发布元包，部署到手机，自动验收；失败时自动回到部署前，之后也能回到上一个发布。
+从干净的提交构建全部包，生成发布元包，部署到手机，自动验收。失败时自动回到部署前，之后也能回到上一个发布。
 
 #### 自有软件包构建
 
-`delivery.packaging` · Linux 系统功能 — rungic_package.py 从 packaging/<名>/ 构建本项目的 rungic-* 包（主机或 ARM64 构建机），装到 /usr、/etc 的标准位置，带依赖、维护脚本和调试符号。
+`delivery.packaging` · Linux 系统功能 — rungic_package.py 根据 packaging/<名>/ 在主机或 ARM64 构建机上构建 rungic-* 包。包安装到 /usr 和 /etc 等标准位置，包含依赖、维护脚本和调试符号。
 
-- **E1** 发布构建只用已提交的内容：包的路径里有未提交改动就拒绝构建；版本为 0.<提交数>，同一提交重建内容不同时加 +bN；路径没变的包不重建，list 显示 current、stale 或 uncommitted。（单元测试）
+- **E1** 发布构建只用已提交的内容：包的路径里有未提交改动就拒绝构建。版本为 0.<提交数>，同一提交重建内容不同时加 +bN。路径没变的包不重建，list 显示 current、stale 或 uncommitted。（单元测试）
 - **E2** 包声明的输入（paths、upstream 配方及其 overlay）都存在，build.sh 从仓库读取的文件都在声明里，所以改了任何输入，这个包都会被判为需要重建。（单元测试）
-- **E3** 升级、卸载重装都保留管理员对单元的启用或禁用选择；维护脚本只启用不覆盖禁用，obsolete 里的链接只在悬空时删除。（系统测试、人工）
-- **E4** 改名的包对旧名写 Conflicts 和 Replaces，安装时继承旧单元的启用状态；按精确版本部署时 apt 自动移走旧名的包。（单元测试、系统测试、人工）
+- **E3** 升级、卸载重装都保留管理员对单元的启用或禁用选择。维护脚本只启用不覆盖禁用，obsolete 里的链接只在悬空时删除。（系统测试、人工）
+- **E4** 改名的包对旧名写 Conflicts 和 Replaces，安装时继承旧单元的启用状态。按精确版本部署时 apt 自动移走旧名的包。（单元测试、系统测试、人工）
 - **E5** 设备包带 dpkg-shlibdeps 生成的库依赖，并按 build-id 拆出 -dbgsym，供崩溃符号化使用。（单元测试、人工）
 
 注意：
-- 旧的生成器把单元启用链接列为 obsolete，每次升级都删一遍；运行中的会话掩盖了问题，直到容器重启后会话起不来（发布 20260926.7）。 [docs/61-delivery-diagnostics-plan.md](../docs/61-delivery-diagnostics-plan.md)
+- 旧的生成器把单元启用链接列为 obsolete，每次升级都删一遍。运行中的会话掩盖了问题，直到容器重启后会话起不来（发布 20260926.7）。 [docs/61-delivery-diagnostics-plan.md](../docs/61-delivery-diagnostics-plan.md)
 - 维护脚本只启用单元（容器的 policy-rc.d 不让启动），新服务要靠部署的 service_restart 才会跑新代码。 [docs/73-reduce-upstream-changes.md](../docs/73-reduce-upstream-changes.md)
-- 改名规则漏掉库文件名（libmotocodec）时，GStreamer 按插件文件名找入口符号，编码器全部不可用；改名字要连文件名一起核对。 [docs/70-rungic-rebrand.md](../docs/70-rungic-rebrand.md)
+- 改名规则漏掉库文件名（libmotocodec）时，GStreamer 按插件文件名找入口符号，编码器全部不可用。改名字要连文件名一起核对。 [docs/70-rungic-rebrand.md](../docs/70-rungic-rebrand.md)
 
 文档：[docs/61-delivery-diagnostics-plan.md](../docs/61-delivery-diagnostics-plan.md)
 
 #### 发布、部署与回滚
 
-`delivery.release-deploy` · Linux 系统功能 — rungic_release.py 把一次发布做成精确依赖全部包的元包 rungic-release=<YYYYMMDD.N>，部署到手机（预检、记录、同步、安装、重启、复核），失败自动退回，也能回到上一个发布。
+`delivery.release-deploy` · Linux 系统功能 — rungic_release.py 将一次发布打包为 rungic-release=<YYYYMMDD.N>，精确依赖该发布的全部包。手机部署依次执行预检、记录、同步、安装、重启和复核。失败时自动恢复，用户也可以回到上一发布。
 
-- **E1** 部署在临时单元里按精确版本安装发布的全部包，成功后把每个包钉在发布版本（1001），元包带 Protected：Discover 不把我们的包显示为“有更新”，也不能顺带卸掉元包；不在发布里的 Ubuntu 包照常更新。（单元测试、人工）
+- **E1** 部署在临时单元里按精确版本安装发布的全部包，成功后把每个包钉在发布版本（1001），元包带 Protected：Discover 不把我们的包显示为“有更新”，也不能顺带卸掉元包。不在发布里的 Ubuntu 包照常更新。（单元测试、人工）
 - **E2** rollback 回到上一个发布：按包精确降级，需要时重启会话。（单元测试、人工）
 - **E3** 安装之后任何一步出错或验收失败，先保存证据包，再回到部署前的快照，部署改过的 Android 侧文件也恢复原样。（单元测试、人工）
 - **E4** 发布记录的 Android 侧源文件在构建发布之后被改动时，部署在建快照之前就中止。（单元测试）
-- **E5** 部署后改动自动生效：变化的系统服务（service_restart）、正在运行的桌面用户服务（user_restart，plasmashell 最后）按规则重启，需要时重启整个会话；没在运行的单元不启动。（单元测试、人工）
-- **E6** status 给出手机上的发布、它的 git 提交、与仓库是否一致、rootfs 快照状态和开发覆盖；每次部署在 .work/deploy/<时间>-<版本>/ 留下逐步记录和 result。（单元测试）
+- **E5** 部署后改动自动生效：变化的系统服务（service_restart）、正在运行的桌面用户服务（user_restart，plasmashell 最后）按规则重启，需要时重启整个会话。没在运行的单元不启动。（单元测试、人工）
+- **E6** status 给出手机上的发布、它的 git 提交、与仓库是否一致、rootfs 快照状态和开发覆盖。每次部署在 .work/deploy/<时间>-<版本>/ 留下逐步记录和 result。（单元测试）
 - **E7** 增量发布装到 Android 侧的文件，与完整镜像的 host seed 路径和权限一致。（单元测试）
-- **E8** Ubuntu 发布了我们重建或耦合的包的更高版本时，apt 升级（Discover 的更新）和 unattended-upgrades 都保留已装发布的版本：每个发布包按精确版本 pin 在 1001，与耦合包同源的已装兄弟包（plasma-workspace 的私有库）按已装版本 pin，unattended-upgrades 另有按发布生成的精确名单；元包被卸掉后 pin 照样有效。（单元测试、人工）
+- **E8** Ubuntu 发布了我们重建或耦合的包的更高版本时，apt 升级（Discover 的更新）和 unattended-upgrades 都保留已装发布的版本：每个发布包按精确版本 pin 在 1001，与耦合包同源的已装兄弟包（plasma-workspace 的私有库）按已装版本 pin，unattended-upgrades 另有按发布生成的精确名单。元包被卸掉后 pin 照样有效。（单元测试、人工）
 
 注意：
-- 经 Wi-Fi 部署整套发布会超过 10 分钟；2026-09-30 一次部署被 590 秒的客户端超时杀掉，只能用 rungic_release.py 自己的函数补完。要放在后台运行，不加超时。 [docs/96-desktop-recovery-after-apk-restart.md](../docs/96-desktop-recovery-after-apk-restart.md)
-- 上一次部署的快照还没 commit 时部署会中止；commit 上一版还是 --snapshot never 由用户决定。 [.agents/skills/rungic-dev-release/SKILL.md](../.agents/skills/rungic-dev-release/SKILL.md)
-- 家目录不随快照回滚，失败部署期间写进 ~/.config 的内容会留下（曾留下 kdeglobals 的 SceneGraphBackend=software，抽屉网格空白）；排查部署后的异常时先看这段时间改过的用户配置。 [docs/61-delivery-diagnostics-plan.md](../docs/61-delivery-diagnostics-plan.md)
-- 建快照的重启仍在跑旧版本，那时的崩溃曾被算进新发布、导致误回滚；验收从安装完成时统计，早于安装的崩溃记为 version null。 [docs/61-delivery-diagnostics-plan.md](../docs/61-delivery-diagnostics-plan.md)
-- 容器里的 unattended-upgrades 是开着的，会把重建包静默换成 Ubuntu 的更高版本；重建、被 divert 和 Qt 私有 ABI 相关的包要在黑名单里。 [docs/61-delivery-diagnostics-plan.md](../docs/61-delivery-diagnostics-plan.md)
-- unattended-upgrades 认 pin（被 pin 的已装版本不算可升级），pin 不在时只剩名单；rungic-plasma-config 带的静态名单漏了后来加入的组件（powerdevil、kwayland、xwayland、flatpak、gst-plugins-base 等）和 plasma-workspace 的私有库，部署因此按发布另写 52rungic-release。 [docs/109-dev-release-channel.md](../docs/109-dev-release-channel.md)
-- 耦合包（plasma-workspace）的版本取自出发布时那台手机上装的版本；Ubuntu 的 -updates 索引只留最新版，别的手机要装回这个旧版本时可能已经下载不到，部署会在安装一步失败。 [docs/109-dev-release-channel.md](../docs/109-dev-release-channel.md)
-- 仓库保留历史版本供回滚；只靠仓库整体 pin 时，旧版本同样可能成为候选，所以按包写 pin。 [docs/61-delivery-diagnostics-plan.md](../docs/61-delivery-diagnostics-plan.md)
+- 经 Wi-Fi 部署整套发布会超过 10 分钟。2026-09-30 一次部署被 590 秒的客户端超时杀掉，只能用 rungic_release.py 自己的函数补完。要放在后台运行，不加超时。 [docs/96-desktop-recovery-after-apk-restart.md](../docs/96-desktop-recovery-after-apk-restart.md)
+- 上一次部署的快照还没 commit 时部署会中止。commit 上一版还是 --snapshot never 由用户决定。 [.agents/skills/rungic-dev-release/SKILL.md](../.agents/skills/rungic-dev-release/SKILL.md)
+- 家目录不随快照回滚，失败部署期间写进 ~/.config 的内容会留下（曾留下 kdeglobals 的 SceneGraphBackend=software，抽屉网格空白）。排查部署后的异常时先看这段时间改过的用户配置。 [docs/61-delivery-diagnostics-plan.md](../docs/61-delivery-diagnostics-plan.md)
+- 建快照的重启仍在跑旧版本，那时的崩溃曾被算进新发布、导致误回滚。验收从安装完成时统计，早于安装的崩溃记为 version null。 [docs/61-delivery-diagnostics-plan.md](../docs/61-delivery-diagnostics-plan.md)
+- 容器里的 unattended-upgrades 是开着的，会把重建包静默换成 Ubuntu 的更高版本。重建、被 divert 和 Qt 私有 ABI 相关的包要在黑名单里。 [docs/61-delivery-diagnostics-plan.md](../docs/61-delivery-diagnostics-plan.md)
+- unattended-upgrades 认 pin（被 pin 的已装版本不算可升级），pin 不在时只剩名单。rungic-plasma-config 带的静态名单漏了后来加入的组件（powerdevil、kwayland、xwayland、flatpak、gst-plugins-base 等）和 plasma-workspace 的私有库，部署因此按发布另写 52rungic-release。 [docs/109-dev-release-channel.md](../docs/109-dev-release-channel.md)
+- 耦合包（plasma-workspace）的版本取自出发布时那台手机上装的版本。Ubuntu 的 -updates 索引只留最新版，别的手机要装回这个旧版本时可能已经下载不到，部署会在安装一步失败。 [docs/109-dev-release-channel.md](../docs/109-dev-release-channel.md)
+- 仓库保留历史版本供回滚。只靠仓库整体 pin 时，旧版本同样可能成为候选，所以按包写 pin。 [docs/61-delivery-diagnostics-plan.md](../docs/61-delivery-diagnostics-plan.md)
 - 按包回滚到较早的发布需要它的提交：Android 侧文件从发布记录的提交中读取并按 sha256 核对。 [docs/70-rungic-rebrand.md](../docs/70-rungic-rebrand.md)
 
 文档：[docs/61-delivery-diagnostics-plan.md](../docs/61-delivery-diagnostics-plan.md)、[docs/96-desktop-recovery-after-apk-restart.md](../docs/96-desktop-recovery-after-apk-restart.md)、[docs/109-dev-release-channel.md](../docs/109-dev-release-channel.md)
 
 #### dev 发布渠道：从 main 出发布，装到所有手机
 
-`delivery.dev-channel` · Linux 系统功能 — rungic_release.py dev 只从干净的 origin/main 出 dev 发布（含 APK），导出发布包；deploy --all 逐台部署所有连着的 Rungic 手机，status --all 每台一行；经确认后发成 GitHub 预发布；每次部署记进 release/history.json。
+`delivery.dev-channel` · Linux 系统功能 — rungic_release.py dev 仅从干净的 origin/main 构建含 APK 的 dev 发布，并导出发布包。deploy --all 逐台部署已连接的 Rungic 手机。status --all 为每台手机显示一行状态。用户确认后，发布可上传为 GitHub 预发布。每次部署记录在 release/history.json。
 
-- **E1** dev 只在 HEAD 等于刚取下来的 origin/main、工作区干净（含未跟踪文件）时才出发布；版本号 YYYYMMDD.N 避开本机仓库、origin 上已发布的 dev-* tag 和 release/history.json 里用过的号。（单元测试）
-- **E2** dev 先构建发布缺的东西：源码变了的自有包、changelog 版本不在仓库里的上游组件（补丁队列变了却没加 changelog 条目就拒绝）、APK；发布记录 channel dev、提交和 APK 的文件名、versionName、versionCode、sha256，同时写进元包里的 release.json。（单元测试）
-- **E3** 发布包是一个文件：发布用到的 deb 加索引、APK、Android 侧文件和逐文件 SHA-256 的 manifest；没构建的机器 deploy --from 逐文件核对后导入再部署；同名 deb 内容不同、同一版本号来自别的提交都拒绝，两台机器的构建不会混在一起。（单元测试）
-- **E4** 部署在容器一侧装好之后装发布的 APK：手机上的 versionCode 更低时 adb install -r（保留数据）、重新打开、等会话就绪，再做验收；结果记在部署记录的 apk 一步。版本不低于发布的不动，--restart never 时不装并记录，没装 APK 的手机不首装；装不上算部署失败，回到快照。（单元测试）
-- **E5** deploy --all 逐台部署所有连着的、有 Rungic 启动器的手机（每台用自己的 RUNGIC_SERIAL/RUNGIC_TRANSPORT），某台失败或连不上就记下来继续下一台，最后打印汇总表；同一台手机同时走 USB 和 Wi-Fi 只算一次。（单元测试）
-- **E6** status --all 每台手机一行：已装发布、渠道、提交、比 origin/main 落后的提交数、APK 版本、开发覆盖数、apt 是否按发布钉住（未 pin 的包、元包 Protected、unattended-upgrades 名单）。（单元测试、人工）
-- **E7** publish 默认只给出 gh 命令和说明（上一个 dev 发布以来合并的 PR、其他提交、包版本变化、APK、部署命令），用户确认后加 --yes 才在 kevinzhow/Rungic 上创建预发布 dev-<版本>，附发布包和 APK。（单元测试）
+- **E1** dev 只在 HEAD 等于刚取下来的 origin/main、工作区干净（含未跟踪文件）时才出发布。版本号 YYYYMMDD.N 避开本机仓库、origin 上已发布的 dev-* tag 和 release/history.json 里用过的号。（单元测试）
+- **E2** dev 先构建发布缺的东西：源码变了的自有包、changelog 版本不在仓库里的上游组件（补丁队列变了却没加 changelog 条目就拒绝）、APK。发布记录 channel dev、提交和 APK 的文件名、versionName、versionCode、sha256，同时写进元包里的 release.json。（单元测试）
+- **E3** 发布包是一个文件：发布用到的 deb 加索引、APK、Android 侧文件和逐文件 SHA-256 的 manifest。没构建的机器 deploy --from 逐文件核对后导入再部署。同名 deb 内容不同、同一版本号来自别的提交都拒绝，两台机器的构建不会混在一起。（单元测试）
+- **E4** 部署在容器一侧装好之后装发布的 APK：手机上的 versionCode 更低时 adb install -r（保留数据）、重新打开、等会话就绪，再做验收。结果记在部署记录的 apk 一步。版本不低于发布的不动，--restart never 时不装并记录，没装 APK 的手机不首装。装不上算部署失败，回到快照。（单元测试）
+- **E5** deploy --all 逐台部署所有连着的、有 Rungic 启动器的手机（每台用自己的 RUNGIC_SERIAL/RUNGIC_TRANSPORT），某台失败或连不上就记下来继续下一台，最后打印汇总表。同一台手机同时走 USB 和 Wi-Fi 只算一次。（单元测试）
+- **E6** status --all 为每台手机显示一行状态：已装发布、渠道、提交、比 origin/main 落后的提交数、APK 版本和开发覆盖数。该行还显示 apt 是否按发布固定版本，包括未 pin 的包、元包 Protected 状态和 unattended-upgrades 名单。（单元测试、人工）
+- **E7** publish 默认只输出 gh 命令和发布说明。说明包括上一 dev 发布以来合并的 PR、其他提交、包版本变化、APK 和部署命令。用户确认后，加 --yes 才会在 kevinzhow/Rungic 创建 dev-<版本> 预发布，并附发布包和 APK。（单元测试）
 - **E8** 每次部署（成功、失败、中止，以及 deploy --all 里连不上的手机）在 release/history.json 追加一行：版本、提交、渠道、手机序列号、结果、时间，随仓库提交。（单元测试）
 
 注意：
-- 2026-10-04 之前各开发机有自己的 APT 仓库，发布号在不同机器上各自增长；最后一个正式发布是 20260930.10，之后合并的改动只以开发覆盖散落在手机上。dev 渠道之后只从 origin/main 出发布。 [docs/109-dev-release-channel.md](../docs/109-dev-release-channel.md)
-- 发布号只能避开已发布（有 tag）的号和已提交的部署记录；两台机器同时出还没发布的 dev 发布仍可能撞号，导入时会因提交不同而拒绝。 [docs/109-dev-release-channel.md](../docs/109-dev-release-channel.md)
+- 2026-10-04 之前各开发机有自己的 APT 仓库，发布号在不同机器上各自增长。最后一个正式发布是 20260930.10，之后合并的改动只以开发覆盖散落在手机上。dev 渠道之后只从 origin/main 出发布。 [docs/109-dev-release-channel.md](../docs/109-dev-release-channel.md)
+- 发布号只能避开已发布（有 tag）的号和已提交的部署记录。两台机器同时出还没发布的 dev 发布仍可能撞号，导入时会因提交不同而拒绝。 [docs/109-dev-release-channel.md](../docs/109-dev-release-channel.md)
 - 回滚不会降级 APK：adb install -r 只往高版本装。 [docs/109-dev-release-channel.md](../docs/109-dev-release-channel.md)
 - GitHub 预发布会建 tag、对外可见，必须先给用户看 publish 的输出、得到确认。 [.agents/skills/rungic-dev-release/SKILL.md](../.agents/skills/rungic-dev-release/SKILL.md)
 
@@ -1282,18 +1282,18 @@ Linux 应用用手机的相机拍照录像，用手机的扬声器和麦克风�
 
 #### rootfs 快照与整体回滚
 
-`delivery.rootfs-snapshot` · 依赖安卓 — rootfs 是 /data/adb 下的 ext4 镜像，部署前自动建 dm-snapshot；失败合并回去，用户接受后 commit 丢弃快照。
+`delivery.rootfs-snapshot` · 依赖安卓 — rootfs 使用 /data/adb 下的 ext4 镜像。部署前自动创建 dm-snapshot，失败时合并快照以恢复原状态。用户接受发布后，commit 丢弃快照。
 
-- **E1** 部署先停容器建快照，重启后等会话稳定再安装；验收失败时自动合并回快照，回滚后发布和 dpkg 状态都是部署前的版本。（单元测试、人工）
+- **E1** 部署先停容器建快照，重启后等会话稳定再安装。验收失败时自动合并回快照，回滚后发布和 dpkg 状态都是部署前的版本。（单元测试、人工）
 - **E2** rungic_release.py commit 丢弃快照，rootfs 回到 linear，容器重新启动并就绪。（人工）
 - **E3** 家目录、崩溃报告目录和本地 APT 仓库放在快照之外，回滚不会丢掉它们。（单元测试）
 - **E4** 镜像 rootfs 不比目录慢：容器启动到会话就绪 8.2 秒（目录 11.2 秒），读写速度和合成器帧时间在同一水平。（人工）
 - **E5** 快照回滚后比较内核的 ext4 错误数并跑完整性检查，结果写进部署记录。（单元测试）
 
 注意：
-- 2026-09-27 一次快照回滚没有恢复被重写的块，ext4 出现 76 个目录损坏，根因至今未查明；在查明之前退回优先按包回滚（部署上一个发布）。 [docs/70-rungic-rebrand.md](../docs/70-rungic-rebrand.md)
-- 回滚测试的副本只改了 LXC= 没改 IMAGES=，在容器运行时把系统镜像第二次读写挂载；测试脚本现在拒绝仍含系统路径的副本，attach 拒绝被别的 dm 设备占用的 loop。 [docs/70-rungic-rebrand.md](../docs/70-rungic-rebrand.md)
-- toybox losetup 只接受 64 字节以内的路径且默认 autoclear；镜像目录因此移到 /data/adb/rungic-lxc/images/。 [docs/61-delivery-diagnostics-plan.md](../docs/61-delivery-diagnostics-plan.md) [docs/70-rungic-rebrand.md](../docs/70-rungic-rebrand.md)
+- 2026-09-27 一次快照回滚没有恢复被重写的块，ext4 出现 76 个目录损坏，根因至今未查明。在查明之前退回优先按包回滚（部署上一个发布）。 [docs/70-rungic-rebrand.md](../docs/70-rungic-rebrand.md)
+- 回滚测试的副本只改了 LXC= 没改 IMAGES=，在容器运行时把系统镜像第二次读写挂载。测试脚本现在拒绝仍含系统路径的副本，attach 拒绝被别的 dm 设备占用的 loop。 [docs/70-rungic-rebrand.md](../docs/70-rungic-rebrand.md)
+- toybox losetup 只接受 64 字节以内的路径且默认 autoclear。镜像目录因此移到 /data/adb/rungic-lxc/images/。 [docs/61-delivery-diagnostics-plan.md](../docs/61-delivery-diagnostics-plan.md) [docs/70-rungic-rebrand.md](../docs/70-rungic-rebrand.md)
 - journal 随快照回滚丢失，失败部署要先保存证据包再回滚。 [docs/61-delivery-diagnostics-plan.md](../docs/61-delivery-diagnostics-plan.md)
 - rollback --snapshot 会连开发覆盖一起丢掉。 [docs/97-local-development-deploy.md](../docs/97-local-development-deploy.md)
 
@@ -1301,38 +1301,38 @@ Linux 应用用手机的相机拍照录像，用手机的扬声器和麦克风�
 
 #### 发布后自动验收
 
-`delivery.acceptance` · 依赖安卓 — rungic_acceptance.py 按 release/acceptance.json 的场景在手机上自动验收：每次部署跑冒烟，发布候选跑完整，结果与上一发布比较。
+`delivery.acceptance` · 依赖安卓 — rungic_acceptance.py 按 release/acceptance.json 在手机上执行自动验收。每次部署运行冒烟验收，发布候选运行完整验收。结果与上一发布比较。
 
 经由接口：`platform-bridge`、`kwin-android-host`、`host-input`、`camera`、`audio`、`codec`
 
 - **E1** 每次部署后自动跑冒烟验收（会话、单元、新崩溃、显示、输入、相机、空闲抑制、播放、录音），几分钟内给出结果。（人工）
 - **E2** 失败的场景自动重跑一次，重跑通过的记为 flaky，不算失败。（人工）
 - **E3** 每个场景结束时恢复它改过的东西（无障碍开关、显示缩放和模式、录下的文件），不留在用户手机上。（单元测试）
-- **E4** 指标与较早发布的最新报告比较；合成器 paint 或呈现间隔 p95 比上一发布劣化超过 15% 即判失败。（实机验收、人工）
-- **E5** 部署和验收期间出现已知签名以外的崩溃即失败；安装之前发生的崩溃不算到新发布上。（实机验收）
+- **E4** 指标与较早发布的最新报告比较。合成器 paint 或呈现间隔 p95 比上一发布劣化超过 15% 即判失败。（实机验收、人工）
+- **E5** 部署和验收期间出现已知签名以外的崩溃即失败。安装之前发生的崩溃不算到新发布上。（实机验收）
 - **E6** 报告写到 .work/acceptance/<发布>/<时间>/report.json，并列出自动结果不能替代的人工项（画质、声学、音画同步、拼音手感、投屏）。（单元测试）
 
 注意：
 - 验收前先看 dumpsys input 的 touchingPointers 为空：一次屏幕右下持续的实体触摸让注入的滑动成了多指手势，快捷设置拉不下来。 [docs/73-reduce-upstream-changes.md](../docs/73-reduce-upstream-changes.md)
-- 容器刚启动时第一次 Android 文字输入偶尔大小写错误（CaICUL），原因未确认；输入检查不区分大小写并记录 case_exact。 [docs/61-delivery-diagnostics-plan.md](../docs/61-delivery-diagnostics-plan.md)
-- 会话刚重启时抽屉搜索结果不进 AT-SPI 树，输入检查改用 OCR 读回；前置摄像头冷启动首帧可达数秒，按帧 10 秒超时。 [docs/61-delivery-diagnostics-plan.md](../docs/61-delivery-diagnostics-plan.md) [docs/55-agent-native-debugging.md](../docs/55-agent-native-debugging.md)
+- 容器刚启动时第一次 Android 文字输入偶尔大小写错误（CaICUL），原因未确认。输入检查不区分大小写并记录 case_exact。 [docs/61-delivery-diagnostics-plan.md](../docs/61-delivery-diagnostics-plan.md)
+- 会话刚重启时抽屉搜索结果不进 AT-SPI 树，输入检查改用 OCR 读回。前置摄像头冷启动首帧可达数秒，按帧 10 秒超时。 [docs/61-delivery-diagnostics-plan.md](../docs/61-delivery-diagnostics-plan.md) [docs/55-agent-native-debugging.md](../docs/55-agent-native-debugging.md)
 - smoke 会自动附带上一份报告的指标对比，换了机型时数值不能当作性能变化的结论。 [docs/94-build-fingerprints.md](../docs/94-build-fingerprints.md)
 
 文档：[docs/61-delivery-diagnostics-plan.md](../docs/61-delivery-diagnostics-plan.md)
 
 #### 按输入指纹复用构建
 
-`delivery.build-fingerprint` · Linux 系统功能 — build_artifact.py 按实际输入（源码内容、依赖、工具、参数、架构）算指纹，相同才复用缓存，并校验每个产物的摘要；镜像构建靠它避免旧产物混入。
+`delivery.build-fingerprint` · Linux 系统功能 — build_artifact.py 根据源码内容、依赖、工具、参数和架构计算输入指纹。只有指纹相同才复用缓存，并校验每个产物的摘要。镜像构建用这些检查阻止旧产物混入。
 
-- **E1** 输入相同就复用缓存；改无关的文档或换输入所在位置不会让组件失效。（单元测试）
+- **E1** 输入相同就复用缓存。改无关的文档或换输入所在位置不会让组件失效。（单元测试）
 - **E2** 源码、依赖、工具、参数、目标架构、文件模式或符号链接任何一项变化，都得到新的输入指纹和新的缓存目录。（单元测试）
-- **E3** 产物损坏、缺记录、构建中输入被改、构建失败时绝不发布或命中缓存；伪造记录、越界输出路径和与固定摘要不符的二进制输入都被拒绝。（单元测试）
+- **E3** 产物损坏、缺记录、构建中输入被改、构建失败时绝不发布或命中缓存。伪造记录、越界输出路径和与固定摘要不符的二进制输入都被拒绝。（单元测试）
 - **E4** 真实组件第二次调用同一执行器全部命中，输入指纹和产物摘要不变。（单元测试、人工）
 
 注意：
-- 起因是旧投屏 JAR 被混入新镜像（docs/86）；按组件类别决定“强制重编或默认复用”都不可靠，只能按实际输入判断。 [docs/94-build-fingerprints.md](../docs/94-build-fingerprints.md)
+- 起因是旧投屏 JAR 被混入新镜像（docs/86）。按组件类别决定“强制重编或默认复用”都不可靠，只能按实际输入判断。 [docs/94-build-fingerprints.md](../docs/94-build-fingerprints.md)
 - 组合 rootfs/host 的执行器要在 podman unshare 内运行，APT 索引容器要在外层单独执行，不能在该用户命名空间里再起 Podman。 [docs/94-build-fingerprints.md](../docs/94-build-fingerprints.md)
-- 记录只说明本地构建一致性，不是签名的供应链证明；rungic_package.py 等直接构建入口还没切到这个执行器。 [docs/94-build-fingerprints.md](../docs/94-build-fingerprints.md)
+- 记录只说明本地构建一致性，不是签名的供应链证明。rungic_package.py 等直接构建入口还没切到这个执行器。 [docs/94-build-fingerprints.md](../docs/94-build-fingerprints.md)
 
 文档：[docs/94-build-fingerprints.md](../docs/94-build-fingerprints.md)
 
@@ -1342,7 +1342,7 @@ Agent 不靠点界面就能拿到合并日志、崩溃回溯、追踪、截图�
 
 #### Agent 直接调用的诊断工具
 
-`delivery.agent-diagnostics` · 依赖安卓 — 项目级 MCP 服务 rungic（rungic_agent_mcp.py）把设备状态、合并日志、崩溃、截图、证据包、完整性、追踪和按控件操作做成带参数的工具，开发 Agent 不用拼 adb 引号。
+`delivery.agent-diagnostics` · 依赖安卓 — 项目级 rungic MCP 服务由 rungic_agent_mcp.py 提供。工具支持设备状态、合并日志、崩溃、截图、证据包、完整性、追踪和按控件操作。开发 Agent 通过参数调用，无需手工拼接 adb 引号。
 
 经由接口：`platform-bridge`
 
@@ -1350,39 +1350,39 @@ Agent 不靠点界面就能拿到合并日志、崩溃回溯、追踪、截图�
 - **E2** 已知噪声（bpf-firewall、runuser 会话、binder 释放等）只计数不显示，并注明原因，不让 Agent 每次重新诊断。（人工）
 - **E3** screenshot 约 5 秒取回（设备上写文件再 pull），返回 540px 预览，原图留在 .work/diag。（人工）
 - **E4** snapshot 一次调用把状态、日志窗口、崩溃和截图写进 .work/diag/<时间>-<标签>/ 的证据包。（人工）
-- **E5** 只读工具不改变设备状态并标为 read-only；改变状态的操作（按控件操作、无障碍开关）单列。（单元测试）
+- **E5** 只读工具不改变设备状态并标为 read-only。改变状态的操作（按控件操作、无障碍开关）单列。（单元测试）
 - **E6** MCP 客户端经 stdio 能列出并调用全部工具（adb 子进程不吞调用者的 stdin）。（人工）
 
 注意：
-- 没给 adb 子进程关闭 stdin 时，adb shell 会吞掉调用者的 stdin，MCP 的 stdio 握手没有响应；统一用 stdin=DEVNULL。 [docs/55-agent-native-debugging.md](../docs/55-agent-native-debugging.md)
+- 没给 adb 子进程关闭 stdin 时，adb shell 会吞掉调用者的 stdin，MCP 的 stdio 握手没有响应。统一用 stdin=DEVNULL。 [docs/55-agent-native-debugging.md](../docs/55-agent-native-debugging.md)
 - .mcp.json 是项目级配置，Claude Code 首次加载时要用户批准。 [docs/55-agent-native-debugging.md](../docs/55-agent-native-debugging.md)
 - 设备日志可能含网络、账户、剪贴板等隐私，只写本地 .work/，不上传外部服务。 [docs/55-agent-native-debugging.md](../docs/55-agent-native-debugging.md)
-- 向 Magisk 31.0 守护进程提交可能返回 SQL NULL 的查询会让它退出；工具层要拒绝这类查询。 [docs/39-magisk-daemon-crash.md](../docs/39-magisk-daemon-crash.md) [AGENTS.md](../AGENTS.md)
+- 向 Magisk 31.0 守护进程提交可能返回 SQL NULL 的查询会让它退出。工具层要拒绝这类查询。 [docs/39-magisk-daemon-crash.md](../docs/39-magisk-daemon-crash.md) [AGENTS.md](../AGENTS.md)
 
 文档：[docs/55-agent-native-debugging.md](../docs/55-agent-native-debugging.md)
 
 #### 崩溃报告、归并与符号化
 
-`delivery.crash-reports` · Linux 系统功能 — 桌面程序崩溃时自动留下带回溯、build-id、所属包、发布和签名的报告，coredumpctl 和 MCP 都能看；按签名归并，在构建机上符号化。
+`delivery.crash-reports` · Linux 系统功能 — 桌面程序崩溃后，系统自动保存回溯、build-id、所属包、发布和签名。用户可以通过 coredumpctl 和 MCP 查看报告。系统按签名归并报告，并在构建机上符号化。
 
-- **E1** 桌面程序（KDE 的与非 KDE 的）崩溃后自动留下报告和 core，journal 里有一条 err 级记录，coredumpctl list/info/debug 能直接使用；Android 的 core_pattern 和目录不受影响。（单元测试、人工）
+- **E1** 桌面程序（KDE 的与非 KDE 的）崩溃后自动留下报告和 core，journal 里有一条 err 级记录，coredumpctl list/info/debug 能直接使用。Android 的 core_pattern 和目录不受影响。（单元测试、人工）
 - **E2** crash_groups 按签名归并：次数、首次与最近出现时间、所属发布，并能筛出某个发布之后新出现的签名。（单元测试、实机验收、人工）
-- **E3** 符号化在构建机上做：手机只给出报告、映射文件和 core，回溯与签名写回手机；手机不会因此内存耗尽、失去 VPN。（单元测试、人工）
-- **E4** 每个签名最多保留 2 个 core，一个循环崩溃不会挤掉其他崩溃的现场；采集服务限 768 MiB 内存。（单元测试、人工）
+- **E3** 符号化在构建机上做：手机只给出报告、映射文件和 core，回溯与签名写回手机。手机不会因此内存耗尽、失去 VPN。（单元测试、人工）
+- **E4** 每个签名最多保留 2 个 core，一个循环崩溃不会挤掉其他崩溃的现场。采集服务限 768 MiB 内存。（单元测试、人工）
 - **E5** 持有凭据的服务（语音助手、codex app-server）不产生 core。（单元测试、人工）
 - **E6** 早于当前发布安装时间的崩溃记为 version null 并注明 before，不算到新发布上。（单元测试）
 
 注意：
-- 不要装 drkonqi：KCrash 找得到它时改走 DrKonqi 并以 _exit(253) 结束，KDE 程序不再留下 core；确需时同时设 KCRASH_DUMP_ONLY=1。 [docs/61-delivery-diagnostics-plan.md](../docs/61-delivery-diagnostics-plan.md)
-- 在手机上用 gdb 加载桌面程序的调试信息要数 GB，两次让 Android 低内存查杀杀掉了 VPN 和 Plasma APK；手机上的 rungic-crash-symbols 默认拒绝运行。 [docs/61-delivery-diagnostics-plan.md](../docs/61-delivery-diagnostics-plan.md) [docs/73-reduce-upstream-changes.md](../docs/73-reduce-upstream-changes.md)
-- debuginfod 直连很慢、经代理超时，只作后备；gdb 开启它要用 -iex。 [docs/55-agent-native-debugging.md](../docs/55-agent-native-debugging.md) [docs/61-delivery-diagnostics-plan.md](../docs/61-delivery-diagnostics-plan.md)
+- 不要装 drkonqi：KCrash 找得到它时改走 DrKonqi 并以 _exit(253) 结束，KDE 程序不再留下 core。确需时同时设 KCRASH_DUMP_ONLY=1。 [docs/61-delivery-diagnostics-plan.md](../docs/61-delivery-diagnostics-plan.md)
+- 在手机上用 gdb 加载桌面程序的调试信息要数 GB，两次让 Android 低内存查杀杀掉了 VPN 和 Plasma APK。手机上的 rungic-crash-symbols 默认拒绝运行。 [docs/61-delivery-diagnostics-plan.md](../docs/61-delivery-diagnostics-plan.md) [docs/73-reduce-upstream-changes.md](../docs/73-reduce-upstream-changes.md)
+- debuginfod 直连很慢、经代理超时，只作后备。gdb 开启它要用 -iex。 [docs/55-agent-native-debugging.md](../docs/55-agent-native-debugging.md) [docs/61-delivery-diagnostics-plan.md](../docs/61-delivery-diagnostics-plan.md)
 - core 文件名虽是 .gz，实际是未压缩的 core（Android 的 core_pattern 在崩溃进程自己的根目录下解析）。 [docs/55-agent-native-debugging.md](../docs/55-agent-native-debugging.md)
 
 文档：[docs/61-delivery-diagnostics-plan.md](../docs/61-delivery-diagnostics-plan.md)、[docs/55-agent-native-debugging.md](../docs/55-agent-native-debugging.md)
 
 #### 全系统帧追踪
 
-`delivery.trace` · 依赖安卓 — rungic_trace.py 用 Android perfetto 一次录下 KWin、plasmashell、SurfaceFlinger、宿主 APK 和 Adreno GPU，rungic_trace_report.py 给出各阶段耗时。
+`delivery.trace` · 依赖安卓 — rungic_trace.py 使用 Android perfetto 同时记录 KWin、plasmashell、SurfaceFlinger、宿主 APK 和 Adreno GPU。rungic_trace_report.py 分析各阶段耗时。
 
 经由接口：`kwin-android-host`
 
@@ -1391,7 +1391,7 @@ Agent 不靠点界面就能拿到合并日志、崩溃回溯、追踪、截图�
 - **E3** 每次 GPU 提交的执行时间来自 KGSL retire 事件的常开计数器（19.2 MHz），与事件时间差一致。（人工）
 
 注意：
-- 本机是 user 版，perfetto 只接受白名单 ftrace 事件，KGSL 事件被静默忽略；工具另建 tracefs 实例记录它们。 [docs/55-agent-native-debugging.md](../docs/55-agent-native-debugging.md)
+- 本机是 user 版，perfetto 只接受白名单 ftrace 事件，KGSL 事件被静默忽略。工具另建 tracefs 实例记录它们。 [docs/55-agent-native-debugging.md](../docs/55-agent-native-debugging.md)
 - Android 把两层 queueBuffer 都记为嵌套的 queueBuffer，直接计数会翻倍，只计外层。 [docs/55-agent-native-debugging.md](../docs/55-agent-native-debugging.md)
 - 容器有独立 PID 命名空间，perfetto 里的全局 PID 和容器里 pgrep 看到的不同，不代表进程重启。 [docs/55-agent-native-debugging.md](../docs/55-agent-native-debugging.md)
 - KWin moto6 之前的构建成批写 FTrace 标记，时间戳无效。 [docs/55-agent-native-debugging.md](../docs/55-agent-native-debugging.md)
@@ -1400,7 +1400,7 @@ Agent 不靠点界面就能拿到合并日志、崩溃回溯、追踪、截图�
 
 #### 完整性与漂移检查
 
-`delivery.integrity` · Linux 系统功能 — rungic-integrity（MCP 工具 integrity）只读核对容器 rootfs 与 dpkg、发布元包和本机配置清单是否一致，部署前后各跑一次。
+`delivery.integrity` · Linux 系统功能 — rungic-integrity 只读核对 rootfs 与 dpkg、发布元包和本机配置清单是否一致。部署前后各运行一次。MCP 通过 integrity 工具提供同一检查。
 
 - **E1** 一次只读检查给出 clean、drift 或 development 的结论，并逐项列出：被改或缺失的包文件、本项目的 divert、无主文件、属主与模式异常、本机配置是否在、该启用的单元、用户配置里强制软件渲染的覆盖。（系统测试、人工）
 - **E2** 结果里没有噪声：dpkg 的 path-exclude 规则生效，最小化镜像本来就没装的文件不报。（系统测试、人工）
@@ -1408,84 +1408,84 @@ Agent 不靠点界面就能拿到合并日志、崩溃回溯、追踪、截图�
 - **E4** 本机配置与凭据（代理、音频 cookie、账户、API Key）只按路径、属主、权限声明和检查，不保存内容。（系统测试）
 
 注意：
-- 曾发现容器 /、/usr 属 UID 1000 且模式 775，桌面用户等于拿到容器 root（暂存树带着构建者 UID 解包）；ownership 检查就是为此加的。 [docs/55-agent-native-debugging.md](../docs/55-agent-native-debugging.md)
+- 曾发现容器 /、/usr 属 UID 1000 且模式 775，桌面用户等于拿到容器 root（暂存树带着构建者 UID 解包）。ownership 检查就是为此加的。 [docs/55-agent-native-debugging.md](../docs/55-agent-native-debugging.md)
 - drift 里可能有部署前就存在的项（如不属于任何包的 /usr/lib/rungic-cua/rungic_cua/keyring.py），每次要逐项区分新旧。 [docs/96-desktop-recovery-after-apk-restart.md](../docs/96-desktop-recovery-after-apk-restart.md) [docs/97-local-development-deploy.md](../docs/97-local-development-deploy.md)
 
 文档：[docs/61-delivery-diagnostics-plan.md](../docs/61-delivery-diagnostics-plan.md)
 
 #### 按控件名操作桌面
 
-`delivery.ui-automation` · Linux 系统功能 — rungic-a11y 和 MCP 工具 ui_find/ui_press/ui_tap/ui_set_text 经 AT-SPI 按控件名称查找和操作桌面应用，不用固定坐标。
+`delivery.ui-automation` · Linux 系统功能 — rungic-a11y 和 MCP 工具 ui_find/ui_press/ui_tap/ui_set_text 通过 AT-SPI 按控件名称查找和操作桌面应用，无需固定坐标。
 
 经由接口：`host-input`
 
 - **E1** 按名称找到控件并操作（按下、点击、填文字）：打开抽屉找到 Calculator 启动，在 Kalk 里按 C、7、+、8、= 得到 15，全程不用固定坐标。（系统测试、实机验收、人工）
-- **E2** 无障碍按需开启，运行中的 Qt 程序约 2 秒内注册，不用重启；用完关闭并记录状态。（系统测试、人工）
+- **E2** 无障碍按需开启，运行中的 Qt 程序约 2 秒内注册，不用重启。用完关闭并记录状态。（系统测试、人工）
 - **E3** 没有动作的元素（启动器图标、自绘键盘）按“窗口原点＋元素中心”换算到物理坐标，经 Android 输入点击。（单元测试、人工）
 
 注意：
-- 会话刚重启时抽屉搜索结果不进 AT-SPI 树；快捷设置折叠时未显示的磁贴仍报告 showing；plasma-keyboard 的面板坐标与屏幕有偏移；Kirigami 搜索框没有 EditableText 接口。 [docs/55-agent-native-debugging.md](../docs/55-agent-native-debugging.md)
+- 会话刚重启时抽屉搜索结果不进 AT-SPI 树。快捷设置折叠时未显示的磁贴仍报告 showing。plasma-keyboard 的面板坐标与屏幕有偏移。Kirigami 搜索框没有 EditableText 接口。 [docs/55-agent-native-debugging.md](../docs/55-agent-native-debugging.md)
 - 无障碍在每个注册的应用里都有开销，性能测试前关闭。 [docs/55-agent-native-debugging.md](../docs/55-agent-native-debugging.md)
 
 文档：[docs/55-agent-native-debugging.md](../docs/55-agent-native-debugging.md)
 
 #### 诊断探针
 
-`delivery.probes` · Linux 系统功能 — 随 rungic-plasma-diagnostics 安装的小探针：Wayland 协议探针、输入法与屏幕探针、文件系统能力审计、媒体问题复现脚本。
+`delivery.probes` · Linux 系统功能 — rungic-plasma-diagnostics 安装一组诊断探针和复现脚本。它们检查 Wayland 协议、输入法、屏幕、文件系统能力和媒体问题。
 
 经由接口：`kwin-android-host`、`audio`、`camera`
 
-- **E1** idle-probe 持有空闲抑制期间手机屏幕保持常亮（冒烟验收 idle.inhibit 用它）。（实机验收、人工；只能在手机上看：屏幕常亮是宿主 APK 把 KWin 经 zwp_idle_inhibitor_v1 转来的空闲抑制变成窗口 FLAG_KEEP_SCREEN_ON 的结果；无头 KWin 没有 Android 后端和屏幕，熄不熄屏只有手机能看出（验收 idle.inhibit））
+- **E1** idle-probe 持有空闲抑制期间手机屏幕保持常亮（冒烟验收 idle.inhibit 用它）。（实机验收、人工；只能在手机上看：屏幕常亮是宿主 APK 把 KWin 经 zwp_idle_inhibitor_v1 转来的空闲抑制变成窗口 FLAG_KEEP_SCREEN_ON 的结果。无头 KWin 没有 Android 后端和屏幕，熄不熄屏只有手机能看出（验收 idle.inhibit））
 - **E2** 输入探针只记录提交文字的长度和是否有中文，不记录文字本身。（单元测试）
-- **E3** rungic-fs-audit 对每个目录跑桌面程序依赖的文件操作，列出哪些不可用、影响哪类程序；必需项失败时退出码为 1。（单元测试、人工）
-- **E4** 媒体复现脚本能稳定复现并对照问题：pa-gap 测出 Qt 原版缓冲参数下的播放断点，camerabin-record 测出相机录像被截短。（人工；只能在手机上看：复现的是手机上的媒体问题：pa-gap 录 Android 音频桥的 android.monitor，camerabin-record 用 Android 摄像头 rungic.camera.0；断点和截短来自 Android 音频与相机的时序，系统测试容器里没有这些后端）
+- **E3** rungic-fs-audit 对每个目录跑桌面程序依赖的文件操作，列出哪些不可用、影响哪类程序。必需项失败时退出码为 1。（单元测试、人工）
+- **E4** 媒体复现脚本能稳定复现并对照问题：pa-gap 测出 Qt 原版缓冲参数下的播放断点，camerabin-record 测出相机录像被截短。（人工；只能在手机上看：复现的是手机上的媒体问题：pa-gap 录 Android 音频桥的 android.monitor，camerabin-record 用 Android 摄像头 rungic.camera.0。断点和截短来自 Android 音频与相机的时序，系统测试容器里没有这些后端）
 
 注意：
-- 三个 probe 的源码原先只在手机的 /opt 里，2026-09-26 才收进仓库；新探针一开始就放进仓库。 [docs/61-delivery-diagnostics-plan.md](../docs/61-delivery-diagnostics-plan.md)
+- 三个 probe 的源码原先只在手机的 /opt 里，2026-09-26 才收进仓库。新探针一开始就放进仓库。 [docs/61-delivery-diagnostics-plan.md](../docs/61-delivery-diagnostics-plan.md)
 - 新增挂载先跑 rungic-fs-audit，问题在挂载层修，不逐个修应用。 [docs/69-filesystem-capabilities.md](../docs/69-filesystem-capabilities.md)
 
 文档：[docs/69-filesystem-capabilities.md](../docs/69-filesystem-capabilities.md)
 
 #### 开发机连接手机执行命令
 
-`delivery.phone-access` · 依赖安卓 — rungic_device.py 找到手机并把脚本送到 Android、Android root、容器 root 或桌面用户执行；rungic_plasma.py、rungic_lxc.py 是对应的命令行；enter 程序是 Android 侧进入 LXC 控制环境的入口。
+`delivery.phone-access` · 依赖安卓 — rungic_device.py 查找手机，并将脚本送到 Android、Android root、容器 root 或桌面用户环境执行。rungic_plasma.py 和 rungic_lxc.py 提供对应命令行。Android 侧的 enter 程序负责进入 LXC 控制环境。
 
-- **E1** 按硬件序列号在所有 adb 设备里找到手机，无线调试端口变化不用改配置；RUNGIC_ADB、RUNGIC_SERIAL、RUNGIC_TRANSPORT 或 .work/device.env 可以指定。（人工）
+- **E1** 按硬件序列号在所有 adb 设备里找到手机，无线调试端口变化不用改配置。RUNGIC_ADB、RUNGIC_SERIAL、RUNGIC_TRANSPORT 或 .work/device.env 可以指定。（人工）
 - **E2** 脚本经 stdin 送到四个层级执行，没有多层引号，退出码原样返回。（单元测试）
 - **E3** 回滚到改名前的发布后，工具先找 Rungic 名称、找不到再用旧名称，部署、验收和诊断照样可用。（人工）
-- **E4** enter 程序在私有挂载命名空间里进入 LXC 运行环境，不在 Android 原来的挂载命名空间挂载任何东西；build_enter.sh 用 NDK 静态编译。（缺口：enter 程序只能以 Android root 运行：路径写死为 /data/adb/rungic-lxc/runtime、/storage 与 /data/user，unshare/pivot_root 需要 CAP_SYS_ADMIN；开发机禁止非特权 user namespace（apparmor_restrict_unprivileged_userns=1），系统测试容器没有 SYS_ADMIN，也没有 NDK；还没有按日期记录的实机核对）
+- **E4** enter 程序在私有挂载命名空间里进入 LXC 运行环境，不在 Android 原来的挂载命名空间挂载任何东西。build_enter.sh 用 NDK 静态编译。（缺口：enter 程序只能以 Android root 运行：路径写死为 /data/adb/rungic-lxc/runtime、/storage 与 /data/user，unshare/pivot_root 需要 CAP_SYS_ADMIN。开发机禁止非特权 user namespace（apparmor_restrict_unprivileged_userns=1），系统测试容器没有 SYS_ADMIN，也没有 NDK。还没有按日期记录的实机核对）
 
 注意：
-- 多个 adb server 或多台手机同时在线时，先 adb devices -l 核对端口和序列号，之后每条命令都带精确序列号；adb server 是共用的，不能 kill-server。 [AGENTS.md](../AGENTS.md)
+- 多个 adb server 或多台手机同时在线时，先 adb devices -l 核对端口和序列号，之后每条命令都带精确序列号。adb server 是共用的，不能 kill-server。 [AGENTS.md](../AGENTS.md)
 - adb shell su -c '命令一; 命令二' 可能只有第一条以 root 运行，改为把脚本经 stdin 送给 su -c sh。 [AGENTS.md](../AGENTS.md)
-- adb 走 Wi-Fi，离开当前 Wi-Fi 会断开 adb，失去对手机的全部访问；不要做会断网的操作。 [docs/73-reduce-upstream-changes.md](../docs/73-reduce-upstream-changes.md)
-- Magisk 31.0 的 magiskd 遇到返回 SQL NULL 的查询会退出（直接 PRAGMA table_info、未检查的 SELECT *）；只查明确非空的列或逐列 COALESCE，先在内存数据库核对，不在实机复现。 [docs/39-magisk-daemon-crash.md](../docs/39-magisk-daemon-crash.md) [AGENTS.md](../AGENTS.md)
+- adb 走 Wi-Fi，离开当前 Wi-Fi 会断开 adb，失去对手机的全部访问。不要做会断网的操作。 [docs/73-reduce-upstream-changes.md](../docs/73-reduce-upstream-changes.md)
+- Magisk 31.0 的 magiskd 遇到返回 SQL NULL 的查询会退出（直接 PRAGMA table_info、未检查的 SELECT *）。只查明确非空的列或逐列 COALESCE，先在内存数据库核对，不在实机复现。 [docs/39-magisk-daemon-crash.md](../docs/39-magisk-daemon-crash.md) [AGENTS.md](../AGENTS.md)
 
 文档：[docs/55-agent-native-debugging.md](../docs/55-agent-native-debugging.md)、[docs/39-magisk-daemon-crash.md](../docs/39-magisk-daemon-crash.md)
 
 ### 维护对上游组件的修改
 
-上游源码只固定不入库，修改是带元数据的补丁队列；编辑、构建、升级都有固定流程。
+上游源码只固定不入库，修改是带元数据的补丁队列。编辑、构建、升级都有固定流程。
 
 #### 上游组件的补丁队列
 
-`delivery.patch-queue` · Linux 系统功能 — packages/<名>/recipe.json 固定上游来源与校验值，修改是 debian/patches/rungic/ 下带 DEP-3 与 X-Rungic-* 字段的补丁；tools/pq.py 负责下载、展开、编辑、导出、检查。
+`delivery.patch-queue` · Linux 系统功能 — packages/<名>/recipe.json 固定上游来源和校验值。修改保存在 debian/patches/rungic/，使用 DEP-3 和 X-Rungic-* 元数据。tools/pq.py 负责下载、展开、编辑、导出和检查。
 
 - **E1** fetch 按配方下载并核对 sha256，不符的文件不留在缓存里，并报出是哪个文件。（单元测试）
 - **E2** lint 要求我们的每条补丁都有 DEP-3 与 X-Rungic-* 字段、取值合法、与 series 一致，缺了就失败。（单元测试）
-- **E3** overlay 把仓库里的共享文件放进源码树，补丁只引用不复制；整体替换上游文件时必须记录它的哈希，上游一改或文件消失就拒绝构建。（单元测试）
-- **E4** git 子树配方核对所选子树的树哈希；换了子树不复用旧归档；排除项消失或路径越出所选子树时失败，要求复核。（单元测试）
+- **E3** overlay 把仓库里的共享文件放进源码树，补丁只引用不复制。整体替换上游文件时必须记录它的哈希，上游一改或文件消失就拒绝构建。（单元测试）
+- **E4** git 子树配方核对所选子树的树哈希。换了子树不复用旧归档。排除项消失或路径越出所选子树时失败，要求复核。（单元测试）
 - **E5** verify 把打好补丁的源码与参照树比较，无法解析的符号链接算作差异，不会误报一致。（单元测试）
 - **E6** tests 列出补丁与测试的对应矩阵，只写了计划的测试不算覆盖，没有测试的补丁列为缺口。（单元测试）
-- **E7** prepare 再 export 往返不改变补丁内容；export 只写回我们的主题和 series，Ubuntu 原有补丁保持原样。（单元测试、人工）
+- **E7** prepare 再 export 往返不改变补丁内容。export 只写回我们的主题和 series，Ubuntu 原有补丁保持原样。（单元测试、人工）
 - **E8** Android 宿主及其 Smithay、Winit 依赖只组装在 .work/ 内，组装结果与迁移前直接维护的源码逐项一致。（单元测试、人工）
 
 注意：
-- 不以提交上游作为手段（评审周期过长）：必须保留的修改长期作为补丁维护，能在自有组件、扩展点或共享服务里解决的不改上游；升级时先核对新版本是否已包含我们的修复，已包含的删除。 [docs/73-reduce-upstream-changes.md](../docs/73-reduce-upstream-changes.md) [AGENTS.md](../AGENTS.md)
+- 不以提交上游作为手段（评审周期过长）：必须保留的修改长期作为补丁维护，能在自有组件、扩展点或共享服务里解决的不改上游。升级时先核对新版本是否已包含我们的修复，已包含的删除。 [docs/73-reduce-upstream-changes.md](../docs/73-reduce-upstream-changes.md) [AGENTS.md](../AGENTS.md)
 - gbp pq export 第一次会把 Ubuntu 原有补丁改写成 From/Date/Subject 格式，只导出 rungic 主题下的补丁。 [docs/71-upstream-patch-queue.md](../docs/71-upstream-patch-queue.md)
-- 复用构建目录并用 rsync -a 同步时源文件保留旧修改时间，CMake 不重编，结果混入旧目标文件；每个源码状态用新目录或 git archive。 [docs/71-upstream-patch-queue.md](../docs/71-upstream-patch-queue.md)
+- 复用构建目录并用 rsync -a 同步时源文件保留旧修改时间，CMake 不重编，结果混入旧目标文件。每个源码状态用新目录或 git archive。 [docs/71-upstream-patch-queue.md](../docs/71-upstream-patch-queue.md)
 - KWin 测试要在 xvfb 下串行跑（xvfb-run ctest -j1），比较与不含补丁的基线的失败集合，而不是通过数。 [docs/71-upstream-patch-queue.md](../docs/71-upstream-patch-queue.md)
-- pull-lp-source 只用 Debian 密钥环验签，Ubuntu 上传者只给警告；完整性以配方里的 sha256 为准。 [docs/71-upstream-patch-queue.md](../docs/71-upstream-patch-queue.md)
+- pull-lp-source 只用 Debian 密钥环验签，Ubuntu 上传者只给警告。完整性以配方里的 sha256 为准。 [docs/71-upstream-patch-queue.md](../docs/71-upstream-patch-queue.md)
 - Winland 固定提交缺根 LICENSE（README 声明 MIT），这是已记录的来源缺口，没有补造许可证。 [docs/52-git-repository-scope.md](../docs/52-git-repository-scope.md) [docs/73-reduce-upstream-changes.md](../docs/73-reduce-upstream-changes.md)
 - desktop/patches/qt-video-duration.patch 是未验收实验，不在 qt6-multimedia 的补丁队列里，不要手动叠加到源码树。 [packages/WORKFLOW.md](../packages/WORKFLOW.md)
 
@@ -1493,7 +1493,7 @@ Agent 不靠点界面就能拿到合并日志、崩溃回溯、追踪、截图�
 
 #### 由 vendor 历史生成补丁队列（已退役）
 
-`delivery.vendor-history-import` · Linux 系统功能 — 一次性迁移工具：按 tools/pq-history/<包>.json 把 vendor/ 时期的提交转成补丁队列并与 vendor 树逐字节核对。全部组件已于 2026-09-27/30 迁完，vendor/ 已从全部历史中删除。
+`delivery.vendor-history-import` · Linux 系统功能 — 一次性迁移工具按 tools/pq-history/<包>.json 将 vendor/ 时期的提交转换为补丁队列。工具与 vendor 树逐字节核对结果。全部组件已于 2026-09-27/30 完成迁移，vendor/ 已从全部历史删除。
 
 - **E1** 生成的补丁队列准备出的源码树与迁移前的 vendor 树逐字节一致。（人工）
 
@@ -1502,19 +1502,19 @@ Agent 不靠点界面就能拿到合并日志、崩溃回溯、追踪、截图�
 
 ### 管好仓库与项目知识
 
-仓库里只有该同步的东西，来源可查；开发 Agent 一进来就找得到约定、技能、文档和功能清单。
+仓库里只有该同步的东西，来源可查。开发 Agent 一进来就找得到约定、技能、文档和功能清单。
 
 #### 仓库范围、来源记录与开发签名
 
-`delivery.repo-scope` · Linux 系统功能 — 私有仓库只同步源码、文档、基准数据和来源记录；本地产物都在 .work/；provenance/ 记上游来源与校验值；开发 APK 签名密钥是唯一同步的密钥。
+`delivery.repo-scope` · Linux 系统功能 — 私有仓库同步源码、文档、基准数据和来源记录。本地产物放在 .work/，上游来源和校验值记录在 provenance/。开发 APK 签名密钥是唯一随仓库同步的密钥。
 
-- **E1** 提交前的候选检查用 Git 实际的忽略规则，在临时 Git 目录里列出候选文件，标出敏感文件名、令牌格式、大文件和指向仓库外的链接，只放行指定的开发签名密钥；不改工作区索引。（单元测试、人工）
+- **E1** 提交前的候选检查用 Git 实际的忽略规则，在临时 Git 目录里列出候选文件，标出敏感文件名、令牌格式、大文件和指向仓库外的链接，只放行指定的开发签名密钥。不改工作区索引。（单元测试、人工）
 - **E2** 下载、构建产物、日志、截图、实机媒体和其他密钥都在 .work/，被忽略的文件不出现在 .work/ 之外。（单元测试）
 - **E3** APK 默认用仓库里的开发签名身份签名，换一台机器构建签名不变。（单元测试、人工）
-- **E4** 上游来源、版本、校验值和许可证有记录；审计只按精确哈希豁免已核对的上游公开文件。（单元测试）
+- **E4** 上游来源、版本、校验值和许可证有记录。审计只按精确哈希豁免已核对的上游公开文件。（单元测试）
 
 注意：
-- 2026-09-30 的历史改写改变了所有提交号；发布记录和文档里的旧提交号按 provenance/history-rewrite-20260930/commit-map.txt 查找，不要再推送基于旧历史的分支。 [docs/52-git-repository-scope.md](../docs/52-git-repository-scope.md)
+- 2026-09-30 的历史改写改变了所有提交号。发布记录和文档里的旧提交号按 provenance/history-rewrite-20260930/commit-map.txt 查找，不要再推送基于旧历史的分支。 [docs/52-git-repository-scope.md](../docs/52-git-repository-scope.md)
 - 候选检查只是有限的模式检查，不表示仓库适合公开：文档里仍有设备身份、本机路径和局域网地址。 [docs/52-git-repository-scope.md](../docs/52-git-repository-scope.md)
 - 只有 signing/development/launcher-signing.p12 和 docs/images/readme/ 的成品图是 .work/ 规则的指定例外，其他密钥和原始媒体不入库。 [AGENTS.md](../AGENTS.md) [signing/development/README.md](../signing/development/README.md)
 
@@ -1534,96 +1534,96 @@ Agent 不靠点界面就能拿到合并日志、崩溃回溯、追踪、截图�
 
 `delivery.dev-guide` · Linux 系统功能 — README（产品主页）、docs/README.md（开发者指南和文档索引）、AGENTS.md（用户要求与工程约定）和 .agents/skills 下的项目技能。
 
-- **E1** 开发 Agent 一进仓库就能读到按日期记录的用户要求与工程约定（AGENTS.md），并能按任务调用项目技能（$rungic-three-stage-image、$rungic-dev-release；Claude Code 经 .claude/skills 链接）。（单元测试）
+- **E1** 开发 Agent 进入仓库后可以读取 AGENTS.md 中按日期记录的用户要求和工程约定。Agent 按任务调用 $rungic-three-stage-image 和 $rungic-dev-release 等项目技能。Claude Code 通过 .claude/skills 链接调用技能。（单元测试）
 - **E2** docs/README.md 的文档索引列出每一篇现有文档。（单元测试）
 - **E3** README 的产品展示图只用挑选过、缩小、确认不含隐私的成品，原始录像和截图留在 .work/readme/。（单元测试）
 
 注意：
 - docs/README.md 的索引落后：91–104 篇及 research/ 下多篇新文档（共 24 篇）没有列入。 [docs/README.md](../docs/README.md)
-- 新遇到的失败、修复和实机证据要及时写进对应文档；研究结论、离线校验和实机验收必须分开标注。 [AGENTS.md](../AGENTS.md)
+- 新遇到的失败、修复和实机证据要及时写进对应文档。研究结论、离线校验和实机验收必须分开标注。 [AGENTS.md](../AGENTS.md)
 
 文档：[docs/README.md](../docs/README.md)
 
 #### 功能清单与质量治理（实验）
 
-`delivery.feature-inventory` · Linux 系统功能 — quality/ 记下每个功能必须做到的体验和背后的代码、文档、测试；tools/feature_inventory.py 检查引用、认领和覆盖，并生成 docs/feature-inventory.md。
+`delivery.feature-inventory` · Linux 系统功能 — quality/ 记录功能的体验要求、代码、文档和测试。tools/feature_inventory.py 检查引用、文件认领和检查覆盖，并生成 docs/feature-inventory.md。
 
-- **E1** check 把断裂的引用（不存在的文件、未知的功能或体验、未知的接口）报为错误，把无人认领的文件、没有检查的体验、已退役功能的残留和被取代的文档报为警告；--strict 下警告也算失败。（单元测试）
+- **E1** check 将断裂引用报为错误，包括不存在的文件、未知功能、未知体验和未知接口。它将无人认领的文件、未检查的体验、退役功能残留和被取代的文档报为警告。--strict 按 quality/README.md 的结构性警告和测试欠账规则判定失败。（单元测试）
 - **E2** owner PATH 说出一个文件归哪些功能，feature ID 列出它的体验、检查、代码和文档。（单元测试）
 - **E3** 生成的 docs/feature-inventory.md 与数据不一致时 check 失败，提示 render --write。（单元测试）
 
 注意：
-- 测试要在被检查的地方声明 covers，只在真的检查了那条体验时才写；没有测试的体验如实留作未检查或写明 gap。 [quality/README.md](../quality/README.md)
+- 测试要在被检查的地方声明 covers，只在真的检查了那条体验时才写。没有测试的体验如实留作未检查或写明 gap。 [quality/README.md](../quality/README.md)
 
 文档：[quality/README.md](../quality/README.md)、[docs/105-test-debt-2026-10-03.md](../docs/105-test-debt-2026-10-03.md)
 
 #### Rungic 改名迁移
 
-`delivery.rebrand` · 依赖安卓 — 2026-09-26/27 从 moto 改名为 Rungic 的工具（迁移仍随会话包发布，回滚到改名前的发布也靠它们）：规则替换（rebrand.py）、用户与系统状态的双向迁移、Android 侧切换（rungic_cutover.py）。B、C 阶段已完成；清理残留的 D 阶段还没做。
+`delivery.rebrand` · 依赖安卓 — 2026-09-26/27 的改名工具将 moto 迁移为 Rungic。工具包括 rebrand.py 规则替换、用户与系统状态的双向迁移，以及 rungic_cutover.py 的 Android 侧切换。迁移工具仍随会话包发布，回滚到改名前的发布也依赖它们。B、C 阶段已完成，清理残留的 D 阶段尚未执行。
 
 - **E1** 跨越改名的升级和回滚两个方向都可用：用户设置、目录和单元启用状态迁到新名称，回滚到改名前的发布时迁回，往返后配置逐字节相同。（单元测试、人工）
 - **E2** 已安装的包、单元和包名中不再出现 moto 名称（硬件名称和 D 阶段的残留除外）。（实机验收、人工）
 
 注意：
-- D 阶段没做：兼容挂载 /var/lib/moto-*、moto-gpu-alloc 链接、投屏厂商 Moto、停用的旧 APK、/data/adb/rungic-cutover、moto-* 的 rc 残留和 /home/linux 链接仍在；rungic_release.py 的 rebrand_down、rungic_device 的旧名回退、rungic-rebrand-user 也要随之删除。 [docs/70-rungic-rebrand.md](../docs/70-rungic-rebrand.md)
-- rebrand.py apply 只运行过一次；审查时恢复的旧名称会让 list 再次列出那些文件，不能再次 apply。 [docs/70-rungic-rebrand.md](../docs/70-rungic-rebrand.md)
+- D 阶段没做：兼容挂载 /var/lib/moto-*、moto-gpu-alloc 链接、投屏厂商 Moto、停用的旧 APK、/data/adb/rungic-cutover、moto-* 的 rc 残留和 /home/linux 链接仍在。rungic_release.py 的 rebrand_down、rungic_device 的旧名回退、rungic-rebrand-user 也要随之删除。 [docs/70-rungic-rebrand.md](../docs/70-rungic-rebrand.md)
+- rebrand.py apply 只运行过一次。审查时恢复的旧名称会让 list 再次列出那些文件，不能再次 apply。 [docs/70-rungic-rebrand.md](../docs/70-rungic-rebrand.md)
 
 文档：[docs/70-rungic-rebrand.md](../docs/70-rungic-rebrand.md)
 
 #### 早期的一次性主机辅助脚本（已退役）
 
-`delivery.legacy-helpers` · 依赖安卓 — 导入时带来的、已没有任何代码引用的主机脚本：feature 上传助手 device.py、APT 下载计划抓取 prefetch_apt_uris.py、LXC 前置条件探针 lxc_kernel_probe.c（docs/16 的 2026-09-22 审计）。
+`delivery.legacy-helpers` · 依赖安卓 — 仓库导入时保留了一组主机脚本，现已没有代码引用。脚本包括 feature 上传助手 device.py、APT 下载计划抓取工具 prefetch_apt_uris.py 和 LXC 前置条件探针 lxc_kernel_probe.c。探针用于 docs/16 记录的 2026-09-22 审计。
 
 
 注意：
-- tools/device.py 与 tools/prefetch_apt_uris.py 没有任何导入或文档引用；prefetch_apt_uris.py 还写死了代理 192.168.5.45:6152。lxc_kernel_probe.c 只被 docs/16 作为当时的证据引用，新机型接入走三段式 skill 的内核兼容参考。 [docs/16-lxc-prerequisites.md](../docs/16-lxc-prerequisites.md)
+- tools/device.py 与 tools/prefetch_apt_uris.py 没有任何导入或文档引用。prefetch_apt_uris.py 还写死了代理 192.168.5.45:6152。lxc_kernel_probe.c 只被 docs/16 作为当时的证据引用，新机型接入走三段式 skill 的内核兼容参考。 [docs/16-lxc-prerequisites.md](../docs/16-lxc-prerequisites.md)
 
 ## 桌面模式与外屏
 
-手机里有一台完整的电脑桌面（0 号独立桌面）：浮窗里看、全屏里用、投到电视上当电脑；几块助理屏可以一起看，也可以从别的设备远程看。
+手机里有一台完整的电脑桌面（0 号独立桌面）：浮窗里看、全屏里用、投到电视上当电脑。几块助理屏可以一起看，也可以从别的设备远程看。
 
 ### 把手机当电脑用
 
-打开桌面模式，在浮窗里看桌面，进入全屏后用触摸、触控板和键盘操作；桌面里的应用、设置、剪贴板和授权与手机连通。
+打开桌面模式，在浮窗里看桌面，进入全屏后用触摸、触控板和键盘操作。桌面里的应用、设置、剪贴板和授权与手机连通。
 
 #### 打开和关闭桌面模式
 
-`desktop-mode.on-off` · Linux 系统功能 — 控制中心的“桌面模式”磁贴（或 rungic-desktop-mode）打开一台独立的电脑桌面并显示它的浮窗；关闭时先请桌面里的应用退出。
+`desktop-mode.on-off` · Linux 系统功能 — 控制中心的“桌面模式”磁贴或 rungic-desktop-mode 启动独立电脑桌面，并显示浮窗。关闭前，系统先请求桌面应用退出。
 
 经由接口：`platform-bridge`
 
-- **E1** 打开后 0 号桌面启动、浮窗显示它；手机的 KWin 不再多出一块 CAST 输出（只剩 WL-0），旧的 APK 桌面模式开关被顺手关掉。（单元测试、实机验收、人工）
-- **E2** 关闭（磁贴、off、浮窗的关闭按钮）先请应用退出；有应用因未保存内容没关掉时发通知（查看／不保存直接关闭），不强行关闭。（单元测试）
-- **E3** 手机界面重启（会话重启、宿主重启）后，开着的桌面模式自动回来、浮窗重新出现；0 号不属于图形会话，期间一直在运行。（单元测试、人工）
-- **E4** 磁贴如实显示状态：关闭、浮窗、全屏、在电视上；操作中显示“正在打开/关闭…”，出错时显示原因。（单元测试、系统测试）
-- **E5** 手机睡着、Rungic 应用被冻结时，开关请求最多等 1 秒就回答；手机醒来后第一次操作立即生效，不会一段时间内对开关没反应。（单元测试）
+- **E1** 打开后 0 号桌面启动、浮窗显示它。手机的 KWin 不再多出一块 CAST 输出（只剩 WL-0），旧的 APK 桌面模式开关被顺手关掉。（单元测试、实机验收、人工）
+- **E2** 关闭（磁贴、off、浮窗的关闭按钮）先请应用退出。有应用因未保存内容没关掉时发通知（查看／不保存直接关闭），不强行关闭。（单元测试）
+- **E3** 手机界面重启（会话重启、宿主重启）后，开着的桌面模式自动回来、浮窗重新出现。0 号不属于图形会话，期间一直在运行。（单元测试、人工）
+- **E4** 磁贴如实显示状态：关闭、浮窗、全屏、在电视上。操作中显示“正在打开/关闭…”，出错时显示原因。（单元测试、系统测试）
+- **E5** 手机睡着、Rungic 应用被冻结时，开关请求最多等 1 秒就回答。手机醒来后第一次操作立即生效，不会一段时间内对开关没反应。（单元测试）
 
 注意：
 - rungic_plasma.py restart-session 会误报 “Desktop did not become ready”：就绪检查用 pidof kwin_wayland 比较新旧进程，而工作区（含 0 号）的 KWin 一直在跑。 [docs/research/97-headless-agent-work.md](../docs/research/97-headless-agent-work.md)
-- 0 号运行时手机可用内存约 2.5 GB；打开桌面模式就多了一整套 KWin、plasmashell 和会话服务。 [docs/research/97-headless-agent-work.md](../docs/research/97-headless-agent-work.md)
+- 0 号运行时手机可用内存约 2.5 GB。打开桌面模式就多了一整套 KWin、plasmashell 和会话服务。 [docs/research/97-headless-agent-work.md](../docs/research/97-headless-agent-work.md)
 - 磁贴注释、验收检查 desktop_mode_output 和 docs/65 仍按“用户 KWin 的第二输出 CAST-n”描述桌面模式，那是 §19 之前的做法。 [docs/65-agent-screen.md](../docs/65-agent-screen.md) [docs/research/97-headless-agent-work.md](../docs/research/97-headless-agent-work.md)
 
 文档：[docs/research/97-headless-agent-work.md](../docs/research/97-headless-agent-work.md)、[docs/65-agent-screen.md](../docs/65-agent-screen.md)、[docs/research/91-agent-workspaces.md](../docs/research/91-agent-workspaces.md)
 
 #### 独立的电脑桌面
 
-`desktop-mode.independent-desktop` · Linux 系统功能 — 桌面模式是一台独立的 KWin 加 Plasma 桌面外壳（0 号工作区，无头运行）：任务栏、开始菜单、托盘、通知齐全，用户的设置和数据与手机共用，桌面布局单独保存。
+`desktop-mode.independent-desktop` · Linux 系统功能 — 桌面模式使用独立 KWin 和 Plasma 桌面外壳，作为工作区 0 无头运行。桌面提供任务栏、开始菜单、托盘和通知。用户设置及数据与手机共用，桌面布局单独保存。
 
-- **E1** 桌面里有完整的 Plasma 桌面：任务栏、开始菜单、固定的应用、托盘、时钟，壁纸与手机相同；外壳退出后自动重新起来。（系统测试、实机验收、人工）
-- **E2** 应用设置与手机共用（一边改了另一边看得到，桌面上新建的设置文件放置 10 秒后归入用户目录，手机那边增删的跟着增删）；KWin、桌面外壳、全局快捷键、活动、klipper 历史等各自私有，两边互不覆盖。（单元测试、人工）
+- **E1** 桌面里有完整的 Plasma 桌面：任务栏、开始菜单、固定的应用、托盘、时钟，壁纸与手机相同。外壳退出后自动重新起来。（系统测试、实机验收、人工）
+- **E2** 应用设置与手机共用（一边改了另一边看得到，桌面上新建的设置文件放置 10 秒后归入用户目录，手机那边增删的跟着增删）。KWin、桌面外壳、全局快捷键、活动、klipper 历史等各自私有，两边互不覆盖。（单元测试、人工）
 - **E3** 整台手机只有一个密码库：桌面里的应用查询和解锁密码库用的是手机会话的那个 ksecretd，两边查询结果相同。（单元测试、人工）
-- **E4** 桌面里的程序按桌面形态运行：KDE 应用不用手机布局，Firefox 用桌面版配置（Linux UA、maxTouchPoints 为 0、没有 about:mobile）；同一个 Firefox 回到手机上仍是移动版。（系统测试、人工）
+- **E4** 桌面里的程序按桌面形态运行：KDE 应用不用手机布局，Firefox 用桌面版配置（Linux UA、maxTouchPoints 为 0、没有 about:mobile）。同一个 Firefox 回到手机上仍是移动版。（系统测试、人工）
 - **E5** 桌面的声音面板列出手机的输出和输入设备（手机上的设备都是虚拟设备，默认不显示）。（单元测试）
-- **E6** 关闭桌面模式后 0 号的进程全部退出；开着时不因闲置被冻结或关闭。（系统测试、实机验收、人工）
+- **E6** 关闭桌面模式后 0 号的进程全部退出。开着时不因闲置被冻结或关闭。（系统测试、实机验收、人工）
 
 注意：
 - plasmashell 的程序名、KWin 的 kwinrc 在源码里写死，plasmashellrc、kwinrc 等与手机的移动版外壳同名，0 号必须用私有的 XDG_CONFIG_HOME（链接镜像），否则两边互相覆盖。 [docs/research/97-headless-agent-work.md](../docs/research/97-headless-agent-work.md)
 - 工作区要有自己的 XDG_CACHE_HOME：KDE 应用数据库 ksycoca 记录设置目录，共用时被两边轮流重建，手机主屏反复重载、丢掉 dock 和小部件（2026-09-29）。
-- 0 号的 plasmashell 环境曾带 QT_QUICK_CONTROLS_MOBILE=true，KDE 应用按手机布局显示；rungic_cua 的 import_session_environment 会从 systemd 环境把 PLASMA_* 补回来，0 号必须跳过。Firefox 的判断用 RUNGIC_WORKSPACE 而不是 PLASMA_PLATFORM（后者会串进工作区）。 [docs/research/97-headless-agent-work.md](../docs/research/97-headless-agent-work.md)
-- 外壳运行中改它的布局文件，退出时会被覆盖：rungic-desktop-plasma 只在外壳启动前写；手动运行必须带 0 号的 XDG_CONFIG_HOME，否则写进手机自己的布局文件（发生过一次）。 [docs/research/97-headless-agent-work.md](../docs/research/97-headless-agent-work.md)
-- 0 号的密码库解锁提示经 rungic-bus-forward 仍弹在手机上（竖屏、手机外观），在电视或远程观看时看不到；1 号工作区的私有总线上另有一个 ksecretd，只有 0 号做了转发，有损坏密码库文件的风险。 [docs/research/97-headless-agent-work.md](../docs/research/97-headless-agent-work.md)
-- Firefox 不能在两边同时运行（switch.py 先关后开）；在 about:config 改过的设置两边都生效；网站记在 cookie 里的“移动版”可能还会跳。 [docs/research/97-headless-agent-work.md](../docs/research/97-headless-agent-work.md)
-- 独立桌面里 Firefox 闪烁的原因没有证实，§20 的改动之后不再出现；再出现时先查触控板模式下的两路 0 号录屏，再录原始画面和手机屏幕逐帧比较。 [docs/research/97-headless-agent-work.md](../docs/research/97-headless-agent-work.md)
+- 0 号的 plasmashell 环境曾带 QT_QUICK_CONTROLS_MOBILE=true，KDE 应用按手机布局显示。rungic_cua 的 import_session_environment 会从 systemd 环境把 PLASMA_* 补回来，0 号必须跳过。Firefox 的判断用 RUNGIC_WORKSPACE 而不是 PLASMA_PLATFORM（后者会串进工作区）。 [docs/research/97-headless-agent-work.md](../docs/research/97-headless-agent-work.md)
+- 外壳运行中改它的布局文件，退出时会被覆盖：rungic-desktop-plasma 只在外壳启动前写。手动运行必须带 0 号的 XDG_CONFIG_HOME，否则写进手机自己的布局文件（发生过一次）。 [docs/research/97-headless-agent-work.md](../docs/research/97-headless-agent-work.md)
+- 0 号的密码库解锁提示经 rungic-bus-forward 仍弹在手机上（竖屏、手机外观），在电视或远程观看时看不到。1 号工作区的私有总线上另有一个 ksecretd，只有 0 号做了转发，有损坏密码库文件的风险。 [docs/research/97-headless-agent-work.md](../docs/research/97-headless-agent-work.md)
+- Firefox 不能在两边同时运行（switch.py 先关后开）。在 about:config 改过的设置两边都生效。网站记在 cookie 里的“移动版”可能还会跳。 [docs/research/97-headless-agent-work.md](../docs/research/97-headless-agent-work.md)
+- 独立桌面里 Firefox 闪烁的原因没有证实，§20 的改动之后不再出现。再出现时先查触控板模式下的两路 0 号录屏，再录原始画面和手机屏幕逐帧比较。 [docs/research/97-headless-agent-work.md](../docs/research/97-headless-agent-work.md)
 
 文档：[docs/research/97-headless-agent-work.md](../docs/research/97-headless-agent-work.md)、[docs/research/91-agent-workspaces.md](../docs/research/91-agent-workspaces.md)
 
@@ -1633,328 +1633,328 @@ Agent 不靠点界面就能拿到合并日志、崩溃回溯、追踪、截图�
 
 经由接口：`clipboard`
 
-- **E1** 手机上复制的文字在桌面里能粘贴，桌面里复制的在手机上能粘贴；安卓应用的复制同样到达桌面。（系统测试、人工）
-- **E2** 桌面打开时以安卓剪贴板的当前内容为准；同步程序退出后几秒内自动重启。（系统测试）
+- **E1** 手机上复制的文字在桌面里能粘贴，桌面里复制的在手机上能粘贴。安卓应用的复制同样到达桌面。（系统测试、人工）
+- **E2** 桌面打开时以安卓剪贴板的当前内容为准。同步程序退出后几秒内自动重启。（系统测试）
 - **E3** 桌面的剪贴板历史（klipper）与手机的分开保存，不共用一份历史文件。（单元测试）
 
 注意：
-- 后台运行的 wl-copy 会继承输出管道，远程命令一直等它结束而超时；测试时要重定向 wl-copy 的输出，并在测试前后保存、恢复用户的剪贴板。 [docs/research/97-headless-agent-work.md](../docs/research/97-headless-agent-work.md)
-- 只同步当前的纯文本：不补回断线期间的每一次复制，不同步图片和文件；锁屏和多用户时不交换。 [docs/research/clipboard-background.md](../docs/research/clipboard-background.md)
+- 后台运行的 wl-copy 会继承输出管道，远程命令一直等它结束而超时。测试时要重定向 wl-copy 的输出，并在测试前后保存、恢复用户的剪贴板。 [docs/research/97-headless-agent-work.md](../docs/research/97-headless-agent-work.md)
+- 只同步当前的纯文本：不补回断线期间的每一次复制，不同步图片和文件。锁屏和多用户时不交换。 [docs/research/clipboard-background.md](../docs/research/clipboard-background.md)
 - Klipper 默认 NoEmptyClipboard=true，会把清空的剪贴板恢复成上一条，桥随后同步该值。 [docs/research/clipboard-background.md](../docs/research/clipboard-background.md)
 
 文档：[docs/research/97-headless-agent-work.md](../docs/research/97-headless-agent-work.md)、[docs/research/clipboard-background.md](../docs/research/clipboard-background.md)、[docs/research/clipboard-history.md](../docs/research/clipboard-history.md)
 
 #### 桌面在浮窗里
 
-`desktop-mode.floating-window` · Linux 系统功能 — 桌面（和助理屏）显示在手机上一个浮动的小窗里：只看不操作，单指拖动、双指缩放、甩到边上收成标签，工具栏按需出现。
+`desktop-mode.floating-window` · Linux 系统功能 — 桌面和助理屏以手机上的浮窗显示，供观看而不直接操作。用户可以单指拖动、双指缩放，或甩到边缘收成标签。工具栏按需出现。
 
 经由接口：`platform-bridge`
 
-- **E1** 单指拖动时浮窗逐帧跟手，松手平滑归位；拖过侧边四分之一或向侧边快甩，收成贴边标签；点标签展开，竖直拖动标签沿边移动。（单元测试、人工）
-- **E2** 双指捏合在屏宽 50%–100% 之间缩放；捏合永远不会把浮窗收成标签，包括一根手指先抬起、外侧手指先快速外移的情况；捏合后立即单指慢拖仍然跟手。（单元测试、人工）
-- **E3** 点击、拖动或捏合时工具栏出现在画面下方（靠近底部时改到上方），几秒后淡出；按钮为全屏、投到电视、收到边缘、关闭，并显示这是哪块屏（“桌面”或“助理屏”）。（单元测试、人工）
-- **E4** 浮窗只显示画面，不能直接操作里面的内容；桌面的画面里没有光标；画面边上不露出底下的黑线，黑底只在还没有画面时出现。（单元测试、系统测试、人工）
-- **E5** 浮窗不白耗电：投到电视、被全屏取代时不再接收画面；呼吸点每秒只画 10 步，不按 120 Hz 重画。（单元测试、系统测试）
+- **E1** 单指拖动时浮窗逐帧跟手，松手平滑归位。拖过侧边四分之一或向侧边快甩，收成贴边标签。点标签展开，竖直拖动标签沿边移动。（单元测试、人工）
+- **E2** 双指捏合在屏宽 50%–100% 之间缩放。捏合永远不会把浮窗收成标签，包括一根手指先抬起、外侧手指先快速外移的情况。捏合后立即单指慢拖仍然跟手。（单元测试、人工）
+- **E3** 点击、拖动或捏合时工具栏出现在画面下方（靠近底部时改到上方），几秒后淡出。按钮为全屏、投到电视、收到边缘、关闭，并显示这是哪块屏（“桌面”或“助理屏”）。（单元测试、人工）
+- **E4** 浮窗只显示画面，不能直接操作里面的内容。桌面的画面里没有光标。画面边上不露出底下的黑线，黑底只在还没有画面时出现。（单元测试、系统测试、人工）
+- **E5** 浮窗不白耗电：投到电视、被全屏取代时不再接收画面。呼吸点每秒只画 10 步，不按 120 Hz 重画。（单元测试、系统测试）
 - **E6** 手机转屏后浮窗留在屏内、大小合适（横屏转回竖屏不会被撑到横屏宽度的一半）。（单元测试）
 - **E7** 已关闭的桌面或助理屏遇到残留启动请求时直接退出，不闪出黑色浮窗。（单元测试、系统测试）
 
 注意：
-- 不能用 margin 移动整个 layer surface：位置总比请求晚一帧，形成反馈，窗口乱窜；现在是一个覆盖整屏的透明表面，画面在里面由 QML 移动，输入区域只含可见部分。 [docs/65-agent-screen.md](../docs/65-agent-screen.md)
-- 经 Android → 宿主 → KWin 送到 Qt 的触摸与测试工具直接注入的不一样：捏合中一指先抬起的路径离线重现不了，要用 tools/rungic_touch.py 实机测；测试前确认屏幕上没有真实触点，测试会移动用户屏幕上的浮窗。 [docs/65-agent-screen.md](../docs/65-agent-screen.md)
+- 不能用 margin 移动整个 layer surface：位置总比请求晚一帧，形成反馈，窗口乱窜。现在是一个覆盖整屏的透明表面，画面在里面由 QML 移动，输入区域只含可见部分。 [docs/65-agent-screen.md](../docs/65-agent-screen.md)
+- 经 Android → 宿主 → KWin 送到 Qt 的触摸与测试工具直接注入的不一样：捏合中一指先抬起的路径离线重现不了，要用 tools/rungic_touch.py 实机测。测试前确认屏幕上没有真实触点，测试会移动用户屏幕上的浮窗。 [docs/65-agent-screen.md](../docs/65-agent-screen.md)
 - Qt 的 eglSwapBuffers 每帧把整个表面标为受损，浮窗每画一帧（小窗也一样），手机 KWin 都要重新合成整屏。 [docs/research/97-headless-agent-work.md](../docs/research/97-headless-agent-work.md)
-- 真正的毛玻璃要 KWin 的 blur 效果，Plasma Mobile 默认没有加载；全局开启的 GPU 开销没有评估，所以没开。 [docs/65-agent-screen.md](../docs/65-agent-screen.md)
+- 真正的毛玻璃要 KWin 的 blur 效果，Plasma Mobile 默认没有加载。全局开启的 GPU 开销没有评估，所以没开。 [docs/65-agent-screen.md](../docs/65-agent-screen.md)
 - 浮窗程序的语言本来就是英文（标签 “Desktop” 等），授权提示等也是英文。 [docs/research/97-headless-agent-work.md](../docs/research/97-headless-agent-work.md)
 
 文档：[docs/65-agent-screen.md](../docs/65-agent-screen.md)、[docs/research/97-headless-agent-work.md](../docs/research/97-headless-agent-work.md)、[docs/research/91-agent-workspaces.md](../docs/research/91-agent-workspaces.md)
 
 #### 桌面模式全屏
 
-`desktop-mode.fullscreen` · Linux 系统功能 — 浮窗里的桌面进入全屏，铺满手机，横屏显示，系统的对话框、键盘和通知照常在它上面。全屏是一个普通的全屏窗口，PC 上的 Plasma 同样适用。
+`desktop-mode.fullscreen` · Linux 系统功能 — 浮窗桌面可以全屏显示，横向铺满手机。系统对话框、键盘和通知仍显示在它上方。这是普通全屏窗口，也适用于 PC Plasma。
 
 经由接口：`platform-bridge`、`host-input`
 
 - **E1** 进出全屏是连续的变形动画，中间没有空白帧，退出后浮窗回到原来的位置和大小。（单元测试、人工；只能在手机上看：空白帧出不出现取决于手机上新窗口第一帧上屏的时机（手机 KWin 约晚 0.6 秒，离线渲染几毫秒就画出），离线测试只能检查变形连续、交接静帧的先后和回到原位，进入时的那一帧要看手机录屏。）
 - **E2** 全屏是一个普通的全屏窗口：会被激活的对话框（授权框）、屏幕键盘、通知和 OSD 都显示在它上面，关闭后它回到最上面。（系统测试、人工）
 - **E3** Plasma Mobile 的状态栏和导航栏随全屏收起，退出后恢复。（人工）
-- **E4** 竖着拿手机时，全屏画面在窗口里转成横向（手机向左横放的方向），手机本身、桌面和其他应用不转，没有整机转屏；PC 的横屏显示器上不转。（单元测试、人工；只能在手机上看：手机整机转不转屏由安卓的旋转（mCurrentRotation）决定，Linux 一侧测不到；画面在窗口里转、横屏显示器上不转由单元测试检查。）
-- **E5** 离开全屏：工具栏的退出，或电脑上的 Esc；从任务切换器关闭它只回到浮窗，桌面照开；桌面被投到电视时全屏直接撤掉、不播动画。（系统测试、人工）
-- **E6** 全屏铺满时手机 KWin 不再合成它下面的界面，被盖住的程序降到每秒 1 帧；退出全屏时背后的程序立即恢复满帧，没有残影。（系统测试、人工）
-- **E7** 桌面模式的全屏铺满到边：没有边距、圆角、壁纸和阴影，16:9 以外是黑边，点黑边呼出工具栏；进入全屏后工具栏先显示约 1 秒再滑出，告诉用户它在哪里。（单元测试、人工）
+- **E4** 竖着拿手机时，全屏画面在窗口里转成横向（手机向左横放的方向），手机本身、桌面和其他应用不转，没有整机转屏。PC 的横屏显示器上不转。（单元测试、人工；只能在手机上看：手机整机转不转屏由安卓的旋转（mCurrentRotation）决定，Linux 一侧测不到。画面在窗口里转、横屏显示器上不转由单元测试检查。）
+- **E5** 离开全屏：工具栏的退出，或电脑上的 Esc。从任务切换器关闭它只回到浮窗，桌面照开。桌面被投到电视时全屏直接撤掉、不播动画。（系统测试、人工）
+- **E6** 全屏铺满时手机 KWin 不再合成它下面的界面，被盖住的程序降到每秒 1 帧。退出全屏时背后的程序立即恢复满帧，没有残影。（系统测试、人工）
+- **E7** 桌面模式的全屏铺满到边：没有边距、圆角、壁纸和阴影，16:9 以外是黑边，点黑边呼出工具栏。进入全屏后工具栏先显示约 1 秒再滑出，告诉用户它在哪里。（单元测试、人工）
 
 注意：
-- 手机上全屏窗口第一帧比无头环境晚约 0.6 秒；交接要等它真正画出第一帧，否则画面会消失。 [docs/research/97-headless-agent-work.md](../docs/research/97-headless-agent-work.md)
+- 手机上全屏窗口第一帧比无头环境晚约 0.6 秒。交接要等它真正画出第一帧，否则画面会消失。 [docs/research/97-headless-agent-work.md](../docs/research/97-headless-agent-work.md)
 - 浮动键盘没打开时，全屏里的 Esc 是退出全屏，不会送进桌面。 [docs/research/97-headless-agent-work.md](../docs/research/97-headless-agent-work.md)
 - 不要再用 overlay 层的 layer surface 做全屏：它压在 Normal 到 OSD 各层之上，盖住授权框、门户对话框、通知和键盘，逐个窗口打补丁没有尽头（§21）。 [docs/research/97-headless-agent-work.md](../docs/research/97-headless-agent-work.md)
-- 浮窗和全屏必须是两个窗口（没有“同一表面从画中画切到标准全屏”的做法）；新窗口第一次建立纹理、特效和着色器约 110 ms，离开的窗口要留一张静帧，直到另一个窗口画出画面。 [docs/research/97-headless-agent-work.md](../docs/research/97-headless-agent-work.md)
-- 全屏是普通应用窗口：出现在任务切换器里，授权框弹出时面板会重新出现；顶边触摸带下拉、与 §18 边缘手势的分工还没有实机核对。 [docs/research/97-headless-agent-work.md](../docs/research/97-headless-agent-work.md)
-- KWin 补丁 input-panel-above-overlay 只是为原来的 overlay 全屏加的；确认键盘照常显示在标准全屏之上后应当移除。 [docs/research/97-headless-agent-work.md](../docs/research/97-headless-agent-work.md)
-- 遮挡降帧只在一个输出整个被单个不透明、未变换的窗口盖住时生效；被盖住的 Qt 应用每秒“曝光一次”的开销没有测。不透明区域必须在开始退出的同一刻撤销。 [docs/research/97-headless-agent-work.md](../docs/research/97-headless-agent-work.md)
+- 浮窗和全屏必须是两个窗口（没有“同一表面从画中画切到标准全屏”的做法）。新窗口第一次建立纹理、特效和着色器约 110 ms，离开的窗口要留一张静帧，直到另一个窗口画出画面。 [docs/research/97-headless-agent-work.md](../docs/research/97-headless-agent-work.md)
+- 全屏是普通应用窗口：出现在任务切换器里，授权框弹出时面板会重新出现。顶边触摸带下拉、与 §18 边缘手势的分工还没有实机核对。 [docs/research/97-headless-agent-work.md](../docs/research/97-headless-agent-work.md)
+- KWin 补丁 input-panel-above-overlay 只是为原来的 overlay 全屏加的。确认键盘照常显示在标准全屏之上后应当移除。 [docs/research/97-headless-agent-work.md](../docs/research/97-headless-agent-work.md)
+- 遮挡降帧只在一个输出整个被单个不透明、未变换的窗口盖住时生效。被盖住的 Qt 应用每秒“曝光一次”的开销没有测。不透明区域必须在开始退出的同一刻撤销。 [docs/research/97-headless-agent-work.md](../docs/research/97-headless-agent-work.md)
 
 文档：[docs/research/97-headless-agent-work.md](../docs/research/97-headless-agent-work.md)
 
 #### 全屏里用手指操作桌面
 
-`desktop-mode.fullscreen-touch` · Linux 系统功能 — 全屏时手指直接操作桌面，两种方式可切换并记住：直接触摸（手指就是指针）和触控板（手指移动系统光标），手势规则与原来的 APK 全屏一致。
+`desktop-mode.fullscreen-touch` · Linux 系统功能 — 全屏桌面提供直接触摸和触控板两种操作方式。直接触摸以手指位置作为指针，触控板通过手指移动系统光标。用户可以切换方式，系统保存选择。手势规则与原 APK 全屏一致。
 
 经由接口：`host-input`
 
 - **E1** 直接触摸：点按左键，长按约 400 ms 右键，按住移动从按下处开始拖动，双指点按右键、三指点按中键，双指移动自然滚动、松手后惯性滚动。（单元测试、系统测试、人工）
-- **E2** 触控板：单指相对移动系统光标（慢速时物理 1:1、快速时按 libinput 曲线加速），轻点单击、点两下双击、点后按住拖动，双指、三指轻点右键、中键；选的模式会记住。（单元测试、人工）
-- **E3** 直接触摸时画面里没有光标；切到触控板时带光标的画面接上，前后不闪黑、不出现空白。（单元测试、人工）
-- **E4** 从（横屏视角的）底边上滑呼出工具栏，3 秒后隐藏；底边的点按仍是点击；打开着的开始菜单不会因呼出工具栏或点键盘按钮而关闭。（单元测试、人工）
-- **E5** 导播台全屏时点其他屏幕把它设为焦点；团队看板在焦点时触摸不转发给任何屏幕，上滑呼出工具栏照常可用。（单元测试）
+- **E2** 触控板：单指相对移动系统光标（慢速时物理 1:1、快速时按 libinput 曲线加速），轻点单击、点两下双击、点后按住拖动，双指、三指轻点右键、中键。选的模式会记住。（单元测试、人工）
+- **E3** 直接触摸时画面里没有光标。切到触控板时带光标的画面接上，前后不闪黑、不出现空白。（单元测试、人工）
+- **E4** 从（横屏视角的）底边上滑呼出工具栏，3 秒后隐藏。底边的点按仍是点击。打开着的开始菜单不会因呼出工具栏或点键盘按钮而关闭。（单元测试、人工）
+- **E5** 导播台全屏时点其他屏幕把它设为焦点。团队看板在焦点时触摸不转发给任何屏幕，上滑呼出工具栏照常可用。（单元测试）
 
 注意：
 - 替换旧机制前要先逐项列出旧实现的功能：移植 APK 全屏时漏了触控板模式，用户发现工具栏上的切换没了。 [docs/research/97-headless-agent-work.md](../docs/research/97-headless-agent-work.md)
-- 底边起手的触摸要先压住，走出 3.2 mm 再判断（APK 的 stripDecided）；移植时漏了这一步，手指动 1.3 mm 就被当成移动，工具栏永远呼不出来。 [docs/research/97-headless-agent-work.md](../docs/research/97-headless-agent-work.md)
-- 从安卓 24 dp 的边缘区内起手，安卓的系统栏会闪出来，触摸被当成触控板移动；原生安卓本来就是“第一次边缘滑动给应用、第二次给系统”，第一次仍会半透明地显示系统栏约 2.25 秒。 [docs/research/97-headless-agent-work.md](../docs/research/97-headless-agent-work.md)
+- 底边起手的触摸要先压住，走出 3.2 mm 再判断（APK 的 stripDecided）。移植时漏了这一步，手指动 1.3 mm 就被当成移动，工具栏永远呼不出来。 [docs/research/97-headless-agent-work.md](../docs/research/97-headless-agent-work.md)
+- 从安卓 24 dp 的边缘区内起手，安卓的系统栏会闪出来，触摸被当成触控板移动。原生安卓本来就是“第一次边缘滑动给应用、第二次给系统”，第一次仍会半透明地显示系统栏约 2.25 秒。 [docs/research/97-headless-agent-work.md](../docs/research/97-headless-agent-work.md)
 - KPipeWire 只在项目可见时接收数据：带指针的那路画面要一直可见（准备好之前透明度为 0），否则两边互相等待，流一直 suspended。 [docs/research/97-headless-agent-work.md](../docs/research/97-headless-agent-work.md)
 - 点击要在按下 40 ms 后再抬起：面板的应用启动器认不出同一瞬间的按下和抬起。 [docs/66-pointer-gestures.md](../docs/66-pointer-gestures.md) [docs/research/97-headless-agent-work.md](../docs/research/97-headless-agent-work.md)
-- adb 只能模拟单指；双指滚动、多指点按要用 tools/rungic_touch.py 写多点触控事件实机测。 [docs/65-agent-screen.md](../docs/65-agent-screen.md) [docs/research/97-headless-agent-work.md](../docs/research/97-headless-agent-work.md)
+- adb 只能模拟单指。双指滚动、多指点按要用 tools/rungic_touch.py 写多点触控事件实机测。 [docs/65-agent-screen.md](../docs/65-agent-screen.md) [docs/research/97-headless-agent-work.md](../docs/research/97-headless-agent-work.md)
 
 文档：[docs/research/97-headless-agent-work.md](../docs/research/97-headless-agent-work.md)、[docs/66-pointer-gestures.md](../docs/66-pointer-gestures.md)
 
 #### 全屏的浮动键盘
 
-`desktop-mode.floating-keyboard` · Linux 系统功能 — 全屏窗口自带一块像平板浮动输入法那样的键盘：方向随画面旋转，可拖动、缩放、停靠，中文用与手机键盘相同的 Rime，打的字进入桌面里获得焦点的输入框。
+`desktop-mode.floating-keyboard` · Linux 系统功能 — 全屏窗口提供可拖动、缩放和停靠的浮动键盘，类似平板输入法。键盘方向跟随画面。中文使用与手机键盘相同的 Rime，文字进入桌面中获得焦点的输入框。
 
-- **E1** 键盘方向跟着全屏画面转，横握手机时是正的；拖顶栏移动、松手吸附到底部中间或两角，双指缩放，放大到上限停靠成整宽、缩小又浮起来；大小、位置、停靠为桌面模式和助理屏分别记住。（单元测试、人工）
-- **E2** 中文用与手机键盘相同的 Rime 和用户词库：拼音显示在左上角，候选字够大、可横向滑动，第一个（空格选它）用蓝色，能展开全部候选；选中的词上屏到桌面里获得焦点的输入框（密码框也行）。（单元测试、人工）
-- **E3** 顶栏有 Esc、Tab、Ctrl、Alt（点一下作用于下一个键后松开）和四个方向键；按住 Ctrl 或 Alt 时字母和数字按键码发送，Ctrl+C、Alt+F4 等组合键送进桌面。（单元测试）
-- **E4** 键盘打开时全屏工具栏出现在键盘上方，不挡最下面一排键；在键盘上的触摸不会漏到下面的画面。（单元测试、人工）
-- **E5** 浮动键盘打开时手机键盘不同时弹出；收起键盘或退出全屏后键盘消失。（单元测试、系统测试）
+- **E1** 键盘方向跟着全屏画面转，横握手机时是正的。拖顶栏移动、松手吸附到底部中间或两角，双指缩放，放大到上限停靠成整宽、缩小又浮起来。大小、位置、停靠为桌面模式和助理屏分别记住。（单元测试、人工）
+- **E2** 中文用与手机键盘相同的 Rime 和用户词库：拼音显示在左上角，候选字够大、可横向滑动，第一个（空格选它）用蓝色，能展开全部候选。选中的词上屏到桌面里获得焦点的输入框（密码框也行）。（单元测试、人工）
+- **E3** 顶栏有 Esc、Tab、Ctrl、Alt（点一下作用于下一个键后松开）和四个方向键。按住 Ctrl 或 Alt 时字母和数字按键码发送，Ctrl+C、Alt+F4 等组合键送进桌面。（单元测试）
+- **E4** 键盘打开时全屏工具栏出现在键盘上方，不挡最下面一排键。在键盘上的触摸不会漏到下面的画面。（单元测试、人工）
+- **E5** 浮动键盘打开时手机键盘不同时弹出。收起键盘或退出全屏后键盘消失。（单元测试、系统测试）
 - **E6** 键盘加载后位于横屏舞台的底部中间，高度合适，不超出屏幕，离底边留出呼出工具栏的那条边。（单元测试、人工）
 
 注意：
-- 系统键盘 plasma-keyboard 只有铺满屏宽一种尺寸，KWin 只把它放在屏幕底部或光标下，不能旋转和浮动；而画面在窗口里旋转是我们全屏自己的设计，所以键盘做在窗口里，不改共享层。 [docs/research/97-headless-agent-work.md](../docs/research/97-headless-agent-work.md)
-- Qt 虚拟键盘的内置样式按 2560×800 的大屏设计，字号随键盘宽度缩放，手机上按键字只有约 2 mm；自己的样式里所有尺寸取自按键高度。样式的 id 不能叫 style（被键盘组件的同名属性遮住），内联组件看不到外层 id。 [docs/research/97-headless-agent-work.md](../docs/research/97-headless-agent-work.md)
+- 系统键盘 plasma-keyboard 只有铺满屏宽一种尺寸，KWin 只把它放在屏幕底部或光标下，不能旋转和浮动。而画面在窗口里旋转是我们全屏自己的设计，所以键盘做在窗口里，不改共享层。 [docs/research/97-headless-agent-work.md](../docs/research/97-headless-agent-work.md)
+- Qt 虚拟键盘的内置样式按 2560×800 的大屏设计，字号随键盘宽度缩放，手机上按键字只有约 2 mm。自己的样式里所有尺寸取自按键高度。样式的 id 不能叫 style（被键盘组件的同名属性遮住），内联组件看不到外层 id。 [docs/research/97-headless-agent-work.md](../docs/research/97-headless-agent-work.md)
 - 离屏截图不可靠：打字之后截出的顶栏是空的（手机软件渲染、Docker llvmpipe 都一样），看设计要看手机上的真实窗口。 [docs/research/97-headless-agent-work.md](../docs/research/97-headless-agent-work.md)
 - librime 的用户词库是独占锁的 LevelDB：Rime 插件只在键盘使用时持有会话，同一时间只能有一个键盘在用。 [docs/research/97-headless-agent-work.md](../docs/research/97-headless-agent-work.md)
 - 隐藏输入框必须设 ImhNoAutoUppercase | ImhNoPredictiveText：它总是空的，否则每个字母都被当成句首大写。 [docs/research/97-headless-agent-work.md](../docs/research/97-headless-agent-work.md)
-- 窗口进程设了 QT_IM_MODULE=qtvirtualkeyboard，不再有 Wayland text-input；电视键盘模式下手机 KWin 提交给它的文字由 KWin 改成按键送来。 [docs/research/97-headless-agent-work.md](../docs/research/97-headless-agent-work.md)
+- 窗口进程设了 QT_IM_MODULE=qtvirtualkeyboard，不再有 Wayland text-input。电视键盘模式下手机 KWin 提交给它的文字由 KWin 改成按键送来。 [docs/research/97-headless-agent-work.md](../docs/research/97-headless-agent-work.md)
 - 在桌面里点中输入框时自动弹出键盘还没有做（要一个报告“输入框被点中”的 KWin 补丁）。 [docs/research/97-headless-agent-work.md](../docs/research/97-headless-agent-work.md)
 
 文档：[docs/research/97-headless-agent-work.md](../docs/research/97-headless-agent-work.md)
 
 #### 授权框出现在桌面里
 
-`desktop-mode.auth-prompts` · Linux 系统功能 — 桌面里的应用要授权时，授权框画在桌面里（横屏、桌面外观）；只在浮窗时浮窗提示，点了进全屏输入。
+`desktop-mode.auth-prompts` · Linux 系统功能 — 桌面应用需要授权时，授权框显示在桌面内，使用横屏和桌面外观。仅以浮窗观看时，浮窗显示提示。用户点击提示后进入全屏输入。
 
-- **E1** 只把请求方会话总线上的请求转给那里的代理界面；手机自己的、助理屏的、地址不可接受的请求留在手机上弹。（单元测试）
-- **E2** 授权框出现在 0 号桌面里，桌面外观、横向；手机上不再弹竖屏框。（人工）
-- **E3** 桌面只在浮窗里时，浮窗显示“需要授权”提示，点它进入全屏；答完提示消失。（单元测试、人工）
+- **E1** 只把请求方会话总线上的请求转给那里的代理界面。手机自己的、助理屏的、地址不可接受的请求留在手机上弹。（单元测试）
+- **E2** 授权框出现在 0 号桌面里，桌面外观、横向。手机上不再弹竖屏框。（人工）
+- **E3** 桌面只在浮窗里时，浮窗显示“需要授权”提示，点它进入全屏。答完提示消失。（单元测试、人工）
 - **E4** 取消（按钮、Esc、polkit 取消）后请求结束且不授予权限，代理界面不崩溃。（人工）
-- **E5** 电视的电脑模式或远程观看 ws-0 时，授权框同样出现在 0 号桌面里，在哪看就在哪输入。（缺口：还没有实测（docs/97 §21.7“未测和遗留”第一项）；系统测试要先在容器里运行由补丁队列构建的 polkit-kde-agent-1，再有一个 RDP 观看端或电视。）
+- **E5** 电视的电脑模式或远程观看 ws-0 时，授权框同样出现在 0 号桌面里，在哪看就在哪输入。（缺口：还没有实测（docs/97 §21.7“未测和遗留”第一项）。系统测试要先在容器里运行由补丁队列构建的 polkit-kde-agent-1，再有一个 RDP 观看端或电视。）
 
 注意：
 - 原版 PolicyKitListener 取消一次会多次完成结果对象，结果对象不能在第一次完成时释放。 [docs/research/97-headless-agent-work.md](../docs/research/97-headless-agent-work.md)
-- polkit 每个会话只有一个代理；user@ 下的进程都回落到显示会话，按会话分不开桌面实例。 [docs/research/97-headless-agent-work.md](../docs/research/97-headless-agent-work.md)
-- 发起测试要经 systemd-run --user --scope 放进 user@1000.service，像 0 号里真实启动的应用一样；直接从 adb 启动的进程不属于任何会话，polkit 回答 “no agent is available”。 [docs/research/97-headless-agent-work.md](../docs/research/97-headless-agent-work.md)
-- 对话框在 0 号里被放在左上角（0 号 KWin 默认的摆放）；KAuth 应用把对话框挂到自己窗口上、输入正确密码后授权成功都还没测。 [docs/research/97-headless-agent-work.md](../docs/research/97-headless-agent-work.md)
-- rungic_dev.py 原先只用基线发布的 user_restart，工作区新登记的重启项被忽略，部署后手机端代理没有重启；重启时 systemd 提示需要 daemon-reload，重启脚本不执行。 [docs/research/97-headless-agent-work.md](../docs/research/97-headless-agent-work.md)
+- polkit 每个会话只有一个代理。user@ 下的进程都回落到显示会话，按会话分不开桌面实例。 [docs/research/97-headless-agent-work.md](../docs/research/97-headless-agent-work.md)
+- 发起测试要经 systemd-run --user --scope 放进 user@1000.service，像 0 号里真实启动的应用一样。直接从 adb 启动的进程不属于任何会话，polkit 回答 “no agent is available”。 [docs/research/97-headless-agent-work.md](../docs/research/97-headless-agent-work.md)
+- 对话框在 0 号里被放在左上角（0 号 KWin 默认的摆放）。KAuth 应用把对话框挂到自己窗口上、输入正确密码后授权成功都还没测。 [docs/research/97-headless-agent-work.md](../docs/research/97-headless-agent-work.md)
+- rungic_dev.py 原先只用基线发布的 user_restart，工作区新登记的重启项被忽略，部署后手机端代理没有重启。重启时 systemd 提示需要 daemon-reload，重启脚本不执行。 [docs/research/97-headless-agent-work.md](../docs/research/97-headless-agent-work.md)
 
 文档：[docs/research/97-headless-agent-work.md](../docs/research/97-headless-agent-work.md)
 
 #### Rungic 应用里的全屏（旧）（已退役）
 
-`desktop-mode.apk-fullscreen` · 依赖安卓 — 旧做法：浮窗的全屏（含导播台全屏）由 Rungic 应用的 AgentFullscreen 把宿主输出直接呈现在手机上，手势在安卓里识别（DirectGestures）。2026-10-02 起被 Linux 的全屏窗口取代（docs/research/97 §17），Linux 一侧已不再请求它。
+`desktop-mode.apk-fullscreen` · 依赖安卓 — 旧浮窗全屏由 Rungic 应用的 AgentFullscreen 将宿主输出直接呈现在手机上，包括导播台全屏。DirectGestures 在 Android 侧识别手势。自 2026-10-02 起，Linux 全屏窗口取代此入口，Linux 已不再请求它。见 docs/research/97 §17。
 
 经由接口：`kwin-android-host`、`host-input`
 
 
 注意：
-- 2026-10-03 随 APK 2.30 删除（AgentFullscreen、DirectGestures，平台桥 agent-screen、desktop-mode、director 的 fullscreen 字段，Linux 一侧的 AgentScreen::fullscreen()、Director::fullscreen() 和 keeper 的全屏判断）；电视的导播台与触控板（TouchpadGestures）保留。 [docs/research/97-headless-agent-work.md](../docs/research/97-headless-agent-work.md)
+- 2026-10-03 随 APK 2.30 删除（AgentFullscreen、DirectGestures，平台桥 agent-screen、desktop-mode、director 的 fullscreen 字段，Linux 一侧的 AgentScreen::fullscreen()、Director::fullscreen() 和 keeper 的全屏判断）。电视的导播台与触控板（TouchpadGestures）保留。 [docs/research/97-headless-agent-work.md](../docs/research/97-headless-agent-work.md)
 
 ### 在电视上用
 
-选一台电视投屏，电视显示电脑桌面，手机当触控板和键盘；声音跟着画面走，断了能自己连回来。
+选一台电视投屏，电视显示电脑桌面，手机当触控板和键盘。声音跟着画面走，断了能自己连回来。
 
 #### 投屏到电视
 
-`desktop-mode.cast-connect` · 依赖安卓 — 从控制中心的“投屏”选一台电视连上、断开或换一台；电视端断开时自动重连，用户自己断开的不重连。走安卓无线显示框架和高通 WFD 组件，Ready For 开不开都行。
+`desktop-mode.cast-connect` · 依赖安卓 — 用户在控制中心的“投屏”中选择电视，连接、断开或更换接收端。电视端断开时自动重连，用户主动断开时不重连。投屏使用 Android 无线显示框架和高通 WFD 组件，不依赖 Ready For 开关。
 
 经由接口：`wifi-display`、`platform-bridge`
 
-- **E1** 点“投屏”打开“投屏到”面板：同一台电视的多个入口（R1、R2）合并为一项，分“上次使用”和“附近的设备”，忙碌中的不可点；找不到时提示电视须停在等待画面、屏保时搜不到，并列出检查项。（人工）
-- **E2** 选中电视后几秒内连上（G100 S 约 3 秒、X70 约 6 秒），面板自动关闭，电视显示 Linux 桌面；连接中可以取消。（人工）
-- **E3** 用户断开（快捷开关、投屏胶囊、语音、命令）后保持断开，不自动重连；电视端结束会话时几秒后开始自动重连（最长 180 秒），重连成功后 2 分钟内电视又退出就不再重连。（人工）
-- **E4** 投屏中可以换另一台电视：列表里有当前的、上次使用的、最近发现的和安卓已保存的电视，点一台即切换，失败时有提示。（缺口：投屏中实际换到第二台电视、换台失败的提示、“已保存”的电视出现在列表里都还没有实机验收（docs/58：2026-09-29 列为未验证，2026-10-01 修复后待验收）；APK 的换设备面板没有离线测试。）
+- **E1** 点“投屏”打开“投屏到”面板：同一台电视的多个入口（R1、R2）合并为一项，分“上次使用”和“附近的设备”，忙碌中的不可点。找不到时提示电视须停在等待画面、屏保时搜不到，并列出检查项。（人工）
+- **E2** 选中电视后几秒内连上（G100 S 约 3 秒、X70 约 6 秒），面板自动关闭，电视显示 Linux 桌面。连接中可以取消。（人工）
+- **E3** 用户断开（快捷开关、投屏胶囊、语音、命令）后保持断开，不自动重连。电视端结束会话时几秒后开始自动重连（最长 180 秒），重连成功后 2 分钟内电视又退出就不再重连。（人工）
+- **E4** 投屏中可以换另一台电视：列表里有当前的、上次使用的、最近发现的和安卓已保存的电视，点一台即切换，失败时有提示。（缺口：投屏中实际换到第二台电视、换台失败的提示、“已保存”的电视出现在列表里都还没有实机验收（docs/58：2026-09-29 列为未验证，2026-10-01 修复后待验收）。APK 的换设备面板没有离线测试。）
 - **E5** 后端出错时说清原因（组件版本不兼容、无线显示关闭、Wi-Fi 不可用、超时等），不显示成“没有电视”的空列表。（单元测试、人工）
 - **E6** 电视的 R2 入口不会因厂商 WFD 配置超出本机编码器而一连上就断：配置按本机编码器能力生成，只降不升。（人工）
 - **E7** 对语音助手说“投到电视上”“把投屏断开”，它会连接或断开并口头确认。（人工）
 
 注意：
-- 电视进入屏保后停止 P2P 监听，扫描不到；TCL 只在等待画面出现后的短时间内监听。查发现问题前先问用户电视是不是在屏保。 [docs/58-miracast-desktop-feasibility.md](../docs/58-miracast-desktop-feasibility.md) [docs/84-miracast-source.md](../docs/84-miracast-source.md)
-- 用户在电视遥控器上退出投屏与电视端故障无法区分，会被自动重连一次；P2P 链路直接丢失时日志顺序可能与手机端断开相同，不会重连（未验证）。重连判断依赖 logcat 字符串顺序。 [docs/58-miracast-desktop-feasibility.md](../docs/58-miracast-desktop-feasibility.md) [docs/86-x70-miracast-assessment.md](../docs/86-x70-miracast-assessment.md)
+- 电视进入屏保后停止 P2P 监听，扫描不到。TCL 只在等待画面出现后的短时间内监听。查发现问题前先问用户电视是不是在屏保。 [docs/58-miracast-desktop-feasibility.md](../docs/58-miracast-desktop-feasibility.md) [docs/84-miracast-source.md](../docs/84-miracast-source.md)
+- 用户在电视遥控器上退出投屏与电视端故障无法区分，会被自动重连一次。P2P 链路直接丢失时日志顺序可能与手机端断开相同，不会重连（未验证）。重连判断依赖 logcat 字符串顺序。 [docs/58-miracast-desktop-feasibility.md](../docs/58-miracast-desktop-feasibility.md) [docs/86-x70-miracast-assessment.md](../docs/86-x70-miracast-assessment.md)
 - 会话在 PLAYING 约 45–48 秒后因 P2P 链路丢失断开过多次（电视为组主、5 GHz、rssi -87），原因未排除。 [docs/58-miracast-desktop-feasibility.md](../docs/58-miracast-desktop-feasibility.md)
-- 投屏期间安卓不扫描，“最近发现”会过期；不扫描时 status 里的 available 可能是上次扫描的结果，选设备只采信 scan 的可见状态。 [docs/58-miracast-desktop-feasibility.md](../docs/58-miracast-desktop-feasibility.md)
+- 投屏期间安卓不扫描，“最近发现”会过期。不扫描时 status 里的 available 可能是上次扫描的结果，选设备只采信 scan 的可见状态。 [docs/58-miracast-desktop-feasibility.md](../docs/58-miracast-desktop-feasibility.md)
 - 手机上的 root 组件（rungic-cast.jar）要和容器里的 rungic-cast 版本一致：旧 jar 没有 protocol_version、没有 receivers，面板就列不出电视。 [docs/58-miracast-desktop-feasibility.md](../docs/58-miracast-desktop-feasibility.md) [docs/86-x70-miracast-assessment.md](../docs/86-x70-miracast-assessment.md)
 - 编码器失败后 rungic-cast-watch 会按“电视端断开”反复重连且错误为空，快捷开关只显示“没有连上电视”。 [docs/58-miracast-desktop-feasibility.md](../docs/58-miracast-desktop-feasibility.md)
-- wfd.sepolicy.rule 只针对 XT2537-4（G100 S）的高通域，其他机型要按实际 AVC 核对，不能机械套用；未知平台走不改厂商的框架路径。 [docs/58-miracast-desktop-feasibility.md](../docs/58-miracast-desktop-feasibility.md) [docs/86-x70-miracast-assessment.md](../docs/86-x70-miracast-assessment.md)
-- X70 上直接关掉无线显示开关后，紧接着的重连多次超时，失败在 P2P/IP 建立之后、WFD 会话完成之前，未定因；刷新率变更的完整重新协商也没单独验证。 [docs/86-x70-miracast-assessment.md](../docs/86-x70-miracast-assessment.md)
-- 连接时 Moto“超级互联显示”仍会在手机上弹“已连接至…”横幅；Ready For 参与连接，不能整体停用。 [docs/58-miracast-desktop-feasibility.md](../docs/58-miracast-desktop-feasibility.md)
+- wfd.sepolicy.rule 只针对 XT2537-4（G100 S）的高通域，其他机型要按实际 AVC 核对，不能机械套用。未知平台走不改厂商的框架路径。 [docs/58-miracast-desktop-feasibility.md](../docs/58-miracast-desktop-feasibility.md) [docs/86-x70-miracast-assessment.md](../docs/86-x70-miracast-assessment.md)
+- X70 上直接关掉无线显示开关后，紧接着的重连多次超时，失败在 P2P/IP 建立之后、WFD 会话完成之前，未定因。刷新率变更的完整重新协商也没单独验证。 [docs/86-x70-miracast-assessment.md](../docs/86-x70-miracast-assessment.md)
+- 连接时 Moto“超级互联显示”仍会在手机上弹“已连接至…”横幅。Ready For 参与连接，不能整体停用。 [docs/58-miracast-desktop-feasibility.md](../docs/58-miracast-desktop-feasibility.md)
 
 文档：[docs/58-miracast-desktop-feasibility.md](../docs/58-miracast-desktop-feasibility.md)、[docs/86-x70-miracast-assessment.md](../docs/86-x70-miracast-assessment.md)、[docs/research/g100-ugreen-miracast.md](../docs/research/g100-ugreen-miracast.md)
 
 #### 电视上只显示 Rungic 的桌面
 
-`desktop-mode.tv-shows-linux` · 依赖安卓 — 投屏后电视上是 Linux 桌面，不被厂商的投屏界面（Moto 欢迎页、任务栏、副屏主屏）盖住；断开后厂商组件恢复原样。规则按实际窗口判断，不按机型名单。
+`desktop-mode.tv-shows-linux` · 依赖安卓 — 投屏后，电视显示 Linux 桌面。厂商的欢迎页、任务栏和副屏主屏不会覆盖它。断开后，厂商组件恢复原状。规则根据实际窗口判断，不使用机型名单。
 
 经由接口：`wifi-display`
 
-- **E1** 只有实际盖在 Linux 桌面上的厂商界面（同一块外屏、真的可见、包和 UID 相符、层级更高）才被处理，只暂停实际出现的冲突包；不因装了某个包就停用它，不接管没有 Rungic 桌面的普通安卓投屏。（单元测试、人工）
+- **E1** 只有实际盖在 Linux 桌面上的厂商界面（同一块外屏、真的可见、包和 UID 相符、层级更高）才被处理，只暂停实际出现的冲突包。不因装了某个包就停用它，不接管没有 Rungic 桌面的普通安卓投屏。（单元测试、人工）
 - **E2** 断开（包括异常断开、关掉无线显示、重启）后，被暂停的包恢复到投屏前的原状态，租约释放。（人工）
 - **E3** 电视上不闪出手机的副屏主屏，输入焦点留在手机上。（人工）
 - **E4** 缺少悬浮窗权限时，应用自己以 root 授予，仍不行再打开系统授权页并等用户允许，电视照样出现 Linux 桌面。（人工）
 
 注意：
 - 首次识别要等厂商窗口出现，开始投屏时可能短暂露出 Moto 界面，没有证明零闪屏。 [docs/research/g100-ugreen-miracast.md](../docs/research/g100-ugreen-miracast.md)
-- 窗口观测（dumpsys window）不是公开接口：字段缺失或未知时不匹配、不停包；新厂商的界面要按实际窗口加规则，不能说所有品牌已自动适配。 [docs/research/g100-ugreen-miracast.md](../docs/research/g100-ugreen-miracast.md)
+- 窗口观测（dumpsys window）不是公开接口：字段缺失或未知时不匹配、不停包。新厂商的界面要按实际窗口加规则，不能说所有品牌已自动适配。 [docs/research/g100-ugreen-miracast.md](../docs/research/g100-ugreen-miracast.md)
 - 不能把 ApplicationInfo.FLAG_SYSTEM 当作“系统预装”：com.motorola.mobiledesktop 在 /product/preinstall 下却没有 SYSTEM 标记，第一版因此漏判了欢迎页。 [docs/research/g100-ugreen-miracast.md](../docs/research/g100-ugreen-miracast.md)
 - 暂停的是整个厂商 UI 包，投屏期间该包的其他界面也不可用。 [docs/86-x70-miracast-assessment.md](../docs/86-x70-miracast-assessment.md)
-- 手机锁屏时安卓在电视上显示锁屏（KeyguardPresentation），盖住 Linux；这与厂商界面是两件事，不能靠停用 SystemUI 解决；手机进入 Dozing 后电视上是锁屏时钟。 [docs/86-x70-miracast-assessment.md](../docs/86-x70-miracast-assessment.md)
-- 普通应用的 TYPE_APPLICATION_OVERLAY 盖不过厂商的系统窗口；setShouldShowSystemDecors(false) 会被显示自身的 FLAG_SHOULD_SHOW_SYSTEM_DECORATIONS 覆盖，无效。 [docs/58-miracast-desktop-feasibility.md](../docs/58-miracast-desktop-feasibility.md) [docs/86-x70-miracast-assessment.md](../docs/86-x70-miracast-assessment.md)
+- 手机锁屏时安卓在电视上显示锁屏（KeyguardPresentation），盖住 Linux。这与厂商界面是两件事，不能靠停用 SystemUI 解决。手机进入 Dozing 后电视上是锁屏时钟。 [docs/86-x70-miracast-assessment.md](../docs/86-x70-miracast-assessment.md)
+- 普通应用的 TYPE_APPLICATION_OVERLAY 盖不过厂商的系统窗口。setShouldShowSystemDecors(false) 会被显示自身的 FLAG_SHOULD_SHOW_SYSTEM_DECORATIONS 覆盖，无效。 [docs/58-miracast-desktop-feasibility.md](../docs/58-miracast-desktop-feasibility.md) [docs/86-x70-miracast-assessment.md](../docs/86-x70-miracast-assessment.md)
 
 文档：[docs/research/g100-ugreen-miracast.md](../docs/research/g100-ugreen-miracast.md)、[docs/86-x70-miracast-assessment.md](../docs/86-x70-miracast-assessment.md)、[docs/58-miracast-desktop-feasibility.md](../docs/58-miracast-desktop-feasibility.md)
 
 #### 投屏的分辨率与帧率
 
-`desktop-mode.cast-video-modes` · 依赖安卓 — 投屏胶囊里的“分辨率与帧率…”只列出这台电视与这台手机之间真正能用的视频模式，选了就核对是否生效，失败就恢复。
+`desktop-mode.cast-video-modes` · 依赖安卓 — 投屏胶囊的“分辨率与帧率…”只列出当前电视与手机能实际使用的视频模式。选择后，系统核对模式是否生效，失败时恢复原模式。
 
 经由接口：`wifi-display`
 
-- **E1** 列表只有“自动”、当前协商的模式和在这台电视上实际切换并核对成功的模式（协商读回一致、外屏尺寸一致、连接保持 5 秒）；没有未验证或“试用”的选项。（人工）
-- **E2** 切换失败时恢复原来的模式并从列表里去掉；检查结果按接收端、它声明的能力、手机固件和组件版本分开记，每项 7 天过期，记录损坏或身份不符时不信任。（实机验收、人工）
+- **E1** 列表只有“自动”、当前协商的模式和在这台电视上实际切换并核对成功的模式（协商读回一致、外屏尺寸一致、连接保持 5 秒）。没有未验证或“试用”的选项。（人工）
+- **E2** 切换失败时恢复原来的模式并从列表里去掉。检查结果按接收端、它声明的能力、手机固件和组件版本分开记，每项 7 天过期，记录损坏或身份不符时不信任。（实机验收、人工）
 - **E3** 同尺寸改帧率在线完成（约 3.5 秒），改尺寸则重新连接，手机上的外屏和 Linux 桌面的大小同步改变。（人工）
-- **E4** 接收端的能力按它本次 RTSP 回复实际解析（R1、R2 位表，64 位位图，隔行与逐行区分）；抓包缺段、有歧义或没有握手记录时记为未知，不推测、不用内置表冒充。（单元测试）
-- **E5** 模式在胶囊里的底部面板里选，点“应用”才生效；取消、返回键、点遮罩、下拉都回到胶囊。（人工）
+- **E4** 接收端的能力按它本次 RTSP 回复实际解析（R1、R2 位表，64 位位图，隔行与逐行区分）。抓包缺段、有歧义或没有握手记录时记为未知，不推测、不用内置表冒充。（单元测试）
+- **E5** 模式在胶囊里的底部面板里选，点“应用”才生效。取消、返回键、点遮罩、下拉都回到胶囊。（人工）
 
 注意：
-- 安卓和 KScreen 显示的 60 Hz 是显示刷新率，不是视频 60 fps；UGREEN 默认协商的是 1080p30。 [docs/research/miracast-video-modes.md](../docs/research/miracast-video-modes.md) [docs/research/g100-ugreen-miracast.md](../docs/research/g100-ugreen-miracast.md)
-- XML 和属性只控制 offer 的上限，不能做精确选择；setResolution 返回 0 却不改变协商，getCommonResolution 在 R2 会话返回空，返回码不能当作成功。 [docs/research/miracast-video-modes.md](../docs/research/miracast-video-modes.md)
-- 高通 Java wrapper 的 VESA 校验表不接受 R2 的位 30–32，1440p 以上暂时开不了；不猜 handle、不另建会话、不改闭源库。 [docs/research/miracast-video-modes.md](../docs/research/miracast-video-modes.md)
-- 能力读取靠系统自带的 tcpdump 只看 RTSP 7236 端口；从安卓设置直接连上的会话没有握手记录，能力为 unknown，要重新连接一次。 [docs/research/miracast-video-modes.md](../docs/research/miracast-video-modes.md)
+- 安卓和 KScreen 显示的 60 Hz 是显示刷新率，不是视频 60 fps。UGREEN 默认协商的是 1080p30。 [docs/research/miracast-video-modes.md](../docs/research/miracast-video-modes.md) [docs/research/g100-ugreen-miracast.md](../docs/research/g100-ugreen-miracast.md)
+- XML 和属性只控制 offer 的上限，不能做精确选择。setResolution 返回 0 却不改变协商，getCommonResolution 在 R2 会话返回空，返回码不能当作成功。 [docs/research/miracast-video-modes.md](../docs/research/miracast-video-modes.md)
+- 高通 Java wrapper 的 VESA 校验表不接受 R2 的位 30–32，1440p 以上暂时开不了。不猜 handle、不另建会话、不改闭源库。 [docs/research/miracast-video-modes.md](../docs/research/miracast-video-modes.md)
+- 能力读取靠系统自带的 tcpdump 只看 RTSP 7236 端口。从安卓设置直接连上的会话没有握手记录，能力为 unknown，要重新连接一次。 [docs/research/miracast-video-modes.md](../docs/research/miracast-video-modes.md)
 
 文档：[docs/research/miracast-video-modes.md](../docs/research/miracast-video-modes.md)、[docs/58-miracast-desktop-feasibility.md](../docs/58-miracast-desktop-feasibility.md)
 
 #### 电视上的电脑模式
 
-`desktop-mode.tv-computer-mode` · Linux 系统功能 — 电视投“电脑模式”时显示的是独立桌面（0 号），手机当它的触控板和键盘；桌面模式在电视上时手机上的浮窗收起。
+`desktop-mode.tv-computer-mode` · Linux 系统功能 — 电视的“电脑模式”显示独立桌面，即工作区 0。手机作为该桌面的触控板和键盘。桌面显示在电视上时，手机浮窗收起。
 
 经由接口：`kwin-android-host`、`host-input`、`platform-bridge`
 
-- **E1** 电视投电脑模式时显示 0 号桌面，盖住手机会话放在那块输出上的外壳；连上后马上出画面，不等桌面里的画面下一次变化。（单元测试）
-- **E2** 电视上只有一个光标，跟着手机触控板移动，位置与 0 号里的指针一一对应；按键和滚轮按比例转进 0 号（一格滚轮 = 15 个轴单位）。（单元测试）
+- **E1** 电视投电脑模式时显示 0 号桌面，盖住手机会话放在那块输出上的外壳。连上后马上出画面，不等桌面里的画面下一次变化。（单元测试）
+- **E2** 电视上只有一个光标，跟着手机触控板移动，位置与 0 号里的指针一一对应。按键和滚轮按比例转进 0 号（一格滚轮 = 15 个轴单位）。（单元测试）
 - **E3** 投屏控制的键盘模式打的文字（含中文、表情）进入 0 号里获得焦点的输入框。（单元测试）
-- **E4** 桌面模式在电视上时手机上的浮窗收起，0 号的画面流继续；断开电视后浮窗回来。（单元测试、系统测试）
-- **E5** 每个窗口的投屏按钮投它自己的画面：桌面模式的浮窗投电脑模式，助理屏投导播台（并把那块屏设为焦点）；没有电视时先打开选电视列表，已连电视时打开投屏控制面板；快捷开关只打开面板。（单元测试、系统测试）
+- **E4** 桌面模式在电视上时手机上的浮窗收起，0 号的画面流继续。断开电视后浮窗回来。（单元测试、系统测试）
+- **E5** 每个窗口的投屏按钮投它自己的画面：桌面模式的浮窗投电脑模式，助理屏投导播台（并把那块屏设为焦点）。没有电视时先打开选电视列表，已连电视时打开投屏控制面板。快捷开关只打开面板。（单元测试、系统测试）
 
 注意：
-- KWin 的屏幕录制流不给新加入的接收方补发当前帧：电视窗口接已有的那条流时要等到下一次画面变化（约 30 秒黑屏）；电视要单独开一条新流（tv-stream）。 [docs/research/97-headless-agent-work.md](../docs/research/97-headless-agent-work.md)
-- 投屏按钮原来只发 source:0，安卓把 0 当作“不改内容”，新连上的电视又被无条件设成导播台，于是桌面模式投出的是导播台；窗口按钮必须带上 content。 [docs/58-miracast-desktop-feasibility.md](../docs/58-miracast-desktop-feasibility.md)
-- 电视上的桌面由 CAST 输出上一块 overlay 层的图层窗口显示（placeOnCast），和原来的 overlay 全屏是同一类，会压住同层后来出现的窗口；下面的 Plasma Mobile 外接屏外壳和 docked 模式照常运行。 [docs/research/97-headless-agent-work.md](../docs/research/97-headless-agent-work.md)
+- KWin 的屏幕录制流不给新加入的接收方补发当前帧：电视窗口接已有的那条流时要等到下一次画面变化（约 30 秒黑屏）。电视要单独开一条新流（tv-stream）。 [docs/research/97-headless-agent-work.md](../docs/research/97-headless-agent-work.md)
+- 投屏按钮原来只发 source:0，安卓把 0 当作“不改内容”，新连上的电视又被无条件设成导播台，于是桌面模式投出的是导播台。窗口按钮必须带上 content。 [docs/58-miracast-desktop-feasibility.md](../docs/58-miracast-desktop-feasibility.md)
+- 电视上的桌面由 CAST 输出上一块 overlay 层的图层窗口显示（placeOnCast），和原来的 overlay 全屏是同一类，会压住同层后来出现的窗口。下面的 Plasma Mobile 外接屏外壳和 docked 模式照常运行。 [docs/research/97-headless-agent-work.md](../docs/research/97-headless-agent-work.md)
 - 电视的电脑模式在 2026-10-03 改投 0 号后，黑屏和没声音的修复还在等用户在电视上复测。 [docs/research/97-headless-agent-work.md](../docs/research/97-headless-agent-work.md)
 
 文档：[docs/research/97-headless-agent-work.md](../docs/research/97-headless-agent-work.md)、[docs/58-miracast-desktop-feasibility.md](../docs/58-miracast-desktop-feasibility.md)
 
 #### 手机当电视的触控板和键盘
 
-`desktop-mode.tv-touchpad` · 依赖安卓 — 投屏时手机上有一个投屏胶囊，可在“手机／触控板／键盘”之间切换：触控板移动电视上的光标，键盘把字打进电视上的窗口。
+`desktop-mode.tv-touchpad` · 依赖安卓 — 投屏时，手机显示投屏胶囊。用户可以切换“手机／触控板／键盘”。触控板移动电视光标，键盘向电视窗口输入文字。
 
 经由接口：`host-input`、`platform-bridge`
 
-- **E1** 投屏时出现投屏胶囊，显示电视名和状态；空闲 4 秒后收成贴边小胶囊，可拖到任意位置、松手吸附到较近一边，位置在应用重启后保留；贴边时不会触发安卓的返回手势。（人工）
-- **E2** 触控板：手指移动电视上的光标，慢速时按视角 1:1（约 10.5 像素/毫米）、快速时加速；轻点单击、轻点后按住拖动、双指滚动（内容跟着手指，松手有停止事件）、双指轻点右键、三指轻点中键。（人工）
-- **E3** 键盘：按键和输入法提交的文字（含中文、表情）送到电视上获得焦点的 Linux 窗口，电视上不弹 Plasma 屏幕键盘；输入法被返回键收起后自动回到触控板。（人工）
-- **E4** 手机模式下手机照常操作 Plasma 移动界面；投屏中手机屏幕保持常亮，触控板和键盘模式下亮度降到很低，回到手机模式后恢复。（人工）
+- **E1** 投屏时出现投屏胶囊，显示电视名和状态。空闲 4 秒后收成贴边小胶囊，可拖到任意位置、松手吸附到较近一边，位置在应用重启后保留。贴边时不会触发安卓的返回手势。（人工）
+- **E2** 触控板：手指移动电视上的光标，慢速时按视角 1:1（约 10.5 像素/毫米）、快速时加速。轻点单击、轻点后按住拖动、双指滚动（内容跟着手指，松手有停止事件）、双指轻点右键、三指轻点中键。（人工）
+- **E3** 键盘：按键和输入法提交的文字（含中文、表情）送到电视上获得焦点的 Linux 窗口，电视上不弹 Plasma 屏幕键盘。输入法被返回键收起后自动回到触控板。（人工）
+- **E4** 手机模式下手机照常操作 Plasma 移动界面。投屏中手机屏幕保持常亮，触控板和键盘模式下亮度降到很低，回到手机模式后恢复。（人工）
 
 注意：
 - 电视上光标抖动、不跟手的原因没有定位（嫌疑：KWin CAST 时钟与无线显示编码时钟不同步、120 Hz 输入对 60 Hz 出帧、编码和 Wi-Fi 延迟）。 [docs/66-pointer-gestures.md](../docs/66-pointer-gestures.md)
-- 轻点和移动的阈值要按每根手指相对自己的按下点判断；用多指中点对比第一指按下点时，第二根手指一落下就超阈值，双指轻点失效。 [docs/66-pointer-gestures.md](../docs/66-pointer-gestures.md)
+- 轻点和移动的阈值要按每根手指相对自己的按下点判断。用多指中点对比第一指按下点时，第二根手指一落下就超阈值，双指轻点失效。 [docs/66-pointer-gestures.md](../docs/66-pointer-gestures.md)
 - 10.5 像素/毫米是按电视占 35° 视野推算的，拿不到电视的实际尺寸和观看距离。 [docs/66-pointer-gestures.md](../docs/66-pointer-gestures.md)
 - 应用在后台时手机上没有触控板和键盘，电视只能看不能操作（除非另接蓝牙键鼠，未测）。 [docs/58-miracast-desktop-feasibility.md](../docs/58-miracast-desktop-feasibility.md)
-- 胶囊画在 Linux 画面之上，Plasma 面板打开时小胶囊仍压在面板边缘；收起后原来展开区域的点击落到桌面。 [docs/58-miracast-desktop-feasibility.md](../docs/58-miracast-desktop-feasibility.md)
+- 胶囊画在 Linux 画面之上，Plasma 面板打开时小胶囊仍压在面板边缘。收起后原来展开区域的点击落到桌面。 [docs/58-miracast-desktop-feasibility.md](../docs/58-miracast-desktop-feasibility.md)
 - 注入测试时一次轻点总时长超过 180 ms 就不算轻点。 [docs/66-pointer-gestures.md](../docs/66-pointer-gestures.md)
 
 文档：[docs/66-pointer-gestures.md](../docs/66-pointer-gestures.md)、[docs/58-miracast-desktop-feasibility.md](../docs/58-miracast-desktop-feasibility.md)
 
 #### 声音跟着画面
 
-`desktop-mode.audio-follow` · Linux 系统功能 — 投屏时每个声音从它的画面所在的地方出来：手机上的应用从手机出声，电视上的从电视出声；断开电视后一切回到默认输出。
+`desktop-mode.audio-follow` · Linux 系统功能 — 投屏时，声音跟随应用画面。手机应用从手机播放声音，电视应用从电视播放声音。电视断开后，所有声音恢复默认输出。
 
 经由接口：`audio`、`platform-bridge`
 
-- **E1** 窗口在手机上的应用从手机出声，窗口在电视上的从电视出声；没有窗口的声音在电视投电脑模式时去电视，否则留在手机。（单元测试、人工）
-- **E2** 助理屏的声音在电视显示它时去电视，否则去手机；独立桌面（0 号）在电视投电脑模式时去电视，否则在手机。（单元测试）
+- **E1** 窗口在手机上的应用从手机出声，窗口在电视上的从电视出声。没有窗口的声音在电视投电脑模式时去电视，否则留在手机。（单元测试、人工）
+- **E2** 助理屏的声音在电视显示它时去电视，否则去手机。独立桌面（0 号）在电视投电脑模式时去电视，否则在手机。（单元测试）
 - **E3** 应用自己选定的去处不动：语音助手的手机输出、通话用的扬声器、工作区自己的声道。（单元测试）
 - **E4** 断开电视后，挪过的声音都回到默认输出。（单元测试）
-- **E5** 留在手机本机的声音不卡顿，延迟有上限（约 185 ms）。（人工；只能在手机上看：手机本机的声音卡不卡、延迟多少取决于安卓 AudioTrack 的输出线程和扬声器路径，只能在手机上听和测；Linux 一侧按画面分配去处由 E1–E4 的单元测试检查。）
+- **E5** 留在手机本机的声音不卡顿，延迟有上限（约 185 ms）。（人工；只能在手机上看：手机本机的声音卡不卡、延迟多少取决于安卓 AudioTrack 的输出线程和扬声器路径，只能在手机上听和测。Linux 一侧按画面分配去处由 E1–E4 的单元测试检查。）
 
 注意：
 - 安卓会把所有普通媒体声音都送到无线显示，所以要在 Linux 一侧按画面所在分配，否则手机上玩的游戏声音从电视出来。 [docs/58-miracast-desktop-feasibility.md](../docs/58-miracast-desktop-feasibility.md)
-- AudioTrack 用 PERFORMANCE_MODE_LOW_LATENCY 时不再理会 setPreferredDevice，投屏时被送到 PROXY，声音跑到电视上；已撤回。以后试 USAGE_GAME 前也要先核对这一点。 [docs/58-miracast-desktop-feasibility.md](../docs/58-miracast-desktop-feasibility.md)
+- AudioTrack 用 PERFORMANCE_MODE_LOW_LATENCY 时不再理会 setPreferredDevice，投屏时被送到 PROXY，声音跑到电视上。已撤回。以后试 USAGE_GAME 前也要先核对这一点。 [docs/58-miracast-desktop-feasibility.md](../docs/58-miracast-desktop-feasibility.md)
 - 浏览器的声音来自子进程，找窗口时要沿父进程往上查。 [docs/58-miracast-desktop-feasibility.md](../docs/58-miracast-desktop-feasibility.md)
-- 手机本机这一路比默认路径多约 0.15–0.2 s；剩下的延迟主要在安卓扬声器输出线程，暂不处理。 [docs/58-miracast-desktop-feasibility.md](../docs/58-miracast-desktop-feasibility.md)
-- 0 号的回环要一直开着（rungic-workspace-sound 0 listen），并每 30 秒检查补建；0 号在这一行加入之前启动时没有回环，电视上没声音。 [docs/research/97-headless-agent-work.md](../docs/research/97-headless-agent-work.md)
+- 手机本机这一路比默认路径多约 0.15–0.2 s。剩下的延迟主要在安卓扬声器输出线程，暂不处理。 [docs/58-miracast-desktop-feasibility.md](../docs/58-miracast-desktop-feasibility.md)
+- 0 号的回环要一直开着（rungic-workspace-sound 0 listen），并每 30 秒检查补建。0 号在这一行加入之前启动时没有回环，电视上没声音。 [docs/research/97-headless-agent-work.md](../docs/research/97-headless-agent-work.md)
 
 文档：[docs/58-miracast-desktop-feasibility.md](../docs/58-miracast-desktop-feasibility.md)、[docs/research/97-headless-agent-work.md](../docs/research/97-headless-agent-work.md)
 
 #### 外接屏上的桌面外观
 
-`desktop-mode.external-screen` · Linux 系统功能 — 手机自己的会话接上一块外接屏（电视的 CAST 输出、PC 上的显示器）时，外接屏是 Plasma 桌面式外观（文件夹桌面、任务栏、开始菜单），窗口在外接屏上带标题栏，手机上的保持移动样式。
+`desktop-mode.external-screen` · Linux 系统功能 — 手机会话支持电视 CAST 输出或 PC 显示器作为外接屏。外接屏使用文件夹桌面、任务栏和开始菜单等 Plasma 桌面外观。外屏窗口显示标题栏，手机窗口保持移动样式。
 
 经由接口：`kwin-android-host`
 
-- **E1** 接上外接屏后进入 docked 模式，拔掉后退出；会话在外接屏连着时重启，拔掉后也能退出 docked。（人工）
-- **E2** 外接屏有任务栏和开始菜单，开始菜单贴任务栏弹出且大小完整，打开的应用出现在外接屏并在其任务栏高亮；手机仍是移动界面。（人工）
-- **E3** 窗口规则按所在的屏区分：手机上的窗口无边框、最大化，外接屏上的带边框；窗口换屏时重新套用，状态栏和导航条保持沉浸样式。（人工）
+- **E1** 接上外接屏后进入 docked 模式，拔掉后退出。会话在外接屏连着时重启，拔掉后也能退出 docked。（人工）
+- **E2** 外接屏有任务栏和开始菜单，开始菜单贴任务栏弹出且大小完整，打开的应用出现在外接屏并在其任务栏高亮。手机仍是移动界面。（人工）
+- **E3** 窗口规则按所在的屏区分：手机上的窗口无边框、最大化，外接屏上的带边框。窗口换屏时重新套用，状态栏和导航条保持沉浸样式。（人工）
 - **E4** 应用已在外接屏上时，在手机主屏点它的图标，窗口回到手机并按手机样式显示。（人工）
 - **E5** 断开外接屏后，每条通知只在手机上弹一次，不再多出一个桌面样式的弹窗。（人工）
 
 注意：
-- 电视的电脑模式自 2026-10-03 起投 0 号（盖在 CAST 上的图层窗口），手机会话在外接屏上的这套外壳在电视上看不到；补丁按 §19 保留给真显示器和 PC 用。 [docs/research/97-headless-agent-work.md](../docs/research/97-headless-agent-work.md)
-- external-desktop.js 判断屏上是否已有面板时不能只看 screen（面板视图约 0.4 s 后才有屏号），否则每次接屏多建一个面板；脚本不去重，其他设备上已累积的面板要另行清理。 [docs/58-miracast-desktop-feasibility.md](../docs/58-miracast-desktop-feasibility.md)
-- 上游 KScreenOSDProvider 把“插入前的模式”记在 convergenceModeEnabled 本身，docked 状态下重启会话就回不去；KScreenOSDUtil 构造时从不读取 KScreen 配置，插入外屏也不会切换。 [docs/58-miracast-desktop-feasibility.md](../docs/58-miracast-desktop-feasibility.md)
+- 电视的电脑模式自 2026-10-03 起投 0 号（盖在 CAST 上的图层窗口），手机会话在外接屏上的这套外壳在电视上看不到。补丁按 §19 保留给真显示器和 PC 用。 [docs/research/97-headless-agent-work.md](../docs/research/97-headless-agent-work.md)
+- external-desktop.js 判断屏上是否已有面板时不能只看 screen（面板视图约 0.4 s 后才有屏号），否则每次接屏多建一个面板。脚本不去重，其他设备上已累积的面板要另行清理。 [docs/58-miracast-desktop-feasibility.md](../docs/58-miracast-desktop-feasibility.md)
+- 上游 KScreenOSDProvider 把“插入前的模式”记在 convergenceModeEnabled 本身，docked 状态下重启会话就回不去。KScreenOSDUtil 构造时从不读取 KScreen 配置，插入外屏也不会切换。 [docs/58-miracast-desktop-feasibility.md](../docs/58-miracast-desktop-feasibility.md)
 - KWin 的 TabletMode 和应用自身的移动/桌面形态仍是全局的，没有按屏区分。 [docs/58-miracast-desktop-feasibility.md](../docs/58-miracast-desktop-feasibility.md)
-- 升级后第一次接电视的那次会话里，断开后通知仍会重复一次（小程序已加载）；kickoff 和手机的任务切换器不走“点图标回到点击的屏”。 [docs/58-miracast-desktop-feasibility.md](../docs/58-miracast-desktop-feasibility.md)
+- 升级后第一次接电视的那次会话里，断开后通知仍会重复一次（小程序已加载）。kickoff 和手机的任务切换器不走“点图标回到点击的屏”。 [docs/58-miracast-desktop-feasibility.md](../docs/58-miracast-desktop-feasibility.md)
 
 文档：[docs/58-miracast-desktop-feasibility.md](../docs/58-miracast-desktop-feasibility.md)
 
 #### 投屏组件随安装就绪
 
-`desktop-mode.cast-install` · 依赖安卓 — 新装或升级后，投屏在安卓一侧要用的组件（root 工具、重连守护、开机脚本、SELinux 规则）自动就位且与桌面一侧版本一致，坏了能修，装不上也不影响桌面。
+`desktop-mode.cast-install` · 依赖安卓 — 新装或升级时，Android 侧的投屏组件自动安装，并与桌面侧版本一致。组件包括 root 工具、重连守护、开机脚本和 SELinux 规则。损坏的组件可以修复，安装失败不阻止桌面运行。
 
 经由接口：`wifi-display`
 
-- **E1** 清数据新装时首启装好投屏组件和开机脚本，并在本次开机就启动；投屏是可选能力，组件缺失时只记日志，不阻止桌面安装。（单元测试）
-- **E2** 已有安装损坏（jar 坏了、开机脚本缺了）时自动修复，并保留上次连接的电视等状态；完好的安装不去动它。（单元测试）
+- **E1** 清数据新装时首启装好投屏组件和开机脚本，并在本次开机就启动。投屏是可选能力，组件缺失时只记日志，不阻止桌面安装。（单元测试）
+- **E2** 已有安装损坏（jar 坏了、开机脚本缺了）时自动修复，并保留上次连接的电视等状态。完好的安装不去动它。（单元测试）
 - **E3** 只装与当前源码一致的组件：没有构建来源记录、源码在编译期间或之后改过、jar 被换过的，拒绝组包和部署，不会再出现“旧 jar 让面板显示空列表”。（单元测试）
 - **E4** 已装好的手机可以单独升级投屏组件：先备份旧组件，校验摘要后逐文件原子替换，不重跑整套首启、不动用户账户。（人工）
 
 注意：
 - 首启的整 release 完成标记会跳过后续安装逻辑：已完成首启的设备更新投屏组件要用 tools/deploy_cast.py，不能重跑首启。 [docs/86-x70-miracast-assessment.md](../docs/86-x70-miracast-assessment.md)
-- install.sh 是可恢复的文件级更新，不是整目录事务切换；回退时要同时恢复备份的 root 载荷、桌面包和 release pin，不能只换回旧 jar。 [docs/86-x70-miracast-assessment.md](../docs/86-x70-miracast-assessment.md)
-- 悬浮窗权限不在 default-permissions 管的范围内：首启以 root、失败再以 shell 身份 appops set，结果只记日志；G100 首启曾拒绝 root 上下文的 appops。 [docs/58-miracast-desktop-feasibility.md](../docs/58-miracast-desktop-feasibility.md)
+- install.sh 是可恢复的文件级更新，不是整目录事务切换。回退时要同时恢复备份的 root 载荷、桌面包和 release pin，不能只换回旧 jar。 [docs/86-x70-miracast-assessment.md](../docs/86-x70-miracast-assessment.md)
+- 悬浮窗权限不在 default-permissions 管的范围内：首启以 root、失败再以 shell 身份 appops set，结果只记日志。G100 首启曾拒绝 root 上下文的 appops。 [docs/58-miracast-desktop-feasibility.md](../docs/58-miracast-desktop-feasibility.md)
 - 带投屏组件的新整包还没有做清数据刷入后的投屏验收。 [docs/58-miracast-desktop-feasibility.md](../docs/58-miracast-desktop-feasibility.md) [docs/86-x70-miracast-assessment.md](../docs/86-x70-miracast-assessment.md)
 
 文档：[docs/86-x70-miracast-assessment.md](../docs/86-x70-miracast-assessment.md)、[docs/58-miracast-desktop-feasibility.md](../docs/58-miracast-desktop-feasibility.md)
 
 #### 不经厂商组件的投屏（自研发送端）（实验）
 
-`desktop-mode.miracast-source` · 依赖安卓 — 自己实现 Miracast 发送端（Wi-Fi P2P、RTSP、TS/RTP、硬件编码），不经厂商 WFD 栈。原型能协商到 PLAY，但电视不出画面；用户允许使用高通组件后，2026-09-28 起暂缓。
+`desktop-mode.miracast-source` · 依赖安卓 — 自研 Miracast 发送端使用 Wi-Fi P2P、RTSP、TS/RTP 和硬件编码，不经过厂商 WFD 栈。原型能协商到 PLAY，但电视没有画面。用户允许使用高通组件后，这条路线自 2026-09-28 起暂缓。
 
 - **E1** 定向查找约 3 秒发现电视、约 4 秒建组，RTSP M1–M7 协商成功并收到 PLAY，每 25 秒保活。（人工）
-- **E2** 电视显示推送的画面和声音，持续 10 分钟以上不掉线。（缺口：暂缓：电视一直停在等待画面，最可疑的是只实现了 LPCM 而电视只支持 AAC；要先抓厂商栈会话的 RTSP/RTP 逐项对比。）
+- **E2** 电视显示推送的画面和声音，持续 10 分钟以上不掉线。（缺口：暂缓：电视一直停在等待画面，最可疑的是只实现了 LPCM 而电视只支持 AAC。要先抓厂商栈会话的 RTSP/RTP 逐项对比。）
 
 注意：
-- TCL 85Q6H 的 wfd_audio_codecs 只有 AAC，不支持规范强制的 LPCM；CEA 里没有 1080p60。 [docs/84-miracast-source.md](../docs/84-miracast-source.md)
+- TCL 85Q6H 的 wfd_audio_codecs 只有 AAC，不支持规范强制的 LPCM。CEA 里没有 1080p60。 [docs/84-miracast-source.md](../docs/84-miracast-source.md)
 - 在 app_process 里画文字会因没加载系统字体触发 hwui 断言（gDefaultTypeface）。 [docs/84-miracast-source.md](../docs/84-miracast-source.md)
 
 文档：[docs/84-miracast-source.md](../docs/84-miracast-source.md)
 
 #### 电视测试图（原型）（已退役）
 
-`desktop-mode.cast-test-pattern` · 依赖安卓 — 投屏第 1 步的原型：平台桥 cast-test 在电视上放彩条、毫秒时钟和帧计数，用来验证能否接管电视画面（docs/58）。已被 CastDesktop 的真实桌面取代，没有调用方。
+`desktop-mode.cast-test-pattern` · 依赖安卓 — 投屏第 1 步原型通过平台桥 cast-test 在电视显示彩条、毫秒时钟和帧计数，检查能否接管电视画面。见 docs/58。CastDesktop 的实际桌面已取代该原型，当前没有调用方。
 
 经由接口：`platform-bridge`
 
@@ -1968,19 +1968,19 @@ Agent 不靠点界面就能拿到合并日志、崩溃回溯、追踪、截图�
 
 #### 导播台：几块助理屏一起看
 
-`desktop-mode.director` · Linux 系统功能 — 有两块以上助理屏（或一块加团队看板）要显示时，手机上合成一个导播台窗口：焦点画面加右侧一列实时小窗，可以放大、全屏。
+`desktop-mode.director` · Linux 系统功能 — 需要显示至少两块助理屏，或一块助理屏加团队看板时，手机合成一个导播台窗口。焦点画面在主区域，右侧一列实时小窗。窗口可以放大或全屏。
 
 经由接口：`platform-bridge`
 
-- **E1** 第二块助理屏要显示时，各自的浮窗换成一个导播台窗口；成员少到一个时它像普通浮窗；有团队看板时一块屏加看板也算两格。（单元测试、人工）
-- **E2** 点右侧的小窗把它设为焦点；切换时画面不闪黑，新焦点从 0.95 倍“呼吸”到原大（约 0.26 秒，不过冲）。（单元测试、人工）
-- **E3** 工具栏的放大按钮在标准、放大、独占三级之间循环；全屏时焦点按 16:9 放到最大，其他屏排在右侧一列，与电视的布局相同。（单元测试）
-- **E4** 团队看板在焦点时显示阶段、简报、每个成员一行和组长的决定；看板不盖住组长屏的字幕。（单元测试、人工）
-- **E5** 三块助理屏的导播台约占 290 MB（每块屏各开一个窗口时约 516 MB）。（人工；只能在手机上看：内存是手机上 Qt 在 Mesa/KGSL 上渲染、PipeWire 缓冲几路画面的实际占用，取决于手机的 GPU 驱动；系统测试容器用 llvmpipe，量出的数不代表手机。）
+- **E1** 第二块助理屏要显示时，各自的浮窗换成一个导播台窗口。成员少到一个时它像普通浮窗。有团队看板时一块屏加看板也算两格。（单元测试、人工）
+- **E2** 点右侧的小窗把它设为焦点。切换时画面不闪黑，新焦点从 0.95 倍“呼吸”到原大（约 0.26 秒，不过冲）。（单元测试、人工）
+- **E3** 工具栏的放大按钮在标准、放大、独占三级之间循环。全屏时焦点按 16:9 放到最大，其他屏排在右侧一列，与电视的布局相同。（单元测试）
+- **E4** 团队看板在焦点时显示阶段、简报、每个成员一行和组长的决定。看板不盖住组长屏的字幕。（单元测试、人工）
+- **E5** 三块助理屏的导播台约占 290 MB（每块屏各开一个窗口时约 516 MB）。（人工；只能在手机上看：内存是手机上 Qt 在 Mesa/KGSL 上渲染、PipeWire 缓冲几路画面的实际占用，取决于手机的 GPU 驱动。系统测试容器用 llvmpipe，量出的数不代表手机。）
 
 注意：
-- 浮窗里不能用一个视频项换 nodeId 切换焦点：接通另一路 PipeWire 流前那几帧是黑底；每块屏固定一个一直连着的视频项，切焦点只改位置和大小。 [docs/58-miracast-desktop-feasibility.md](../docs/58-miracast-desktop-feasibility.md)
-- 用户否决了弹簧动画（分散注意力）和单纯变亮（像闪了一下）；切换只用普通的呼吸。 [docs/58-miracast-desktop-feasibility.md](../docs/58-miracast-desktop-feasibility.md)
+- 浮窗里不能用一个视频项换 nodeId 切换焦点：接通另一路 PipeWire 流前那几帧是黑底。每块屏固定一个一直连着的视频项，切焦点只改位置和大小。 [docs/58-miracast-desktop-feasibility.md](../docs/58-miracast-desktop-feasibility.md)
+- 用户否决了弹簧动画（分散注意力）和单纯变亮（像闪了一下）。切换只用普通的呼吸。 [docs/58-miracast-desktop-feasibility.md](../docs/58-miracast-desktop-feasibility.md)
 - TeamBoard.qml 的 id 不能和数据属性同名，否则 board.phase 读到的是组件自己。 [docs/research/91-agent-workspaces.md](../docs/research/91-agent-workspaces.md)
 - 看板在焦点时，电视呈现、全屏、投屏按钮都用旁边的第一块屏（focusPicture），声音不跟随看板。 [docs/research/91-agent-workspaces.md](../docs/research/91-agent-workspaces.md)
 
@@ -1988,22 +1988,22 @@ Agent 不靠点界面就能拿到合并日志、崩溃回溯、追踪、截图�
 
 #### 电视上的导播台
 
-`desktop-mode.tv-director` · 依赖安卓 — 电视投导播台时，几块助理屏零拷贝地排在电视上：焦点在左，其他在右侧一列，带名字标签，声音跟着焦点。这部分在安卓里，按 §17 的决定逐步移到 Linux。
+`desktop-mode.tv-director` · 依赖安卓 — 电视导播台以零拷贝呈现多块助理屏。焦点画面在左，其他画面列在右侧，各带名称标签。声音跟随焦点。当前实现位于 Android，按 §17 的决定逐步迁入 Linux。
 
 经由接口：`kwin-android-host`、`platform-bridge`、`wifi-display`
 
-- **E1** 新连上的电视在有助理屏时默认投导播台；最后一块助理屏关掉后电视自动回到电脑模式。（人工）
-- **E2** 布局按 16:9：焦点在左尽量大，其余在右侧一列，不拉伸，名字标签正确；关掉一块屏后格子随之减少；断开重连后回到导播台。（人工）
+- **E1** 新连上的电视在有助理屏时默认投导播台。最后一块助理屏关掉后电视自动回到电脑模式。（人工）
+- **E2** 布局按 16:9：焦点在左尽量大，其余在右侧一列，不拉伸，名字标签正确。关掉一块屏后格子随之减少。断开重连后回到导播台。（人工）
 - **E3** 在投屏控制里切焦点后，新焦点的声音约 0.15 秒内接上，只剩一路声音。（人工）
-- **E4** 无头的助理屏在电视上有实时画面（约 27.6 fps）；Rungic 应用被冻结时工作区照跑，解冻后画面自动恢复。（人工）
+- **E4** 无头的助理屏在电视上有实时画面（约 27.6 fps）。Rungic 应用被冻结时工作区照跑，解冻后画面自动恢复。（人工）
 
 注意：
-- 动画每帧调用 setDirector 会让宿主每帧重新提交所有画面而卡顿；动画只移动焦点那一层（placeTile，一次 setGeometry 事务）。 [docs/58-miracast-desktop-feasibility.md](../docs/58-miracast-desktop-feasibility.md)
+- 动画每帧调用 setDirector 会让宿主每帧重新提交所有画面而卡顿。动画只移动焦点那一层（placeTile，一次 setGeometry 事务）。 [docs/58-miracast-desktop-feasibility.md](../docs/58-miracast-desktop-feasibility.md)
 - 宿主丢掉一个格子的图层时，要先隐藏并从父层摘下再释放，否则旧画面留在屏上。 [docs/58-miracast-desktop-feasibility.md](../docs/58-miracast-desktop-feasibility.md)
-- 呈现器里 Qt 在 Mesa 上默认建桌面 OpenGL 上下文，外部纹理不可用，着色器失败后在 libgallium 里 SIGSEGV，keeper 每 3 秒重启、每次留约 140 MB core；必须显式要 GLES，并有重启退避。 [docs/research/97-headless-agent-work.md](../docs/research/97-headless-agent-work.md)
+- 呈现器里 Qt 在 Mesa 上默认建桌面 OpenGL 上下文，外部纹理不可用，着色器失败后在 libgallium 里 SIGSEGV，keeper 每 3 秒重启、每次留约 140 MB core。必须显式要 GLES，并有重启退避。 [docs/research/97-headless-agent-work.md](../docs/research/97-headless-agent-work.md)
 - KGSL 没有隐式同步：录屏帧交给 PipeWire 前要 glFinish，否则消费方读到 GPU 没画完的帧（也影响浮窗）。 [docs/research/97-headless-agent-work.md](../docs/research/97-headless-agent-work.md)
-- 导播台全屏里点电视按钮曾让 APK 崩溃（castButton 要求主窗口有焦点）；之后 plasmashell active 却一个窗口都没有、屏幕全黑，自动恢复还没覆盖这种情况。 [docs/58-miracast-desktop-feasibility.md](../docs/58-miracast-desktop-feasibility.md)
-- 按 §17，电视应改为“KWin 第二输出上全屏放导播台窗口”，Director.java、DirectorArt、宿主的 21-tv-director 和呈现器逐步退役；声音跟随焦点也要改由 Linux 侧的导播台提供。 [docs/research/97-headless-agent-work.md](../docs/research/97-headless-agent-work.md)
+- 导播台全屏里点电视按钮曾让 APK 崩溃（castButton 要求主窗口有焦点）。之后 plasmashell active 却一个窗口都没有、屏幕全黑，自动恢复还没覆盖这种情况。 [docs/58-miracast-desktop-feasibility.md](../docs/58-miracast-desktop-feasibility.md)
+- 按 §17，电视应改为“KWin 第二输出上全屏放导播台窗口”，Director.java、DirectorArt、宿主的 21-tv-director 和呈现器逐步退役。声音跟随焦点也要改由 Linux 侧的导播台提供。 [docs/research/97-headless-agent-work.md](../docs/research/97-headless-agent-work.md)
 
 文档：[docs/58-miracast-desktop-feasibility.md](../docs/58-miracast-desktop-feasibility.md)、[docs/research/97-headless-agent-work.md](../docs/research/97-headless-agent-work.md)
 
@@ -2013,21 +2013,21 @@ Agent 不靠点界面就能拿到合并日志、崩溃回溯、追踪、截图�
 
 #### 远程观看手机上的屏幕（实验）
 
-`desktop-mode.remote-viewing` · Linux 系统功能 — 整台设备一个 RDP Host（RemoteSurface）：连上后看到手机桌面、电脑桌面和各块助理屏，由观看端切换；手机睡着时助理屏照样能看。
+`desktop-mode.remote-viewing` · Linux 系统功能 — 整台设备共用一个 RemoteSurface RDP Host。连接后，观看端可以切换手机桌面、电脑桌面和各块助理屏。手机休眠时，助理屏仍可观看。
 
 经由接口：`platform-bridge`
 
 - **E1** 整台设备只有一个 Host：连上后观看端拿到设备上所有屏幕的列表（手机桌面、电脑桌面 ws-0、各助理屏），由观看端切换，不会自己切走。（单元测试）
 - **E2** 手机睡着时手机桌面列为不可用并说明原因，助理屏和电脑桌面照常可看。（单元测试）
-- **E3** 默认只监听本机回环；TLS 加用户名和随机密码，密码只在第一次显示，配置只有本人可读。（单元测试）
-- **E4** 看一块无头工作区时 1920×1080 约 27 fps（软件 H.264）。（人工；只能在手机上看：约 27 fps 是手机 CPU 上软件 H.264 编码的实测速度（KGSL 不是 DRM 渲染节点，画面要读回再编码）；Mac mini 容器的 CPU、渲染和读回路径都不同，量出的帧率不代表手机。）
+- **E3** 默认只监听本机回环。TLS 加用户名和随机密码，密码只在第一次显示，配置只有本人可读。（单元测试）
+- **E4** 看一块无头工作区时 1920×1080 约 27 fps（软件 H.264）。（人工；只能在手机上看：约 27 fps 是手机 CPU 上软件 H.264 编码的实测速度（KGSL 不是 DRM 渲染节点，画面要读回再编码）。Mac mini 容器的 CPU、渲染和读回路径都不同，量出的帧率不代表手机。）
 - **E5** 手机界面重启不会断开正在看工作区的观看端。（单元测试）
 
 注意：
-- RemoteSurface Host 不在发行包里：rungic-remote 从 ~/.local/share/remote-surface-host 或 /usr/lib/remote-surface-host 找它；ARM64 版要另编共享库形式的 FreeRDP 3.31。 [docs/research/97-headless-agent-work.md](../docs/research/97-headless-agent-work.md)
-- KGSL 不是 DRM 渲染节点，录屏要读回、用软件编码；硬件编码等 RemoteSurface 多屏合并后再做。 [docs/research/97-headless-agent-work.md](../docs/research/97-headless-agent-work.md)
-- 每个工作区各开一个 Host（rungic-remote@N）方向不对，已作废；授权靠 ~/.local/share/applications 里一个桌面文件覆盖所有 KWin。 [docs/research/97-headless-agent-work.md](../docs/research/97-headless-agent-work.md)
-- Mac 不经路由器直连手机（AWDL）：G100 的无线驱动 monitor 模式没有发送回调，原版 filin 用不了；不依赖外网时，安卓本地专用热点是优先验证的路线。 [docs/research/mac-offline-desktop-link.md](../docs/research/mac-offline-desktop-link.md)
+- RemoteSurface Host 不在发行包里：rungic-remote 从 ~/.local/share/remote-surface-host 或 /usr/lib/remote-surface-host 找它。ARM64 版要另编共享库形式的 FreeRDP 3.31。 [docs/research/97-headless-agent-work.md](../docs/research/97-headless-agent-work.md)
+- KGSL 不是 DRM 渲染节点，录屏要读回、用软件编码。硬件编码等 RemoteSurface 多屏合并后再做。 [docs/research/97-headless-agent-work.md](../docs/research/97-headless-agent-work.md)
+- 每个工作区各开一个 Host（rungic-remote@N）方向不对，已作废。授权靠 ~/.local/share/applications 里一个桌面文件覆盖所有 KWin。 [docs/research/97-headless-agent-work.md](../docs/research/97-headless-agent-work.md)
+- Mac 不经路由器直连手机（AWDL）：G100 的无线驱动 monitor 模式没有发送回调，原版 filin 用不了。不依赖外网时，安卓本地专用热点是优先验证的路线。 [docs/research/mac-offline-desktop-link.md](../docs/research/mac-offline-desktop-link.md)
 
 文档：[docs/research/97-headless-agent-work.md](../docs/research/97-headless-agent-work.md)、[docs/research/mac-offline-desktop-link.md](../docs/research/mac-offline-desktop-link.md)
 
@@ -2041,144 +2041,144 @@ Agent 不靠点界面就能拿到合并日志、崩溃回溯、追踪、截图�
 
 #### 桌面会话经得起宿主重启
 
-`desktop.session` · 依赖安卓 — 安卓宿主（Rungic 应用）更新或重启时，KWin 等它回来再重启，客户端不崩；会话每次启动都从干净的环境开始，不被上一次的失败或旧会话拖累。
+`desktop.session` · 依赖安卓 — Android 宿主（Rungic 应用）更新或重启时，KWin 等待宿主恢复，再重启，客户端不崩溃。每次会话从干净环境启动，避免之前的失败或旧会话干扰。
 
 经由接口：`kwin-android-host`、`host-controller`
 
-- **E1** 应用更新或宿主进程重启时，KWin 记录“Host connection lost”、等宿主 socket 可连接后以 133 退出并被重启，不留核心转储；Qt 客户端不在重连空窗里段错误，桌面恢复。（人工）
-- **E2** 一次 GPU 启动失败（宿主重启时 EGL 暂不可用）不会让 plasmashell 永久改用软件渲染；有 GPU 时每次会话都清掉 SceneGraphBackend=software，应用抽屉不会空白。（人工）
+- **E1** 应用更新或宿主进程重启时，KWin 记录“Host connection lost”、等宿主 socket 可连接后以 133 退出并被重启，不留核心转储。Qt 客户端不在重连空窗里段错误，桌面恢复。（人工）
+- **E2** 一次 GPU 启动失败（宿主重启时 EGL 暂不可用）不会让 plasmashell 永久改用软件渲染。有 GPU 时每次会话都清掉 SceneGraphBackend=software，应用抽屉不会空白。（人工）
 - **E3** 新会话等上一个会话的 startplasma-wayland 真正退出后才设置环境，plasmashell 总以手机 shell 启动，不会变成桌面版 shell。（系统测试、人工）
-- **E4** GPU 设置、登录 PATH 在任何会话单元启动前导入用户管理器；Qt 按 XDG_CURRENT_DESKTOP 选平台主题，旧会话强加的主题不残留到新会话。（实机验收）
+- **E4** GPU 设置、登录 PATH 在任何会话单元启动前导入用户管理器。Qt 按 XDG_CURRENT_DESKTOP 选平台主题，旧会话强加的主题不残留到新会话。（实机验收）
 - **E5** 桌面上没有 Linux 锁屏挡住（锁定交给安卓），kaccess 不在没有 X 显示的会话里反复崩溃。（系统测试）
 
 注意：
 - 上一个会话的 startplasma-wayland 退出时会把用户管理器环境恢复成它启动前的样子，曾删掉 PLASMA_DEFAULT_SHELL，让 plasmashell 以桌面版 shell 启动。 [docs/96-desktop-recovery-after-apk-restart.md](../docs/96-desktop-recovery-after-apk-restart.md)
-- KWin 嵌套后端在宿主断开时 qFatal（上游设计），wrapper 把非 0、非 133 的退出都算崩溃、超过 10 次就不再重启；Qt 的 QT_WAYLAND_RECONNECT 在没有全局对象时重建 surface 会段错误（QTBUG-150287，上游未修），只能靠消除“没有可用 KWin”的空窗来避开。 [docs/57-zero-copy-explicit-sync.md](../docs/57-zero-copy-explicit-sync.md)
+- KWin 嵌套后端在宿主断开时 qFatal（上游设计），wrapper 把非 0、非 133 的退出都算崩溃、超过 10 次就不再重启。Qt 的 QT_WAYLAND_RECONNECT 在没有全局对象时重建 surface 会段错误（QTBUG-150287，上游未修），只能靠消除“没有可用 KWin”的空窗来避开。 [docs/57-zero-copy-explicit-sync.md](../docs/57-zero-copy-explicit-sync.md)
 - KWin 退出时 Qt 客户端（plasmashell）在 wl_display_read_events 中崩溃的问题还在，部署工具从新会话就绪时才统计新崩溃。 [docs/72-kwin-android-host-isolation.md](../docs/72-kwin-android-host-isolation.md)
 - 迁移程序在 KWin 启动前运行，不能继承会话的 Wayland 平台（X70 首次会话五个迁移程序崩溃），只对迁移命令局部用 offscreen。 [docs/research/30-feature-adaptation.md](../docs/research/30-feature-adaptation.md)
-- 只看到进程或单元 active 不等于桌面可用；APK 升级后 kactivitymanagerd 曾激活失败，要以实际画面和就绪信号验收。 [docs/research/clipboard-background.md](../docs/research/clipboard-background.md) [docs/40-plasma-mobile-integration.md](../docs/40-plasma-mobile-integration.md)
-- 桌面程序要经 user-exec systemd-run --user 继承完整会话环境；直接 user-exec 的环境较小，“不崩溃”不能代替手机模式验证。 [docs/40-plasma-mobile-integration.md](../docs/40-plasma-mobile-integration.md)
+- 只看到进程或单元 active 不等于桌面可用。APK 升级后 kactivitymanagerd 曾激活失败，要以实际画面和就绪信号验收。 [docs/research/clipboard-background.md](../docs/research/clipboard-background.md) [docs/40-plasma-mobile-integration.md](../docs/40-plasma-mobile-integration.md)
+- 桌面程序要经 user-exec systemd-run --user 继承完整会话环境。直接 user-exec 的环境较小，“不崩溃”不能代替手机模式验证。 [docs/40-plasma-mobile-integration.md](../docs/40-plasma-mobile-integration.md)
 
 文档：[docs/40-plasma-mobile-integration.md](../docs/40-plasma-mobile-integration.md)、[docs/42-plasma-runtime-acceptance.md](../docs/42-plasma-runtime-acceptance.md)、[docs/103-krita-save-dialog-hang.md](../docs/103-krita-save-dialog-hang.md)、[docs/research/31-backend-integration.md](../docs/research/31-backend-integration.md)
 
 #### 升级时的一次性用户设置迁移
 
-`desktop.settings-migration` · Linux 系统功能 — 本项目对每个用户的一次性迁移（快捷设置位置、录屏图块、旧程序路径）在 KWin 读配置前做完，只做一次，不覆盖用户自己的选择。改名迁移见 install.rebrand-migration。
+`desktop.settings-migration` · Linux 系统功能 — 每个用户的一次性配置迁移在 KWin 读取配置前完成。迁移调整快捷设置位置、录屏图块和旧程序路径，仅执行一次，不覆盖用户选择。改名迁移见 install.rebrand-migration。
 
-- **E1** 用户有自定义的快捷设置列表时，投屏图块放在蓝牙之后、助理屏在投屏之后；用默认列表时不改动。（单元测试、系统测试）
+- **E1** 用户有自定义的快捷设置列表时，投屏图块放在蓝牙之后、助理屏在投屏之后。用默认列表时不改动。（单元测试、系统测试）
 - **E2** 录屏图块换成本项目的录屏插件，用户原来禁用的录屏仍是禁用。（单元测试、系统测试）
-- **E3** 设置里指向旧 /usr/local 路径的输入法、门户覆盖、Codex 配置和 Firefox 启动器改到新路径；用户自己改过的值不动。（单元测试、系统测试）
-- **E4** 迁移在 KWin 启动前运行，KWin 第一次就读到新的输入法路径；每个迁移只运行一次。旧的固定 3 倍显示迁移已退役，不凭 scale=3 猜测用户选择。（单元测试、系统测试）
+- **E3** 设置里指向旧 /usr/local 路径的输入法、门户覆盖、Codex 配置和 Firefox 启动器改到新路径。用户自己改过的值不动。（单元测试、系统测试）
+- **E4** 迁移在 KWin 启动前运行，KWin 第一次就读到新的输入法路径。每个迁移只运行一次。旧的固定 3 倍显示迁移已退役，不凭 scale=3 猜测用户选择。（单元测试、系统测试）
 
 注意：
-- 家目录不随 rootfs 快照回滚，失败部署期间写进 ~/.config 的内容会留下；排查部署后异常时要看部署时段改过的用户配置。 [docs/61-delivery-diagnostics-plan.md](../docs/61-delivery-diagnostics-plan.md)
+- 家目录不随 rootfs 快照回滚，失败部署期间写进 ~/.config 的内容会留下。排查部署后异常时要看部署时段改过的用户配置。 [docs/61-delivery-diagnostics-plan.md](../docs/61-delivery-diagnostics-plan.md)
 
 文档：[docs/61-delivery-diagnostics-plan.md](../docs/61-delivery-diagnostics-plan.md)
 
 ### 在手机上操作桌面和应用
 
-主屏、应用抽屉、状态栏、导航栏和快捷设置；用手指直接点按、滑动、边缘返回，横竖屏切换。
+主屏、应用抽屉、状态栏、导航栏和快捷设置。用手指直接点按、滑动、边缘返回，横竖屏切换。
 
 #### 主屏、应用抽屉与快捷设置
 
-`desktop.shell` · Linux 系统功能 — Ubuntu 26.04 上的 Plasma Mobile 6.6.5：主屏、应用抽屉、任务切换、导航栏和快捷设置，按控件名就能被辅助技术和自动化操作。
+`desktop.shell` · Linux 系统功能 — Ubuntu 26.04 使用 Plasma Mobile 6.6.5，提供主屏、应用抽屉、任务切换、导航栏和快捷设置。辅助技术和自动化可以按控件名称操作这些界面。
 
-- **E1** 桌面、应用抽屉、触摸、回主屏和任务切换都可用；普通应用（Dolphin、Koko、QmlKonsole、Haruna 等）能从抽屉启动并显示。（人工）
+- **E1** 桌面、应用抽屉、触摸、回主屏和任务切换都可用。普通应用（Dolphin、Koko、QmlKonsole、Haruna 等）能从抽屉启动并显示。（人工）
 - **E2** 导航栏按钮有无障碍名称（任务切换、主屏、关闭应用），按名称能经启动器打开和关闭应用。（实机验收）
-- **E3** 主屏静止时 plasmashell 几乎不占 CPU（约 0.6% 单核、每秒十几次唤醒）；关着的快捷设置面板里溢出的文字不再滚动。（人工；只能在手机上看：静止时 plasmashell 的单核占用和每秒唤醒次数取决于手机的 CPU 和宿主的帧节拍，只能在手机上量。关着的快捷设置不再滚动文字是 plasma-mobile 补丁（marquee-stop-when-hidden）的逻辑，系统测试镜像里只有 Ubuntu 原版 plasma-mobile，这一半还没有自动检查。）
-- **E4** 横屏时主屏边距按当前可用区域计算，小组件和收藏栏都在屏幕内；默认不再行列互换，小组件保持形状，图标隐藏名称。（人工）
+- **E3** 主屏静止时 plasmashell 几乎不占 CPU（约 0.6% 单核、每秒十几次唤醒）。关着的快捷设置面板里溢出的文字不再滚动。（人工；只能在手机上看：静止时 plasmashell 的单核占用和每秒唤醒次数取决于手机的 CPU 和宿主的帧节拍，只能在手机上量。关着的快捷设置不再滚动文字是 plasma-mobile 补丁（marquee-stop-when-hidden）的逻辑，系统测试镜像里只有 Ubuntu 原版 plasma-mobile，这一半还没有自动检查。）
+- **E4** 横屏时主屏边距按当前可用区域计算，小组件和收藏栏都在屏幕内。默认不再行列互换，小组件保持形状，图标隐藏名称。（人工）
 - **E5** 按住导航栏 Home 超过 400 ms 唤起语音助手，单击 Home 照常回主屏，滑动不算按住。（人工）
 
 注意：
-- 关着的快捷设置面板为了打开速度一直不设 visible=false，MarqueeLabel 跑马灯在关闭后仍以约 100 次/秒推进动画；上游 2026-09-18/19 才修复，已回移。 [docs/57-zero-copy-explicit-sync.md](../docs/57-zero-copy-explicit-sync.md)
-- HomeScreen.qml 在 Component.onCompleted 时根项还是 0×0，边距算成负值；容器 screen() 为 −1 时 libplasma 丢掉 availableScreenRectChanged，边距从此不更新（上游 master 一样）。 [docs/50-plasma-display-settings.md](../docs/50-plasma-display-settings.md)
+- 关着的快捷设置面板为了打开速度一直不设 visible=false，MarqueeLabel 跑马灯在关闭后仍以约 100 次/秒推进动画。上游 2026-09-18/19 才修复，已回移。 [docs/57-zero-copy-explicit-sync.md](../docs/57-zero-copy-explicit-sync.md)
+- HomeScreen.qml 在 Component.onCompleted 时根项还是 0×0，边距算成负值。容器 screen() 为 −1 时 libplasma 丢掉 availableScreenRectChanged，边距从此不更新（上游 master 一样）。 [docs/50-plasma-display-settings.md](../docs/50-plasma-display-settings.md)
 - 横屏打开抽屉后搜索框拿到焦点，关抽屉转回竖屏时键盘会自己弹出，收起后还会出现 Paste 气泡（未修）。 [docs/50-plasma-display-settings.md](../docs/50-plasma-display-settings.md)
-- 抽屉会保留滚动位置，被滚到搜索框下方的图标仍报告有效坐标，自动点击会落到搜索框上；验收前先把列表拖回顶部。 [docs/57-zero-copy-explicit-sync.md](../docs/57-zero-copy-explicit-sync.md)
+- 抽屉会保留滚动位置，被滚到搜索框下方的图标仍报告有效坐标，自动点击会落到搜索框上。验收前先把列表拖回顶部。 [docs/57-zero-copy-explicit-sync.md](../docs/57-zero-copy-explicit-sync.md)
 - 验收前先确认 dumpsys input 的 touchingPointers 为空：一次持续的实体触摸让注入的滑动变成多指手势，快捷设置拉不下来，主屏进了编辑模式。 [docs/73-reduce-upstream-changes.md](../docs/73-reduce-upstream-changes.md)
 
 文档：[docs/38-plasma-mobile.md](../docs/38-plasma-mobile.md)、[docs/40-plasma-mobile-integration.md](../docs/40-plasma-mobile-integration.md)
 
 #### 状态栏避开挖孔，应用不被遮住
 
-`desktop.panels` · Linux 系统功能 — 状态栏按安卓挖孔的中心线对齐，应用的工作区从状态栏下沿开始；状态栏和导航栏随前台应用的配色。
+`desktop.panels` · Linux 系统功能 — 状态栏与 Android 挖孔的中心线对齐。应用工作区从状态栏下沿开始。状态栏和导航栏跟随前台应用的配色。
 
 经由接口：`kwin-android-host`
 
-- **E1** 状态栏中心线与安卓挖孔中心对齐；应用窗口顶端紧贴状态栏实际厚度（38 逻辑像素时应用 y=38），不被遮住。（单元测试、人工）
-- **E2** 全屏和自动隐藏时应用占满整屏（y=0），退出后恢复；横竖屏切换和重启 plasmashell 后工作区仍与面板一致。（人工）
-- **E3** 前台应用声明了自己的配色时，状态栏和导航栏用它的背景色，深色背景上图标和文字变浅；没有声明配色的应用不受影响。（人工）
-- **E4** 只有挖孔落在状态栏那一行时才用侧边安全区作为状态栏左右内边距；状态栏安全区只用到手机内屏，不套到外屏上。（单元测试）
+- **E1** 状态栏中心线与安卓挖孔中心对齐。应用窗口顶端紧贴状态栏实际厚度（38 逻辑像素时应用 y=38），不被遮住。（单元测试、人工）
+- **E2** 全屏和自动隐藏时应用占满整屏（y=0），退出后恢复。横竖屏切换和重启 plasmashell 后工作区仍与面板一致。（人工）
+- **E3** 前台应用声明了自己的配色时，状态栏和导航栏用它的背景色，深色背景上图标和文字变浅。没有声明配色的应用不受影响。（人工）
+- **E4** 只有挖孔落在状态栏那一行时才用侧边安全区作为状态栏左右内边距。状态栏安全区只用到手机内屏，不套到外屏上。（单元测试）
 
 注意：
-- PanelView.setThickness 与更新 layer-shell exclusive zone 不是同一个动作；面板变厚后应用仍从旧位置开始，问题在面板预留区而不是每个应用。 [docs/43-plasma-panel-workarea.md](../docs/43-plasma-panel-workarea.md)
-- 多个短命 kwriteconfig --notify 进程退出时通知可能还在队列里，运行中的面板读到旧高度；改为一次长驻连接批量通知并 flush。 [docs/43-plasma-panel-workarea.md](../docs/43-plasma-panel-workarea.md)
+- PanelView.setThickness 与更新 layer-shell exclusive zone 不是同一个动作。面板变厚后应用仍从旧位置开始，问题在面板预留区而不是每个应用。 [docs/43-plasma-panel-workarea.md](../docs/43-plasma-panel-workarea.md)
+- 多个短命 kwriteconfig --notify 进程退出时通知可能还在队列里，运行中的面板读到旧高度。改为一次长驻连接批量通知并 flush。 [docs/43-plasma-panel-workarea.md](../docs/43-plasma-panel-workarea.md)
 - Android 报告的是保守的挖孔矩形，不等于光学轮廓。 [docs/40-plasma-mobile-integration.md](../docs/40-plasma-mobile-integration.md)
-- KWin 声明式脚本共用一个 QML 引擎，重载 convergentwindows 仍用缓存的旧 main.qml，新脚本要等 KWin 下次启动才生效；不能把 loadDeclarativeScript 成功当作新代码已生效。 [docs/59-voice-agent.md](../docs/59-voice-agent.md) [docs/47-plasma-input-window-flicker.md](../docs/47-plasma-input-window-flicker.md)
+- KWin 声明式脚本共用一个 QML 引擎，重载 convergentwindows 仍用缓存的旧 main.qml，新脚本要等 KWin 下次启动才生效。不能把 loadDeclarativeScript 成功当作新代码已生效。 [docs/59-voice-agent.md](../docs/59-voice-agent.md) [docs/47-plasma-input-window-flicker.md](../docs/47-plasma-input-window-flicker.md)
 
 文档：[docs/43-plasma-panel-workarea.md](../docs/43-plasma-panel-workarea.md)、[docs/59-voice-agent.md](../docs/59-voice-agent.md)
 
 #### 用手指直接操作桌面
 
-`desktop.touch` · Linux 系统功能 — 安卓的触摸点按原样送进 KWin，横竖屏坐标都对得上；触屏模式下不画鼠标指针。
+`desktop.touch` · Linux 系统功能 — Android 将触摸点原样送入 KWin。横屏和竖屏的坐标都与画面对应。触屏模式不显示鼠标指针。
 
 经由接口：`host-input`
 
-- **E1** 横屏、竖屏和缩放下点哪里就点中哪里，多指触点各自保留 ID 和按下/移动/抬起。（人工；只能在手机上看：触点是安卓的 MotionEvent，横竖屏与缩放下的坐标换算在 Rungic 应用的原生宿主（packages/android-host）里做，再经 KWin 的 Android 后端（android-backend.patch）进入 KWin；宿主只能在安卓上运行（它的单元测试也在手机上跑，android/test-native-core.sh），无头 KWin（--virtual）没有 Android 后端，系统测试走不到这条输入通路。）
-- **E2** 宿主暂停渲染时，还没抬起的触点先收到取消，KWin 里不会留下一直按着的手指。（人工；只能在手机上看：取消由安卓宿主在暂停渲染（Activity 进入后台、熄屏）时发出（packages/android-host 的 smithay 补丁），要安卓的生命周期才会发生；宿主只能在安卓上运行（它的单元测试也在手机上跑，android/test-native-core.sh），无头 KWin（--virtual）没有 Android 后端，系统测试走不到这条输入通路。）
-- **E3** 触屏模式下屏幕上没有鼠标指针（开机左上角不再有黑框光标），切到鼠标或触控板模式才出现指针。（人工；只能在手机上看：有没有指针取决于宿主报告的输入设备（触摸屏，或安卓连着的鼠标、触控板），由 KWin 的 Android 后端（android-backend.patch，只在 --android-host 下工作）处理；宿主只能在安卓上运行（它的单元测试也在手机上跑，android/test-native-core.sh），无头 KWin（--virtual）没有 Android 后端，系统测试走不到这条输入通路。）
-- **E4** 每次按下不会让 KWin 重新应用输出配置（宿主只在状态变化时发 configure），点按不引起卡顿。（人工；只能在手机上看：configure 由安卓宿主发出（它只在尺寸、方向等状态变化时发），点按会不会让 KWin 重新应用输出配置要在宿主与 KWin 的 Android 后端之间看；宿主只能在安卓上运行（它的单元测试也在手机上跑，android/test-native-core.sh），无头 KWin（--virtual）没有 Android 后端，系统测试走不到这条输入通路。）
+- **E1** 横屏、竖屏和缩放下点哪里就点中哪里，多指触点各自保留 ID 和按下/移动/抬起。（人工；只能在手机上看：触点是安卓的 MotionEvent，横竖屏与缩放下的坐标换算在 Rungic 应用的原生宿主（packages/android-host）里做，再经 KWin 的 Android 后端（android-backend.patch）进入 KWin。宿主只能在安卓上运行（它的单元测试也在手机上跑，android/test-native-core.sh），无头 KWin（--virtual）没有 Android 后端，系统测试走不到这条输入通路。）
+- **E2** 宿主暂停渲染时，还没抬起的触点先收到取消，KWin 里不会留下一直按着的手指。（人工；只能在手机上看：取消由安卓宿主在暂停渲染（Activity 进入后台、熄屏）时发出（packages/android-host 的 smithay 补丁），要安卓的生命周期才会发生。宿主只能在安卓上运行（它的单元测试也在手机上跑，android/test-native-core.sh），无头 KWin（--virtual）没有 Android 后端，系统测试走不到这条输入通路。）
+- **E3** 触屏模式下屏幕上没有鼠标指针（开机左上角不再有黑框光标），切到鼠标或触控板模式才出现指针。（人工；只能在手机上看：有没有指针取决于宿主报告的输入设备（触摸屏，或安卓连着的鼠标、触控板），由 KWin 的 Android 后端（android-backend.patch，只在 --android-host 下工作）处理。宿主只能在安卓上运行（它的单元测试也在手机上跑，android/test-native-core.sh），无头 KWin（--virtual）没有 Android 后端，系统测试走不到这条输入通路。）
+- **E4** 每次按下不会让 KWin 重新应用输出配置（宿主只在状态变化时发 configure），点按不引起卡顿。（人工；只能在手机上看：configure 由安卓宿主发出（它只在尺寸、方向等状态变化时发），点按会不会让 KWin 重新应用输出配置要在宿主与 KWin 的 Android 后端之间看。宿主只能在安卓上运行（它的单元测试也在手机上跑，android/test-native-core.sh），无头 KWin（--virtual）没有 Android 后端，系统测试走不到这条输入通路。）
 
 注意：
 - 蓝牙鼠标模式的指针能力增删尚未实机验证。 [docs/57-zero-copy-explicit-sync.md](../docs/57-zero-copy-explicit-sync.md)
-- adb input 做不出多指手势；需要真实多点触控时用 rungic_touch.py 以 root 写触摸屏 evdev，且先确认没有真实手指按着。 [docs/66-pointer-gestures.md](../docs/66-pointer-gestures.md)
+- adb input 做不出多指手势。需要真实多点触控时用 rungic_touch.py 以 root 写触摸屏 evdev，且先确认没有真实手指按着。 [docs/66-pointer-gestures.md](../docs/66-pointer-gestures.md)
 
 文档：[docs/57-zero-copy-explicit-sync.md](../docs/57-zero-copy-explicit-sync.md)
 
 #### 边缘滑动返回
 
-`desktop.edge-back` · 依赖安卓 — 安卓的边缘返回手势在桌面里有意义：右边缘先收键盘、再让当前应用返回上一页；左边缘打开 Rungic 菜单。
+`desktop.edge-back` · 依赖安卓 — Android 的右边缘返回手势先收起键盘，再请求当前应用返回上一页。左边缘手势打开 Rungic 菜单。
 
 经由接口：`host-input`、`host-controller`
 
-- **E1** 从右边缘滑入时，键盘显示则先收起键盘，否则向当前 Linux 窗口发 Alt+Left；应用有上一页时返回（Dolphin 子目录返回上级），不会关闭应用。（人工）
-- **E2** 从左边缘滑入打开 Rungic 容器菜单；手势中途取消不产生任何操作。（人工）
+- **E1** 从右边缘滑入时，键盘显示则先收起键盘，否则向当前 Linux 窗口发 Alt+Left。应用有上一页时返回（Dolphin 子目录返回上级），不会关闭应用。（人工）
+- **E2** 从左边缘滑入打开 Rungic 容器菜单。手势中途取消不产生任何操作。（人工）
 - **E3** Rungic 自己的应用（设计系统 PageStack）对右边缘返回同样返回上一页。（人工）
 
 注意：
 - 沉浸状态下第一次边缘手势可能只调出安卓系统栏，下一次才分派给容器。 [docs/46-plasma-recording-and-edge-back.md](../docs/46-plasma-recording-and-edge-back.md)
-- native keymap 没有映射 KEYCODE_BACK，不能直接发它冒充返回；不要另造触摸边缘拦截区，会抢 Linux 应用内的侧栏。 [docs/46-plasma-recording-and-edge-back.md](../docs/46-plasma-recording-and-edge-back.md)
+- native keymap 没有映射 KEYCODE_BACK，不能直接发它冒充返回。不要另造触摸边缘拦截区，会抢 Linux 应用内的侧栏。 [docs/46-plasma-recording-and-edge-back.md](../docs/46-plasma-recording-and-edge-back.md)
 - 导航栏右侧按钮是上游设计（键盘可见时收键盘，否则关闭活动应用），按用户要求不改成逐层返回。 [docs/46-plasma-recording-and-edge-back.md](../docs/46-plasma-recording-and-edge-back.md)
 
 文档：[docs/46-plasma-recording-and-edge-back.md](../docs/46-plasma-recording-and-edge-back.md)
 
 #### 横竖屏跟着手机转
 
-`desktop.orientation` · 依赖安卓 — 旋转由安卓执行，Linux 只跟随；在显示设置里转屏也是请安卓转，画面铺满，不会半屏黑。
+`desktop.orientation` · 依赖安卓 — Android 执行旋转，Linux 跟随方向变化。在 Linux 显示设置中转屏时，也由 Android 执行。画面铺满屏幕，不出现半屏黑。
 
 经由接口：`platform-bridge`、`kwin-android-host`
 
-- **E1** 在显示设置（或 kscreen-doctor）把手机屏转成横屏时，安卓真的转成横屏，KWin 输出不旋转、画面铺满；会话重启也不会重放旋转导致错位。（人工）
+- **E1** 在显示设置（或 kscreen-doctor）把手机屏转成横屏时，安卓真的转成横屏，KWin 输出不旋转、画面铺满。会话重启也不会重放旋转导致错位。（人工）
 - **E2** 横屏时画面铺到屏幕边缘，不留挖孔黑边，安卓状态栏和手势条不叠在 Plasma 面板上。（人工）
 - **E3** 零拷贝打开时旋转也显示完整画面（不再只显示左侧 1080 像素），连续竖横往返每次都完整。（人工）
 - **E4** 旋转后应用窗口、工作区、键盘和触摸都跟着新方向，转回竖屏后布局复原。（缺口：设置界面直接点旋转、多次往返、键盘与应用窗口、会话重启后都还没验证（docs/50 未验证清单））
 
 注意：
-- KWin 内部旋转会把旋转后的画面画进横向缓冲区，而安卓窗口仍是竖屏（只占上方 45%），变换还被写进 kwinoutputconfig.json 重放；手机屏在 KWin 内不接受任何变换。 [docs/50-plasma-display-settings.md](../docs/50-plasma-display-settings.md)
-- 零拷贝层是 SurfaceView 子层，按父层最后一帧缓冲的尺寸裁剪；旋转后要先走 GLES 两帧。尺寸必须在绘制前用 eglQuerySurface 读，swap 后读会误判。 [docs/57-zero-copy-explicit-sync.md](../docs/57-zero-copy-explicit-sync.md)
+- KWin 内部旋转会把旋转后的画面画进横向缓冲区，而安卓窗口仍是竖屏（只占上方 45%），变换还被写进 kwinoutputconfig.json 重放。手机屏在 KWin 内不接受任何变换。 [docs/50-plasma-display-settings.md](../docs/50-plasma-display-settings.md)
+- 零拷贝层是 SurfaceView 子层，按父层最后一帧缓冲的尺寸裁剪。旋转后要先走 GLES 两帧。尺寸必须在绘制前用 eglQuerySurface 读，swap 后读会误判。 [docs/57-zero-copy-explicit-sync.md](../docs/57-zero-copy-explicit-sync.md)
 - 恢复时指定 @120 会把宿主变成固定 120Hz，恢复后要切回“自动”。 [docs/50-plasma-display-settings.md](../docs/50-plasma-display-settings.md)
 
 文档：[docs/50-plasma-display-settings.md](../docs/50-plasma-display-settings.md)
 
 #### 桌面应用的窗口在手机上正常
 
-`desktop.app-windows` · Linux 系统功能 — 为 PC 写的应用在手机竖屏上也不会因为窗口尺寸冲突被断开，缩放下的窗口重绘不越界。
+`desktop.app-windows` · Linux 系统功能 — PC 应用在手机竖屏上不会因窗口尺寸冲突而断开连接。缩放后的窗口重绘不超出边界。
 
 - **E1** 应用给出的最小尺寸大于最大尺寸（静态 Qt 的微信按手机主屏算最大值）时，KWin 丢弃冲突的最大值并记警告，应用不被断开。（单元测试、人工）
-- **E2** 缩放与缓冲不一致时为采样加宽的损伤区不超出窗口自身，不会把邻近内容重画坏。（缺口：要带本项目 KWin 补丁（clip-scaled-damage-to-surface）的测试：两块缩放不同、边挨边的输出，一侧窗口出帧时另一侧不重画；系统测试镜像里只有 Ubuntu 原版 kwin-wayland，KWin 的 L1 测试构建（docs/71）也还没有这一项。2026-09-28 在手机上量过（docs/65：助理屏上 60 fps 动画时手机每秒重画 0 次）。）
+- **E2** 缩放与缓冲不一致时为采样加宽的损伤区不超出窗口自身，不会把邻近内容重画坏。（缺口：要带本项目 KWin 补丁（clip-scaled-damage-to-surface）的测试：两块缩放不同、边挨边的输出，一侧窗口出帧时另一侧不重画。系统测试镜像里只有 Ubuntu 原版 kwin-wayland，KWin 的 L1 测试构建（docs/71）也还没有这一项。2026-09-28 在手机上量过（docs/65：助理屏上 60 fps 动画时手机每秒重画 0 次）。）
 
 注意：
-- 放宽“最小大于最大必须报错”不符合 xdg-shell 协议，是本机为兼容这类客户端做的；微信登录后主窗口的真实尺寸还待抓取。 [docs/42-plasma-runtime-acceptance.md](../docs/42-plasma-runtime-acceptance.md)
-- 手机宽度下 PC 应用仍可能需要横屏；该修复面向遵守 Wayland 尺寸的应用，不保证第三方应用的最小尺寸适合手机。 [docs/40-plasma-mobile-integration.md](../docs/40-plasma-mobile-integration.md) [docs/43-plasma-panel-workarea.md](../docs/43-plasma-panel-workarea.md)
+- 放宽“最小大于最大必须报错”不符合 xdg-shell 协议，是本机为兼容这类客户端做的。微信登录后主窗口的真实尺寸还待抓取。 [docs/42-plasma-runtime-acceptance.md](../docs/42-plasma-runtime-acceptance.md)
+- 手机宽度下 PC 应用仍可能需要横屏。该修复面向遵守 Wayland 尺寸的应用，不保证第三方应用的最小尺寸适合手机。 [docs/40-plasma-mobile-integration.md](../docs/40-plasma-mobile-integration.md) [docs/43-plasma-panel-workarea.md](../docs/43-plasma-panel-workarea.md)
 
 文档：[docs/42-plasma-runtime-acceptance.md](../docs/42-plasma-runtime-acceptance.md)
 
@@ -2188,36 +2188,36 @@ Agent 不靠点界面就能拿到合并日志、崩溃回溯、追踪、截图�
 
 #### Rime 中文输入
 
-`desktop.rime` · Linux 系统功能 — Plasma 屏幕键盘接 Rime 朙月简体拼音，中文候选在前，可切英文；两个键盘进程共用一份用户词库，只在打字时占用。
+`desktop.rime` · Linux 系统功能 — Plasma 屏幕键盘使用 Rime 朙月简体拼音。中文候选优先，用户可以切换英文。两个键盘进程共用用户词库，只在打字时占用资源。
 
-- **E1** 输入 nihao 首候选是“你好”，候选按 Rime 顺序、中文在前，拼音只在预编辑区；300 次快速组合、选词和提交都正确。（单元测试、实机验收、人工）
-- **E2** 连续输入、四次收起再打开、切到 English 输入 hello 再切回中文都正常，键盘进程不崩溃不重启；整机重启后默认就是简体中文。（人工）
-- **E3** 中文键盘的字母页和符号页都用 Rime：数字框先出符号页时 `,` 打出 `，`；上游布局变化时构建报错，不会静默退回 Qt 默认输入法。（单元测试）
-- **E4** 用户词库只在打字时打开：键盘收起、失焦或显示时 5 秒不按键就关闭会话并释放词库，组合中不关闭；另一个进程正持有词库时本边仍能打中文（不学习），对方释放后转为共享，学到的词两边都排第一，词库不被修复程序改写。（单元测试、人工）
-- **E5** 建会话加第一个键在实机上远低于 50 ms，不需要预建会话。（人工；只能在手机上看：耗时取决于手机的 CPU 和存储（LevelDB 每次打开都写 MANIFEST 并 fsync）；离线在 tmpfs 与 NVMe 上就相差十倍，只有手机上量的数字能说明。）
-- **E6** 密码字段不交给 Rime，敏感字段不学习词频；用户词频和定制在 ~/.local/share/plasma-rime（0700），default.custom.yaml 只首次创建。（单元测试）
+- **E1** 输入 nihao 首候选是“你好”，候选按 Rime 顺序、中文在前，拼音只在预编辑区。300 次快速组合、选词和提交都正确。（单元测试、实机验收、人工）
+- **E2** 连续输入、四次收起再打开、切到 English 输入 hello 再切回中文都正常，键盘进程不崩溃不重启。整机重启后默认就是简体中文。（人工）
+- **E3** 中文键盘的字母页和符号页都用 Rime：数字框先出符号页时 `,` 打出 `，`。上游布局变化时构建报错，不会静默退回 Qt 默认输入法。（单元测试）
+- **E4** 用户词库只在打字时打开：键盘收起、失焦或显示时 5 秒不按键就关闭会话并释放词库，组合中不关闭。另一个进程正持有词库时本边仍能打中文（不学习），对方释放后转为共享，学到的词两边都排第一，词库不被修复程序改写。（单元测试、人工）
+- **E5** 建会话加第一个键在实机上远低于 50 ms，不需要预建会话。（人工；只能在手机上看：耗时取决于手机的 CPU 和存储（LevelDB 每次打开都写 MANIFEST 并 fsync）。离线在 tmpfs 与 NVMe 上就相差十倍，只有手机上量的数字能说明。）
+- **E6** 密码字段不交给 Rime，敏感字段不学习词频。用户词频和定制在 ~/.local/share/plasma-rime（0700），default.custom.yaml 只首次创建。（单元测试）
 
 注意：
-- librime 打开词库失败会安排 userdb_recovery_task，LevelDB RepairDB 不取 LOCK，会改写另一进程正在用的词库；所以在确认能独占词库之前，任何会话都不能尝试打开它。 [docs/41-plasma-rime-input.md](../docs/41-plasma-rime-input.md)
+- librime 打开词库失败会安排 userdb_recovery_task，LevelDB RepairDB 不取 LOCK，会改写另一进程正在用的词库。所以在确认能独占词库之前，任何会话都不能尝试打开它。 [docs/41-plasma-rime-input.md](../docs/41-plasma-rime-input.md)
 - Ubuntu 的 Qt VKB 没有 Pinyin 插件，旧 symbols.qml 报 PinyinInputMethod is not a type 后改用 Hunspell，标点变半角。 [docs/41-plasma-rime-input.md](../docs/41-plasma-rime-input.md)
-- 访客会话依赖 librime 方案配置缓存共享的实现细节；升级 librime 后要重新核对 UserDictionary::Load 的恢复逻辑和配置缓存。 [docs/41-plasma-rime-input.md](../docs/41-plasma-rime-input.md)
-- 部署后旧的 plasma-keyboard 进程会一直持有词库，新进程只能用访客会话；要确认键盘进程是部署后启动的。rime-data 升级后两进程同时启动可能并发写 build/。 [docs/41-plasma-rime-input.md](../docs/41-plasma-rime-input.md)
-- 旧 Maliit 拼音插件反复处理旧请求、把拼音排在候选前，并会崩溃重启（键盘自己收起又弹出）；已换掉，不要恢复。 [docs/41-plasma-rime-input.md](../docs/41-plasma-rime-input.md)
-- 验收脚本用 pkill -x 清理探针时进程名只保留 15 个字符，从未匹配，残留窗口让 input.rime 偶发失败；按完整命令行匹配。 [docs/72-kwin-android-host-isolation.md](../docs/72-kwin-android-host-isolation.md)
+- 访客会话依赖 librime 方案配置缓存共享的实现细节。升级 librime 后要重新核对 UserDictionary::Load 的恢复逻辑和配置缓存。 [docs/41-plasma-rime-input.md](../docs/41-plasma-rime-input.md)
+- 部署后旧的 plasma-keyboard 进程会一直持有词库，新进程只能用访客会话。要确认键盘进程是部署后启动的。rime-data 升级后两进程同时启动可能并发写 build/。 [docs/41-plasma-rime-input.md](../docs/41-plasma-rime-input.md)
+- 旧 Maliit 拼音插件反复处理旧请求、把拼音排在候选前，并会崩溃重启（键盘自己收起又弹出）。已换掉，不要恢复。 [docs/41-plasma-rime-input.md](../docs/41-plasma-rime-input.md)
+- 验收脚本用 pkill -x 清理探针时进程名只保留 15 个字符，从未匹配，残留窗口让 input.rime 偶发失败。按完整命令行匹配。 [docs/72-kwin-android-host-isolation.md](../docs/72-kwin-android-host-isolation.md)
 
 文档：[docs/41-plasma-rime-input.md](../docs/41-plasma-rime-input.md)
 
 #### 屏幕键盘弹出收起不打扰
 
-`desktop.keyboard` · Linux 系统功能 — 点文本框弹出 Plasma 键盘，窗口为键盘让位但不上下跳；键盘只在手机屏上出现，叠在其他浮层之上。
+`desktop.keyboard` · Linux 系统功能 — 点击文本框时，Plasma 键盘出现。窗口为键盘让出空间，不上下跳动。键盘只出现在手机屏幕，并显示在其他浮层上方。
 
-- **E1** 反复点同一个正在输入的文本框，窗口不再上下跳动（Marknote 12 次、GTK4 20 次无几何变化）；两个字段交替切换时键盘不收起再弹出。（人工）
-- **E2** 切换语言后旋转屏幕，语言菜单不访问已销毁的按键，没有报错；键盘尺寸变化时菜单关闭。（人工）
-- **E3** 屏幕键盘只出现在手机内屏，不出现在电视等外屏。（缺口：要一个带本项目 KWin 补丁（inputmethod-host-text 的内屏规则）和 plasma-keyboard 的无头系统测试：一块内屏、一块外屏，聚焦外屏上的文本框；系统测试镜像里只有 Ubuntu 原版 kwin-wayland。2026-09-24 在电视上实机看过（docs/58 第3步），但那时还没有实机场景记录它。）
+- **E1** 反复点同一个正在输入的文本框，窗口不再上下跳动（Marknote 12 次、GTK4 20 次无几何变化）。两个字段交替切换时键盘不收起再弹出。（人工）
+- **E2** 切换语言后旋转屏幕，语言菜单不访问已销毁的按键，没有报错。键盘尺寸变化时菜单关闭。（人工）
+- **E3** 屏幕键盘只出现在手机内屏，不出现在电视等外屏。（缺口：要一个带本项目 KWin 补丁（inputmethod-host-text 的内屏规则）和 plasma-keyboard 的无头系统测试：一块内屏、一块外屏，聚焦外屏上的文本框。系统测试镜像里只有 Ubuntu 原版 kwin-wayland。2026-09-24 在电视上实机看过（docs/58 第3步），但那时还没有实机场景记录它。）
 - **E4** 聚焦一个 Qt 文本框时键盘弹出。（实机验收）
 
 注意：
-- 上游 convergentwindows 每次运行都把 frameGeometry 设成 MaximizeArea（不含键盘避让），随后 KWin 输入法再缩小窗口，形成抖动；只在窗口边框确实要取消时保留直接设置。 [docs/47-plasma-input-window-flicker.md](../docs/47-plasma-input-window-flicker.md)
+- 上游 convergentwindows 每次运行都把 frameGeometry 设成 MaximizeArea（不含键盘避让），随后 KWin 输入法再缩小窗口，形成抖动。只在窗口边框确实要取消时保留直接设置。 [docs/47-plasma-input-window-flicker.md](../docs/47-plasma-input-window-flicker.md)
 - GTK 两字段切换是另一条独立路径（旧上下文失活即隐藏键盘、销毁 surface），单字段测试不能代替它。 [docs/47-plasma-input-window-flicker.md](../docs/47-plasma-input-window-flicker.md)
 
 文档：[docs/47-plasma-input-window-flicker.md](../docs/47-plasma-input-window-flicker.md)
@@ -2229,30 +2229,30 @@ Agent 不靠点界面就能拿到合并日志、崩溃回溯、追踪、截图�
 经由接口：`host-input`
 
 - **E1** 用安卓输入法打的文字到达 Linux 里获得焦点的输入框（例如应用抽屉的搜索框，结果按输入过滤）。（实机验收）
-- **E2** 安卓输入法提交的中文经宿主 text-input 交给 KWin，直接进入焦点应用；键盘布局数据由 APK 安装，缺失时明确报错。（缺口：中文经安卓输入法提交只在 2026-09-24 投屏时实机试过（docs/58 第3步，进入电视上的 KRunner）；手机屏上的提交和布局数据缺失时的报错（KeyboardAssets.java）还没有检查。要一个实机场景：input.text 用 adb input text 直接发 ASCII 按键，不经输入法的提交通路。）
+- **E2** 安卓输入法提交的中文经宿主 text-input 交给 KWin，直接进入焦点应用。键盘布局数据由 APK 安装，缺失时明确报错。（缺口：中文经安卓输入法提交只在 2026-09-24 投屏时实机试过（docs/58 第3步，进入电视上的 KRunner）。手机屏上的提交和布局数据缺失时的报错（KeyboardAssets.java）还没有检查。要一个实机场景：input.text 用 adb input text 直接发 ASCII 按键，不经输入法的提交通路。）
 
 注意：
-- 容器刚启动后的第一次安卓文字输入偶尔大小写错乱（Calcul 到达为 CaICUL），原因未确认；验收的读回不区分大小写并重试一次。 [docs/61-delivery-diagnostics-plan.md](../docs/61-delivery-diagnostics-plan.md)
-- adb input text 是直接按键，绕过输入法；真实打字时安卓输入法是否弹出要另外验证。 [docs/research/97-headless-agent-work.md](../docs/research/97-headless-agent-work.md)
+- 容器刚启动后的第一次安卓文字输入偶尔大小写错乱（Calcul 到达为 CaICUL），原因未确认。验收的读回不区分大小写并重试一次。 [docs/61-delivery-diagnostics-plan.md](../docs/61-delivery-diagnostics-plan.md)
+- adb input text 是直接按键，绕过输入法。真实打字时安卓输入法是否弹出要另外验证。 [docs/research/97-headless-agent-work.md](../docs/research/97-headless-agent-work.md)
 
 文档：[docs/61-delivery-diagnostics-plan.md](../docs/61-delivery-diagnostics-plan.md)
 
 #### 剪贴板与安卓互通
 
-`desktop.clipboard` · Linux 系统功能 — 纯文本在安卓与 Linux 之间自动双向同步，不要求 Rungic 在前台；敏感内容不跨系统。
+`desktop.clipboard` · Linux 系统功能 — 纯文本在安卓与 Linux 之间自动双向同步，不要求 Rungic 在前台。敏感内容不跨系统。
 
 经由接口：`clipboard`
 
-- **E1** 在安卓里复制的中文、emoji、换行约 200 ms 内出现在 Linux 剪贴板；在 Linux 里复制的文字能在安卓应用里粘贴。（单元测试、人工）
-- **E2** Rungic 不在前台、处于自己的全屏或 APK 重建时同步照常进行。（人工；只能在手机上看：不在前台、全屏或 APK 重建时照常同步，靠的是安卓侧以 Shell 身份（UID 2000）独立于 APK 窗口运行的剪贴板后端（ClipboardDaemon、system/android-clipboard）；后台读剪贴板的权限和 APK 的重建只有手机上才有。Linux 一侧的同步与重连由离线测试检查。）
-- **E3** 安卓标记为敏感的内容、非文本内容不同步，Linux 原内容保留；超长或格式错误的请求被拒绝；重启 Linux 桥时不把旧 Linux 文本写回安卓。（单元测试、人工）
+- **E1** 在安卓里复制的中文、emoji、换行约 200 ms 内出现在 Linux 剪贴板。在 Linux 里复制的文字能在安卓应用里粘贴。（单元测试、人工）
+- **E2** Rungic 不在前台、处于自己的全屏或 APK 重建时同步照常进行。（人工；只能在手机上看：不在前台、全屏或 APK 重建时照常同步，靠的是安卓侧以 Shell 身份（UID 2000）独立于 APK 窗口运行的剪贴板后端（ClipboardDaemon、system/android-clipboard）。后台读剪贴板的权限和 APK 的重建只有手机上才有。Linux 一侧的同步与重连由离线测试检查。）
+- **E3** 安卓标记为敏感的内容、非文本内容不同步，Linux 原内容保留。超长或格式错误的请求被拒绝。重启 Linux 桥时不把旧 Linux 文本写回安卓。（单元测试、人工）
 - **E4** 安卓侧剪贴板后端被杀后自动重启，安卓当前文字重新同步到 Linux。（单元测试、人工）
-- **E5** 设备锁定或非主用户时不交换剪贴板内容；日志里从不记录正文。（缺口：锁屏与多用户只在实现上拒绝，未在实机锁屏或建用户实测（clipboard-background））
+- **E5** 设备锁定或非主用户时不交换剪贴板内容。日志里从不记录正文。（缺口：锁屏与多用户只在实现上拒绝，未在实机锁屏或建用户实测（clipboard-background））
 
 注意：
-- 桥只交换当前值；安卓连续复制 A/B/C 后才切回 Linux 只能得到 C，断线期间的每一次复制不补回，也不导入输入法自己的历史。 [docs/research/clipboard-history.md](../docs/research/clipboard-history.md) [docs/research/clipboard-background.md](../docs/research/clipboard-background.md)
-- 后台读取剪贴板只有 Shell UID 2000 经 framework ClipboardManager 可行；普通 APK 后台服务拿不到权限，root 身份返回空不代表成功，只 createPackageContext 会触发包/UID 不匹配。 [docs/research/clipboard-background.md](../docs/research/clipboard-background.md)
-- Klipper 默认 NoEmptyClipboard=true 会主动恢复上一条，安卓清空后 Linux 又被写回；验证清空要临时关闭它。 [docs/research/clipboard-background.md](../docs/research/clipboard-background.md)
+- 桥只交换当前值。安卓连续复制 A/B/C 后才切回 Linux 只能得到 C，断线期间的每一次复制不补回，也不导入输入法自己的历史。 [docs/research/clipboard-history.md](../docs/research/clipboard-history.md) [docs/research/clipboard-background.md](../docs/research/clipboard-background.md)
+- 后台读取剪贴板只有 Shell UID 2000 经 framework ClipboardManager 可行。普通 APK 后台服务拿不到权限，root 身份返回空不代表成功，只 createPackageContext 会触发包/UID 不匹配。 [docs/research/clipboard-background.md](../docs/research/clipboard-background.md)
+- Klipper 默认 NoEmptyClipboard=true 会主动恢复上一条，安卓清空后 Linux 又被写回。验证清空要临时关闭它。 [docs/research/clipboard-background.md](../docs/research/clipboard-background.md)
 - 不能用 cp 覆盖正在解释执行的 shell 脚本（曾出现残缺命令），部署要整文件 rename 原子替换。 [docs/research/clipboard-background.md](../docs/research/clipboard-background.md)
 - 不要用最新控制器直接覆盖旧 G100 的完整控制器（曾让 account-setup --status 报无效账户）。 [docs/research/clipboard-background.md](../docs/research/clipboard-background.md)
 
@@ -2260,17 +2260,17 @@ Agent 不靠点界面就能拿到合并日志、崩溃回溯、追踪、截图�
 
 #### 剪贴板历史
 
-`desktop.clipboard-history` · Linux 系统功能 — 手机会话里常驻 KDE Klipper，记录 Linux 复制和从安卓同步来的内容；外屏桌面右下角托盘直接打开历史。
+`desktop.clipboard-history` · Linux 系统功能 — 手机会话常驻 KDE Klipper，记录 Linux 复制内容和从 Android 同步的内容。用户可以在外屏桌面右下角托盘打开历史。
 
 经由接口：`clipboard`
 
-- **E1** 没有打开任何历史窗口或外屏时，复制的内容也进入历史；重启 plasmashell 后历史还在，只有一个历史实例。（人工）
+- **E1** 没有打开任何历史窗口或外屏时，复制的内容也进入历史。重启 plasmashell 后历史还在，只有一个历史实例。（人工）
 - **E2** 外屏桌面右下角托盘的剪贴板图标打开完整历史和搜索框，弹窗在屏幕内。（人工）
-- **E3** 从历史里选一项，Linux 和安卓的当前剪贴板都变成它，可在应用里粘贴；相同内容不重复记录。（人工）
-- **E4** 手机竖屏上有合适的触屏入口打开历史，弹窗不越界。（缺口：手机专用触屏入口尚未实现；直接 D-Bus 调 Klipper 弹窗在竖屏越界）
+- **E3** 从历史里选一项，Linux 和安卓的当前剪贴板都变成它，可在应用里粘贴。相同内容不重复记录。（人工）
+- **E4** 手机竖屏上有合适的触屏入口打开历史，弹窗不越界。（缺口：手机专用触屏入口尚未实现。直接 D-Bus 调 Klipper 弹窗在竖屏越界）
 
 注意：
-- 独立 plasmawindowed 会在另一个进程里再建一个 Klipper，不能与托盘并存；taskpanel 与外屏托盘共用 plasmashell 内的同一个 Klipper。 [docs/research/clipboard-history.md](../docs/research/clipboard-history.md)
+- 独立 plasmawindowed 会在另一个进程里再建一个 Klipper，不能与托盘并存。taskpanel 与外屏托盘共用 plasmashell 内的同一个 Klipper。 [docs/research/clipboard-history.md](../docs/research/clipboard-history.md)
 - 只检查桥接服务不能说明历史在记录：G100 曾没有 org.kde.klipper。 [docs/research/clipboard-history.md](../docs/research/clipboard-history.md)
 - 历史 UI 用的 HistoryModel/ClipboardMenu 在 private QML 命名空间，随 plasma-workspace 版本回归。 [docs/research/clipboard-history.md](../docs/research/clipboard-history.md)
 
@@ -2282,78 +2282,78 @@ Agent 不靠点界面就能拿到合并日志、崩溃回溯、追踪、截图�
 
 #### 桌面流畅地画在手机上
 
-`desktop.host-display` · 依赖安卓 — KWin 作为安卓宿主里的嵌套合成器，输出缓冲直接交给 SurfaceFlinger（零拷贝、显式同步、按需 vsync），滑动跟手、静止省电。
+`desktop.host-display` · 依赖安卓 — KWin 作为 Android 宿主中的嵌套合成器，直接将输出缓冲交给 SurfaceFlinger。呈现使用零拷贝、显式同步和按需 vsync，使滑动跟手、静止时省电。
 
 经由接口：`kwin-android-host`、`gpu-device`、`host-controller`
 
-- **E1** 零拷贝时宿主不再每帧用 GLES 重画，SurfaceFlinger 以硬件合成（DEVICE）显示 KWin 的输出缓冲；强制 GPU 合成（CLIENT）时颜色仍正确，SurfaceFlinger 和 system_server 不崩溃。（人工）
-- **E2** KWin 不在 glFinish 上等 GPU，用 fence 交出缓冲；抽屉滚动时 KWin 绘制 p95 约 4 ms，SurfaceFlinger 帧间隔 p95 约 16.8 ms。（实机验收、人工）
+- **E1** 零拷贝时宿主不再每帧用 GLES 重画，SurfaceFlinger 以硬件合成（DEVICE）显示 KWin 的输出缓冲。强制 GPU 合成（CLIENT）时颜色仍正确，SurfaceFlinger 和 system_server 不崩溃。（人工）
+- **E2** KWin 不在 glFinish 上等 GPU，用 fence 交出缓冲。抽屉滚动时 KWin 绘制 p95 约 4 ms，SurfaceFlinger 帧间隔 p95 约 16.8 ms。（实机验收、人工）
 - **E3** 滚动时 KWin 的提交一到就转成 SurfaceControl 事务，约 8–14% 的显示间隔迟到一个 vsync（之前 29%）。（人工）
-- **E4** 桌面静止时宿主不再每个 vsync 唤醒，APK 合计约 2–5% 单核；有输入、提交或回调时立即恢复节拍，点击静止后的桌面能正常启动应用。（人工）
-- **E5** Plasma 在前台时桌面会话提升到大核（uclamp.min 50%），回到安卓桌面后恢复；滑动掉帧比例约减半，后台不常驻大核。（人工）
+- **E4** 桌面静止时宿主不再每个 vsync 唤醒，APK 合计约 2–5% 单核。有输入、提交或回调时立即恢复节拍，点击静止后的桌面能正常启动应用。（人工）
+- **E5** Plasma 在前台时桌面会话提升到大核（uclamp.min 50%），回到安卓桌面后恢复。滑动掉帧比例约减半，后台不常驻大核。（人工）
 
 注意：
-- 零拷贝缓冲必须同时通过 HWC 与 GPU（CLIENT）两条合成路径的验收；只用安卓公开的 AHB 格式（RGBA），BGRA 曾让 SurfaceFlinger abort、安卓用户空间重启并断掉无线调试。 [docs/57-zero-copy-explicit-sync.md](../docs/57-zero-copy-explicit-sync.md)
-- 零拷贝和 fence 必须同时开；只开 fence 时宿主要在 CPU 上等 fence 再做 GLES，帧间隔 p95 劣化到 25 ms。 [docs/57-zero-copy-explicit-sync.md](../docs/57-zero-copy-explicit-sync.md)
-- 报真实呈现时间会形成正反馈（KWin 安全余量增大、帧数从 370 降到 106），帧时间线和 3 帧在途实测更差，都已撤回；默认提交后立即报告。 [docs/57-zero-copy-explicit-sync.md](../docs/57-zero-copy-explicit-sync.md)
-- 同一 App 的 SurfaceControl 事务 FIFO 排队，未 signal 的 acquire fence 会阻塞后续事务；容器 GPU 挂死时显示一起停住。 [docs/57-zero-copy-explicit-sync.md](../docs/57-zero-copy-explicit-sync.md)
-- 对照测试不能每轮重开 App（后台恢复 Codex 线程的负载叠在一起，结论能相反）；在同一实例里交替切换运行时开关。 [docs/57-zero-copy-explicit-sync.md](../docs/57-zero-copy-explicit-sync.md)
-- 容器应用的 GPU 内存失控会让 lmkd 杀掉前台宿主连带整个会话（Elisa 封面纹理 13824² 被 DPR 乘了三次）；共享层防护尚未实施。 [docs/57-zero-copy-explicit-sync.md](../docs/57-zero-copy-explicit-sync.md)
-- dpkg-buildpackage -nc 可能因 build stamp 完全跳过编译，包版本变了库还是旧的；要用库内符号和运行行为核对。 [docs/42-plasma-runtime-acceptance.md](../docs/42-plasma-runtime-acceptance.md)
-- KWin 的 Android 专用代码都在 src/backends/android；上游文件只留钩子，升级时在钩子签名处编译失败而不是文本冲突。不要再往 Wayland 后端各处加 Android 判断或环境变量。 [docs/72-kwin-android-host-isolation.md](../docs/72-kwin-android-host-isolation.md)
+- 零拷贝缓冲必须同时通过 HWC 与 GPU（CLIENT）两条合成路径的验收。只用安卓公开的 AHB 格式（RGBA），BGRA 曾让 SurfaceFlinger abort、安卓用户空间重启并断掉无线调试。 [docs/57-zero-copy-explicit-sync.md](../docs/57-zero-copy-explicit-sync.md)
+- 零拷贝和 fence 必须同时开。只开 fence 时宿主要在 CPU 上等 fence 再做 GLES，帧间隔 p95 劣化到 25 ms。 [docs/57-zero-copy-explicit-sync.md](../docs/57-zero-copy-explicit-sync.md)
+- 报真实呈现时间会形成正反馈（KWin 安全余量增大、帧数从 370 降到 106），帧时间线和 3 帧在途实测更差，都已撤回。默认提交后立即报告。 [docs/57-zero-copy-explicit-sync.md](../docs/57-zero-copy-explicit-sync.md)
+- 同一 App 的 SurfaceControl 事务 FIFO 排队，未 signal 的 acquire fence 会阻塞后续事务。容器 GPU 挂死时显示一起停住。 [docs/57-zero-copy-explicit-sync.md](../docs/57-zero-copy-explicit-sync.md)
+- 对照测试不能每轮重开 App（后台恢复 Codex 线程的负载叠在一起，结论能相反）。在同一实例里交替切换运行时开关。 [docs/57-zero-copy-explicit-sync.md](../docs/57-zero-copy-explicit-sync.md)
+- 容器应用的 GPU 内存失控会让 lmkd 杀掉前台宿主连带整个会话（Elisa 封面纹理 13824² 被 DPR 乘了三次）。共享层防护尚未实施。 [docs/57-zero-copy-explicit-sync.md](../docs/57-zero-copy-explicit-sync.md)
+- dpkg-buildpackage -nc 可能因 build stamp 完全跳过编译，包版本变了库还是旧的。要用库内符号和运行行为核对。 [docs/42-plasma-runtime-acceptance.md](../docs/42-plasma-runtime-acceptance.md)
+- KWin 的 Android 专用代码都在 src/backends/android。上游文件只留钩子，升级时在钩子签名处编译失败而不是文本冲突。不要再往 Wayland 后端各处加 Android 判断或环境变量。 [docs/72-kwin-android-host-isolation.md](../docs/72-kwin-android-host-isolation.md)
 
 文档：[docs/57-zero-copy-explicit-sync.md](../docs/57-zero-copy-explicit-sync.md)、[docs/72-kwin-android-host-isolation.md](../docs/72-kwin-android-host-isolation.md)、[docs/49-plasma-performance.md](../docs/49-plasma-performance.md)
 
 #### 原生分辨率与刷新率
 
-`desktop.resolution-refresh` · 依赖安卓 — 桌面按手机原生分辨率渲染；KDE 显示设置里可选固定 30/60/90/120Hz 或“自动”，都真正交给安卓执行。
+`desktop.resolution-refresh` · 依赖安卓 — 桌面按手机原生分辨率渲染。KDE 显示设置提供固定 30/60/90/120Hz 和“自动”刷新率。Android 实际执行这些设置。
 
 经由接口：`kwin-android-host`、`platform-bridge`
 
 - **E1** 桌面以原生分辨率渲染（G100 S 1080×2400），KScreen 的手机输出与安卓显示尺寸一致，显示页列出物理分辨率与渲染分辨率。（实机验收、人工）
-- **E2** 选固定 30/60/90/120Hz 时安卓的物理模式随之改变；选“自动”时请求交还安卓（refreshPolicy=0），触摸时升到 120Hz、静止后由安卓降下来。（实机验收、人工）
+- **E2** 选固定 30/60/90/120Hz 时安卓的物理模式随之改变。选“自动”时请求交还安卓（refreshPolicy=0），触摸时升到 120Hz、静止后由安卓降下来。（实机验收、人工）
 - **E3** 改分辨率或显示大小不会把动态刷新率误当作固定刷新率意图。（人工）
-- **E4** Rungic 离开前台时撤销 Surface/Window 的刷新率请求，回来后恢复；默认“流畅优先”，可在左边缘菜单切换“自动”。（人工）
+- **E4** Rungic 离开前台时撤销 Surface/Window 的刷新率请求，回来后恢复。默认“流畅优先”，可在左边缘菜单切换“自动”。（人工）
 - **E5** 显示模式或刷新率变化时 plasmashell 不崩溃。（人工）
 
 注意：
-- hasArrSupport=false，“自动”是安卓的刷新率调度，不是 KScreen 的 VRR；请求不保证被满足（相机启动时见过请求 120 实际 60），也不绕过温控。 [docs/50-plasma-display-settings.md](../docs/50-plasma-display-settings.md) [docs/49-plasma-performance.md](../docs/49-plasma-performance.md)
-- KScreen 的 VRR 枚举是 automatic 不代表宿主策略是自动（曾保留 90）；验收要同时读宿主 refreshPolicy。 [docs/85-phone-display-size-policy.md](../docs/85-phone-display-size-policy.md)
+- hasArrSupport=false，“自动”是安卓的刷新率调度，不是 KScreen 的 VRR。请求不保证被满足（相机启动时见过请求 120 实际 60），也不绕过温控。 [docs/50-plasma-display-settings.md](../docs/50-plasma-display-settings.md) [docs/49-plasma-performance.md](../docs/49-plasma-performance.md)
+- KScreen 的 VRR 枚举是 automatic 不代表宿主策略是自动（曾保留 90）。验收要同时读宿主 refreshPolicy。 [docs/85-phone-display-size-policy.md](../docs/85-phone-display-size-policy.md)
 - 后台的 android-refresh.ini 保留最后一次前台样本，要看 sampled-uptime-ms，不能当作后台仍在申请 120Hz。 [docs/49-plasma-performance.md](../docs/49-plasma-performance.md)
-- 每个 display changed 事件都重发刷新率、原生层无条件重发 mode 会造成切换掉帧；两级都按实际值去重。 [docs/49-plasma-performance.md](../docs/49-plasma-performance.md)
+- 每个 display changed 事件都重发刷新率、原生层无条件重发 mode 会造成切换掉帧。两级都按实际值去重。 [docs/49-plasma-performance.md](../docs/49-plasma-performance.md)
 - 720×1600 时代的性能数据不能用于原生分辨率的判断。 [docs/49-plasma-performance.md](../docs/49-plasma-performance.md)
 
 文档：[docs/50-plasma-display-settings.md](../docs/50-plasma-display-settings.md)、[docs/73-reduce-upstream-changes.md](../docs/73-reduce-upstream-changes.md)
 
 #### 手机显示大小
 
-`desktop.display-size` · Linux 系统功能 — 首次默认的界面大小按安卓密度算出（X70 350%、G100 300%）；设置里五档大小，切换渲染分辨率时界面大小不变。
+`desktop.display-size` · Linux 系统功能 — 首次默认界面大小根据 Android 密度计算，X70 为 350%，G100 为 300%。设置提供五档大小。切换渲染分辨率时，界面大小保持不变。
 
 经由接口：`kwin-android-host`
 
-- **E1** 没有显示配置时，KWin 按安卓 density 和原生短边算出默认倍率（不少于 360 逻辑像素短边）；已有用户选择（包括 300%）不被重算，安卓 density 改变也不改已有选择。（单元测试、人工）
-- **E2** 显示页给手机内屏五档大小，“标准”是推荐值；范围外的旧值显示为“自定义”，打开设置不会悄悄改掉；高级里能看真实倍率（50–500%）。（人工）
-- **E3** 应用新大小后 15 秒不确认就回到原值，点“保留”后保留；会话重启后仍是用户的选择。（实机验收、人工）
+- **E1** 没有显示配置时，KWin 按安卓 density 和原生短边算出默认倍率（不少于 360 逻辑像素短边）。已有用户选择（包括 300%）不被重算，安卓 density 改变也不改已有选择。（单元测试、人工）
+- **E2** 显示页给手机内屏五档大小，“标准”是推荐值。范围外的旧值显示为“自定义”，打开设置不会悄悄改掉。高级里能看真实倍率（50–500%）。（人工）
+- **E3** 应用新大小后 15 秒不确认就回到原值，点“保留”后保留。会话重启后仍是用户的选择。（实机验收、人工）
 - **E4** 原生与 720 渲染之间切换时界面逻辑大小不变，多次往返倍率和保存的密度不漂移。（单元测试、人工）
-- **E5** 外屏（电视、助理屏）的缩放各自独立，调手机大小不改外屏；外屏设为主屏时状态栏安全区仍只用于手机。（人工）
-- **E6** 非法倍率（例如 6 倍、NaN、0）被拒绝，不写入配置；宿主拒绝或超时时恢复旧模式和刷新策略并返回失败。（单元测试、人工）
+- **E5** 外屏（电视、助理屏）的缩放各自独立，调手机大小不改外屏。外屏设为主屏时状态栏安全区仍只用于手机。（人工）
+- **E6** 非法倍率（例如 6 倍、NaN、0）被拒绝，不写入配置。宿主拒绝或超时时恢复旧模式和刷新策略并返回失败。（单元测试、人工）
 
 注意：
-- 安卓 density 是逻辑 dp 倍率，不是面板 PPI；480/160=3 不能保证 Plasma 控件与安卓控件等大。默认的 1.25 系数是待跨设备校准的产品参数。 [docs/85-phone-display-size-policy.md](../docs/85-phone-display-size-policy.md) [docs/50-plasma-display-settings.md](../docs/50-plasma-display-settings.md)
-- 测试时要等旧 KWin 进程完全退出再移开 kwinoutputconfig.json，否则读到旧值；短时间多次重启还会触发 StartLimit。 [docs/85-phone-display-size-policy.md](../docs/85-phone-display-size-policy.md)
-- 外屏旧位置与手机之间的空隙会让 KScreen 整套配置校验失败，表现为缩放应用不了；用标准接口把外屏贴到内屏右边界。 [docs/85-phone-display-size-policy.md](../docs/85-phone-display-size-policy.md)
-- 新账户、整包清数据首装、第二台设备和 API 30–33 回退路径还没有实机验收；当前账户移开配置的测试不等于首装。 [docs/85-phone-display-size-policy.md](../docs/85-phone-display-size-policy.md)
+- 安卓 density 是逻辑 dp 倍率，不是面板 PPI。480/160=3 不能保证 Plasma 控件与安卓控件等大。默认的 1.25 系数是待跨设备校准的产品参数。 [docs/85-phone-display-size-policy.md](../docs/85-phone-display-size-policy.md) [docs/50-plasma-display-settings.md](../docs/50-plasma-display-settings.md)
+- 测试时要等旧 KWin 进程完全退出再移开 kwinoutputconfig.json，否则读到旧值。短时间多次重启还会触发 StartLimit。 [docs/85-phone-display-size-policy.md](../docs/85-phone-display-size-policy.md)
+- 外屏旧位置与手机之间的空隙会让 KScreen 整套配置校验失败，表现为缩放应用不了。用标准接口把外屏贴到内屏右边界。 [docs/85-phone-display-size-policy.md](../docs/85-phone-display-size-policy.md)
+- 新账户、整包清数据首装、第二台设备和 API 30–33 回退路径还没有实机验收。当前账户移开配置的测试不等于首装。 [docs/85-phone-display-size-policy.md](../docs/85-phone-display-size-policy.md)
 
 文档：[docs/85-phone-display-size-policy.md](../docs/85-phone-display-size-policy.md)
 
 #### 桌面里调亮度
 
-`desktop.brightness` · Linux 系统功能 — Plasma 的亮度滑条调的是 Rungic 窗口在安卓上的亮度；可以恢复跟随安卓。
+`desktop.brightness` · Linux 系统功能 — Plasma 的亮度滑条调的是 Rungic 窗口在安卓上的亮度。可以恢复跟随安卓。
 
 经由接口：`platform-bridge`
 
-- **E1** Plasma 亮度设为 45 时安卓窗口亮度跟着变，读回 45；恢复跟随后回到安卓的亮度设置。（单元测试、人工）
-- **E2** 不申请整机写设置权限、不写宿主 sysfs；安卓的自动亮度开关不被改动。（单元测试）
+- **E1** Plasma 亮度设为 45 时安卓窗口亮度跟着变，读回 45。恢复跟随后回到安卓的亮度设置。（单元测试、人工）
+- **E2** 不申请整机写设置权限、不写宿主 sysfs。安卓的自动亮度开关不被改动。（单元测试）
 
 注意：
 - 跟随时显示的是安卓用户设定值，不是实时自动亮度或 nits。 [docs/research/30-feature-adaptation.md](../docs/research/30-feature-adaptation.md)
@@ -2366,22 +2366,22 @@ Agent 不靠点界面就能拿到合并日志、崩溃回溯、追踪、截图�
 
 #### Wi-Fi 与网络
 
-`desktop.network` · Linux 系统功能 — 安卓的网络经 NetworkManager D-Bus 接口给桌面用：状态栏、快捷设置和 Wi-Fi 设置页显示真实连接，能扫描、连接和忘记网络。
+`desktop.network` · Linux 系统功能 — Android 网络通过 NetworkManager D-Bus 接口接入桌面。状态栏、快捷设置和 Wi-Fi 页面显示实际连接。用户可以扫描、连接和忘记网络。
 
 经由接口：`network`
 
 - **E1** 状态栏、设置和其他 NetworkManager 客户端显示安卓真实的 SSID、IP、DNS 与联网状态（Connectivity=4）。（单元测试、人工）
-- **E2** Wi-Fi 设置页列出已保存的当前网络和附近网络，能扫描、激活已保存网络、删除网络；点未保存的加密网络弹出 KDE 密码框。（单元测试、人工）
+- **E2** Wi-Fi 设置页列出已保存的当前网络和附近网络，能扫描、激活已保存网络、删除网络。点未保存的加密网络弹出 KDE 密码框。（单元测试、人工）
 - **E3** 在 Linux 里打开或关闭 Wi-Fi，安卓的 Wi-Fi 跟着变，显示状态以安卓随后读数为准。（单元测试）
 - **E4** 安卓网络变化后很快反映到 Linux，而且不靠高频轮询（SSID 与信号正常，空闲时无持续开销）。（单元测试、人工）
-- **E5** 安卓接口异常或超时时状态变为未知，不继续显示过期的“已连接”；不支持的操作明确返回 NotSupported，不伪造成功。（单元测试）
-- **E6** Linux 程序的域名解析跟随安卓当前默认网络（开 VPN 时用 VPN 的 DNS）：/etc/resolv.conf 随网络变化原子更新，断网时不保留已失效的服务器；安卓侧连不上时保持原样。（单元测试）
+- **E5** 安卓接口异常或超时时状态变为未知，不继续显示过期的“已连接”。不支持的操作明确返回 NotSupported，不伪造成功。（单元测试）
+- **E6** Linux 程序的域名解析跟随安卓当前默认网络（开 VPN 时用 VPN 的 DNS）：/etc/resolv.conf 随网络变化原子更新，断网时不保留已失效的服务器。安卓侧连不上时保持原样。（单元测试）
 - **E7** 用户手工写的 /etc/resolv.conf（没有 Rungic 标记行）或符号链接不被覆盖。（单元测试）
 
 注意：
 - 镜像只带一行占位注释的 /etc/resolv.conf，原先没有任何机制写入 DNS，新装设备的 Linux 程序解析不了域名（issue [docs/research/32-network-integration.md](../docs/research/32-network-integration.md)
-- 没有 Linux NetworkManager 守护进程、wpa_supplicant 或 DHCP；安卓独占网卡、路由、DNS 与凭据。在服务页打开 NetworkManager 等服务可能抢走网卡、断开无线调试。 [docs/research/32-network-integration.md](../docs/research/32-network-integration.md) [docs/83-service-policy.md](../docs/83-service-policy.md)
-- 普通安卓 API 会脱敏 SSID/BSSID，靠白名单 root cmd wifi 补齐；固定安卓 16 的输出格式，换 ROM 要重验。 [docs/research/32-network-integration.md](../docs/research/32-network-integration.md)
+- 没有 Linux NetworkManager 守护进程、wpa_supplicant 或 DHCP。安卓独占网卡、路由、DNS 与凭据。在服务页打开 NetworkManager 等服务可能抢走网卡、断开无线调试。 [docs/research/32-network-integration.md](../docs/research/32-network-integration.md) [docs/83-service-policy.md](../docs/83-service-policy.md)
+- 普通安卓 API 会脱敏 SSID/BSSID，靠白名单 root cmd wifi 补齐。固定安卓 16 的输出格式，换 ROM 要重验。 [docs/research/32-network-integration.md](../docs/research/32-network-integration.md)
 - ModemManagerQt 等客户端只在服务已存在时订阅 InterfacesAdded，桥接服务要先发布对象再占用总线名。 [docs/73-reduce-upstream-changes.md](../docs/73-reduce-upstream-changes.md)
 - 实际连接新网络未在实机验证：离开当前 Wi-Fi 会断开 adb。设置页启动时曾短暂看到临时连接 Settings/wifi，待查。 [docs/73-reduce-upstream-changes.md](../docs/73-reduce-upstream-changes.md)
 - ObjectManager 在 /org/freedesktop，Manager 在 /org/freedesktop/NetworkManager，两个路径不能混淆。 [docs/research/32-network-integration.md](../docs/research/32-network-integration.md)
@@ -2400,8 +2400,8 @@ Agent 不靠点界面就能拿到合并日志、崩溃回溯、追踪、截图�
 - **E4** 配对时安卓弹窗请用户确认，确认后设备在 Linux 里显示为已配对并可连接。（缺口：还没有用实际蓝牙设备配对验证）
 
 注意：
-- 容器没有 /dev/rfkill，安卓的 bt_power rfkill 也不跟随其蓝牙开关；BluezQt 因此把状态记为 Unknown，bluedevil 判为没有硬件。 [docs/73-reduce-upstream-changes.md](../docs/73-reduce-upstream-changes.md)
-- 蓝牙服务曾每次轮询都启动一个 root app_process；只让 root 做特权操作与定期校准。 [docs/73-reduce-upstream-changes.md](../docs/73-reduce-upstream-changes.md)
+- 容器没有 /dev/rfkill，安卓的 bt_power rfkill 也不跟随其蓝牙开关。BluezQt 因此把状态记为 Unknown，bluedevil 判为没有硬件。 [docs/73-reduce-upstream-changes.md](../docs/73-reduce-upstream-changes.md)
+- 蓝牙服务曾每次轮询都启动一个 root app_process。只让 root 做特权操作与定期校准。 [docs/73-reduce-upstream-changes.md](../docs/73-reduce-upstream-changes.md)
 
 文档：[docs/73-reduce-upstream-changes.md](../docs/73-reduce-upstream-changes.md)
 
@@ -2411,7 +2411,7 @@ Agent 不靠点界面就能拿到合并日志、崩溃回溯、追踪、截图�
 
 经由接口：`telephony`
 
-- **E1** 状态栏信号图标和蜂窝设置页显示真实状态；无 SIM 时显示“尚未插入 SIM 卡”，调制解调器详情给出型号和原因。（单元测试、人工）
+- **E1** 状态栏信号图标和蜂窝设置页显示真实状态。无 SIM 时显示“尚未插入 SIM 卡”，调制解调器详情给出型号和原因。（单元测试、人工）
 - **E2** 有 SIM 时，快捷设置的移动数据开关真正打开或关闭安卓的移动数据。（缺口：测试手机没有 SIM，只验证了无 SIM 路径）
 - **E3** SIM PIN、选网、APN 与漫游等操作明确返回不支持，留在安卓设置里完成。（单元测试）
 
@@ -2422,31 +2422,31 @@ Agent 不靠点界面就能拿到合并日志、崩溃回溯、追踪、截图�
 
 #### 通过安卓 SIM 收发短信（实验）
 
-`desktop.sms` · 依赖安卓 — Linux 与 Agent 经安卓短信接口发出用户授权的内容，并按号码与时间读取回复；安卓保管消息，原短信应用保持不变。
+`desktop.sms` · 依赖安卓 — Linux 与 Agent 经安卓短信接口发出用户授权的内容，并按号码与时间读取回复。安卓保管消息，原短信应用保持不变。
 
 经由接口：`telephony`
 
-- **E1** 发送的号码与内容经过校验；使用明确的活动短信卡，长短信分段，只有全部无线电回报成功才记为已发出。（单元测试）
-- **E2** 发出与送达分开；重复回调、失败分段、未知或失败回执和超时不被误记为成功，也不自动重发。（单元测试）
-- **E3** 按号码与发送时间读回复，短号精确匹配，不漏掉发送调用结束前到达的回复；读取不修改未读状态，无回复超时明确返回。（单元测试）
+- **E1** 发送的号码与内容经过校验。使用明确的活动短信卡，长短信分段，只有全部无线电回报成功才记为已发出。（单元测试）
+- **E2** 发出与送达分开。重复回调、失败分段、未知或失败回执和超时不被误记为成功，也不自动重发。（单元测试）
+- **E3** 按号码与发送时间读回复，短号精确匹配，不漏掉发送调用结束前到达的回复。读取不修改未读状态，无回复超时明确返回。（单元测试）
 
 注意：
-- 短号受系统或运营商限制；接口受理、无线电发出、送达回执与客服回复是不同证据。 [docs/107-android-sms.md](../docs/107-android-sms.md)
+- 短号受系统或运营商限制。接口受理、无线电发出、送达回执与客服回复是不同证据。 [docs/107-android-sms.md](../docs/107-android-sms.md)
 
 文档：[docs/107-android-sms.md](../docs/107-android-sms.md)
 
 #### 安卓状态及时到达 Linux
 
-`desktop.host-bridges` · Linux 系统功能 — 网络、蓝牙、蜂窝、剪贴板、相机等服务经平台桥的长轮询 watch 等安卓自己的回调，不再各自轮询。
+`desktop.host-bridges` · Linux 系统功能 — 网络、蓝牙、蜂窝、剪贴板和相机等服务通过平台桥的长轮询 watch 等待 Android 回调，避免各服务独立轮询。
 
 经由接口：`platform-bridge`
 
-- **E1** 安卓状态变化时，watch 在版本号变化时立即返回，服务取完整状态；没有变化时最长 60 秒兜底一次。（单元测试、人工）
+- **E1** 安卓状态变化时，watch 在版本号变化时立即返回，服务取完整状态。没有变化时最长 60 秒兜底一次。（单元测试、人工）
 - **E2** 遇到不支持 watch 的旧 APK，服务退回原来的轮询间隔继续工作。（单元测试）
-- **E3** APK 每次启动换 epoch，看到旧 epoch 的服务会重新取状态；平台 socket 只接受 UID 0/1000 的请求。（单元测试）
+- **E3** APK 每次启动换 epoch，看到旧 epoch 的服务会重新取状态。平台 socket 只接受 UID 0/1000 的请求。（单元测试）
 
 注意：
-- 平台桥只在 APK 私有目录，校验对端 UID；剪贴板后端走抽象 Unix socket，依赖 LXC 与安卓共享网络命名空间，仍须校验对端 UID。 [docs/research/31-backend-integration.md](../docs/research/31-backend-integration.md) [docs/research/clipboard-background.md](../docs/research/clipboard-background.md)
+- 平台桥只在 APK 私有目录，校验对端 UID。剪贴板后端走抽象 Unix socket，依赖 LXC 与安卓共享网络命名空间，仍须校验对端 UID。 [docs/research/31-backend-integration.md](../docs/research/31-backend-integration.md) [docs/research/clipboard-background.md](../docs/research/clipboard-background.md)
 
 文档：[docs/49-plasma-performance.md](../docs/49-plasma-performance.md)、[docs/research/30-feature-adaptation.md](../docs/research/30-feature-adaptation.md)
 
@@ -2458,32 +2458,32 @@ Agent 不靠点界面就能拿到合并日志、崩溃回溯、追踪、截图�
 
 `desktop.chinese` · Linux 系统功能 — 桌面、门户对话框和本项目的程序都跟随桌面语言显示简体中文。
 
-- **E1** Ubuntu 最小镜像删掉的中文翻译被恢复，KDE 门户等系统对话框显示中文；恢复的文件属 root，不改 /、/usr 的属主和权限。（单元测试、人工）
+- **E1** Ubuntu 最小镜像删掉的中文翻译被恢复，KDE 门户等系统对话框显示中文。恢复的文件属 root，不改 /、/usr 的属主和权限。（单元测试、人工）
 - **E2** 本项目的设备页、电源策略、录屏、服务页等程序跟随桌面语言显示中文。（单元测试）
 
 注意：
-- 曾把带构建者 UID 和目录模式的暂存树解包到 /，让桌面用户拥有 /usr（等同 root），systemd-tmpfiles 也因 unsafe path transition 拒绝执行；归档只能含 root 所有的普通文件。 [docs/55-agent-native-debugging.md](../docs/55-agent-native-debugging.md)
+- 曾把带构建者 UID 和目录模式的暂存树解包到 /，让桌面用户拥有 /usr（等同 root），systemd-tmpfiles 也因 unsafe path transition 拒绝执行。归档只能含 root 所有的普通文件。 [docs/55-agent-native-debugging.md](../docs/55-agent-native-debugging.md)
 
 文档：[docs/55-agent-native-debugging.md](../docs/55-agent-native-debugging.md)
 
 #### 亮屏、息屏与电池
 
-`desktop.power` · Linux 系统功能 — 播放视频等请求保持亮屏时手机屏幕不灭；Plasma 的息屏时间就是安卓的息屏时间；电池来自真实 UPower，锁屏和休眠交给安卓。
+`desktop.power` · Linux 系统功能 — 视频播放等操作请求保持亮屏时，手机屏幕不熄灭。Plasma 的息屏时间对应 Android 的息屏时间。UPower 提供实际电池数据。Android 负责锁屏和休眠。
 
 经由接口：`platform-bridge`、`kwin-android-host`
 
-- **E1** 视频播放时（PowerDevil/ScreenSaver 请求）安卓窗口保持亮屏，暂停后租约释放；请求方退出或断开时租约自动回收，别的客户端不能替它释放。（单元测试、人工）
-- **E2** 显示出来的 Wayland 窗口请求空闲抑制时，经 KWin 到宿主保持亮屏，释放后恢复正常息屏。（实机验收、人工；只能在手机上看：Wayland 窗口的空闲抑制由 KWin 的 Android 后端在宿主的输出面上建抑制器，经 Rungic 应用的原生宿主（idle_inhibit.rs，单元测试只能在手机上跑：android/test-native-core.sh）设置 FLAG_KEEP_SCREEN_ON；无头 KWin 没有 Android 后端，系统测试走不到这条路。）
-- **E3** Plasma 移动电源页的“关闭屏幕”时间与安卓 screen_off_timeout 双向同步；页面只显示真能发生的动作（不显示调暗和挂起）。（单元测试、人工）
-- **E4** Rungic 离开前台后不强制亮屏，不创建 CPU 唤醒锁；Linux 桥意外退出后亮屏租约 12 秒内过期。（单元测试）
-- **E5** ScreenSaver.Lock 让安卓息屏，D-Bus 调用先返回成功；没有 Linux 锁屏密码，唤醒后回到桌面。（单元测试、人工）
-- **E6** 电池电量、温度和充电状态来自真实 UPower；低电量的危急动作不会关机或休眠容器。（单元测试、人工）
+- **E1** 视频播放时（PowerDevil/ScreenSaver 请求）安卓窗口保持亮屏，暂停后租约释放。请求方退出或断开时租约自动回收，别的客户端不能替它释放。（单元测试、人工）
+- **E2** 显示出来的 Wayland 窗口请求空闲抑制时，经 KWin 到宿主保持亮屏，释放后恢复正常息屏。（实机验收、人工；只能在手机上看：Wayland 窗口的空闲抑制由 KWin 的 Android 后端在宿主的输出面上建抑制器，经 Rungic 应用的原生宿主（idle_inhibit.rs，单元测试只能在手机上跑：android/test-native-core.sh）设置 FLAG_KEEP_SCREEN_ON。无头 KWin 没有 Android 后端，系统测试走不到这条路。）
+- **E3** Plasma 移动电源页的“关闭屏幕”时间与安卓 screen_off_timeout 双向同步。页面只显示真能发生的动作（不显示调暗和挂起）。（单元测试、人工）
+- **E4** Rungic 离开前台后不强制亮屏，不创建 CPU 唤醒锁。Linux 桥意外退出后亮屏租约 12 秒内过期。（单元测试）
+- **E5** ScreenSaver.Lock 让安卓息屏，D-Bus 调用先返回成功。没有 Linux 锁屏密码，唤醒后回到桌面。（单元测试、人工）
+- **E6** 电池电量、温度和充电状态来自真实 UPower。低电量的危急动作不会关机或休眠容器。（单元测试、人工）
 
 注意：
-- KWin 只对显示出的窗口计算空闲抑制；探针只在裸 wl_surface 上建抑制器时直连宿主有效、经 KWin 无效。 [docs/72-kwin-android-host-isolation.md](../docs/72-kwin-android-host-isolation.md)
-- 不承诺息屏听歌、后台视频或相机持续运行，安卓仍可冻结后台 APK；也不保证所有第三方播放器都发抑制请求。 [docs/42-plasma-runtime-acceptance.md](../docs/42-plasma-runtime-acceptance.md)
+- KWin 只对显示出的窗口计算空闲抑制。探针只在裸 wl_surface 上建抑制器时直连宿主有效、经 KWin 无效。 [docs/72-kwin-android-host-isolation.md](../docs/72-kwin-android-host-isolation.md)
+- 不承诺息屏听歌、后台视频或相机持续运行，安卓仍可冻结后台 APK。也不保证所有第三方播放器都发抑制请求。 [docs/42-plasma-runtime-acceptance.md](../docs/42-plasma-runtime-acceptance.md)
 - ScreenSaver.Lock 要异步延迟约 300 ms 执行，否则屏幕关闭后 APK 冻结造成 IPC 假超时。 [docs/42-plasma-runtime-acceptance.md](../docs/42-plasma-runtime-acceptance.md)
-- powerdevil 的屏蔽原因没有记录；不要按服务清单的旧默认随意改动电源相关服务。 [docs/83-service-policy.md](../docs/83-service-policy.md)
+- powerdevil 的屏蔽原因没有记录。不要按服务清单的旧默认随意改动电源相关服务。 [docs/83-service-policy.md](../docs/83-service-policy.md)
 
 文档：[docs/42-plasma-runtime-acceptance.md](../docs/42-plasma-runtime-acceptance.md)、[docs/72-kwin-android-host-isolation.md](../docs/72-kwin-android-host-isolation.md)
 
@@ -2496,21 +2496,21 @@ Agent 不靠点界面就能拿到合并日志、崩溃回溯、追踪、截图�
 
 注意：
 - 从命令行启动设置要带会话的 PLASMA_PLATFORM=phone:handset，否则只适用于手机的模块被当作桌面过滤掉。 [docs/73-reduce-upstream-changes.md](../docs/73-reduce-upstream-changes.md)
-- 不要通过禁用 ASLR 隐藏 ModulesModel 的未定义行为；回移上游修复。 [docs/42-plasma-runtime-acceptance.md](../docs/42-plasma-runtime-acceptance.md)
+- 不要通过禁用 ASLR 隐藏 ModulesModel 的未定义行为。回移上游修复。 [docs/42-plasma-runtime-acceptance.md](../docs/42-plasma-runtime-acceptance.md)
 - 系统设置最小化后曾空转（每秒约 112 次定时器唤醒），无法复现，没有针对它修改。 [docs/49-plasma-performance.md](../docs/49-plasma-performance.md)
 
 文档：[docs/42-plasma-runtime-acceptance.md](../docs/42-plasma-runtime-acceptance.md)
 
 #### 安卓设备页
 
-`desktop.device-panel` · 依赖安卓 — “Android 设备”应用显示手机型号、网络、刷新率、电池和 Linux 内存，可设屏幕方向、亮度跟随、内存上限，并打开安卓的系统设置页。
+`desktop.device-panel` · 依赖安卓 — “Android 设备”应用显示手机型号、网络、刷新率、电池和 Linux 内存。用户可以设置方向、亮度跟随和内存上限，也可以打开 Android 系统设置。
 
 经由接口：`platform-bridge`
 
 - **E1** 设备页显示真实 SSID、IP/DNS、刷新率与提交帧率、电量与温度、充电状态和 Linux 内存用量（及其构成，见 install.memory-limit/E4）。（单元测试、人工）
-- **E2** 声音、蓝牙、日期、定位、网络和安卓显示设置按钮打开安卓对应的系统页面；测试振动能让手机振动。（单元测试）
+- **E2** 声音、蓝牙、日期、定位、网络和安卓显示设置按钮打开安卓对应的系统页面。测试振动能让手机振动。（单元测试）
 - **E3** 屏幕方向可选跟随安卓、竖屏、横屏，选择立即生效。内存上限的档位见 install.memory-limit。（单元测试）
-- **E4** 安卓侧太旧或连不上时显示明确提示，不显示过期数据；响应过大时报错。（单元测试）
+- **E4** 安卓侧太旧或连不上时显示明确提示，不显示过期数据。响应过大时报错。（单元测试）
 
 注意：
 - 网络等入口只是打开安卓页面，不能当作硬件控制已逐项验收。 [docs/research/30-feature-adaptation.md](../docs/research/30-feature-adaptation.md)
@@ -2521,38 +2521,38 @@ Agent 不靠点界面就能拿到合并日志、崩溃回溯、追踪、截图�
 
 `desktop.services-ssh` · Linux 系统功能 — 设置 → 系统管理 → 系统服务列出容器默认关闭的服务、原因和风险，可以重新打开或关闭，SSH 也在这里管理。
 
-- **E1** 服务页按分组列出被屏蔽的服务、原因、依据和风险；Ubuntu 自带的 /usr/lib 屏蔽只显示不能改。（系统测试、人工）
-- **E2** 打开有风险的服务先确认一次，再弹 polkit 密码框；在确认框或密码框取消时开关回到原状态，系统不变；输入密码晚于 25 秒也能完成。（人工）
-- **E3** 服务页的 SSH 一项显示运行状态，以及手机各个地址的连接命令和 ED25519 主机密钥指纹（与 ssh-keyscan 一致）；在这里关闭或重新打开 SSH。SSH 自动开启本身见 install.ssh-access。（系统测试、人工）
+- **E1** 服务页按分组列出被屏蔽的服务、原因、依据和风险。Ubuntu 自带的 /usr/lib 屏蔽只显示不能改。（系统测试、人工）
+- **E2** 打开有风险的服务先确认一次，再弹 polkit 密码框。在确认框或密码框取消时开关回到原状态，系统不变。输入密码晚于 25 秒也能完成。（人工）
+- **E3** 服务页的 SSH 一项显示运行状态，以及手机各个地址的连接命令和 ED25519 主机密钥指纹（与 ssh-keyscan 一致）。在这里关闭或重新打开 SSH。SSH 自动开启本身见 install.ssh-access。（系统测试、人工）
 - **E4** 用户在服务页的改动在升级后保留（每个单元的默认值只落地一次）。（系统测试、人工）
 
 注意：
-- 用户明确要求 SSH 自动开启；docs/83 的“默认关闭”、policy.json 的 ssh 组 default=disabled 和 sshd 配置注释都是旧设计，不能据此关闭 SSH 或增加关闭策略。自动开启目前靠首启脚本 enable ssh.socket。 [docs/83-service-policy.md](../docs/83-service-policy.md) [docs/research/g100-system-update-20260929.md](../docs/research/g100-system-update-20260929.md)
+- 用户明确要求 SSH 自动开启。docs/83 的“默认关闭”、policy.json 的 ssh 组 default=disabled 和 sshd 配置注释都是旧设计，不能据此关闭 SSH 或增加关闭策略。自动开启目前靠首启脚本 enable ssh.socket。 [docs/83-service-policy.md](../docs/83-service-policy.md) [docs/research/g100-system-update-20260929.md](../docs/research/g100-system-update-20260929.md)
 - 容器与安卓共用网络，SSH 监听手机自己的地址，没有独立局域网 IP。 [docs/83-service-policy.md](../docs/83-service-policy.md) [docs/research/g100-ssh-connectivity-20260929.md](../docs/research/g100-ssh-connectivity-20260929.md)
-- 无障碍 Press 只翻转 FormSwitchDelegate 的外观、不触发处理函数，自动化测试要用 ui_tap；确认框要放在窗口 overlay 上而不是滚动页面里。 [docs/83-service-policy.md](../docs/83-service-policy.md)
-- 打开 NetworkManager、wpa_supplicant、networkd 等可能抢走安卓网卡、断开无线调试；界面警告但不阻止。 [docs/83-service-policy.md](../docs/83-service-policy.md)
+- 无障碍 Press 只翻转 FormSwitchDelegate 的外观、不触发处理函数，自动化测试要用 ui_tap。确认框要放在窗口 overlay 上而不是滚动页面里。 [docs/83-service-policy.md](../docs/83-service-policy.md)
+- 打开 NetworkManager、wpa_supplicant、networkd 等可能抢走安卓网卡、断开无线调试。界面警告但不阻止。 [docs/83-service-policy.md](../docs/83-service-policy.md)
 - 输入真实账户密码让 KAuth 辅助程序完整执行 SSH 开关、用账户密码 SSH 登录、从同一局域网另一台设备连接都还没验证。 [docs/83-service-policy.md](../docs/83-service-policy.md)
 
 文档：[docs/83-service-policy.md](../docs/83-service-policy.md)、[docs/research/g100-system-update-20260929.md](../docs/research/g100-system-update-20260929.md)、[docs/research/g100-ssh-connectivity-20260929.md](../docs/research/g100-ssh-connectivity-20260929.md)
 
 #### 录屏
 
-`desktop.screen-recording` · Linux 系统功能 — 快捷设置一点开始录屏，用手机硬件 H.264 编码，带系统声音或麦克风；接着电视时每块屏各录一个文件。
+`desktop.screen-recording` · Linux 系统功能 — 用户点击快捷设置开始录屏。手机使用硬件 H.264 编码，可录入系统声音或麦克风。连接电视时，每块屏幕分别生成一个文件。
 
 经由接口：`codec`、`audio`、`shared-storage`
 
 - **E1** 录屏快捷设置写出可播放的 MP4，含 H.264 视频和 AAC 音频两轨，保存在 ~/Videos。（单元测试、系统测试、实机验收、人工）
-- **E2** 停止录屏后很快收尾（约 0.3 秒），不会超时只留下 .partial.mp4；编码跟不上时丢帧而不积压。（单元测试、人工）
-- **E3** 录到的是完整桌面和应用画面，方向正确，不是黑屏。（人工；只能在手机上看：画面是手机上 KWin 的录屏流在 Adreno GPU 上回读的像素（screencast-gles-readback），方向随安卓；像素对不对只有手机的 GPU 和驱动能说明。不黑屏的另一半（录屏不排除 plasmashell，screencast-mobile-shell）是 KWin 补丁的逻辑，系统测试镜像里是 Ubuntu 原版 KWin，这一半还没有自动检查。）
+- **E2** 停止录屏后很快收尾（约 0.3 秒），不会超时只留下 .partial.mp4。编码跟不上时丢帧而不积压。（单元测试、人工）
+- **E3** 录到的是完整桌面和应用画面，方向正确，不是黑屏。（人工；只能在手机上看：画面是手机上 KWin 的录屏流在 Adreno GPU 上回读的像素（screencast-gles-readback），方向随安卓。像素对不对只有手机的 GPU 和驱动能说明。不黑屏的另一半（录屏不排除 plasmashell，screencast-mobile-shell）是 KWin 补丁的逻辑，系统测试镜像里是 Ubuntu 原版 KWin，这一半还没有自动检查。）
 - **E4** 接着电视时手机和电视同时录、各存一个文件（电视上带光标），录制中断开电视两个文件都保存。（单元测试、系统测试、人工）
-- **E5** 设置里可选声音来源（无、系统声音、麦克风、两者）和画质档位；只用硬件编码器，拿不到时报错而不改用软件编码。（单元测试）
+- **E5** 设置里可选声音来源（无、系统声音、麦克风、两者）和画质档位。只用硬件编码器，拿不到时报错而不改用软件编码。（单元测试）
 - **E6** 录屏结束时弹出“录屏已保存或失败”的通知。（系统测试）
 
 注意：
 - KWin 默认把请求进程的窗口从录屏中排除，而 Plasma Mobile 的桌面、面板和录屏按钮都在 plasmashell 里，整个桌面因此黑屏。 [docs/46-plasma-recording-and-edge-back.md](../docs/46-plasma-recording-and-edge-back.md)
-- pulsesrc 首个缓冲区可能被对齐到 2³²−1 段之后（gstaudiobasesrc 用无符号差值），混音器积压、停止时 EOS 永远等不到；属共享层问题，已在 gst-plugins-base 修复，不要在录屏程序里绕开。 [docs/73-reduce-upstream-changes.md](../docs/73-reduce-upstream-changes.md)
-- 硬件编码器经宿主桥接的吞吐约 50fps，60fps 档实际约 50fps；1080×2400@60 单路和两路大尺寸同时编码会被拒绝，多屏或 60fps 时缩到长边 ≤1920。 [docs/48-plasma-media-pipelines.md](../docs/48-plasma-media-pipelines.md)
-- ScreencastingRequest 固定以 pointer_hidden 申请，Screencasting 类未导出；外屏光标靠插件自带的 ScreenStreamRequest。 [docs/48-plasma-media-pipelines.md](../docs/48-plasma-media-pipelines.md)
+- pulsesrc 首个缓冲区可能被对齐到 2³²−1 段之后（gstaudiobasesrc 用无符号差值），混音器积压、停止时 EOS 永远等不到。属共享层问题，已在 gst-plugins-base 修复，不要在录屏程序里绕开。 [docs/73-reduce-upstream-changes.md](../docs/73-reduce-upstream-changes.md)
+- 硬件编码器经宿主桥接的吞吐约 50fps，60fps 档实际约 50fps。1080×2400@60 单路和两路大尺寸同时编码会被拒绝，多屏或 60fps 时缩到长边 ≤1920。 [docs/48-plasma-media-pipelines.md](../docs/48-plasma-media-pipelines.md)
+- ScreencastingRequest 固定以 pointer_hidden 申请，Screencasting 类未导出。外屏光标靠插件自带的 ScreenStreamRequest。 [docs/48-plasma-media-pipelines.md](../docs/48-plasma-media-pipelines.md)
 - 共享存储挂载未就绪时 xdg-user-dirs-update 曾把 Videos 等改成 $HOME，录屏落到主目录。 [docs/48-plasma-media-pipelines.md](../docs/48-plasma-media-pipelines.md)
 - 收到 20 个 PipeWire buffer 不能证明录屏像素正确。 [docs/46-plasma-recording-and-edge-back.md](../docs/46-plasma-recording-and-edge-back.md)
 
@@ -2560,28 +2560,28 @@ Agent 不靠点界面就能拿到合并日志、崩溃回溯、追踪、截图�
 
 #### 在设置里改账户密码
 
-`desktop.account-password` · Linux 系统功能 — 首次设置之后（见 install.account-setup），在“用户与密码”（kcm_users 与 AccountsService）里改 Linux 账户的密码；软件管理和系统设置的授权随之使用新密码。
+`desktop.account-password` · Linux 系统功能 — 首次账户设置完成后，用户可以在“用户与密码”中修改 Linux 密码。该页面使用 kcm_users 和 AccountsService。软件管理和系统设置随后使用新密码授权。首次设置见 install.account-setup。
 
 - **E1** 在“用户与密码”里输入旧密码和新密码后修改成功，之后 polkit 授权（软件管理、系统服务页）要的是新密码。（缺口：kcm_users 改密码与 Discover 内的密码认证都还没有实机验证（docs/44））
-- **E2** 改 Linux 密码不会重新启用 Linux 锁屏，手机锁定仍由安卓管理。（缺口：要在无头会话里经 kcm_users 与 AccountsService 真的改一次密码，再核对 Linux 锁屏仍关着；系统测试镜像没有 accountsservice，也没有可用的系统总线。锁屏设置以 [$i] 固定、用户配置改不动，由系统测试 session_restart 检查。）
+- **E2** 改 Linux 密码不会重新启用 Linux 锁屏，手机锁定仍由安卓管理。（缺口：要在无头会话里经 kcm_users 与 AccountsService 真的改一次密码，再核对 Linux 锁屏仍关着。系统测试镜像没有 accountsservice，也没有可用的系统总线。锁屏设置以 [$i] 固定、用户配置改不动，由系统测试 session_restart 检查。）
 
 注意：
-- 设置 Linux 管理密码不重新启用第二层 Linux 锁屏；试验中的 PackageKit 免密码授权规则已移除，不设固定默认密码。 [docs/44-plasma-user-account.md](../docs/44-plasma-user-account.md)
+- 设置 Linux 管理密码不重新启用第二层 Linux 锁屏。试验中的 PackageKit 免密码授权规则已移除，不设固定默认密码。 [docs/44-plasma-user-account.md](../docs/44-plasma-user-account.md)
 
 文档：[docs/44-plasma-user-account.md](../docs/44-plasma-user-account.md)
 
 #### Rungic 应用的统一外观
 
-`desktop.design-system` · Linux 系统功能 — 设计系统 com.rungic.design：深浅色跟随系统，控件按状态有明确反馈，底部选择面板和页面横滑返回。
+`desktop.design-system` · Linux 系统功能 — com.rungic.design 提供统一设计系统。深浅色跟随系统，各控件明确显示状态反馈。设计系统提供底部选择面板和页面横滑返回。
 
 - **E1** 应用和 Home 浮层的深浅色跟随系统配色变化，也可在应用里固定为浅色或深色，重启后保留。（系统测试、人工）
 - **E2** 点选项行、开关行、列表行时有按下反馈，快速一点也至少显示 150 ms。（单元测试、人工）
-- **E3** 底部选择面板点一项后先显示选中再收起；点遮罩、下拖或返回键关闭且不做选择。（单元测试、人工）
-- **E4** 在页面任意位置向右横滑返回上一页，跟手、按松手方向判断；纵向滚动不受影响，手指下的控件不会被当成一次点击。（系统测试、人工）
+- **E3** 底部选择面板点一项后先显示选中再收起。点遮罩、下拖或返回键关闭且不做选择。（单元测试、人工）
+- **E4** 在页面任意位置向右横滑返回上一页，跟手、按松手方向判断。纵向滚动不受影响，手指下的控件不会被当成一次点击。（系统测试、人工）
 - **E5** 各控件的全部状态（关、开、按下、禁用、聚焦）在浅色和深色下颜色对比达标，状态总览可离线和在手机上渲染核对。（单元测试、人工）
 
 注意：
-- ListRow 只在设了 accessory 时才算可交互，11 个可点击行曾没有按下反馈；在设计系统里改，不在页面打补丁。 [docs/102-design-system-choices-and-swipe-back.md](../docs/102-design-system-choices-and-swipe-back.md)
+- ListRow 只在设了 accessory 时才算可交互，11 个可点击行曾没有按下反馈。在设计系统里改，不在页面打补丁。 [docs/102-design-system-choices-and-swipe-back.md](../docs/102-design-system-choices-and-swipe-back.md)
 - ListRow 是 AbstractButton，checked 是 FINAL，不能重新声明。 [docs/102-design-system-choices-and-swipe-back.md](../docs/102-design-system-choices-and-swipe-back.md)
 - PageSwipe 要先重置状态再 ungrabTouchPoints，避免 touchUngrabEvent 误发一次取消。 [docs/102-design-system-choices-and-swipe-back.md](../docs/102-design-system-choices-and-swipe-back.md)
 
@@ -2589,16 +2589,16 @@ Agent 不靠点界面就能拿到合并日志、崩溃回溯、追踪、截图�
 
 #### 桌面目录里的旧补丁与旧打包脚本（已退役）
 
-`desktop.legacy-patches` · Linux 系统功能 — 迁入 packages/<组件>/debian/patches/rungic 补丁队列之前直接维护的补丁，以及已被 KWin Android 后端和 kscreen 补丁队列取代的旧显示设置通路；构建不再使用。
+`desktop.legacy-patches` · Linux 系统功能 — 这些旧补丁曾直接维护，后迁入 packages/<组件>/debian/patches/rungic 队列。旧显示设置通路也已由 KWin Android 后端和 kscreen 补丁队列取代。构建不再使用这些旧实现。
 
 
 注意：
-- kscreen 曾回到 Ubuntu 原包，后来因五档显示大小重新建立 packages/kscreen 补丁队列；不要恢复旧的 Android 私有显示控制补丁（kscreen-android-policy、kwin-display-settings）。 [docs/85-phone-display-size-policy.md](../docs/85-phone-display-size-policy.md) [docs/73-reduce-upstream-changes.md](../docs/73-reduce-upstream-changes.md)
+- kscreen 曾回到 Ubuntu 原包，后来因五档显示大小重新建立 packages/kscreen 补丁队列。不要恢复旧的 Android 私有显示控制补丁（kscreen-android-policy、kwin-display-settings）。 [docs/85-phone-display-size-policy.md](../docs/85-phone-display-size-policy.md) [docs/73-reduce-upstream-changes.md](../docs/73-reduce-upstream-changes.md)
 - desktop/patches/qt-video-duration.patch 是未验收实验，从未进入 Qt 补丁队列。 [docs/48-plasma-media-pipelines.md](../docs/48-plasma-media-pipelines.md)
 
 ## 安装、首次进入与升级
 
-在已准备好的 Android 底座上单独安装 Rungic（CI1 设备底座/GKI → CI2 独立 RungicOS 镜像 → CI3 独立安装/升级，docs/75）， 首次打开看到真实的准备进度、创建账户、进入桌面；之后每次打开或重启都回到桌面，升级保留账户与文件。 旧的整包刷机、一键重装、GSI 与精简 ROM 路线作为已退役功能记录。
+在准备好的 Android 底座上单独安装 Rungic。 流程为 CI1 设备底座/GKI → CI2 独立 RungicOS 镜像 → CI3 独立安装/升级，见 docs/75。 首次打开显示实际准备进度，用户创建账户后进入桌面。 之后每次打开或重启都回到桌面。升级保留账户与文件。 旧整包刷机、一键重装、GSI 和精简 ROM 路线保留为退役功能记录。
 
 ### 首次安装进入桌面
 
@@ -2606,46 +2606,46 @@ Agent 不靠点界面就能拿到合并日志、崩溃回溯、追踪、截图�
 
 #### 在兼容底座上独立安装 Rungic
 
-`install.standalone-install` · 依赖安卓 — 开发用 USB/ADB 入口（tools/ci/standalone.py pack/verify/install/status）把 CI2 镜像、Rungic 与 Termux APK、 LXC 宿主和 rootfs 装到已准备的 Android 上；不刷 Android 分区、不清 Android 数据。用户自助安装尚未实现。
+`install.standalone-install` · 依赖安卓 — 开发用 USB/ADB 入口是 tools/ci/standalone.py pack/verify/install/status。 它将 CI2 镜像、Rungic 与 Termux APK、LXC 宿主和 rootfs 安装到已准备好的 Android 上。 它不刷写 Android 分区，不清除 Android 数据。 用户自助安装尚未实现。
 
-- **E1** 安装前核验精确的手机：序列号/端口、完整 fingerprint、机型、运行内核、SELinux Enforcing、槽位、电量和 boot 回读摘要；任何一项不符都在读 boot 或写入手机之前停止。（单元测试、人工）
-- **E2** 只信调用者给的可信 manifest 摘要；组件损坏或截断、被换成符号链接、清单里有越界路径、release 名带 shell 字符时拒绝安装。（单元测试）
+- **E1** 安装前核验目标手机的序列号/端口、完整 fingerprint、机型、运行内核、SELinux Enforcing、槽位、电量和 boot 回读摘要。任何一项不符，都在读 boot 或写入手机前停止。（单元测试、人工）
+- **E2** 只信调用者给的可信 manifest 摘要。组件损坏或截断、被换成符号链接、清单里有越界路径、release 名带 shell 字符时拒绝安装。（单元测试）
 - **E3** 一次安装自动完成：两个普通 APK、Termux 前缀、LXC 宿主、rootfs（解压后核对整镜像 SHA）、SSH 主机密钥和共享挂载准备，最后发布 ready / complete / error=none。（人工）
-- **E4** 手机上已有 Rungic runtime 时拒绝首装；只允许重试同一 release、同一 manifest 的未完成安装，新 release 不覆盖已有安装。（单元测试）
-- **E5** 重启后已选中的独立安装不会被旧 product 种子重新接管；选中的载荷缺失时失败关闭，不回落到旧入口。（单元测试、人工）
+- **E4** 手机已有 Rungic runtime 时，安装器拒绝首装。未完成的安装只允许用同一 release、同一 manifest 重试。新 release 不覆盖已有安装。（单元测试）
+- **E5** 重启后已选中的独立安装不会被旧 product 种子重新接管。选中的载荷缺失时失败关闭，不回落到旧入口。（单元测试、人工）
 - **E6** Rungic 应用的 root 授权在发布安装状态之前设好，首次打开没有 Magisk 授权弹窗。（人工）
-- **E7** 投屏组件是可选部分：缺失或安装失败只记日志，不阻止桌面安装；完好的已装组件不动，损坏的会被修复，记住的电视保留。（单元测试）
+- **E7** 投屏组件可选。组件缺失或安装失败时只记日志，不阻止桌面安装。完好的已装组件保留，损坏的组件修复，已记住的电视保留。（单元测试）
 - **E8** 组包时拒绝与当前源码不符的旧投屏组件（旧 JAR 曾让电视列表为空）。（单元测试）
 - **E9** 手机空间不足时在写镜像之前停止（保守预留整镜像加 512 MiB），不会写满 /data。（单元测试）
 
 注意：
-- `install` 返回 installing 只表示后台任务已启动；必须继续核对 ready、账户和真实桌面。 [docs/91-x70-independent-install.md](../docs/91-x70-independent-install.md)
-- 底座准备仍有人工步骤：Android 初始设置与 USB 授权、补装完整 Magisk 管理器、修复运行环境、在超级用户页启用 Shell；不是无人值守刷机。Magisk 离线就绪、用户自助安装、完整镜像升级仍未实现。 [docs/92-x70-android-base-end-to-end.md](../docs/92-x70-android-base-end-to-end.md) [docs/75-image-build-separation.md](../docs/75-image-build-separation.md)
-- Android toybox 的 `dd conv=sparse` 帮助里有、实际不支持；16 GiB 稀疏镜像要用 ARM64 稀疏写入器写，并核对整镜像 SHA。 [docs/80-g100-image-installation-retrospective.md](../docs/80-g100-image-installation-retrospective.md)
+- `install` 返回 installing 只表示后台任务已启动。必须继续核对 ready、账户和真实桌面。 [docs/91-x70-independent-install.md](../docs/91-x70-independent-install.md)
+- 底座准备仍有人工步骤：Android 初始设置与 USB 授权、补装完整 Magisk 管理器、修复运行环境、在超级用户页启用 Shell。不是无人值守刷机。Magisk 离线就绪、用户自助安装、完整镜像升级仍未实现。 [docs/92-x70-android-base-end-to-end.md](../docs/92-x70-android-base-end-to-end.md) [docs/75-image-build-separation.md](../docs/75-image-build-separation.md)
+- Android toybox 的 `dd conv=sparse` 帮助里有、实际不支持。16 GiB 稀疏镜像要用 ARM64 稀疏写入器写，并核对整镜像 SHA。 [docs/80-g100-image-installation-retrospective.md](../docs/80-g100-image-installation-retrospective.md)
 - 在临时 rootfs chroot 里生成 SSH 主机密钥要先挂载 dev/proc/sys，否则 configure 阶段失败（.2）。 [docs/91-x70-independent-install.md](../docs/91-x70-independent-install.md)
-- 旧 init_boot 每次启动都从 product 重写 service.d，单独替换 service.d 接管不了；用 Magisk system/product 模块转发，并实测重启后生效。 [docs/91-x70-independent-install.md](../docs/91-x70-independent-install.md)
-- Magisk root 上下文的 `pm install`/`pm grant`/`appops set` 曾返回 Binder Failed transaction；普通 APK 安装与授权放在 Android shell 上下文。 [docs/79-g100-ci-execution.md](../docs/79-g100-ci-execution.md) [docs/93-x70-independent-image-revalidation.md](../docs/93-x70-independent-image-revalidation.md)
-- 同时有多个 ADB server（5037/5038）且重启时交替接管；每条设备命令绑定精确端口和序列号，单个端口没列出设备不代表手机没启动。 [docs/92-x70-android-base-end-to-end.md](../docs/92-x70-android-base-end-to-end.md) [docs/80-g100-image-installation-retrospective.md](../docs/80-g100-image-installation-retrospective.md)
-- `adb exec-out su -c 'tar ...'` 导出备份时 stderr 混进了二进制流，归档损坏而命令返回 0；先在手机写文件、记 SHA，再 adb pull 并两端核对。 [docs/92-x70-android-base-end-to-end.md](../docs/92-x70-android-base-end-to-end.md)
+- 旧 init_boot 每次启动都从 product 重写 service.d，单独替换 service.d 接管不了。用 Magisk system/product 模块转发，并实测重启后生效。 [docs/91-x70-independent-install.md](../docs/91-x70-independent-install.md)
+- Magisk root 上下文的 `pm install`/`pm grant`/`appops set` 曾返回 Binder Failed transaction。普通 APK 安装与授权放在 Android shell 上下文。 [docs/79-g100-ci-execution.md](../docs/79-g100-ci-execution.md) [docs/93-x70-independent-image-revalidation.md](../docs/93-x70-independent-image-revalidation.md)
+- 同时有多个 ADB server（5037/5038）且重启时交替接管。每条设备命令绑定精确端口和序列号，单个端口没列出设备不代表手机没启动。 [docs/92-x70-android-base-end-to-end.md](../docs/92-x70-android-base-end-to-end.md) [docs/80-g100-image-installation-retrospective.md](../docs/80-g100-image-installation-retrospective.md)
+- `adb exec-out su -c 'tar ...'` 导出备份时 stderr 混进了二进制流，归档损坏而命令返回 0。先在手机写文件、记 SHA，再 adb pull 并两端核对。 [docs/92-x70-android-base-end-to-end.md](../docs/92-x70-android-base-end-to-end.md)
 
 文档：[docs/75-image-build-separation.md](../docs/75-image-build-separation.md)、[docs/91-x70-independent-install.md](../docs/91-x70-independent-install.md)、[docs/92-x70-android-base-end-to-end.md](../docs/92-x70-android-base-end-to-end.md)、[docs/93-x70-independent-image-revalidation.md](../docs/93-x70-independent-image-revalidation.md)
 
 #### 首次打开显示真实的准备进度
 
-`install.first-run-progress` · 依赖安卓 — 安装还没完成时打开 Rungic，看到正在做的实际阶段、需要用户做的事和出错原因；安装就绪后才往下走。
+`install.first-run-progress` · 依赖安卓 — 安装期间，Rungic 显示实际准备阶段、需要用户执行的操作和出错原因。安装就绪后，才允许进入后续步骤。
 
 - **E1** 显示实际阶段文字（检查安装文件、准备运行环境、展开桌面系统、配置系统、等待共享存储、完成初始化），用不定进度动画，不显示虚构的百分比或倒计时。（单元测试、人工）
 - **E2** 安装状态缺失、版本与本次 release 不符、内容截断或损坏、或是未知的未来 schema 时继续等待并在详情里说明原因，不打开账户表单。（单元测试）
-- **E3** 失败按原因给出不同的说明：安装文件校验失败（重新获取安装包，重启不会修复）、空间不足、共享存储不可用、其他；不一律让用户重启。（单元测试、人工）
-- **E4** 等待解锁时提示先解锁手机、解锁后自动继续；三分钟没有新阶段时只提示“较长时间未收到新的阶段状态”，不判为失败。（单元测试）
-- **E5** 准备期间可以返回 Android，再打开时接着显示当前阶段。（缺口：返回 Android 再打开时的阶段显示由 MainActivity/StartupScreen 的生命周期决定，离线 Java 测试只覆盖状态文件的读取（FirstBootStateTest）；82 篇把“安装中进入/退出 Rungic”列为待做的首启场景，尚无实机记录）
+- **E3** 失败按原因给出不同的说明：安装文件校验失败（重新获取安装包，重启不会修复）、空间不足、共享存储不可用、其他。不一律让用户重启。（单元测试、人工）
+- **E4** 等待解锁时提示先解锁手机、解锁后自动继续。三分钟没有新阶段时只提示“较长时间未收到新的阶段状态”，不判为失败。（单元测试）
+- **E5** 准备期间可以返回 Android，再打开时接着显示当前阶段。（缺口：返回 Android 再打开时的阶段显示由 MainActivity/StartupScreen 的生命周期决定，离线 Java 测试只覆盖状态文件的读取（FirstBootStateTest）。82 篇把“安装中进入/退出 Rungic”列为待做的首启场景，尚无实机记录）
 - **E6** 清除 Rungic 应用数据后再打开，不用重启手机：已完成的安装重新发布状态并直接放行，进行中的安装交给首启脚本，复用底座上的旧 product 种子不会让它一直等待。（单元测试、人工）
 
 注意：
-- 只看 Android `sys.boot_completed=1` 证明不了 rootfs 已展开、共享目录已挂载或容器已就绪；按原子状态和真实条件放行，不靠固定延时。 [docs/80-g100-image-installation-retrospective.md](../docs/80-g100-image-installation-retrospective.md)
-- 应用私有的安装状态只是界面信号；root 控制器另外核对完成标记，界面 ready 不能代替。 [docs/80-g100-image-installation-retrospective.md](../docs/80-g100-image-installation-retrospective.md) [docs/82-first-run-ux-refactor.md](../docs/82-first-run-ux-refactor.md)
-- 状态只有阶段和更新时间，没有解压字节进度或工作心跳；不能用计时器伪装成进度。 [docs/82-first-run-ux-refactor.md](../docs/82-first-run-ux-refactor.md)
-- 桌面阶段 Android screencap 可能是黑的，而 KWin 截图和手机屏幕正常；不能用它判定黑屏。 [docs/91-x70-independent-install.md](../docs/91-x70-independent-install.md)
+- 只看 Android `sys.boot_completed=1` 证明不了 rootfs 已展开、共享目录已挂载或容器已就绪。按原子状态和真实条件放行，不靠固定延时。 [docs/80-g100-image-installation-retrospective.md](../docs/80-g100-image-installation-retrospective.md)
+- 应用私有的安装状态只是界面信号。root 控制器另外核对完成标记，界面 ready 不能代替。 [docs/80-g100-image-installation-retrospective.md](../docs/80-g100-image-installation-retrospective.md) [docs/82-first-run-ux-refactor.md](../docs/82-first-run-ux-refactor.md)
+- 状态只有阶段和更新时间，没有解压字节进度或工作心跳。不能用计时器伪装成进度。 [docs/82-first-run-ux-refactor.md](../docs/82-first-run-ux-refactor.md)
+- 桌面阶段 Android screencap 可能是黑的，而 KWin 截图和手机屏幕正常。不能用它判定黑屏。 [docs/91-x70-independent-install.md](../docs/91-x70-independent-install.md)
 
 文档：[docs/81-end-to-end-user-experience.md](../docs/81-end-to-end-user-experience.md)、[docs/82-first-run-ux-refactor.md](../docs/82-first-run-ux-refactor.md)、[docs/95-install-use-case-tests.md](../docs/95-install-use-case-tests.md)
 
@@ -2653,58 +2653,58 @@ Agent 不靠点界面就能拿到合并日志、崩溃回溯、追踪、截图�
 
 `install.account-setup` · 依赖安卓 — 系统准备就绪后，在 Android 原生表单里设置 Linux 用户名和密码（用于安装软件和系统设置，与手机解锁密码不同）。
 
-- **E1** 只有安装 ready、容器运行、账户工具在、共享存储已挂载、用户目录已建立后才出现表单；这些没就绪时显示为准备问题，不让用户靠重复输入密码碰运气。（人工）
-- **E2** 不合规的用户名（须小写字母开头、最多 32 位、不是已有系统账户）和密码（至少 8 个字符、UTF-8 不超过 256 字节、无换行或空字符、两次一致）不会被接受：表单在字段上就地提示，账户助手在 root 一侧再校验一遍。（单元测试）
-- **E3** 用户名已被使用或主目录已存在时表单保留、提示换一个名字；其他失败关闭表单、显示“账户设置尚未完成”，不自动重复提交密码。（单元测试、人工）
-- **E4** 密码只经 root 进程的 stdin 传递，不进命令行、日志或持久状态；表单禁止截屏和自动填充，两个密码框都是掩码，可以切换显示。（单元测试、人工）
-- **E5** 创建失败时回到原状态（原锁定口令、附加组和登录名），不写完成标记；已有密码或已完成的账户不能经首装接口重置。（单元测试）
+- **E1** 只有以下条件全部满足时，才显示账户表单：安装 ready、容器运行、账户工具存在、共享存储已挂载、用户目录已建立。条件未满足时，界面显示准备问题，不要求用户重复输入密码。（人工）
+- **E2** 用户名必须以小写字母开头，最多 32 位，且不能是已有系统账户。密码至少 8 个字符，UTF-8 最多 256 字节，不含换行或空字符，两次输入必须一致。表单在不合规字段旁提示，root 侧账户助手再次校验。（单元测试）
+- **E3** 用户名已被使用或主目录已存在时表单保留、提示换一个名字。其他失败关闭表单、显示“账户设置尚未完成”，不自动重复提交密码。（单元测试、人工）
+- **E4** 密码只通过 root 进程的 stdin 传递，不写入命令行、日志或持久状态。表单禁止截屏和自动填充。两个密码框默认掩码显示，用户可以切换显示。（单元测试、人工）
+- **E5** 创建失败时回到原状态（原锁定口令、附加组和登录名），不写完成标记。已有密码或已完成的账户不能经首装接口重置。（单元测试）
 - **E6** 提交后超时、切后台或重开，先查询真实结果：正在创建时显示“账户仍在设置中”，已完成的不再出现表单，不会创建第二个账户。（单元测试）
-- **E7** 新账户是 UID 1000，加入 sudo 与 systemd-journal，软件管理和系统设置用这个密码授权；改名时 subuid/subgid 跟着新名字。（单元测试、人工）
+- **E7** 新账户是 UID 1000，加入 sudo 与 systemd-journal，软件管理和系统设置用这个密码授权。改名时 subuid/subgid 跟着新名字。（单元测试、人工）
 
 注意：
-- G100 首装时账户反复提交失败，实际是容器的前置条件（音频 socket 目录、共享存储绑定）没准备好，失败发生在调用账户助手之前，与密码无关；现在由公共 start_container 统一准备。 [docs/79-g100-ci-execution.md](../docs/79-g100-ci-execution.md) [docs/80-g100-image-installation-retrospective.md](../docs/80-g100-image-installation-retrospective.md)
-- 构建机的 .pyc 缓存 /home/kevinzhow 混入了 X70 镜像，让“kevinzhow”显示为已被使用；镜像构建器现在拒绝 home 里模板账户以外的条目，不能要求用户换名规避。 [docs/83-x70-air-pro-onboarding.md](../docs/83-x70-air-pro-onboarding.md)
-- 控制器给报错加前缀后，表单的完全匹配失效（d006ba6，已被占用的用户名会关掉表单）；只匹配控制器输出的最后一个非空行。 [docs/95-install-use-case-tests.md](../docs/95-install-use-case-tests.md)
+- G100 首装时账户反复提交失败，实际是容器的前置条件（音频 socket 目录、共享存储绑定）没准备好，失败发生在调用账户助手之前，与密码无关。现在由公共 start_container 统一准备。 [docs/79-g100-ci-execution.md](../docs/79-g100-ci-execution.md) [docs/80-g100-image-installation-retrospective.md](../docs/80-g100-image-installation-retrospective.md)
+- 构建机的 .pyc 缓存 /home/kevinzhow 混入了 X70 镜像，让“kevinzhow”显示为已被使用。镜像构建器现在拒绝 home 里模板账户以外的条目，不能要求用户换名规避。 [docs/83-x70-air-pro-onboarding.md](../docs/83-x70-air-pro-onboarding.md)
+- 控制器给报错加前缀后，表单的完全匹配失效（d006ba6，已被占用的用户名会关掉表单）。只匹配控制器输出的最后一个非空行。 [docs/95-install-use-case-tests.md](../docs/95-install-use-case-tests.md)
 - `setSingleLine` 会覆盖密码转换器，输入类型和转换器要在它之后设置。 [docs/91-x70-independent-install.md](../docs/91-x70-independent-install.md)
-- Android 16 自带的旧 UI Automator runner 报测试中断却打印 OK；以实际账户状态为准。表单有 FLAG_SECURE，Android 截图是黑的，用 UI 层级和 account-status 核对。 [docs/91-x70-independent-install.md](../docs/91-x70-independent-install.md) [docs/93-x70-independent-image-revalidation.md](../docs/93-x70-independent-image-revalidation.md)
-- 手机锁屏仍由 Android 管；设置 Linux 密码不会开启第二层 Linux 锁屏。 [docs/44-plasma-user-account.md](../docs/44-plasma-user-account.md)
+- Android 16 自带的旧 UI Automator runner 报测试中断却打印 OK。以实际账户状态为准。表单有 FLAG_SECURE，Android 截图是黑的，用 UI 层级和 account-status 核对。 [docs/91-x70-independent-install.md](../docs/91-x70-independent-install.md) [docs/93-x70-independent-image-revalidation.md](../docs/93-x70-independent-image-revalidation.md)
+- 手机锁屏仍由 Android 管。设置 Linux 密码不会开启第二层 Linux 锁屏。 [docs/44-plasma-user-account.md](../docs/44-plasma-user-account.md)
 
 文档：[docs/44-plasma-user-account.md](../docs/44-plasma-user-account.md)、[docs/82-first-run-ux-refactor.md](../docs/82-first-run-ux-refactor.md)、[docs/95-install-use-case-tests.md](../docs/95-install-use-case-tests.md)
 
 #### 首次进入桌面与运行状态
 
-`install.desktop-entry` · 依赖安卓 — 账户完成后看着桌面启动，画面真正出现在手机上才移除 loading；通知和界面一致地告诉用户 Rungic 现在的状态。
+`install.desktop-entry` · 依赖安卓 — 账户设置完成后，界面显示桌面启动状态。手机实际显示画面后，才移除 loading。通知与界面显示一致的 Rungic 状态。
 
 经由接口：`kwin-android-host`
 
-- **E1** 启动时显示“正在启动桌面”，直到当前会话的手机帧真正显示后才移除 loading；旧帧、投屏输出或屏障之前的提交都不算。（单元测试、人工）
-- **E2** 显示确认 60 秒没有到达时显示可恢复的“显示未确认”，可以重新检查，不强行放行。（缺口：显示确认超时的处理在 MainActivity（framePoll）里，依赖 Android 的 Activity、Surface 和 NativeBridge，离线 Java 测试只编译 FirstBootState；需要 Android 仪器测试，或实机首装时让显示反馈不到达（82 篇“后续整包必须覆盖的场景”第 4 条））
-- **E3** 首次进入直接到 Plasma 桌面，不出现 Plasma Mobile 欢迎向导；需要时仍可手动打开向导。（人工）
-- **E4** 通知随实际状态变化（正在准备 Rungic、等待设置账户、正在运行、需要处理），点通知回到 Rungic；新装时不声称桌面已在运行。（人工）
-- **E5** 关闭会话前确认并说明会结束 Linux 应用；切到 Android 时会话继续运行。（缺口：关闭会话的确认对话框在 MainActivity 的宿主菜单里（AlertDialog），离线无法运行；82 篇只记录了切到 Android 后返回（2026-09-28），没有关闭会话确认的实机记录）
+- **E1** 启动时显示“正在启动桌面”。当前会话的手机帧实际显示后，才移除 loading。旧帧、投屏输出和屏障前提交均不满足条件。（单元测试、人工）
+- **E2** 显示确认 60 秒没有到达时显示可恢复的“显示未确认”，可以重新检查，不强行放行。（缺口：显示确认超时的处理在 MainActivity（framePoll）里，依赖 Android 的 Activity、Surface 和 NativeBridge，离线 Java 测试只编译 FirstBootState。需要 Android 仪器测试，或实机首装时让显示反馈不到达（82 篇“后续整包必须覆盖的场景”第 4 条））
+- **E3** 首次进入直接到 Plasma 桌面，不出现 Plasma Mobile 欢迎向导。需要时仍可手动打开向导。（人工）
+- **E4** 通知随实际状态变化（正在准备 Rungic、等待设置账户、正在运行、需要处理），点通知回到 Rungic。新装时不声称桌面已在运行。（人工）
+- **E5** 关闭会话前确认并说明会结束 Linux 应用。切到 Android 时会话继续运行。（缺口：关闭会话的确认对话框在 MainActivity 的宿主菜单里（AlertDialog），离线无法运行。82 篇只记录了切到 Android 后返回（2026-09-28），没有关闭会话确认的实机记录）
 
 注意：
 - 显示确认只证明手机图形输出链路，画面可能还是启动画面，不代表桌面服务和应用都已可交互。不支持帧时间反馈的设备会显示确认超时，不能假定与 G100 等价。 [docs/82-first-run-ux-refactor.md](../docs/82-first-run-ux-refactor.md)
-- KDE splash 会被图像探针当成“有画面”；验收要看完整主屏（亮区和颜色检查加人工确认）。 [docs/93-x70-independent-image-revalidation.md](../docs/93-x70-independent-image-revalidation.md)
-- 预装或普通安装都要实际启动应用验收；`pm path` 和默认权限通过不代表能用。 [docs/80-g100-image-installation-retrospective.md](../docs/80-g100-image-installation-retrospective.md)
+- KDE splash 会被图像探针当成“有画面”。验收要看完整主屏（亮区和颜色检查加人工确认）。 [docs/93-x70-independent-image-revalidation.md](../docs/93-x70-independent-image-revalidation.md)
+- 预装或普通安装都要实际启动应用验收。`pm path` 和默认权限通过不代表能用。 [docs/80-g100-image-installation-retrospective.md](../docs/80-g100-image-installation-retrospective.md)
 
 文档：[docs/81-end-to-end-user-experience.md](../docs/81-end-to-end-user-experience.md)、[docs/82-first-run-ux-refactor.md](../docs/82-first-run-ux-refactor.md)
 
 ### 每次打开都回到桌面
 
-整机重启、应用被清数据或被强制停止之后，打开 Rungic 桌面照常回来；会话里有标准目录、登录环境和 SSH。
+整机重启、应用被清数据或被强制停止之后，打开 Rungic 桌面照常回来。会话里有标准目录、登录环境和 SSH。
 
 #### SSH 自动开启
 
-`install.ssh-access` · Linux 系统功能 — 装好后容器的 SSH 自动可用（用户 2026-09-29 要求），每台手机有自己的主机密钥，账户密码和密钥都能登录。
+`install.ssh-access` · Linux 系统功能 — 安装完成后，容器自动提供 SSH 连接，符合用户 2026-09-29 的要求。每台手机使用自己的主机密钥。用户可以用账户密码或密钥登录。
 
-- **E1** 新装的系统 ssh.socket 已启用并在 22 端口（IPv4 与 IPv6）监听，开机后自动可连；有连接时才启动 sshd。（系统测试、人工）
-- **E2** 账户密码和 ~/.ssh/authorized_keys 里的密钥都能登录；root 只能用密钥。（系统测试、人工）
-- **E3** 镜像里不带主机密钥；每台手机在安装时生成自己的三组主机密钥，之后缺失时自动补上。（系统测试、人工）
+- **E1** 新装的系统 ssh.socket 已启用并在 22 端口（IPv4 与 IPv6）监听，开机后自动可连。有连接时才启动 sshd。（系统测试、人工）
+- **E2** 账户密码和 ~/.ssh/authorized_keys 里的密钥都能登录。root 只能用密钥。（系统测试、人工）
+- **E3** 镜像里不带主机密钥。每台手机在安装时生成自己的三组主机密钥，之后缺失时自动补上。（系统测试、人工）
 
 注意：
-- 用户明确要求 SSH 自动开启；升级和排障时不得按旧文档“默认关闭”停用 SSH 或加关闭策略。2026-10-03 前 desktop/services/policy.json 的 SSH 默认值仍是 disabled，新装设备首装会停用 ssh.socket；现为 enabled（tools/system/tests/ssh_on_first_install.py）。deb-systemd-helper 的 enable 不会撤销它自己先前的 disable。 [docs/research/g100-system-update-20260929.md](../docs/research/g100-system-update-20260929.md) [docs/83-service-policy.md](../docs/83-service-policy.md)
-- 容器与 Android 共用网络命名空间，没有独立的局域网 IP，sshd 监听在手机自己的地址上；局域网连通先看 ARP 等证据。 [docs/83-service-policy.md](../docs/83-service-policy.md) [docs/research/g100-ssh-connectivity-20260929.md](../docs/research/g100-ssh-connectivity-20260929.md)
+- 用户明确要求 SSH 自动开启。升级和排障时不得按旧文档“默认关闭”停用 SSH 或加关闭策略。2026-10-03 前 desktop/services/policy.json 的 SSH 默认值仍是 disabled，新装设备首装会停用 ssh.socket。现为 enabled（tools/system/tests/ssh_on_first_install.py）。deb-systemd-helper 的 enable 不会撤销它自己先前的 disable。 [docs/research/g100-system-update-20260929.md](../docs/research/g100-system-update-20260929.md) [docs/83-service-policy.md](../docs/83-service-policy.md)
+- 容器与 Android 共用网络命名空间，没有独立的局域网 IP，sshd 监听在手机自己的地址上。局域网连通先看 ARP 等证据。 [docs/83-service-policy.md](../docs/83-service-policy.md) [docs/research/g100-ssh-connectivity-20260929.md](../docs/research/g100-ssh-connectivity-20260929.md)
 
 文档：[docs/83-service-policy.md](../docs/83-service-policy.md)、[docs/research/g100-system-update-20260929.md](../docs/research/g100-system-update-20260929.md)、[docs/research/g100-ssh-connectivity-20260929.md](../docs/research/g100-ssh-connectivity-20260929.md)
 
@@ -2714,49 +2714,49 @@ Agent 不靠点界面就能拿到合并日志、崩溃回溯、追踪、截图�
 
 经由接口：`audio`
 
-- **E1** 整机重启后第一次打开 Rungic 就进入桌面，不点重试、不手动运行 account-prepare/start；X70 上从打开到完整主屏约 37 秒。（人工）
-- **E2** 音频守护进程保存的旧 PID 被别的 Android 应用或内核线程复用时，音频照常启动；不杀别人的进程，也不起第二个音频守护进程。（单元测试、人工）
+- **E1** 整机重启后第一次打开 Rungic 就进入桌面，不点重试、不手动运行 account-prepare/start。X70 上从打开到完整主屏约 37 秒。（人工）
+- **E2** 音频守护进程保存的旧 PID 被别的 Android 应用或内核线程复用时，音频照常启动。不杀别人的进程，也不起第二个音频守护进程。（单元测试、人工）
 - **E3** 启动失败时界面和日志给出失败的操作、阶段和退出码，不显示空错误。（人工）
 - **E4** 重启后在 Android 锁屏期间打开的 Rungic，解锁后进入桌面，不需要再打开一次。（人工）
 
 注意：
-- APK 的 umask 0077 曾让 LXC 的 payload cgroup 变成 0700，用户 systemd 建不了 init.scope、桌面起不来；只在 lxc-start 的子 shell 里设 022，不全局放宽 cgroup。 [docs/93-x70-independent-image-revalidation.md](../docs/93-x70-independent-image-revalidation.md)
-- 音频 PID 文件在持久化的 /data 上跨重启保留；受限的 Termux UID 无权检查别的应用，PulseAudio 会拒绝启动。只在私有控制锁内核验 UID/exe/命令行后清理。 [docs/93-x70-independent-image-revalidation.md](../docs/93-x70-independent-image-revalidation.md)
-- ADB root 手动启动会掩盖 umask 问题；重试成功代替不了连续整机重启后的首次打开验收。 [docs/93-x70-independent-image-revalidation.md](../docs/93-x70-independent-image-revalidation.md)
-- 首个会话的 kconf_update 迁移程序在 KWin 之前运行，没有合成器时会 SIGABRT 留下 core；迁移命令要指定 QT_QPA_PLATFORM=offscreen。 [docs/92-x70-android-base-end-to-end.md](../docs/92-x70-android-base-end-to-end.md)
+- APK 的 umask 0077 曾让 LXC 的 payload cgroup 变成 0700，用户 systemd 建不了 init.scope、桌面起不来。只在 lxc-start 的子 shell 里设 022，不全局放宽 cgroup。 [docs/93-x70-independent-image-revalidation.md](../docs/93-x70-independent-image-revalidation.md)
+- 音频 PID 文件在持久化的 /data 上跨重启保留。受限的 Termux UID 无权检查别的应用，PulseAudio 会拒绝启动。只在私有控制锁内核验 UID/exe/命令行后清理。 [docs/93-x70-independent-image-revalidation.md](../docs/93-x70-independent-image-revalidation.md)
+- ADB root 手动启动会掩盖 umask 问题。重试成功代替不了连续整机重启后的首次打开验收。 [docs/93-x70-independent-image-revalidation.md](../docs/93-x70-independent-image-revalidation.md)
+- 首个会话的 kconf_update 迁移程序在 KWin 之前运行，没有合成器时会 SIGABRT 留下 core。迁移命令要指定 QT_QPA_PLATFORM=offscreen。 [docs/92-x70-android-base-end-to-end.md](../docs/92-x70-android-base-end-to-end.md)
 - Android 锁屏期间访问不到容器，不能据此判定镜像启动失败。 [docs/94-build-fingerprints.md](../docs/94-build-fingerprints.md)
 
 文档：[docs/92-x70-android-base-end-to-end.md](../docs/92-x70-android-base-end-to-end.md)、[docs/93-x70-independent-image-revalidation.md](../docs/93-x70-independent-image-revalidation.md)
 
 #### 应用被清数据或强制停止后桌面自动恢复
 
-`install.app-restart-recovery` · 依赖安卓 — Rungic 应用的数据被清除、被强制停止或被系统杀掉后再打开，桌面自己回来，不需要人工处理。
+`install.app-restart-recovery` · 依赖安卓 — Rungic 应用在数据被清除、强制停止或被系统终止后，可以再次打开并自动恢复桌面，无需人工处理。
 
 经由接口：`kwin-android-host`
 
 - **E1** 运行中清除 Rungic 应用数据后再打开，容器自动重启并绑定新的 socket 目录，约 15 秒内 KWin 和 plasmashell 恢复。（单元测试、人工）
-- **E2** 只有两边都读得到且确实不一致时才重启容器；目录没变或任一侧读取失败时不重启。（单元测试）
-- **E3** 应用被强制停止后再打开，plasmashell 不会停在 failed；点“重新检查”改为重启会话，5 秒内 plasmashell 和 KWin 恢复。（单元测试、人工）
+- **E2** 只有两边都读得到且确实不一致时才重启容器。目录没变或任一侧读取失败时不重启。（单元测试）
+- **E3** 应用被强制停止后再打开，plasmashell 不会停在 failed。点“重新检查”改为重启会话，5 秒内 plasmashell 和 KWin 恢复。（单元测试、人工）
 - **E4** 重启会话时先等上一个会话的停止作业结束（最多 20 秒）再启动，plasmashell 不会被 systemd 丢掉。（单元测试、人工）
 - **E5** Android 重新挂载共享存储后，下次打开会重启容器重新绑定，共享文件夹恢复可用。（单元测试）
 
 注意：
 - APK 重新建出 files/tmp 之前，所有经过 rungic-plasma-enter 的控制命令都会报 bind Android Wayland socket directory。 [docs/96-desktop-recovery-after-apk-restart.md](../docs/96-desktop-recovery-after-apk-restart.md)
-- 只用 am force-stop 近似；Android 低内存真实杀掉 APK、卸载重装导致 uid 变化的场景还没验证。强制停止后立刻重开不复现，要隔 30 秒。 [docs/96-desktop-recovery-after-apk-restart.md](../docs/96-desktop-recovery-after-apk-restart.md)
-- pm clear 会撤销运行时权限、清掉 OCR 模型和 prefs；恢复文件后 restorecon 只给 s0，要按目录的完整 MLS 类别 chcon。toybox tar 不能打包 socket。 [docs/95-install-use-case-tests.md](../docs/95-install-use-case-tests.md)
+- 只用 am force-stop 近似。Android 低内存真实杀掉 APK、卸载重装导致 uid 变化的场景还没验证。强制停止后立刻重开不复现，要隔 30 秒。 [docs/96-desktop-recovery-after-apk-restart.md](../docs/96-desktop-recovery-after-apk-restart.md)
+- pm clear 会撤销运行时权限、清掉 OCR 模型和 prefs。恢复文件后 restorecon 只给 s0，要按目录的完整 MLS 类别 chcon。toybox tar 不能打包 socket。 [docs/95-install-use-case-tests.md](../docs/95-install-use-case-tests.md)
 
 文档：[docs/95-install-use-case-tests.md](../docs/95-install-use-case-tests.md)、[docs/96-desktop-recovery-after-apk-restart.md](../docs/96-desktop-recovery-after-apk-restart.md)
 
 #### 标准用户目录与 Android 共享
 
-`install.user-dirs` · Linux 系统功能 — 首次进入就有下载、图片、音乐等标准目录，放在与 Android 共享的 Shared 里，应用按 XDG 目录找到它们。
+`install.user-dirs` · Linux 系统功能 — 首次进入时，用户已有下载、图片、音乐等标准目录。这些目录位于与 Android 共享的 Shared 中。应用通过 XDG 目录配置找到它们。
 
-- **E1** 账户准备时就建立标准目录：Downloads、Music、Pictures、Videos、Templates、Public 在 Shared 下，home 里是相对链接；Desktop、Documents 在本地；重复运行结果不变。（单元测试、人工）
-- **E2** 已有的文件、目录和自定义链接保留；同名的普通文件不删除，报错停止。（单元测试）
+- **E1** 账户准备时就建立标准目录：Downloads、Music、Pictures、Videos、Templates、Public 在 Shared 下，home 里是相对链接。Desktop、Documents 在本地。重复运行结果不变。（单元测试、人工）
+- **E2** 已有的文件、目录和自定义链接保留。同名的普通文件不删除，报错停止。（单元测试）
 - **E3** 共享存储没挂载时拒绝运行，不在空挂载点下建假目录。（单元测试）
 
 注意：
-- 首装 home 只有模板，照片等应用报 Pictures 不存在；目录要在账户准备阶段统一建立，而不是留给第一个应用。 [docs/83-x70-air-pro-onboarding.md](../docs/83-x70-air-pro-onboarding.md)
+- 首装 home 只有模板，照片等应用报 Pictures 不存在。目录要在账户准备阶段统一建立，而不是留给第一个应用。 [docs/83-x70-air-pro-onboarding.md](../docs/83-x70-air-pro-onboarding.md)
 - 共享目录的 bindfs 不能加 --direct-io，否则 SQLite WAL 等共享可写 mmap 失败（微信数据库反复“修复”）。 [docs/69-filesystem-capabilities.md](../docs/69-filesystem-capabilities.md)
 
 文档：[docs/83-x70-air-pro-onboarding.md](../docs/83-x70-air-pro-onboarding.md)
@@ -2765,8 +2765,8 @@ Agent 不靠点界面就能拿到合并日志、崩溃回溯、追踪、截图�
 
 `install.login-environment` · Linux 系统功能 — 桌面会话像显示管理器登录一样读入 ~/.profile，安装脚本放进 ~/.local/bin 的命令马上能用。
 
-- **E1** 桌面会话和 systemd 用户单元的 PATH 最前面是 ~/.local/bin、~/bin（目录还不存在也加上）；安装脚本放进去的新命令，同一个终端的下一条命令就能运行。（单元测试、人工）
-- **E2** 用户 ~/.profile 的导出带进会话；会话自己决定的变量（Wayland、GPU、代理、输入法、XDG 目录等）不被覆盖。（单元测试）
+- **E1** 桌面会话和 systemd 用户单元的 PATH 最前面是 ~/.local/bin、~/bin（目录还不存在也加上）。安装脚本放进去的新命令，同一个终端的下一条命令就能运行。（单元测试、人工）
+- **E2** 用户 ~/.profile 的导出带进会话。会话自己决定的变量（Wayland、GPU、代理、输入法、XDG 目录等）不被覆盖。（单元测试）
 - **E3** profile 出错或卡住（10 秒超时）时只丢掉它的结果，会话照常启动。（单元测试）
 
 注意：
@@ -2776,67 +2776,67 @@ Agent 不靠点界面就能拿到合并日志、崩溃回溯、追踪、截图�
 
 #### Linux 内存上限
 
-`install.memory-limit` · 依赖安卓 — 容器放在 Android 的内存 cgroup 里，Linux 程序吃内存时在容器内回收，不连累 Android 的 VPN 和桌面应用。
+`install.memory-limit` · 依赖安卓 — 容器使用 Android 的内存 cgroup。Linux 程序占用过多内存时，系统在容器内回收内存，避免影响 Android 的 VPN 和桌面应用。
 
-- **E1** Linux 侧有内存上限（默认 4 GB，可选 2–6 GB 或不限）；超限时在容器内回收或结束进程，Android 低内存查杀不去杀 VPN 和 Rungic 应用。（人工）
-- **E2** 在设备面板改档位立即生效，已经在运行的容器进程连同内存计费一起迁入；容器重启后保持选定的上限。（人工）
-- **E3** 换到 swap（zram，压缩后仍在 RAM 里）的部分也算进上限：内存加 swap 最多为档位的 1.25 倍；容器优先回收文件缓存，少把程序内存换出去。（单元测试）
+- **E1** Linux 侧有内存上限（默认 4 GB，可选 2–6 GB 或不限）。超限时在容器内回收或结束进程，Android 低内存查杀不去杀 VPN 和 Rungic 应用。（人工）
+- **E2** 在设备面板改档位立即生效，已经在运行的容器进程连同内存计费一起迁入。容器重启后保持选定的上限。（人工）
+- **E3** 换到 swap（zram，压缩后仍在 RAM 里）的部分也算进上限：内存加 swap 最多为档位的 1.25 倍。容器优先回收文件缓存，少把程序内存换出去。（单元测试）
 - **E4** 设备面板除了总用量，还分开显示程序占用、文件缓存（其中内存文件）和已换出的 swap，用户能看出用量里哪些随时可以回收。（单元测试）
 
 注意：
-- Android 的 sh 只有 32 位整数，上限用 M 后缀写给内核；遍历进程只用 shell 内建命令（每个进程一次 grep 要一分钟）。
+- Android 的 sh 只有 32 位整数，上限用 M 后缀写给内核。遍历进程只用 shell 内建命令（每个进程一次 grep 要一分钟）。
 - 只设 memory.limit_in_bytes 时，换出到 zram 的页不再计入上限，容器实际吃掉的 RAM 会超过档位（2026-10-03 G100 S：4 GB 上限下有 938 MiB 在 swap）。内核要求任何时刻 memsw 上限不小于内存上限，调低和调高的写入顺序相反。 [docs/61-delivery-diagnostics-plan.md](../docs/61-delivery-diagnostics-plan.md)
 
 文档：[docs/61-delivery-diagnostics-plan.md](../docs/61-delivery-diagnostics-plan.md)、[docs/21-memory-audit.md](../docs/21-memory-audit.md)、[docs/76-g100-memory-audit.md](../docs/76-g100-memory-audit.md)
 
 #### Rungic 容器底座
 
-`install.container-base` · 依赖安卓 — Android 侧控制器（rungic-plasma）、LXC 配置、容器 init 和随系统安装的配置文件（system/、两个系统包）： Ubuntu 容器以受限权限跑在 Android 上，其余领域的系统集成文件也从这里装进去。
+`install.container-base` · 依赖安卓 — Android 侧的 rungic-plasma 控制器、LXC 配置、容器 init 和系统配置共同支撑 Ubuntu 容器。 容器以受限权限运行在 Android 上。 system/ 和两个系统包也安装其他领域的系统集成文件。
 
-- **E1** 容器在 SELinux Enforcing 下运行，与 Android 共用网络但去掉 net_admin、net_raw、sys_module 等能力，只开放明确列出的设备（GPU、DMA heap、fuse、tun）；Android 重启后设备号变了也按当前设备号授权。（单元测试）
+- **E1** 容器在 SELinux Enforcing 下运行，与 Android 共用网络但去掉 net_admin、net_raw、sys_module 等能力，只开放明确列出的设备（GPU、DMA heap、fuse、tun）。Android 重启后设备号变了也按当前设备号授权。（单元测试）
 - **E2** 容器里 Flatpak 应用的沙箱能启动（/proc/sys/user 可写、有完整可见的 proc），其余 /proc/sys 仍只读。（人工）
 - **E3** 控制命令串行执行：Surface 重建和显式重启同时发生时，不会并行启动两次容器或会话。（单元测试）
 
 注意：
-- home、崩溃记录、本机发布仓库和 Android 侧写给容器的文件放在 rootfs 镜像之外的 state/，以 bind 挂入；改名 D 阶段之前同时挂在旧名 /var/lib/moto-* 下。 [docs/61-delivery-diagnostics-plan.md](../docs/61-delivery-diagnostics-plan.md) [docs/70-rungic-rebrand.md](../docs/70-rungic-rebrand.md)
-- toybox loop 的 autoclear 会在容器退出后留下失效的 dm 映射，下次启动前由 rootfs-image attach 检查并重建；LXC 早期日志目录要在镜像里预建。 [docs/79-g100-ci-execution.md](../docs/79-g100-ci-execution.md)
+- home、崩溃记录、本机发布仓库和 Android 侧写给容器的文件放在 rootfs 镜像之外的 state/，以 bind 挂入。改名 D 阶段之前同时挂在旧名 /var/lib/moto-* 下。 [docs/61-delivery-diagnostics-plan.md](../docs/61-delivery-diagnostics-plan.md) [docs/70-rungic-rebrand.md](../docs/70-rungic-rebrand.md)
+- toybox loop 的 autoclear 会在容器退出后留下失效的 dm 映射，下次启动前由 rootfs-image attach 检查并重建。LXC 早期日志目录要在镜像里预建。 [docs/79-g100-ci-execution.md](../docs/79-g100-ci-execution.md)
 - 手机 toybox 的 `flock -n 9` 对继承的 fd 报 Bad file descriptor，首启锁用 Magisk BusyBox 的 `flock -n 文件 命令`。 [docs/79-g100-ci-execution.md](../docs/79-g100-ci-execution.md)
-- 不要升级时擅自关闭 SSH 等用户要求开启的服务；服务默认状态只在首次安装配置包时落地一次。 [docs/83-service-policy.md](../docs/83-service-policy.md)
+- 不要升级时擅自关闭 SSH 等用户要求开启的服务。服务默认状态只在首次安装配置包时落地一次。 [docs/83-service-policy.md](../docs/83-service-policy.md)
 
 文档：[docs/61-delivery-diagnostics-plan.md](../docs/61-delivery-diagnostics-plan.md)
 
 ### 升级与回滚
 
-换新版本的系统时账户、文件和 Agent 登录保留；部署失败能回到之前的状态。
+换新版本的系统时账户、文件和 Agent 登录保留。部署失败能回到之前的状态。
 
 #### 升级前的系统快照与回滚
 
-`install.rootfs-snapshot` · 依赖安卓 — 系统 rootfs 是 ext4 镜像，部署前建 dm-snapshot，验收失败回到快照；用户数据不随系统回滚。
+`install.rootfs-snapshot` · 依赖安卓 — 系统 rootfs 使用 ext4 镜像。部署前创建 dm-snapshot，验收失败时回滚到快照。用户数据不随系统回滚。
 
-- **E1** 部署前自动建快照，验收失败自动回到快照，回滚后发布版本与 dpkg 状态回到部署前；/home、崩溃记录和本机发布仓库不随系统回滚。（人工）
-- **E2** 回滚后文件系统没有损坏：内核没有新的 ext4 错误，完整性检查 clean。（缺口：2026-09-27 一次快照回滚没有恢复被复用的块（docs/70），根因未查明，暂按包回滚；tools/rootfs_rollback_test.sh 只能在手机的测试镜像上手动运行。）
+- **E1** 部署前自动建快照，验收失败自动回到快照，回滚后发布版本与 dpkg 状态回到部署前。/home、崩溃记录和本机发布仓库不随系统回滚。（人工）
+- **E2** 回滚后文件系统没有损坏：内核没有新的 ext4 错误，完整性检查 clean。（缺口：2026-09-27 一次快照回滚没有恢复被复用的块（docs/70），根因未查明，暂按包回滚。tools/rootfs_rollback_test.sh 只能在手机的测试镜像上手动运行。）
 - **E3** 镜像模式不比目录慢：容器到会话就绪 8.2 秒（目录 11.2 秒），读写与合成器帧时间和迁移前同一水平。（人工）
 - **E4** 镜像的 loop 设备已被其他名字的 dm 设备占用时 attach 拒绝，不会把同一个 ext4 挂两处。（人工）
 
 注意：
 - B 阶段部署的快照回滚丢了被新包复用的块（76 个目录损坏），在查明之前以 --acceptance none 部署、按包回滚，回滚后检查 dmesg 的 EXT4-fs 错误并运行 rungic-integrity。 [docs/70-rungic-rebrand.md](../docs/70-rungic-rebrand.md)
-- 复现用的测试副本只改了 LXC= 没改 IMAGES=，在容器运行时把系统镜像以测试名第二次读写挂载；测试脚本现在拒绝仍含系统路径的副本。 [docs/70-rungic-rebrand.md](../docs/70-rungic-rebrand.md)
-- toybox losetup 只接受 64 字节以内的路径且默认 autoclear；`mount -o context=` 被拒绝，改为给镜像打标签；snapshot-merge 状态读 dmctl 输出的最后一行。 [docs/61-delivery-diagnostics-plan.md](../docs/61-delivery-diagnostics-plan.md)
+- 复现用的测试副本只改了 LXC= 没改 IMAGES=，在容器运行时把系统镜像以测试名第二次读写挂载。测试脚本现在拒绝仍含系统路径的副本。 [docs/70-rungic-rebrand.md](../docs/70-rungic-rebrand.md)
+- toybox losetup 只接受 64 字节以内的路径且默认 autoclear。`mount -o context=` 被拒绝，改为给镜像打标签。snapshot-merge 状态读 dmctl 输出的最后一行。 [docs/61-delivery-diagnostics-plan.md](../docs/61-delivery-diagnostics-plan.md)
 - 回到改名前的发布时要先 rebrand down，原先验收失败的回滚路径漏了这一步。 [docs/70-rungic-rebrand.md](../docs/70-rungic-rebrand.md)
 
 文档：[docs/61-delivery-diagnostics-plan.md](../docs/61-delivery-diagnostics-plan.md)、[docs/70-rungic-rebrand.md](../docs/70-rungic-rebrand.md)
 
 #### 保留账户换新系统镜像（实验）
 
-`install.image-upgrade` · 依赖安卓 — 把已装手机的 rootfs 换成新的独立 RungicOS 镜像，账户、文件和 Agent 登录保留。目前只有一次受控迁移，没有通用升级器。
+`install.image-upgrade` · 依赖安卓 — 已安装的手机可将 rootfs 换为新的独立 RungicOS 镜像，并保留账户、文件和 Agent 登录。目前只完成一次受控迁移，尚无通用升级器。
 
 - **E1** 换新 rootfs 后 UID/GID、口令摘要、组、subuid/subgid、SSH 主机密钥、machine-id、home 和 Agent 登录配置都保留。（人工）
 - **E2** 新镜像在写入账户配置之前核对完整镜像 SHA，与构建产物一致才继续。（人工）
-- **E3** 失败时恢复旧镜像、匹配的宿主版本和配置，数据迁移的回滚范围另行验证。（缺口：尚未实现通用回退；回退脚本已准备但没有执行回退验收（docs/91、docs/94）。）
+- **E3** 失败时恢复旧镜像、匹配的宿主版本和配置，数据迁移的回滚范围另行验证。（缺口：尚未实现通用回退。回退脚本已准备但没有执行回退验收（docs/91、docs/94）。）
 
 注意：
-- standalone.py install 拒绝覆盖已有 runtime，它不是升级器；只把 rootfs 换回去不能算恢复成功。 [docs/75-image-build-separation.md](../docs/75-image-build-separation.md) [docs/91-x70-independent-install.md](../docs/91-x70-independent-install.md)
-- 账户迁移辅助脚本继承了 Android 的 PATH，找不到 Linux 管理命令；要显式设置 Linux PATH。 [docs/94-build-fingerprints.md](../docs/94-build-fingerprints.md)
+- standalone.py install 拒绝覆盖已有 runtime，它不是升级器。只把 rootfs 换回去不能算恢复成功。 [docs/75-image-build-separation.md](../docs/75-image-build-separation.md) [docs/91-x70-independent-install.md](../docs/91-x70-independent-install.md)
+- 账户迁移辅助脚本继承了 Android 的 PATH，找不到 Linux 管理命令。要显式设置 Linux PATH。 [docs/94-build-fingerprints.md](../docs/94-build-fingerprints.md)
 
 文档：[docs/94-build-fingerprints.md](../docs/94-build-fingerprints.md)
 
@@ -2844,7 +2844,7 @@ Agent 不靠点界面就能拿到合并日志、崩溃回溯、追踪、截图�
 
 `install.rebrand-migration` · Linux 系统功能 — 已装手机从 moto 名称迁到 Rungic：账户、家目录和用户设置跟着改名，回到改名前的发布时再交回。D 阶段清理尚未做。
 
-- **E1** 改名后账户、家目录（随登录名到 /home/<登录名>）、用户设置保留；已完成的 KDE 配置迁移不会重复执行（用户移除的快捷设置不会被加回）；只运行一次。（单元测试、人工）
+- **E1** 改名后账户、家目录（随登录名到 /home/<登录名>）、用户设置保留。已完成的 KDE 配置迁移不会重复执行（用户移除的快捷设置不会被加回）。只运行一次。（单元测试、人工）
 - **E2** 回到改名前的发布时把名称和改名后变化的设置交回旧目录。（单元测试、人工）
 - **E3** 首次账户设置已经移动过家目录、或已在新名称下重新运行过时，迁移仍然正确。（单元测试）
 - **E4** 已安装的包、单元和包名里不再有 moto 名称（硬件名称和 C 阶段兼容名除外）。（单元测试、实机验收、人工）
@@ -2861,94 +2861,94 @@ Agent 不靠点界面就能拿到合并日志、崩溃回溯、追踪、截图�
 
 #### 机型 spec 与原厂固件核验
 
-`install.device-spec` · 依赖安卓 — 每个机型/固件一份不可变 spec（身份、原厂摘要、内核配方、分区与刷写策略），原厂包按它核验后才使用。用户是开发者和 Agent。
+`install.device-spec` · 依赖安卓 — 开发者和 Agent 为每个机型及固件维护一份不可变 spec。它记录身份、原厂摘要、内核配方、分区和刷写策略。原厂包必须通过 spec 核验后才能使用。
 
-- **E1** 原厂包按精确 identity 核验后才解包（默认 G100，X70 用显式 identity）；错机型、多出的 super 分片、XML 摘要不符时在解包前拒绝，结果不发布。（单元测试）
+- **E1** 原厂包按精确 identity 核验后才解包（默认 G100，X70 用显式 identity）。错机型、多出的 super 分片、XML 摘要不符时在解包前拒绝，结果不发布。（单元测试）
 - **E2** 实机预检按 spec 核对身份、固件、槽位、电量和空间，不符时停止，不写设备。（单元测试）
 
 注意：
-- G100 S（mumba_cn）的镜像、哈希和刷机命令不能用于 G100（portov_cn）；同销售名、同 GPU、同 Android 版本都不能合并 spec。 [docs/78-g100-firmware-inventory.md](../docs/78-g100-firmware-inventory.md) [docs/75-image-build-separation.md](../docs/75-image-build-separation.md)
-- G100 有 32 个 super 分片、X70 有 41 个；X70 还有独立的 odm 逻辑分区，不能遗漏；分片按数字而不是词典序排列。 [profiles/devices/motorola/vantage_cn/W2WV36.55-75-15-knowledge.md](../profiles/devices/motorola/vantage_cn/W2WV36.55-75-15-knowledge.md)
+- G100 S（mumba_cn）的镜像、哈希和刷机命令不能用于 G100（portov_cn）。同销售名、同 GPU、同 Android 版本都不能合并 spec。 [docs/78-g100-firmware-inventory.md](../docs/78-g100-firmware-inventory.md) [docs/75-image-build-separation.md](../docs/75-image-build-separation.md)
+- G100 有 32 个 super 分片、X70 有 41 个。X70 还有独立的 odm 逻辑分区，不能遗漏。分片按数字而不是词典序排列。 [profiles/devices/motorola/vantage_cn/W2WV36.55-75-15-knowledge.md](../profiles/devices/motorola/vantage_cn/W2WV36.55-75-15-knowledge.md)
 - Motorola bootloader 的 fastboot 值与 Android 属性表示不同（多行、少末尾字符），两边分别记录、严格比对，不能为通过而放宽。 [docs/79-g100-ci-execution.md](../docs/79-g100-ci-execution.md) [profiles/devices/motorola/vantage_cn/W2WV36.55-75-15-knowledge.md](../profiles/devices/motorola/vantage_cn/W2WV36.55-75-15-knowledge.md)
-- Android/fastbootd 回 bootloader 常只断开 USB、需要重插；bootloader 直接刷第二个 super 分片曾卡住并报 error -71。不要循环重刷，超级分区走 fastbootd，进入前清 fb_mode。 [docs/79-g100-ci-execution.md](../docs/79-g100-ci-execution.md) [profiles/devices/motorola/vantage_cn/W2WV36.55-75-15-knowledge.md](../profiles/devices/motorola/vantage_cn/W2WV36.55-75-15-knowledge.md)
+- Android/fastbootd 回 bootloader 常只断开 USB、需要重插。bootloader 直接刷第二个 super 分片曾卡住并报 error -71。不要循环重刷，超级分区走 fastbootd，进入前清 fb_mode。 [docs/79-g100-ci-execution.md](../docs/79-g100-ci-execution.md) [profiles/devices/motorola/vantage_cn/W2WV36.55-75-15-knowledge.md](../profiles/devices/motorola/vantage_cn/W2WV36.55-75-15-knowledge.md)
 - 改执行参数要发新的 adapter 和包，不能改已绑定哈希的旧 spec 后继续用。 [profiles/devices/motorola/vantage_cn/W2WV36.55-75-15-knowledge.md](../profiles/devices/motorola/vantage_cn/W2WV36.55-75-15-knowledge.md)
 
 文档：[docs/01-device.md](../docs/01-device.md)、[docs/77-g100-three-ci-assessment.md](../docs/77-g100-three-ci-assessment.md)、[docs/78-g100-firmware-inventory.md](../docs/78-g100-firmware-inventory.md)、[docs/83-x70-air-pro-onboarding.md](../docs/83-x70-air-pro-onboarding.md)
 
 #### 自编 GKI 设备底座
 
-`install.gki-kernel` · 依赖安卓 — 按机型固定 ACK/Kleaf 来源、配置和补丁，构建带 LXC 所需能力的 GKI，与原厂模块 ABI 兼容，Android 照常启动。
+`install.gki-kernel` · 依赖安卓 — 每个机型固定 ACK/Kleaf 来源、配置和补丁。构建的 GKI 提供 LXC 所需能力，与原厂模块 ABI 兼容，并保持 Android 正常启动。
 
-- **E1** 候选内核与原厂模块逐符号比对 CRC：GKI 可比较的引用 0 差异，并写明未覆盖的引用范围；正确解析 Android 15/16 的旧式与扩展 modversions。（单元测试、人工）
+- **E1** 候选内核与原厂模块逐符号比对 CRC：GKI 可比较的引用 0 差异，并写明未覆盖的引用范围。正确解析 Android 15/16 的旧式与扩展 modversions。（单元测试、人工）
 - **E2** 刷入候选内核后 Android 正常启动，原厂模块全部加载，SELinux Enforcing，LXC 需要的 namespaces 可用。（人工）
 - **E3** 保留原厂模块的签名信任证书，不因缺模块而不开机。（人工）
 
 注意：
-- 直接开启 IPC、namespace 和额外 cgroup 配置曾造成 9,768 个 CRC 不匹配；要锁定与原厂匹配的 ACK 提交、构建号、页大小和证书，用 KABI 预留槽承载新字段。 [docs/80-g100-image-installation-retrospective.md](../docs/80-g100-image-installation-retrospective.md)
-- 早期重编出现 3,252 个符号 CRC 变化、97 个模块缺失；编译成功不等于能用，静态 ABI 和实机启动共同放行。 [docs/75-image-build-separation.md](../docs/75-image-build-separation.md)
+- 直接开启 IPC、namespace 和额外 cgroup 配置曾造成 9,768 个 CRC 不匹配。要锁定与原厂匹配的 ACK 提交、构建号、页大小和证书，用 KABI 预留槽承载新字段。 [docs/80-g100-image-installation-retrospective.md](../docs/80-g100-image-installation-retrospective.md)
+- 早期重编出现 3,252 个符号 CRC 变化、97 个模块缺失。编译成功不等于能用，静态 ABI 和实机启动共同放行。 [docs/75-image-build-separation.md](../docs/75-image-build-separation.md)
 - X70 的 6.12 收敛 C 布局后还剩 Rust Binder 的 CRC 差异，需要单独的补丁。 [docs/83-x70-air-pro-onboarding.md](../docs/83-x70-air-pro-onboarding.md)
-- 每台手机有自己的内核产物，boot 二进制不跨机型复用；Magisk 也要在目标设备本机修补。 [docs/75-image-build-separation.md](../docs/75-image-build-separation.md)
+- 每台手机有自己的内核产物，boot 二进制不跨机型复用。Magisk 也要在目标设备本机修补。 [docs/75-image-build-separation.md](../docs/75-image-build-separation.md)
 
 文档：[docs/75-image-build-separation.md](../docs/75-image-build-separation.md)、[docs/80-g100-image-installation-retrospective.md](../docs/80-g100-image-installation-retrospective.md)、[docs/83-x70-air-pro-onboarding.md](../docs/83-x70-air-pro-onboarding.md)
 
 #### 构建独立 RungicOS 镜像
 
-`install.rungicos-image` · Linux 系统功能 — 从干净的 ARM64 root 树和固定包集合做出 ext4 rootfs、压缩载荷、包锁和报告；不带个人数据，预装集合按清单。
+`install.rungicos-image` · Linux 系统功能 — 构建器使用干净的 ARM64 root 树和固定包集合，生成 ext4 rootfs、压缩载荷、包锁和报告。镜像不含个人数据，预装集合遵循清单。
 
-- **E1** 镜像不带个人账户、密码、凭据或构建机痕迹：只有一个口令锁定的 UID 1000 模板账户，没有账户完成标记，home 里没有别的条目；违反时拒绝出镜像，报错里不出现口令哈希。（单元测试、人工）
-- **E2** 预装集合按清单：被排除的独立应用（Angelfish、Haruna、Journald Browser、KleverNotes、Marknote）不在镜像里，Emoji Selector 入口被 dpkg 排除，桌面与 Emoji 字体保留；旧树有残留时拒绝。（单元测试、人工）
-- **E3** 镜像里的包安装干净：dpkg --audit、apt-get check、ext4 检查通过；APT pin 按本次 manifest 重新生成，不留旧 release 的 pin。（系统测试、人工）
+- **E1** 镜像不带个人账户、密码、凭据或构建机痕迹：只有一个口令锁定的 UID 1000 模板账户，没有账户完成标记，home 里没有别的条目。违反时拒绝出镜像，报错里不出现口令哈希。（单元测试、人工）
+- **E2** 预装集合按清单：被排除的独立应用（Angelfish、Haruna、Journald Browser、KleverNotes、Marknote）不在镜像里，Emoji Selector 入口被 dpkg 排除，桌面与 Emoji 字体保留。旧树有残留时拒绝。（单元测试、人工）
+- **E3** 镜像里的包安装干净：dpkg --audit、apt-get check、ext4 检查通过。APT pin 按本次 manifest 重新生成，不留旧 release 的 pin。（系统测试、人工）
 - **E4** 按输入指纹复用产物：安装包里组件被替换、缺少构建绑定、输入被改或依赖未解析时 verify 拒绝。（单元测试、人工）
 - **E5** 在 x86 主机上构建 ARM64 root 树时，chroot 不继承宿主的 Python 设置和 HOME，但保留代理。（单元测试）
 
 注意：
-- PRoot 下 systemd 安装脚本的原子改名报 EXDEV；改用独立 user/mount namespace 的真实 chroot 加 QEMU。 [docs/80-g100-image-installation-retrospective.md](../docs/80-g100-image-installation-retrospective.md)
-- 开发 venv 用 --system-site-packages 掩盖了包没声明的运行依赖；在干净 rootfs 里核验 dpkg --audit 和 pip check。 [docs/80-g100-image-installation-retrospective.md](../docs/80-g100-image-installation-retrospective.md)
-- 旧准备树的 /dev/null 曾被重定向写成普通文件；从清理过的 root 树开始，arm64_chroot 在私有挂载命名空间里绑定真实 /dev。 [docs/93-x70-independent-image-revalidation.md](../docs/93-x70-independent-image-revalidation.md)
-- build_rootfs_image.py 只打包已准备好的 root 树，不是包下载与全自动安装器；复用旧树前先在构建 chroot 里卸掉排除清单的包。 [docs/75-image-build-separation.md](../docs/75-image-build-separation.md) [.agents/skills/rungic-three-stage-image/references/tool-map.md](../.agents/skills/rungic-three-stage-image/references/tool-map.md)
-- 组合 rootfs/host 的执行器要在 podman unshare 内运行，不能在其中再启动 Podman；mtime 不进缓存键，不承诺逐字节可复现。 [docs/94-build-fingerprints.md](../docs/94-build-fingerprints.md)
+- PRoot 下 systemd 安装脚本的原子改名报 EXDEV。改用独立 user/mount namespace 的真实 chroot 加 QEMU。 [docs/80-g100-image-installation-retrospective.md](../docs/80-g100-image-installation-retrospective.md)
+- 开发 venv 用 --system-site-packages 掩盖了包没声明的运行依赖。在干净 rootfs 里核验 dpkg --audit 和 pip check。 [docs/80-g100-image-installation-retrospective.md](../docs/80-g100-image-installation-retrospective.md)
+- 旧准备树的 /dev/null 曾被重定向写成普通文件。从清理过的 root 树开始，arm64_chroot 在私有挂载命名空间里绑定真实 /dev。 [docs/93-x70-independent-image-revalidation.md](../docs/93-x70-independent-image-revalidation.md)
+- build_rootfs_image.py 只打包已准备好的 root 树，不是包下载与全自动安装器。复用旧树前先在构建 chroot 里卸掉排除清单的包。 [docs/75-image-build-separation.md](../docs/75-image-build-separation.md) [.agents/skills/rungic-three-stage-image/references/tool-map.md](../.agents/skills/rungic-three-stage-image/references/tool-map.md)
+- 组合 rootfs/host 的执行器要在 podman unshare 内运行，不能在其中再启动 Podman。mtime 不进缓存键，不承诺逐字节可复现。 [docs/94-build-fingerprints.md](../docs/94-build-fingerprints.md)
 
 文档：[docs/75-image-build-separation.md](../docs/75-image-build-separation.md)、[docs/94-build-fingerprints.md](../docs/94-build-fingerprints.md)
 
 #### 构建 Rungic 应用
 
-`install.apk-build` · 依赖安卓 — 交叉编译宿主原生库，和 Java 代码、资源一起打成用开发签名签好的 APK。用户是开发者和 Agent。
+`install.apk-build` · 依赖安卓 — 开发者和 Agent 交叉编译宿主原生库，再与 Java 代码及资源一起打包为 APK。APK 使用开发签名。
 
 经由接口：`kwin-android-host`
 
-- **E1** APK 带着本次编译的 ARM64 原生库一起打包，用仓库的开发签名签名并通过 apksigner 校验；只改 Java 时可以复用已装 APK 的原生库，并留下逐个库的 SHA。（人工）
+- **E1** APK 带着本次编译的 ARM64 原生库一起打包，用仓库的开发签名签名并通过 apksigner 校验。只改 Java 时可以复用已装 APK 的原生库，并留下逐个库的 SHA。（人工）
 
 注意：
-- APK 与原生库必须一起构建、一起验收；只更新 APK 的结果代替不了新镜像的流程验收。 [docs/82-first-run-ux-refactor.md](../docs/82-first-run-ux-refactor.md)
+- APK 与原生库必须一起构建、一起验收。只更新 APK 的结果代替不了新镜像的流程验收。 [docs/82-first-run-ux-refactor.md](../docs/82-first-run-ux-refactor.md)
 - 宿主合成器的单元测试依赖 Android（oboe、NDK），只能交叉编译后经 adb 在手机上跑。 [docs/72-kwin-android-host-isolation.md](../docs/72-kwin-android-host-isolation.md)
 
 文档：[docs/94-build-fingerprints.md](../docs/94-build-fingerprints.md)
 
 ### 旧整包与 ROM 路线（历史）
 
-整包清数据刷入、v3 一键重装、原厂精简 product、离线 Magisk、GSI 和最小 Alpine 容器；均已被三段式独立安装取代。
+整包清数据刷入、v3 一键重装、原厂精简 product、离线 Magisk、GSI 和最小 Alpine 容器均属于旧路线。这些路线已由三段式独立安装取代。
 
 #### Android 与 Rungic 整包清数据刷入（已退役）
 
-`install.legacy-full-bundle` · 依赖安卓 — 把原厂 Android、自编 GKI、Magisk 引导和 RungicOS 种子合成一个完整刷机包，清数据一次刷入（G100 portov-20260928.5、X70 vantage-20260928.x）。 2026-09-30 改为三段式独立安装，旧整包已删除；AGENTS.md 要求这些工具保留给明确指定的历史复现/恢复，删除前由用户决定。
+`install.legacy-full-bundle` · 依赖安卓 — 把原厂 Android、自编 GKI、Magisk 引导和 RungicOS 种子合成一个完整刷机包，清数据一次刷入（G100 portov-20260928.5、X70 vantage-20260928.x）。 2026-09-30 改为三段式独立安装，旧整包已删除。 AGENTS.md 要求这些工具保留给明确指定的历史复现/恢复，删除前由用户决定。
 
 - **E1** 整包清数据刷入后，Android 与 Magisk 初始化、Rungic 部署、账户和桌面自动完成。（人工）
-- **E2** 电脑端刷写实时显示 fastboot 输出、阶段和分片编号；无输出超时或设备失败时停止该命令。（单元测试）
-- **E3** 只接受 spec/adapter 记录的 bootloader 值和已核验的刷写计划；错固件、错 spec 或未验证的计划在写入前被拒绝。（单元测试）
-- **E4** 清数据首启时早期缺少 /data/adb 只记延迟标志，Android 启动完成后准备 Magisk 运行文件并自动重启一次；已安装的 runtime 不被替换。（单元测试、人工）
+- **E2** 电脑端刷写实时显示 fastboot 输出、阶段和分片编号。无输出超时或设备失败时停止该命令。（单元测试）
+- **E3** 只接受 spec/adapter 记录的 bootloader 值和已核验的刷写计划。错固件、错 spec 或未验证的计划在写入前被拒绝。（单元测试）
+- **E4** 清数据首启时早期缺少 /data/adb 只记延迟标志，Android 启动完成后准备 Magisk 运行文件并自动重启一次。已安装的 runtime 不被替换。（单元测试、人工）
 
 注意：
-- 整包清数据后反复进入 Recovery，核心差异在干净首启：Magisk 31 在 /data/adb 不存在时到 boot-complete 才创建它；只换部署触发器（service.d）不够。 [docs/79-g100-ci-execution.md](../docs/79-g100-ci-execution.md) [docs/80-g100-image-installation-retrospective.md](../docs/80-g100-image-installation-retrospective.md)
-- APK 复制进 product/app 时漏了压缩的 ARM64 JNI 库（libc++_shared.so），启动即崩；pm install -r 临时修好不能代替只读镜像验收。 [docs/79-g100-ci-execution.md](../docs/79-g100-ci-execution.md) [docs/80-g100-image-installation-retrospective.md](../docs/80-g100-image-installation-retrospective.md)
-- Magisk 不能作为系统应用预装（v2 的教训）；离线首启要让 Magisk 自己把完整 APK 装成普通应用。 [docs/13-offline-magisk-user-app.md](../docs/13-offline-magisk-user-app.md)
-- Motorola bootloader 拒绝重新封装的 super.img，改走 fastbootd 的分区刷写；oem fb_mode_set 后进入 fastbootd 前要清除标志。 [docs/11-stock-install.md](../docs/11-stock-install.md)
+- 整包清数据后反复进入 Recovery，核心差异在干净首启：Magisk 31 在 /data/adb 不存在时到 boot-complete 才创建它。只换部署触发器（service.d）不够。 [docs/79-g100-ci-execution.md](../docs/79-g100-ci-execution.md) [docs/80-g100-image-installation-retrospective.md](../docs/80-g100-image-installation-retrospective.md)
+- APK 复制进 product/app 时漏了压缩的 ARM64 JNI 库（libc++_shared.so），启动即崩。pm install -r 临时修好不能代替只读镜像验收。 [docs/79-g100-ci-execution.md](../docs/79-g100-ci-execution.md) [docs/80-g100-image-installation-retrospective.md](../docs/80-g100-image-installation-retrospective.md)
+- Magisk 不能作为系统应用预装（v2 的教训）。离线首启要让 Magisk 自己把完整 APK 装成普通应用。 [docs/13-offline-magisk-user-app.md](../docs/13-offline-magisk-user-app.md)
+- Motorola bootloader 拒绝重新封装的 super.img，改走 fastbootd 的分区刷写。oem fb_mode_set 后进入 fastbootd 前要清除标志。 [docs/11-stock-install.md](../docs/11-stock-install.md)
 
 #### G100 S v3 一键完整重装包（已退役）
 
-`install.legacy-oneclick-v3` · 依赖安卓 — XT2537-4 / mumba_cn 原厂 Android 16 加精简 product 与离线 Magisk 的一键清数据重装包（差分封装，约 9.78 GB），不含 RungicOS。
+`install.legacy-oneclick-v3` · 依赖安卓 — 旧一键重装包用于 XT2537-4 / mumba_cn，以清数据方式安装原厂 Android 16、精简 product 和离线 Magisk。包采用差分封装，约 9.78 GB，不含 RungicOS。
 
-- **E1** 刷写顺序固定：原厂分片 → 精简 product → Magisk init_boot → 最后清数据；任何一步失败都不清数据，错机型、锁定或新 bootloader 时不写入。（单元测试、人工）
-- **E2** 差分还原出与已验证镜像字节一致的 product；源文件损坏、越界、空间不足时在生成可刷写镜像之前停止。（单元测试）
+- **E1** 刷写顺序固定：原厂分片 → 精简 product → Magisk init_boot → 最后清数据。任何一步失败都不清数据，错机型、锁定或新 bootloader 时不写入。（单元测试、人工）
+- **E2** 差分还原出与已验证镜像字节一致的 product。源文件损坏、越界、空间不足时在生成可刷写镜像之前停止。（单元测试）
 
 注意：
 - 只支持该 bootloader 版本的 mumba_cn，不承担底层固件损坏救援或跨版本降级。 [docs/14-oneclick-package.md](../docs/14-oneclick-package.md)
@@ -2970,11 +2970,11 @@ Agent 不靠点界面就能拿到合并日志、崩溃回溯、追踪、截图�
 
 `install.legacy-offline-magisk` · 依赖安卓 — 精简 product 携带官方完整 Magisk APK 和运行文件种子，断网首启时 Magisk 自己把完整管理器装成普通应用。
 
-- **E1** 断网首启自动装上完整 Magisk 管理器（普通应用，无 UPDATED_SYSTEM_APP），env_check 为 0，root 可用；正常重启不重复安装。（人工）
+- **E1** 断网首启自动装上完整 Magisk 管理器（普通应用，无 UPDATED_SYSTEM_APP），env_check 为 0，root 可用。正常重启不重复安装。（人工）
 
 注意：
-- v2 把 Magisk 放在 product/app，变成系统应用，Magisk 不支持；v2 不得发布。 [docs/12-offline-magisk.md](../docs/12-offline-magisk.md)
-- 这条路径只在保留其他用户数据的状态下验证过；X70 的全清首启仍需重新验证，不能宣称 Magisk 离线就绪已完成。 [docs/92-x70-android-base-end-to-end.md](../docs/92-x70-android-base-end-to-end.md)
+- v2 把 Magisk 放在 product/app，变成系统应用，Magisk 不支持。v2 不得发布。 [docs/12-offline-magisk.md](../docs/12-offline-magisk.md)
+- 这条路径只在保留其他用户数据的状态下验证过。X70 的全清首启仍需重新验证，不能宣称 Magisk 离线就绪已完成。 [docs/92-x70-android-base-end-to-end.md](../docs/92-x70-android-base-end-to-end.md)
 
 文档：[docs/12-offline-magisk.md](../docs/12-offline-magisk.md)
 
@@ -2990,31 +2990,31 @@ Agent 不靠点界面就能拿到合并日志、崩溃回溯、追踪、截图�
 
 #### Android GSI / DSU 路线（已退役）
 
-`install.legacy-gsi` · 依赖安卓 — 在 G100 S 上以官方 Android 17 GSI 替换系统层（DSU 试验、永久刷入）的路线；已被原厂系统加 LXC 容器取代。
+`install.legacy-gsi` · 依赖安卓 — 在 G100 S 上以官方 Android 17 GSI 替换系统层（DSU 试验、永久刷入）的路线。已被原厂系统加 LXC 容器取代。
 
 
 注意：
-- 用 GSI 的 vbmeta 覆盖原厂 vbmeta 是最伤的一次错误；这些坑只适用于那台机器和那条路线。 [docs/06-pitfalls.md](../docs/06-pitfalls.md)
+- 用 GSI 的 vbmeta 覆盖原厂 vbmeta 是最伤的一次错误。这些坑只适用于那台机器和那条路线。 [docs/06-pitfalls.md](../docs/06-pitfalls.md)
 
 文档：[docs/02-linux-feasibility.md](../docs/02-linux-feasibility.md)、[docs/03-gsi-dsu.md](../docs/03-gsi-dsu.md)、[docs/04-permanent-gsi.md](../docs/04-permanent-gsi.md)、[docs/06-pitfalls.md](../docs/06-pitfalls.md)
 
 #### 最小 Alpine 测试容器（已退役）
 
-`install.legacy-alpine-container` · 依赖安卓 — 第一个在原厂 Android 16 上跑通的 LXC 容器（Alpine 3.22.6、BusyBox init、只有 loopback），以及 Termux 里的 lxc 快捷命令。Plasma 容器取代了它。
+`install.legacy-alpine-container` · 依赖安卓 — 早期 LXC 容器在原厂 Android 16 上运行，使用 Alpine 3.22.6、BusyBox init 和仅有 loopback 的网络。Termux 的 lxc 命令用于管理该容器。现已由 Plasma 容器取代。
 
 
 注意：
-- lxc/rungic-lxc 仍被 tools/ci/build_host_seed.py 打进宿主种子（/data/adb/rungic-lxc/rungic-lxc），删除时要一并改掉；LXC 6.0.4 的 Alpine 宿主 runtime 本身仍在用，不能一起删。 [docs/17-lxc-installation.md](../docs/17-lxc-installation.md)
+- lxc/rungic-lxc 仍被 tools/ci/build_host_seed.py 打进宿主种子（/data/adb/rungic-lxc/rungic-lxc），删除时要一并改掉。LXC 6.0.4 的 Alpine 宿主 runtime 本身仍在用，不能一起删。 [docs/17-lxc-installation.md](../docs/17-lxc-installation.md)
 
 文档：[docs/18-termux-lxc.md](../docs/18-termux-lxc.md)
 
 #### G100 S 的首个 LXC 内核（已退役）
 
-`install.legacy-mumba-gki` · 依赖安卓 — 为 G100 S 编的带 PID/IPC/USER namespace 的 android15-6.6 内核，以及只适用于那两个本地镜像的证书恢复脚本；现由 packages/gki-* 配方取代。
+`install.legacy-mumba-gki` · 依赖安卓 — 旧 G100 S android15-6.6 内核增加了 PID/IPC/USER namespace。配套证书恢复脚本仅适用于当时两个本地镜像。当前实现使用 packages/gki-* 配方。
 
 
 注意：
-- 旧 boot-gki-userns.img 直接用于原厂系统会缺 97 个模块、阻碍开机；恢复原厂 GKI 信任证书后 441 个模块完整加载。证书恢复脚本只适用于两个哈希固定的镜像。 [docs/17-lxc-installation.md](../docs/17-lxc-installation.md) [docs/75-image-build-separation.md](../docs/75-image-build-separation.md)
+- 旧 boot-gki-userns.img 直接用于原厂系统会缺 97 个模块、阻碍开机。恢复原厂 GKI 信任证书后 441 个模块完整加载。证书恢复脚本只适用于两个哈希固定的镜像。 [docs/17-lxc-installation.md](../docs/17-lxc-installation.md) [docs/75-image-build-separation.md](../docs/75-image-build-separation.md)
 
 文档：[docs/16-lxc-prerequisites.md](../docs/16-lxc-prerequisites.md)
 
@@ -3024,19 +3024,19 @@ Agent 不靠点界面就能拿到合并日志、崩溃回溯、追踪、截图�
 
 | 接口 | 说明 | 使用它的功能 | 使用方测试 | 提供方测试 |
 |---|---|---|---|---|
-| `platform-bridge` 平台桥 | 逐行 JSON 的 Unix socket（Rungic 应用 files/tmp/platform.sock）：状态、显示、亮度、方向、振动、设置面板、桌面模式、助理屏、电视与导播台、文字提交。 | `agent.voice`、`agent.progress`、`agent.phone-mode`、`agent.workspaces`、`agent.where`、`delivery.acceptance`、`delivery.agent-diagnostics`、`delivery.system-tests`、`desktop-mode.on-off`、`desktop-mode.floating-window`、`desktop-mode.fullscreen`、`desktop-mode.cast-connect`、`desktop-mode.tv-computer-mode`、`desktop-mode.tv-touchpad`、`desktop-mode.audio-follow`、`desktop-mode.director`、`desktop-mode.tv-director`、`desktop-mode.remote-viewing`、`desktop-mode.cast-test-pattern`、`desktop.orientation`、`desktop.resolution-refresh`、`desktop.brightness`、`desktop.host-bridges`、`desktop.power`、`desktop.device-panel` | 10 | 1 |
-| `kwin-android-host` KWin 安卓宿主 | KWin 的 android-host 后端与 Rungic 应用里的宿主：输出、帧时钟、零拷贝呈现、显式同步、空闲抑制、投屏输出。 | `agent.workspaces`、`apps.gpu`、`apps.vulkan`、`apps.xwayland-gpu`、`delivery.acceptance`、`delivery.trace`、`delivery.probes`、`desktop-mode.tv-computer-mode`、`desktop-mode.external-screen`、`desktop-mode.tv-director`、`desktop-mode.apk-fullscreen`、`desktop.session`、`desktop.panels`、`desktop.orientation`、`desktop.host-display`、`desktop.resolution-refresh`、`desktop.display-size`、`desktop.power`、`install.desktop-entry`、`install.app-restart-recovery`、`install.apk-build` | — | 5 |
-| `host-input` 宿主输入 | 安卓的触摸、按键、指针、手势与输入法文字送进 KWin（直接触摸、触控板、电视遥控与键盘）。 | `delivery.acceptance`、`delivery.ui-automation`、`desktop-mode.fullscreen`、`desktop-mode.fullscreen-touch`、`desktop-mode.tv-computer-mode`、`desktop-mode.tv-touchpad`、`desktop-mode.apk-fullscreen`、`desktop.touch`、`desktop.edge-back`、`desktop.android-text` | — | 1 |
-| `camera` 相机 | 安卓 Camera2 的画面作为 PipeWire 相机节点（rungic.camera.N），按需开关；有哪些相机由平台桥的 capture-info 回答。 | `apps.camera`、`apps.snapshot`、`apps.plasma-camera`、`apps.firefox`、`delivery.acceptance`、`delivery.probes` | 2 | 3 |
-| `audio` 扬声器与麦克风 | 安卓的扬声器和麦克风作为 PulseAudio 设备（android、android_phone 输出与麦克风源），按需挂起；输出经安卓侧的 PulseAudio（system/android-audio）。 | `agent.voice`、`agent.call-proxy`、`apps.phone-audio`、`apps.virtual-audio`、`apps.firefox`、`delivery.acceptance`、`delivery.probes`、`desktop-mode.audio-follow`、`desktop.screen-recording`、`install.cold-start` | 5 | 3 |
-| `communication-audio` 通话音频 | $XDG_RUNTIME_DIR/rungic-communication.sock：电话模式与通话用的双向通信音频（android_communication 设备）。 | `agent.phone-mode` | 1 | 2 |
-| `codec` 硬件编解码 | 安卓 MediaCodec 经 IPC 给 GStreamer、FFmpeg 和 Firefox 用（H.264/HEVC/VP9 解码、H.264 编码）。 | `apps.snapshot`、`apps.hw-codec`、`apps.firefox-hw-video`、`delivery.acceptance`、`desktop.screen-recording` | 9 | 1 |
-| `clipboard` 剪贴板 | 安卓 ClipboardDaemon 与 Wayland 剪贴板双向同步。 | `desktop-mode.clipboard`、`desktop.clipboard`、`desktop.clipboard-history` | 3 | 1 |
-| `network` 网络 | 安卓的 Wi-Fi 与网络状态，经 Linux 一侧的 NetworkManager D-Bus 接口给桌面用。 | `desktop.network` | 3 | 1 |
-| `bluetooth` 蓝牙 | 安卓蓝牙经 Linux 一侧的 BlueZ D-Bus 接口给桌面用。 | `desktop.bluetooth` | 3 | 1 |
-| `telephony` 蜂窝与通话 | 蜂窝网络状态（ModemManager 接口）、来电去电与通话控制。 | `agent.cellular-call`、`desktop.cellular`、`desktop.sms` | 9 | 1 |
-| `ocr` 文字识别 | 手机 GPU 上的 OCR（PP-OCR），给目标式电脑操作用。 | `agent.plan-two` | 2 | 1 |
-| `wifi-display` 无线投屏 | 经安卓（高通）Wi-Fi Display 栈把输出投到电视：扫描、连接、断开、重连。 | `desktop-mode.cast-connect`、`desktop-mode.tv-shows-linux`、`desktop-mode.cast-video-modes`、`desktop-mode.cast-install`、`desktop-mode.tv-director` | 4 | 1 |
-| `shared-storage` 共享存储 | 安卓的共享存储（/storage/emulated/0/Plasma，MediaProvider FUSE）挂到容器的 /mnt/android-shared，用户目录和 ~/Shared 都在上面。 | `desktop.screen-recording` | 3 | 1 |
-| `gpu-device` GPU 设备 | 内核的 KGSL（/dev/kgsl-3d0）与 dma-heap（/dev/dma_heap/system）设备节点，Mesa、Xwayland、Flatpak 和系统监视器经它们用 Adreno；PC 上换成 DRM。 | `desktop.host-display` | — | 1 |
-| `host-controller` 宿主控制器 | Rungic 应用经 Magisk su 调用的 rungic-plasma 动作及其输出：账户状态与设置、安装发布、启停会话、内存上限；安装状态写在应用私有的 rungic-install.properties。 | `desktop.session`、`desktop.edge-back`、`desktop.host-display` | 3 | 1 |
+| `platform-bridge` 平台桥 | Rungic 应用通过 files/tmp/platform.sock 提供 Unix socket 接口，每行传输一个 JSON 对象。接口涵盖状态、显示、亮度、方向、振动、设置面板、桌面模式、助理屏、电视、导播台和文字提交。 | `agent.voice`、`agent.progress`、`agent.phone-mode`、`agent.workspaces`、`agent.where`、`delivery.acceptance`、`delivery.agent-diagnostics`、`delivery.system-tests`、`desktop-mode.on-off`、`desktop-mode.floating-window`、`desktop-mode.fullscreen`、`desktop-mode.cast-connect`、`desktop-mode.tv-computer-mode`、`desktop-mode.tv-touchpad`、`desktop-mode.audio-follow`、`desktop-mode.director`、`desktop-mode.tv-director`、`desktop-mode.remote-viewing`、`desktop-mode.cast-test-pattern`、`desktop.orientation`、`desktop.resolution-refresh`、`desktop.brightness`、`desktop.host-bridges`、`desktop.power`、`desktop.device-panel` | 10 | 1 |
+| `kwin-android-host` KWin 安卓宿主 | KWin 的 android-host 后端连接 Rungic 应用内的宿主。接口提供输出、帧时钟、零拷贝呈现、显式同步、空闲抑制和投屏输出。 | `agent.workspaces`、`apps.gpu`、`apps.vulkan`、`apps.xwayland-gpu`、`delivery.acceptance`、`delivery.trace`、`delivery.probes`、`desktop-mode.tv-computer-mode`、`desktop-mode.external-screen`、`desktop-mode.tv-director`、`desktop-mode.apk-fullscreen`、`desktop.session`、`desktop.panels`、`desktop.orientation`、`desktop.host-display`、`desktop.resolution-refresh`、`desktop.display-size`、`desktop.power`、`install.desktop-entry`、`install.app-restart-recovery`、`install.apk-build` | — | 5 |
+| `host-input` 宿主输入 | Android 将触摸、按键、指针、手势和输入法文字送入 KWin。输入方式包括直接触摸、触控板、电视遥控和键盘。 | `delivery.acceptance`、`delivery.ui-automation`、`desktop-mode.fullscreen`、`desktop-mode.fullscreen-touch`、`desktop-mode.tv-computer-mode`、`desktop-mode.tv-touchpad`、`desktop-mode.apk-fullscreen`、`desktop.touch`、`desktop.edge-back`、`desktop.android-text` | — | 1 |
+| `camera` 相机 | Android Camera2 通过 PipeWire 相机节点 rungic.camera.N 提供画面，并按需开关相机。平台桥的 capture-info 查询返回可用相机。 | `apps.camera`、`apps.snapshot`、`apps.plasma-camera`、`apps.firefox`、`delivery.acceptance`、`delivery.probes` | 2 | 3 |
+| `audio` 扬声器与麦克风 | Android 扬声器和麦克风作为 PulseAudio 设备提供，包括 android、android_phone 输出和麦克风源。设备按需挂起，输出通过 Android 侧的 PulseAudio（system/android-audio）。 | `agent.voice`、`agent.call-proxy`、`apps.phone-audio`、`apps.virtual-audio`、`apps.firefox`、`delivery.acceptance`、`delivery.probes`、`desktop-mode.audio-follow`、`desktop.screen-recording`、`install.cold-start` | 5 | 3 |
+| `communication-audio` 通话音频 | $XDG_RUNTIME_DIR/rungic-communication.sock 为电话模式和通话提供双向通信音频，使用 android_communication 设备。 | `agent.phone-mode` | 1 | 2 |
+| `codec` 硬件编解码 | Android MediaCodec 通过 IPC 为 GStreamer、FFmpeg 和 Firefox 提供 H.264/HEVC/VP9 解码及 H.264 编码。 | `apps.snapshot`、`apps.hw-codec`、`apps.firefox-hw-video`、`delivery.acceptance`、`desktop.screen-recording` | 9 | 1 |
+| `clipboard` 剪贴板 | Android ClipboardDaemon 与 Wayland 剪贴板双向同步。 | `desktop-mode.clipboard`、`desktop.clipboard`、`desktop.clipboard-history` | 3 | 1 |
+| `network` 网络 | Android 提供 Wi-Fi 和网络状态。Linux 通过 NetworkManager D-Bus 接口将这些能力提供给桌面。 | `desktop.network` | 3 | 1 |
+| `bluetooth` 蓝牙 | Android 提供蓝牙能力。Linux 通过 BlueZ D-Bus 接口将这些能力提供给桌面。 | `desktop.bluetooth` | 3 | 1 |
+| `telephony` 蜂窝与通话 | 接口提供 ModemManager 使用的蜂窝网络状态，以及来电、去电和通话控制。 | `agent.cellular-call`、`desktop.cellular`、`desktop.sms` | 9 | 1 |
+| `ocr` 文字识别 | PP-OCR 在手机 GPU 上识别文字，供目标式电脑操作使用。 | `agent.plan-two` | 2 | 1 |
+| `wifi-display` 无线投屏 | 接口通过 Android 的高通 Wi-Fi Display 栈将输出投到电视，支持扫描、连接、断开和重连。 | `desktop-mode.cast-connect`、`desktop-mode.tv-shows-linux`、`desktop-mode.cast-video-modes`、`desktop-mode.cast-install`、`desktop-mode.tv-director` | 4 | 1 |
+| `shared-storage` 共享存储 | Android 通过 MediaProvider FUSE 提供 /storage/emulated/0/Plasma。该目录挂载到容器的 /mnt/android-shared，承载用户目录和 ~/Shared。 | `desktop.screen-recording` | 3 | 1 |
+| `gpu-device` GPU 设备 | 内核提供 KGSL 节点 /dev/kgsl-3d0 和 dma-heap 节点 /dev/dma_heap/system。Mesa、Xwayland、Flatpak 和系统监视器通过这些节点使用 Adreno。PC 使用 DRM。 | `desktop.host-display` | — | 1 |
+| `host-controller` 宿主控制器 | Rungic 应用通过 Magisk su 调用 rungic-plasma，查询和设置账户、安装发布、启停会话及管理内存上限。安装状态记录在应用私有的 rungic-install.properties。 | `desktop.session`、`desktop.edge-back`、`desktop.host-display` | 3 | 1 |
