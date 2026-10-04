@@ -1,0 +1,52 @@
+From: clawd20130 <clawd20130@gmail.com>
+Date: Sun, 4 Oct 2026 16:46:20 +0900
+Subject: Screencast: another RGB format for DMA-BUF frames when the allocator
+ cannot make the source's
+
+The stream offered DMA-BUF frames only in the source's format (or ARGB8888) and fell back to memfd
+when that one could not be allocated. The Android host's buffer lease makes only RGBA-ordered
+buffers (ABGR8888/XBGR8888), and the output is ARGB8888: every screencast went through memfd, read
+back by KWin and uploaded again by the consumer. At 1080x2400 and 60 fps the screen recorder's GL
+thread spent about 0.4 of a core copying those frames into textures (docs/108). Rendering into the
+stream's buffer converts between formats at no cost, so the other 8-bit RGB formats are tried
+before memfd.
+
+Forwarded: no
+Last-Update: 2026-10-04
+X-Rungic-Status: Pending [generic: screencast allocators that make a subset of the renderer's formats]
+X-Rungic-Tests: L3:recording.quicksetting
+X-Rungic-Docs: docs/108
+Origin: vendor
+---
+ src/plugins/screencast/screencaststream.cpp | 18 ++++++++++++++++++
+ 1 file changed, 18 insertions(+)
+
+diff --git a/src/plugins/screencast/screencaststream.cpp b/src/plugins/screencast/screencaststream.cpp
+index 9d99293..1533ddb 100644
+--- a/src/plugins/screencast/screencaststream.cpp
++++ b/src/plugins/screencast/screencaststream.cpp
+@@ -426,6 +426,24 @@ bool ScreenCastStream::createStream()
+         m_modifiers = *itModifiers;
+     }
+     m_hasDmaBuf = testCreateDmaBuf(m_resolution, m_drmFormat, m_modifiers).has_value();
++    // The allocator may not make every format the renderer can draw: the Android host leases only
++    // RGBA-ordered buffers (ABGR8888/XBGR8888), not the output's ARGB8888. Rendering converts for
++    // free, so try another 8-bit RGB format before resorting to memfd (copied by the CPU on both
++    // sides of the stream).
++    for (const uint32_t format : {DRM_FORMAT_ABGR8888, DRM_FORMAT_XBGR8888, DRM_FORMAT_ARGB8888, DRM_FORMAT_XRGB8888}) {
++        if (m_hasDmaBuf) {
++            break;
++        }
++        const auto it = supported.constFind(format);
++        if (format == m_drmFormat || it == supported.constEnd()) {
++            continue;
++        }
++        if (testCreateDmaBuf(m_resolution, format, *it).has_value()) {
++            m_drmFormat = format;
++            m_modifiers = *it;
++            m_hasDmaBuf = true;
++        }
++    }
+ 
+     char buffer[2048];
+     QList<const spa_pod *> params = buildFormats(false, buffer);

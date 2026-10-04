@@ -1,0 +1,35 @@
+  * build with configure flag --enable-avisynth
+    when AviSynth+ is in Debian
+    (embedded avisynth code dropped upstream)
+  * build with configure flag --enable-libilbc
+    when libilbc is in Debian
+    closes: bug#675959
+    <https://github.com/TimothyGu/libilbc>
+  * build with configure flag --enable-libklvanc
+    when libklvanc is in Debian
+    <https://github.com/stoth68000/libklvanc>
+  * build with configure flag --enable-libkvazaar
+    when Kvazaar is in Debian
+    <https://github.com/ultravideo/kvazaar>
+  * build with configure flag --enable-libopenh264
+    when OpenH264 is in Debian
+    <https://github.com/cisco/openh264>
+  * build with configure flag --enable-libtensorflow
+    when Tensorflow is in Debian
+    closes: bug#959765
+  * build with configure flag --enable-libvmaf
+    when VMAF is in Debian
+    <https://github.com/Netflix/vmaf>
+  * build with configure flag --enable-libxavs
+    when XAVS is in Debian
+    <http://xavs.sourceforge.net/>
+  * build with configure flag --enable-vapoursynth
+    when vapoursynth is in Debian
+    closes: bug#833942
+    <https://github.com/vapoursynth/vapoursynth>
+  * build with configure flag --enable-libdavs2
+    when davs2 is no longer deemed experimental
+  * build with configure flag --enable-libxavs2
+    when xavs2 is no longer deemed experimental
+  * build with configure flag --enable-liblensfun
+    when a released version of liblensfun is supported again

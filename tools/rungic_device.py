@@ -20,7 +20,11 @@ needs no edits.
 
 Scripts are sent on stdin instead of being nested inside `adb shell su -c`
 quoting. The exit status of the script is returned.
+
+devices() lists every connected adb device and selected() points these tools at one of them for a
+block (rungic_release.py deploy --all and status --all go through the phones one after another).
 """
+import contextlib
 import functools
 import os
 import shlex
@@ -130,6 +134,48 @@ def transport():
             return device
     raise DeviceError(f'Phone {serial()} not among adb devices {devices}; '
                       'connect it or set RUNGIC_TRANSPORT')
+
+
+def devices():
+    """The connected adb devices: [(transport, state, model)] from `adb devices -l` (state 'device' when
+    usable; 'offline', 'unauthorized' otherwise)."""
+    out = subprocess.run([adb_path(), 'devices', '-l'], capture_output=True, text=True, timeout=15,
+                         stdin=subprocess.DEVNULL).stdout
+    result = []
+    for line in out.splitlines()[1:]:
+        words = line.split()
+        if len(words) >= 2:
+            model = next((w.split(':', 1)[1] for w in words[2:] if w.startswith('model:')), None)
+            result.append((words[0], words[1], model))
+    return result
+
+
+@contextlib.contextmanager
+def selected(serial=None, transport=None):
+    """Commands go to this phone until the block ends: RUNGIC_SERIAL and RUNGIC_TRANSPORT for this
+    process and the tools it starts (rungic_plasma.py restarts the session), with the cached lookups of
+    the previous phone (its transport, APK name, transfer directory) cleared before and after."""
+    saved = {key: os.environ.get(key) for key in ('RUNGIC_SERIAL', 'RUNGIC_TRANSPORT', 'MOTO_SERIAL', 'MOTO_TRANSPORT')}
+
+    def clear():
+        for cached in (config, globals()['transport'], apk, container_transfer):   # the argument hides transport()
+            cached.cache_clear()
+    for key in saved:
+        os.environ.pop(key, None)
+    if serial:
+        os.environ['RUNGIC_SERIAL'] = serial
+    if transport:
+        os.environ['RUNGIC_TRANSPORT'] = transport
+    clear()
+    try:
+        yield
+    finally:
+        for key, value in saved.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
+        clear()
 
 
 def adb(*args):

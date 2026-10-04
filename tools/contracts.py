@@ -295,9 +295,14 @@ class CodecStandIn:
     returns ({'type': 'DECODED', 'planes': [(stride, step, bytes)] x3, 'width', 'height', 'crop'} or
     {'type': 'ENCODED' or 'CONFIG', 'data': bytes}, both with 'id', 'flags' and 'pts'), each written
     to the output half and acknowledged; DRAIN with EOS. Records `configs`, `frames` (with the input
-    bytes), `commands` and `problems` (the consumer broke the protocol)."""
+    bytes), `commands` and `problems` (the consumer broke the protocol).
 
-    def __init__(self, output=None, reject=None):
+    Channel version 2 (`configure2`, `output2` records) unless `version=1` (an app before it: MAGIC2
+    answered with ERROR). A DECODED record with 'buffer': (slot, bytes) and 'offsets' is a picture in
+    one of the decoder's buffers: the slot's DMA-BUF (a memfd here) goes with its first record, its
+    bytes refreshed for every record; 'depth' 10 for P010. `descriptors` counts those sent."""
+
+    def __init__(self, output=None, reject=None, version=2):
         contract = load('codec')
         self.k = {name: int(value, 0) for name, value in contract['constants'].items()}
         self.spec = contract['sockets']['broker']
@@ -305,6 +310,7 @@ class CodecStandIn:
         self.messages = contract['messages']
         self.output, self.reject = output or (lambda config, frame: []), reject or (lambda config: None)
         self.configs, self.frames, self.commands, self.problems = [], [], [], []
+        self.version, self.descriptors = version, 0
         self.dir = tempfile.TemporaryDirectory(prefix='rungic-standin-')
         self.path = os.path.join(self.dir.name, 'codec.sock')
         self.server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
@@ -365,13 +371,24 @@ class CodecStandIn:
 
     def session(self, conn, shared):
         k = self.k
+        slots = {}            # slot -> the memfd standing in for that decoder buffer's DMA-BUF
         with conn:
             try:
-                values = self.words(conn, len(self.messages['configure']))
-                config = dict(zip(self.messages['configure'], values))
-                if config['MAGIC'] != k['MAGIC']:
+                magic = self.words(conn, 1)[0]
+                if magic == k['MAGIC2'] and self.version == 2:
+                    names = self.messages['configure2']
+                elif magic == k['MAGIC2']:
+                    message = b'java.io.IOException: Channel version'
+                    self.send(conn, k['ERROR'], len(message))
+                    conn.sendall(message)
+                    return
+                elif magic == k['MAGIC']:
+                    names = self.messages['configure']
+                else:
                     self.problems.append('channel: no MAGIC first')
                     return
+                config = dict(zip(names, [magic] + self.words(conn, len(names) - 1)))
+                config['version'] = 2 if magic == k['MAGIC2'] else 1
                 self.configs.append(config)
                 refused = self.reject(config)
                 if refused:
@@ -403,26 +420,52 @@ class CodecStandIn:
                     frame = {'id': fid, 'pts': (high << 32) | low, 'flags': flags, 'data': bytes(shared[:length])}
                     self.frames.append(frame)
                     for record in self.output(config, frame):
-                        self.write(conn, shared, record)
+                        self.write(conn, shared, record, config['version'], slots)
                     self.send(conn, k['DONE'])
             except (EOFError, OSError):
                 return
             finally:
                 shared.close()
+                for fd in slots.values():
+                    os.close(fd)
 
-    def write(self, conn, shared, record):
+    def write(self, conn, shared, record, version=1, slots=None):
         k, half = self.k, self.k['HALF']
-        if record['type'] == 'DECODED':
+        attach, buffer, size = [], -1, 0
+        if record['type'] == 'DECODED' and 'buffer' in record:
+            buffer, contents = record['buffer']
+            if buffer not in slots:
+                slots[buffer] = os.memfd_create('rungic-decoder-buffer')
+                os.ftruncate(slots[buffer], len(contents))
+                attach = [slots[buffer]]
+                self.descriptors += 1
+            os.pwrite(slots[buffer], contents, 0)
+            planes = [v for stride, step, length in record['planes'] for v in (stride, step, length)]
+            meta = [record['width'], record['height'], *record.get('crop', (0, 0)), *planes]
+            offsets, size = record['offsets'], len(contents)
+        elif record['type'] == 'DECODED':
             payload = b''.join(data for _, _, data in record['planes'])
             planes = [v for stride, step, data in record['planes'] for v in (stride, step, len(data))]
             meta = [record['width'], record['height'], *record.get('crop', (0, 0)), *planes]
+            lengths = [len(data) for _, _, data in record['planes']]
+            offsets = [0, lengths[0], lengths[0] + lengths[1]]
         else:
             payload = record['data']
-            meta = [0] * 13
-        shared[half:half + len(payload)] = payload
+            meta, offsets = [0] * 13, [0, 0, 0]
+        if buffer < 0:
+            shared[half:half + len(payload)] = payload
+            size = len(payload)
         pts = record.get('pts', 0)
-        self.send(conn, k[record['type']], record.get('id', 0), record.get('flags', 0), len(payload),
-                  pts >> 32, pts & 0xffffffff, *meta)
+        values = [k[record['type']], record.get('id', 0), record.get('flags', 0), size, pts >> 32, pts & 0xffffffff, *meta]
+        if version == 2:
+            values += [*offsets, buffer, record.get('depth', 8)]
+        elif buffer >= 0:
+            self.problems.append('stand-in: a buffer picture on a version 1 channel')
+        data = struct.pack(f'>{len(values)}I', *(v & 0xffffffff for v in values))
+        if attach:
+            socket.send_fds(conn, [data], attach)
+        else:
+            conn.sendall(data)
         if self.words(conn, 1)[0] != k['ACK']:
             self.problems.append('channel: an output record was not acknowledged')
 

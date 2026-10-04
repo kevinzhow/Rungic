@@ -1,14 +1,23 @@
 {
   "interface": "telephony",
-  "comment": "Android's mobile network and calls for the Linux side. On the platform bridge's socket ($RUNGIC_PLATFORM_SOCKET, one JSON object per line each way, one request per connection), AndroidTelephonyBridge answers op telephony: state (read by shared/platform/modem-manager.py and network-manager.py; a phone without a modem answers modem false and nothing else) and data (Android's mobile data switch, a change). Calls go to the call daemon (com.rungic.telephony.CallDaemon, root) on the abstract socket com.rungic.calls.v1, which the consumer (agent/assistant/cellular_audio.py, cellular_call.py) trusts only when served by uid 0: status lists the calls (an Android without a bound InCallService adds available false); dial, hangup, answer, dtmf, show-linux and audio change things and are never sent by the provider check. Tested from both ends: tools/tests/test_cellular_state.py, test_cellular_audio.py and test_contract_network.py (consumers) and acceptance scenario contract.telephony (the Rungic app and the call daemon on the phone; call numbers are blanked there).",
+  "comment": "Android's mobile network and calls for the Linux side. On the platform bridge's socket ($RUNGIC_PLATFORM_SOCKET, one JSON object per line each way, one request per connection), AndroidTelephonyBridge answers op telephony: state (read by shared/platform/modem-manager.py and network-manager.py; a phone without a modem answers modem false and nothing else) and data (Android's mobile data switch, a change). Calls go to the call daemon (com.rungic.telephony.CallDaemon, root) on the abstract socket com.rungic.calls.v1, which the consumer (agent/assistant/cellular_audio.py, cellular_call.py) trusts only when served by uid 0: status lists the calls (an Android without a bound InCallService adds available false); dial, hangup, answer, dtmf, show-linux and audio change things and are never sent by the provider check. Tested from both ends: tools/tests/test_cellular_state.py, test_cellular_audio.py and test_contract_network.py (consumers) and acceptance scenario contract.telephony (the Rungic app and the call daemon on the phone; call numbers are blanked there). AndroidSmsBridge handles op sms on the platform socket; rungic-sms sends and filters provider messages. Radio completion and delivery receipt are separate; send is never invoked by a provider check.",
   "sockets": {
-    "platform": {"path": "/mnt/android-wayland/platform.sock", "env": "RUNGIC_PLATFORM_SOCKET"},
-    "calls": {"abstract": "com.rungic.calls.v1", "peer_uid": 0}
+    "platform": {
+      "path": "/mnt/android-wayland/platform.sock",
+      "env": "RUNGIC_PLATFORM_SOCKET"
+    },
+    "calls": {
+      "abstract": "com.rungic.calls.v1",
+      "peer_uid": 0
+    }
   },
   "queries": [
     {
       "name": "state",
-      "request": {"op": "telephony", "action": "state"},
+      "request": {
+        "op": "telephony",
+        "action": "state"
+      },
       "replies": [
         {
           "modem": true,
@@ -28,29 +37,128 @@
           "dataConnected": true,
           "dataRoaming": false
         },
-        {"modem": false, "manufacturer": "motorola", "model": "XT2537-4"}
+        {
+          "modem": false,
+          "manufacturer": "motorola",
+          "model": "XT2537-4"
+        }
       ],
       "read_only": true
     },
     {
       "name": "data",
-      "request": {"op": "telephony", "action": "data", "on": true},
-      "match": ["op", "action"],
-      "reply": {"accepted": true},
+      "request": {
+        "op": "telephony",
+        "action": "data",
+        "on": true
+      },
+      "match": [
+        "op",
+        "action"
+      ],
+      "reply": {
+        "accepted": true
+      },
       "read_only": false
     },
     {
       "name": "call-status",
       "socket": "calls",
-      "request": {"op": "status"},
+      "request": {
+        "op": "status"
+      },
       "reply": {
         "protocol": 1,
         "phoneState": 0,
         "audioCapable": true,
-        "calls": [{"id": "call-1", "state": 4}]
+        "calls": [
+          {
+            "id": "call-1",
+            "state": 4
+          }
+        ]
       },
-      "private": ["calls"],
+      "private": [
+        "calls"
+      ],
       "read_only": true
+    },
+    {
+      "name": "sms-send",
+      "request": {
+        "op": "sms",
+        "action": "send",
+        "to": "10000",
+        "text": "查询话费"
+      },
+      "match": [
+        "op",
+        "action"
+      ],
+      "replies": [
+        {
+          "status": "sent",
+          "parts": 1,
+          "submittedAt": 1,
+          "sentParts": 1,
+          "subscription": 1,
+          "delivery": "unconfirmed",
+          "delivered": false
+        },
+        {
+          "status": "failed",
+          "parts": 1,
+          "submittedAt": 1,
+          "sentParts": 0,
+          "subscription": 1,
+          "error": "no-service"
+        },
+        {
+          "status": "pending",
+          "parts": 1,
+          "submittedAt": 1,
+          "sentParts": 0,
+          "subscription": 1,
+          "error": "Radio result unknown"
+        },
+        {
+          "error": "No active default SMS SIM"
+        }
+      ],
+      "read_only": false,
+      "timeout": 75
+    },
+    {
+      "name": "sms-list",
+      "request": {
+        "op": "sms",
+        "action": "list",
+        "box": "inbox",
+        "limit": 1,
+        "from": "10000"
+      },
+      "match": [
+        "op",
+        "action"
+      ],
+      "reply": {
+        "messages": [
+          {
+            "id": 1,
+            "address": "10000",
+            "text": "example",
+            "date": 1,
+            "box": "inbox",
+            "read": false
+          }
+        ],
+        "truncated": false
+      },
+      "private": [
+        "messages"
+      ],
+      "read_only": true,
+      "timeout": 15
     }
   ]
 }

@@ -4,7 +4,7 @@
 
 以产品功能和用户场景为骨架：每条功能是用户能感知的一件事；“体验”是它必须做到的，每条都标明由什么检查（自动测试、实机验收、人工验证或已登记的缺口）。数据在 `quality/`，规则见 [quality/README.md](../quality/README.md)。
 
-共 160 条功能、672 条体验，其中 628 条有检查。
+共 162 条功能、695 条体验，其中 651 条有检查。
 
 ## Agent 能力
 
@@ -133,7 +133,7 @@
 - **E1** Agent 的回合开始、结束不会影响电话会话；协调器意外退出后，下一次使用时自动恢复，不需要用户重开应用。（单元测试）
 - **E2** 只读任务不能调用任何可能改动外部的 MCP 工具；可写任务独占自己的工具进程。（单元测试）
 - **E3** 用户开口就停止播报，已有任务继续；只有明确的停止请求或任务卡片的停止按钮才取消任务，取消显示“正在停止”，直到 Codex 真的停下才显示已停止。（单元测试、人工）
-- **E4** 挂断、Plasma 被遮住、音频或网络断开时关闭话音连接，任务继续执行；返回后不自动恢复，要再点电话模式。（单元测试、人工）
+- **E4** 挂断、Plasma 被遮住、音频或网络断开时关闭话音连接，任务继续执行；返回后不自动恢复，要再点“和 Agent 通话”。（单元测试、人工）
 - **E5** 只按完整的最终转写开始任务：同一句话最多开始一个任务，句中停顿不提前执行，连接就绪前说了一半的话要求重说；执行器拿到的是转写原文，不是模型改写的话。（单元测试、人工）
 - **E6** 任务需要用户回答时，问题出现在任务卡上，必须由用户回答，不自动选默认；答案只能回到提问的那个任务，已停止的任务不会被迟到的问题复活。（单元测试）
 - **E7** 任务和它的历史留在发起它的对话里；一句更正只送到一个任务，目标不明确时先问。（单元测试）
@@ -142,6 +142,9 @@
 - **E10** 停止任务或撤销它的工具租约时，只结束这个任务的工具进程组（包括忽略 SIGTERM 的后代和工具进程意外退出后留下的），用户自己运行的应用不受影响；没有租约的工具调用被拒绝。（单元测试）
 - **E11** 按用户实际说的语言识别和回答，不强制用桌面界面的语言。（单元测试）
 - **E12** 服务重启后不重放排队中或做到一半的任务，按后端的实际状态恢复显示（标为已中断）。（单元测试）
+- **E13** 对话顶栏的电话按钮在当前对话里开始通话，对话列表的“和 Agent 通话”新开一段对话再开始；不能开始时（Agent 正在替你打电话、另一段对话在通话）按钮显示为不可用，点一下说明原因。（单元测试）
+- **E14** 通话中顶栏下方的通话条按“正在连接、等你回答、正在回答、正在听、正在处理、麦克风已关、通话中”显示当前状态和通话时长，可静音、挂断，点开是通话面板（打断、这次通话的任务及其状态、去回答）；通话在别的对话时显示“前往”；重新打开应用后按会话快照恢复。（单元测试）
+- **E15** 通话结束在对话里留下摘要：时长、这次通话发起和完成的任务数，有任务在等回答时可直接去回答，也可以再打给它。（单元测试）
 - **E16** Agent 说话连贯不卡：回复的声音按 Android 实际播放的进度送出，Android 不因等数据而停顿；停顿之后不会把空档补成一阵突发。（单元测试、系统测试、人工）
 
 注意：
@@ -150,6 +153,7 @@
 - semantic VAD 可能延迟很久，改为等本地静默和完整最终转写，2 秒仍未提交时手动 commit。 [docs/101-full-duplex-phone-mode.md](../docs/101-full-duplex-phone-mode.md)
 - 播放游标读取不等于“用户听到了什么”，截断位置仍有边界误差，必须声学实测。 [docs/101-full-duplex-phone-mode.md](../docs/101-full-duplex-phone-mode.md)
 - G100 的 Home 键返回同一个入口，不能用它测试“隐藏”；2026-10-03 的协调器修复尚未部署。 [docs/101-full-duplex-phone-mode.md](../docs/101-full-duplex-phone-mode.md)
+- 断线直接结束通话（不重连），所以通话条的“正在重新连接”状态目前不会出现；对话列表也还没有通话中的标记。 [docs/101-full-duplex-phone-mode.md](../docs/101-full-duplex-phone-mode.md)
 
 文档：[docs/101-full-duplex-phone-mode.md](../docs/101-full-duplex-phone-mode.md)
 
@@ -894,7 +898,7 @@ Linux 应用用手机的相机拍照录像，用手机的扬声器和麦克风�
 
 #### 视频硬件编解码（GStreamer 与 FFmpeg）
 
-`apps.hw-codec` · Linux 系统功能 — Linux 的 GStreamer 播放器、相机、录屏和私有 FFmpeg 经 APK 用安卓 MediaCodec（高通 c2.qti）做 H.264/HEVC 编解码和 VP9 解码。
+`apps.hw-codec` · Linux 系统功能 — Linux 的 GStreamer 播放器、相机、录屏和私有 FFmpeg 经 APK 用安卓 MediaCodec（高通 c2.qti）做 H.264/HEVC 编解码和 VP9 解码（含 10bit 解码）。
 
 经由接口：`codec`
 
@@ -903,17 +907,35 @@ Linux 应用用手机的相机拍照录像，用手机的扬声器和麦克风�
 - **E3** 要求硬件的编码器（rungich264enc、h264_rungic）在拿不到硬件组件时报错，不悄悄换成软件编码；混合编码器 h264_rungic_auto 打开失败时回退软件。（单元测试、系统测试、人工）
 - **E4** 带 B 帧的 H.264 解码时间戳正确；seek 后 FLUSH 不会让后续响应错位。（单元测试、系统测试、人工）
 - **E5** 编码跟不上设定帧率时丢掉编码前的帧而不是积压，停止后收尾在 1 秒内完成。（实机验收、人工；只能在手机上看：编码跟不上取决于手机硬件编码器经宿主桥接的吞吐（约 50 fps），收尾时间也是手机上的时序）
+- **E6** 解码帧留在解码器自己的缓冲里（DMA-BUF，每个缓冲只传一次描述符、只映射一次），APK 里不再复制；GStreamer 直接输出 NV12（下游不接受时 I420），与 FFmpeg 软解逐字节一致。（单元测试、人工）
+- **E7** 10bit 的 HEVC Main10、VP9 Profile 2 由硬件解码，输出 P010，不悄悄压成 8bit；不支持时打开失败，交给软件解码。（单元测试、人工）
+- **E8** 新的 Linux 端遇到旧 APK（通道版本 1）自动退回共享内存，8bit 照常硬件解码；手机的解码缓冲读不了时同样退回。（单元测试、人工）
+- **E9** 有高通 msm_vidc 解码节点（/dev/video32）的手机，解码直接走 V4L2，不经过 APK：实时 1080p60 约占一个核的 23%（MediaCodec 桥约 105%），1080p 吞吐约 240 帧/秒；没有这个节点、显式关掉或在 Firefox 的沙箱里，照旧用 MediaCodec 桥。（单元测试、人工）
+- **E10** 有 msm_vidc 编码节点（/dev/video33）的手机，H.264/HEVC 编码直接走 V4L2：录屏 1080×2400@30 能跟上实时，编码本身约占一个核的 2–3%（MediaCodec 桥约 75% 以上且跟不上 30 帧）；参数集单独给出，关键帧可强制；NV12 输入原样收下。录屏的颜色转换在 GPU 上做，转好的纹理由 GPU 直接写进编码器的输入缓冲，KWin 给录屏的画面是 DMA-BUF，整个过程不经过 CPU 拷贝。（单元测试、人工）
+- **E11** 用系统 FFmpeg 的应用（mpv/Haruna、VLC、Qt Multimedia、缩略图）默认选中硬件解码器 h264/hevc/vp9_rungic，打不开硬件时回退软件；应用默认的软件编码器不变。（单元测试、人工）
+- **E12** Flatpak 里用 GStreamer 的应用（Freedesktop/GNOME 运行时）经扩展 org.freedesktop.Platform.GStreamer.rungic 用上 V4L2 硬件编解码；没有设备权限的应用照常软件解码。（单元测试、人工）
+- **E13** 走 MediaCodec 桥的解码（Firefox、没有 msm_vidc 的手机）在 APK 的原生线程里运行（AMediaCodec 异步回调、AImageReader、原生 socket），协议与 Java 会话相同，编码仍交给 Java；各格式（含 10bit）与软解逐字节一致，APK 里我们自己的代码不到 1%。（单元测试、人工）
 
 注意：
-- 解码输出按 stride 和 crop 在 CPU 上复制成 I420，不是零复制；1080p NV12 约 3.1 MB/帧。 [docs/research/35-hardware-codec-integration.md](../docs/research/35-hardware-codec-integration.md) [docs/research/34-hardware-codec-audit.md](../docs/research/34-hardware-codec-audit.md)
+- Mozilla 官方 arm64 Firefox 没有启用 MOZ_ENABLE_V4L2，RDD 的沙箱 broker 拒绝打开 /dev/video*；Firefox 仍走 MediaCodec 桥。沙箱前预开 DMA 堆不解决问题，还会把它交给所有内容进程，不要这么做。 [docs/108-codec-bridge-buffers.md](../docs/108-codec-bridge-buffers.md)
+- 安卓宿主的缓冲租借（gpu_allocator.rs）只给 RGBA 顺序（ABGR8888/XBGR8888）。KWin 录屏原来只按输出格式 ARGB8888 要 DMA-BUF，要不到就悄悄退回 memfd，每帧 CPU 读回再上传；补丁 screencast-dmabuf-other-rgb-format 改为换格式再试。 [docs/108-codec-bridge-buffers.md](../docs/108-codec-bridge-buffers.md)
+- 编码元素直接用 GLMemory 的纹理 ID 前必须以 GST_MAP_GL 映射；经过直通元素时 GStreamer 推迟上传，纹理是空的（编出几乎不变的画面）。 [docs/108-codec-bridge-buffers.md](../docs/108-codec-bridge-buffers.md)
+- 不要在手机上把整段原始视频写进容器 /tmp（3.7 GB tmpfs）或整块读入比较：2026-10-04 因此内存耗尽，VPN 被杀、内核 panic 重启。只抽少量帧，或传回电脑计算。 [docs/108-codec-bridge-buffers.md](../docs/108-codec-bridge-buffers.md)
+- NDK 的 AImageReader 按配置格式严格检查缓冲：配成 YCBCR_P010 时会拒收高通解码器自己的 P010（0x7fa30c0a），第二帧起取不到图（Java 的 ImageReader 不拒）。10bit 用 PRIVATE 格式的 reader。 [docs/108-codec-bridge-buffers.md](../docs/108-codec-bridge-buffers.md)
+- mpv 默认在主线程解码，硬件解码器的出帧时序抖动让约 10% 的帧在 vo 端被判来晚丢掉（解码速度足够，vd-queue-enable=yes 时为 0）。 [docs/108-codec-bridge-buffers.md](../docs/108-codec-bridge-buffers.md)
+- msm_vidc 的 V4L2 编码器必须先开图像（OUTPUT）流、再开码流（CAPTURE），两路都开流后才能排缓冲；先排码流缓冲再送第一张图，固件同样断言复位。 [docs/108-codec-bridge-buffers.md](../docs/108-codec-bridge-buffers.md)
+- msm_vidc 的 V4L2 解码只收 DMA-BUF；OUTPUT 开流前排入码流、或 CAPTURE 配好前排入第二个码流单元，会让固件断言并复位整个视频核心（Android 正在用的解码一起中断）。codec-v4l2.c 严格按“开 OUTPUT → 一个单元 → 等 SOURCE_CHANGE → 配 NV12/P010 的 CAPTURE”的顺序，刷新时整段重开。 [docs/108-codec-bridge-buffers.md](../docs/108-codec-bridge-buffers.md)
+- 经 APK 的 MediaCodec 桥，CPU 大头是 Codec2 框架和高通编解码服务每帧的消息、binder 和缓冲交接（每帧约 12 ms CPU）；去掉复制、改异步只省了约 10%，实时 1080p60 仍约一个核，吞吐被 Codec2 按码流帧率设定的时钟限在约 83 帧/秒。这是 V4L2 直通的理由，桥只作回退。 [docs/108-codec-bridge-buffers.md](../docs/108-codec-bridge-buffers.md)
+- 渲染到 Surface 时高通解码器默认写 UBWC 压缩格式，要设 vendor.qti-ext-dec-forceNonUBWC.value=1；读平面布局不能用 Image.getPlanes()，遇到 UBWC 缓冲框架会直接 abort，连同桌面一起崩溃。 [docs/108-codec-bridge-buffers.md](../docs/108-codec-bridge-buffers.md)
+- 解码输入块设成 16 MiB 时，Codec2 每帧映射、解映射一次，光解映射就占 APK 解码线程约 1/5；按分辨率设置。 [docs/108-codec-bridge-buffers.md](../docs/108-codec-bridge-buffers.md)
 - 硬件编码经宿主桥接的吞吐约 50 fps：1080×2400@60 单路被拒，两路大分辨率同时编码第二路 CodecException；多屏或 60 fps 时把每路缩到长边 ≤1920。 [docs/48-plasma-media-pipelines.md](../docs/48-plasma-media-pipelines.md)
 - Android SharedMemory 可能是 st_size=0 的 ashmem 字符设备，不能只接受普通 memfd。 [docs/research/35-hardware-codec-integration.md](../docs/research/35-hardware-codec-integration.md)
 - 做成 VA-API 驱动换不掉 FFmpeg 补丁、Snapshot 补丁和 Firefox 预加载（Firefox 的 glxtest 在 KGSL 软件 EGL 设备处就关掉 VA-API），维持现状；VA-API 只能作为另一项新能力单独立项。 [docs/research/74-vaapi-feasibility.md](../docs/research/74-vaapi-feasibility.md)
-- 原厂 V4L2 节点 video32/33 只验证到能力枚举，MMAP/USERPTR 返回 EINVAL；不为未验证接口扩大 LXC 权限。 [docs/research/34-hardware-codec-audit.md](../docs/research/34-hardware-codec-audit.md) [docs/research/35-hardware-codec-integration.md](../docs/research/35-hardware-codec-integration.md)
-- VP8、AV1 在本机只有软件组件，不能宣称硬件编解码；没有 4K、HDR、10-bit 和 DRM 视频。 [docs/research/34-hardware-codec-audit.md](../docs/research/34-hardware-codec-audit.md)
+- 上游 Iris 驱动不支持 parrot，也不能和原厂 msm_video 共存；用的是原厂驱动的 V4L2 接口（容器只多映射了 /dev/video32，DMA 堆本来就为 GPU 映射了）。 [docs/108-codec-bridge-buffers.md](../docs/108-codec-bridge-buffers.md) [docs/research/34-hardware-codec-audit.md](../docs/research/34-hardware-codec-audit.md)
+- VP8、AV1 在本机只有软件组件，不能宣称硬件编解码；没有 4K（上限 2560×1440）、HDR 显示和 DRM 视频；10bit 只在解码侧。 [docs/research/34-hardware-codec-audit.md](../docs/research/34-hardware-codec-audit.md)
 - broker 只允许 UID 0/1000，最多 64 条连接、6 个活动 codec，只接受编解码固定命令。 [docs/research/35-hardware-codec-integration.md](../docs/research/35-hardware-codec-integration.md)
 
-文档：[docs/research/34-hardware-codec-audit.md](../docs/research/34-hardware-codec-audit.md)、[docs/research/35-hardware-codec-integration.md](../docs/research/35-hardware-codec-integration.md)、[docs/research/74-vaapi-feasibility.md](../docs/research/74-vaapi-feasibility.md)
+文档：[docs/research/34-hardware-codec-audit.md](../docs/research/34-hardware-codec-audit.md)、[docs/research/35-hardware-codec-integration.md](../docs/research/35-hardware-codec-integration.md)、[docs/research/74-vaapi-feasibility.md](../docs/research/74-vaapi-feasibility.md)、[docs/108-codec-bridge-buffers.md](../docs/108-codec-bridge-buffers.md)
 
 #### 屏幕共享门户
 
@@ -1222,6 +1244,7 @@ Linux 应用用手机的相机拍照录像，用手机的扬声器和麦克风�
 - **E5** 部署后改动自动生效：变化的系统服务（service_restart）、正在运行的桌面用户服务（user_restart，plasmashell 最后）按规则重启，需要时重启整个会话；没在运行的单元不启动。（单元测试、人工）
 - **E6** status 给出手机上的发布、它的 git 提交、与仓库是否一致、rootfs 快照状态和开发覆盖；每次部署在 .work/deploy/<时间>-<版本>/ 留下逐步记录和 result。（单元测试）
 - **E7** 增量发布装到 Android 侧的文件，与完整镜像的 host seed 路径和权限一致。（单元测试）
+- **E8** Ubuntu 发布了我们重建或耦合的包的更高版本时，apt 升级（Discover 的更新）和 unattended-upgrades 都保留已装发布的版本：每个发布包按精确版本 pin 在 1001，与耦合包同源的已装兄弟包（plasma-workspace 的私有库）按已装版本 pin，unattended-upgrades 另有按发布生成的精确名单；元包被卸掉后 pin 照样有效。（单元测试、人工）
 
 注意：
 - 经 Wi-Fi 部署整套发布会超过 10 分钟；2026-09-30 一次部署被 590 秒的客户端超时杀掉，只能用 rungic_release.py 自己的函数补完。要放在后台运行，不加超时。 [docs/96-desktop-recovery-after-apk-restart.md](../docs/96-desktop-recovery-after-apk-restart.md)
@@ -1229,10 +1252,33 @@ Linux 应用用手机的相机拍照录像，用手机的扬声器和麦克风�
 - 家目录不随快照回滚，失败部署期间写进 ~/.config 的内容会留下（曾留下 kdeglobals 的 SceneGraphBackend=software，抽屉网格空白）；排查部署后的异常时先看这段时间改过的用户配置。 [docs/61-delivery-diagnostics-plan.md](../docs/61-delivery-diagnostics-plan.md)
 - 建快照的重启仍在跑旧版本，那时的崩溃曾被算进新发布、导致误回滚；验收从安装完成时统计，早于安装的崩溃记为 version null。 [docs/61-delivery-diagnostics-plan.md](../docs/61-delivery-diagnostics-plan.md)
 - 容器里的 unattended-upgrades 是开着的，会把重建包静默换成 Ubuntu 的更高版本；重建、被 divert 和 Qt 私有 ABI 相关的包要在黑名单里。 [docs/61-delivery-diagnostics-plan.md](../docs/61-delivery-diagnostics-plan.md)
+- unattended-upgrades 认 pin（被 pin 的已装版本不算可升级），pin 不在时只剩名单；rungic-plasma-config 带的静态名单漏了后来加入的组件（powerdevil、kwayland、xwayland、flatpak、gst-plugins-base 等）和 plasma-workspace 的私有库，部署因此按发布另写 52rungic-release。 [docs/109-dev-release-channel.md](../docs/109-dev-release-channel.md)
+- 耦合包（plasma-workspace）的版本取自出发布时那台手机上装的版本；Ubuntu 的 -updates 索引只留最新版，别的手机要装回这个旧版本时可能已经下载不到，部署会在安装一步失败。 [docs/109-dev-release-channel.md](../docs/109-dev-release-channel.md)
 - 仓库保留历史版本供回滚；只靠仓库整体 pin 时，旧版本同样可能成为候选，所以按包写 pin。 [docs/61-delivery-diagnostics-plan.md](../docs/61-delivery-diagnostics-plan.md)
 - 按包回滚到较早的发布需要它的提交：Android 侧文件从发布记录的提交中读取并按 sha256 核对。 [docs/70-rungic-rebrand.md](../docs/70-rungic-rebrand.md)
 
-文档：[docs/61-delivery-diagnostics-plan.md](../docs/61-delivery-diagnostics-plan.md)、[docs/96-desktop-recovery-after-apk-restart.md](../docs/96-desktop-recovery-after-apk-restart.md)
+文档：[docs/61-delivery-diagnostics-plan.md](../docs/61-delivery-diagnostics-plan.md)、[docs/96-desktop-recovery-after-apk-restart.md](../docs/96-desktop-recovery-after-apk-restart.md)、[docs/109-dev-release-channel.md](../docs/109-dev-release-channel.md)
+
+#### dev 发布渠道：从 main 出发布，装到所有手机
+
+`delivery.dev-channel` · Linux 系统功能 — rungic_release.py dev 只从干净的 origin/main 出 dev 发布（含 APK），导出发布包；deploy --all 逐台部署所有连着的 Rungic 手机，status --all 每台一行；经确认后发成 GitHub 预发布；每次部署记进 release/history.json。
+
+- **E1** dev 只在 HEAD 等于刚取下来的 origin/main、工作区干净（含未跟踪文件）时才出发布；版本号 YYYYMMDD.N 避开本机仓库、origin 上已发布的 dev-* tag 和 release/history.json 里用过的号。（单元测试）
+- **E2** dev 先构建发布缺的东西：源码变了的自有包、changelog 版本不在仓库里的上游组件（补丁队列变了却没加 changelog 条目就拒绝）、APK；发布记录 channel dev、提交和 APK 的文件名、versionName、versionCode、sha256，同时写进元包里的 release.json。（单元测试）
+- **E3** 发布包是一个文件：发布用到的 deb 加索引、APK、Android 侧文件和逐文件 SHA-256 的 manifest；没构建的机器 deploy --from 逐文件核对后导入再部署；同名 deb 内容不同、同一版本号来自别的提交都拒绝，两台机器的构建不会混在一起。（单元测试）
+- **E4** 部署在容器一侧装好之后装发布的 APK：手机上的 versionCode 更低时 adb install -r（保留数据）、重新打开、等会话就绪，再做验收；结果记在部署记录的 apk 一步。版本不低于发布的不动，--restart never 时不装并记录，没装 APK 的手机不首装；装不上算部署失败，回到快照。（单元测试）
+- **E5** deploy --all 逐台部署所有连着的、有 Rungic 启动器的手机（每台用自己的 RUNGIC_SERIAL/RUNGIC_TRANSPORT），某台失败或连不上就记下来继续下一台，最后打印汇总表；同一台手机同时走 USB 和 Wi-Fi 只算一次。（单元测试）
+- **E6** status --all 每台手机一行：已装发布、渠道、提交、比 origin/main 落后的提交数、APK 版本、开发覆盖数、apt 是否按发布钉住（未 pin 的包、元包 Protected、unattended-upgrades 名单）。（单元测试、人工）
+- **E7** publish 默认只给出 gh 命令和说明（上一个 dev 发布以来合并的 PR、其他提交、包版本变化、APK、部署命令），用户确认后加 --yes 才在 kevinzhow/Rungic 上创建预发布 dev-<版本>，附发布包和 APK。（单元测试）
+- **E8** 每次部署（成功、失败、中止，以及 deploy --all 里连不上的手机）在 release/history.json 追加一行：版本、提交、渠道、手机序列号、结果、时间，随仓库提交。（单元测试）
+
+注意：
+- 2026-10-04 之前各开发机有自己的 APT 仓库，发布号在不同机器上各自增长；最后一个正式发布是 20260930.10，之后合并的改动只以开发覆盖散落在手机上。dev 渠道之后只从 origin/main 出发布。 [docs/109-dev-release-channel.md](../docs/109-dev-release-channel.md)
+- 发布号只能避开已发布（有 tag）的号和已提交的部署记录；两台机器同时出还没发布的 dev 发布仍可能撞号，导入时会因提交不同而拒绝。 [docs/109-dev-release-channel.md](../docs/109-dev-release-channel.md)
+- 回滚不会降级 APK：adb install -r 只往高版本装。 [docs/109-dev-release-channel.md](../docs/109-dev-release-channel.md)
+- GitHub 预发布会建 tag、对外可见，必须先给用户看 publish 的输出、得到确认。 [.agents/skills/rungic-dev-release/SKILL.md](../.agents/skills/rungic-dev-release/SKILL.md)
+
+文档：[docs/109-dev-release-channel.md](../docs/109-dev-release-channel.md)
 
 #### rootfs 快照与整体回滚
 
@@ -2374,6 +2420,21 @@ Agent 不靠点界面就能拿到合并日志、崩溃回溯、追踪、截图�
 
 文档：[docs/73-reduce-upstream-changes.md](../docs/73-reduce-upstream-changes.md)
 
+#### 通过安卓 SIM 收发短信（实验）
+
+`desktop.sms` · 依赖安卓 — Linux 与 Agent 经安卓短信接口发出用户授权的内容，并按号码与时间读取回复；安卓保管消息，原短信应用保持不变。
+
+经由接口：`telephony`
+
+- **E1** 发送的号码与内容经过校验；使用明确的活动短信卡，长短信分段，只有全部无线电回报成功才记为已发出。（单元测试）
+- **E2** 发出与送达分开；重复回调、失败分段、未知或失败回执和超时不被误记为成功，也不自动重发。（单元测试）
+- **E3** 按号码与发送时间读回复，短号精确匹配，不漏掉发送调用结束前到达的回复；读取不修改未读状态，无回复超时明确返回。（单元测试）
+
+注意：
+- 短号受系统或运营商限制；接口受理、无线电发出、送达回执与客服回复是不同证据。 [docs/107-android-sms.md](../docs/107-android-sms.md)
+
+文档：[docs/107-android-sms.md](../docs/107-android-sms.md)
+
 #### 安卓状态及时到达 Linux
 
 `desktop.host-bridges` · Linux 系统功能 — 网络、蓝牙、蜂窝、剪贴板、相机等服务经平台桥的长轮询 watch 等安卓自己的回调，不再各自轮询。
@@ -2969,11 +3030,11 @@ Agent 不靠点界面就能拿到合并日志、崩溃回溯、追踪、截图�
 | `camera` 相机 | 安卓 Camera2 的画面作为 PipeWire 相机节点（rungic.camera.N），按需开关；有哪些相机由平台桥的 capture-info 回答。 | `apps.camera`、`apps.snapshot`、`apps.plasma-camera`、`apps.firefox`、`delivery.acceptance`、`delivery.probes` | 2 | 3 |
 | `audio` 扬声器与麦克风 | 安卓的扬声器和麦克风作为 PulseAudio 设备（android、android_phone 输出与麦克风源），按需挂起；输出经安卓侧的 PulseAudio（system/android-audio）。 | `agent.voice`、`agent.call-proxy`、`apps.phone-audio`、`apps.virtual-audio`、`apps.firefox`、`delivery.acceptance`、`delivery.probes`、`desktop-mode.audio-follow`、`desktop.screen-recording`、`install.cold-start` | 5 | 3 |
 | `communication-audio` 通话音频 | $XDG_RUNTIME_DIR/rungic-communication.sock：电话模式与通话用的双向通信音频（android_communication 设备）。 | `agent.phone-mode` | 1 | 2 |
-| `codec` 硬件编解码 | 安卓 MediaCodec 经 IPC 给 GStreamer、FFmpeg 和 Firefox 用（H.264/HEVC/VP9 解码、H.264 编码）。 | `apps.snapshot`、`apps.hw-codec`、`apps.firefox-hw-video`、`delivery.acceptance`、`desktop.screen-recording` | 6 | 1 |
+| `codec` 硬件编解码 | 安卓 MediaCodec 经 IPC 给 GStreamer、FFmpeg 和 Firefox 用（H.264/HEVC/VP9 解码、H.264 编码）。 | `apps.snapshot`、`apps.hw-codec`、`apps.firefox-hw-video`、`delivery.acceptance`、`desktop.screen-recording` | 9 | 1 |
 | `clipboard` 剪贴板 | 安卓 ClipboardDaemon 与 Wayland 剪贴板双向同步。 | `desktop-mode.clipboard`、`desktop.clipboard`、`desktop.clipboard-history` | 3 | 1 |
 | `network` 网络 | 安卓的 Wi-Fi 与网络状态，经 Linux 一侧的 NetworkManager D-Bus 接口给桌面用。 | `desktop.network` | 3 | 1 |
 | `bluetooth` 蓝牙 | 安卓蓝牙经 Linux 一侧的 BlueZ D-Bus 接口给桌面用。 | `desktop.bluetooth` | 3 | 1 |
-| `telephony` 蜂窝与通话 | 蜂窝网络状态（ModemManager 接口）、来电去电与通话控制。 | `agent.cellular-call`、`desktop.cellular` | 4 | 1 |
+| `telephony` 蜂窝与通话 | 蜂窝网络状态（ModemManager 接口）、来电去电与通话控制。 | `agent.cellular-call`、`desktop.cellular`、`desktop.sms` | 9 | 1 |
 | `ocr` 文字识别 | 手机 GPU 上的 OCR（PP-OCR），给目标式电脑操作用。 | `agent.plan-two` | 2 | 1 |
 | `wifi-display` 无线投屏 | 经安卓（高通）Wi-Fi Display 栈把输出投到电视：扫描、连接、断开、重连。 | `desktop-mode.cast-connect`、`desktop-mode.tv-shows-linux`、`desktop-mode.cast-video-modes`、`desktop-mode.cast-install`、`desktop-mode.tv-director` | 4 | 1 |
 | `shared-storage` 共享存储 | 安卓的共享存储（/storage/emulated/0/Plasma，MediaProvider FUSE）挂到容器的 /mnt/android-shared，用户目录和 ~/Shared 都在上面。 | `desktop.screen-recording` | 3 | 1 |

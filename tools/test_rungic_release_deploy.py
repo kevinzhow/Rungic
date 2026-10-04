@@ -188,6 +188,7 @@ class DeployTests(Workspace):
         self.phone = Phone(**{'dmesg': self.dmesg, 'apt-mark showhold': 'rungic-demo\n'})
         self.ext4 = [3, 3]
         self.stub(WORKSPACE=self.root, DEPLOY=self.root / '.work/deploy', HISTORY=self.root / '.work/deploy/history.json',
+                  RELEASE_HISTORY=self.root / 'release/history.json',
                   releases=lambda: [self.older, self.info], preflight=lambda: ([], []),
                   rootfs_state=lambda: ('image', 'none'), with_container_stopped=self.stopped,
                   device_release=lambda: ('20261001.1', None), android_layouts=lambda info: ('rungic', 'rungic'),
@@ -306,6 +307,28 @@ class DeployTests(Workspace):
         self.assertEqual(history[-1]['record'], str(records[0].relative_to(self.root)))
         self.assertEqual((history[-1]['version'], history[-1]['previous'], history[-1]['result']), ('20261001.2', '20261001.1', 'ok'))
 
+    # covers: delivery.dev-channel/E4 delivery.dev-channel/E8
+    def test_the_apk_follows_the_container_side_and_every_deploy_is_in_the_history(self):
+        self.info.update(channel='dev', apk={'file': 'Rungic-2.32-80-x.apk', 'version_code': 80})
+        self.phone.answers['getprop ro.serialno'] = 'ZY32MVJS25\n'
+        self.stub(install_apk=lambda info, restart: self.calls.append(('apk', restart)) or
+                  {'result': 'installed', 'before': '2.31/79', 'after': '2.32/80'})
+        log = rungic_release.deploy('20261001.2', acceptance='none')
+        self.assertEqual(log['result'], 'ok')
+        names = [s['step'] for s in log['steps']]
+        self.assertLess(names.index('pins'), names.index('apk'))
+        self.assertEqual(names[names.index('apk') + 1], 'apk-session')    # the desktop is back before verifying
+        self.assertLess(names.index('apk-session'), names.index('integrity'))
+        self.assertEqual(self.calls[-1], ('apk', 'auto'))
+        # release/history.json: committed, one line per deploy and phone.
+        self.stub(preflight=lambda: (['dpkg is locked by another process'], ['dpkg is locked by another process']))
+        self.assertEqual(rungic_release.deploy('20261001.2', record_label='again')['result'], 'aborted')
+        history = json.loads((self.root / 'release/history.json').read_text())
+        self.assertEqual([{k: e[k] for k in ('version', 'commit', 'channel', 'serial', 'result')} for e in history],
+                         [{'version': '20261001.2', 'commit': 'c0ffee', 'channel': 'dev', 'serial': 'ZY32MVJS25', 'result': 'ok'},
+                          {'version': '20261001.2', 'commit': 'c0ffee', 'channel': 'dev', 'serial': 'ZY32MVJS25', 'result': 'aborted'}])
+        self.assertTrue(all(e['time'] for e in history))
+
     # covers: delivery.release-deploy/E2
     def test_rollback_goes_back_to_the_previous_release_by_exact_versions(self):
         rungic_release.deploy('20261001.2', acceptance='none')
@@ -349,7 +372,7 @@ class StatusTests(Workspace):
         self.stub(device_release=lambda: ('20261001.2+dev1', info),
                   integrity_summary=lambda: {'summary': {'state': 'development'}, 'release': {'mismatch': []}},
                   releases=lambda: [{'version': '20261001.1'}, {'version': '20261001.2'}],
-                  rootfs_state=lambda: ('image', 'snapshot'), HISTORY=history)
+                  rootfs_state=lambda: ('image', 'snapshot'), HISTORY=history, run=Phone().run)
         status = rungic_release.status()
         self.assertEqual(status['installed_release'], '20261001.2+dev1')
         self.assertEqual(status['commit'], 'c0ffee')

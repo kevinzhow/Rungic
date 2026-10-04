@@ -1,0 +1,2 @@
+# This is intentional, because this package provides an alternative variant with the same soname.
+libavformat-extra62: package-name-doesnt-match-sonames libavformat*

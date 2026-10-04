@@ -97,7 +97,7 @@ python3 tools/rungic_dev.py reset [rungic-design]                     # 回到�
 
 ## 未覆盖
 
-- **Android 侧**：APK、`rungic-plasma` 控制器，以及发布清单里 `android` 列出的文件，还没有开发覆盖。现在仍要单独安装，并手动记录。
+- **Android 侧**：APK、`rungic-plasma` 控制器，以及发布清单里 `android` 列出的文件，还没有开发覆盖。现在仍要单独安装，并手动记录。合并到 main 之后可以出 dev 发布，它带 APK，部署时版本更低才装（[docs/109](109-dev-release-channel.md)）。
 - **更快的一档**：只改 QML 或脚本时直接替换文件，还没做。现在每次都要构建完整的包。
 
 ## 实测

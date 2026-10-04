@@ -1,0 +1,18 @@
+FFmpeg packaged for Debian
+==========================
+
+FFmpeg built with as many features enabled as possible,
+for main libraries as long as the result is still GPLv2+,
+and for -extra libraries as the result is GPLv3+.
+
+Please see TODO.Debian for features potentially enabled later.
+
+The following features are unlikely to be enabled:
+  --enable-libcelt      abandoned upstream, superseded by opus (bug#676592)
+  --enable-crystalhd    unusable in Debian, firmware missing (bug#917292)
+  --enable-librtmp      built-in RTMP support is better, and has listen mode
+  --enable-mbedtls      superfluous: already using GnuTLS as TLS implementation
+  --enable-libmodplug   superseded by libopenmpt (bug#849840)
+  --enable-libv4l2      only needed for very old devices and may cause problems for others
+                        for those needing it, us LD_PRELOAD pointing on libv4l2
+  --enable-opencv       broken with OpenCV >= 3.4 (see <https://trac.ffmpeg.org/ticket/7059>)

@@ -1,0 +1,4 @@
+# These are due to two too long lines in upstream texi files, but shortening these lines wouldn't make much sense.
+# docs/ffmpeg.texi: @item -map_channel [@var{input_file_id}.@var{stream_specifier}.@var{channel_id}|-1][:@var{output_file_id}.@var{stream_specifier}]
+# docs/filters.texi: [@var{in_link_1}]...[@var{in_link_N}]@var{filter_name}=@var{arguments}[@var{out_link_1}]...[@var{out_link_M}]
+ffmpeg: groff-message *

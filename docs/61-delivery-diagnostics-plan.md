@@ -248,6 +248,7 @@ btrfs的收益是多快照、廉价克隆的测试容器、send/receive增量备
   - 现在：仓库整体 pin 降到 100；每次部署成功后，写入 `/etc/apt/preferences.d/rungic-release`，把发布里的每个包（包括元包）钉在精确版本上，优先级 1001；元包带 `Protected: yes`，apt 不再允许顺带卸掉它。
   - 部署和回滚都按 `包名=版本` 显式安装，并带 `--allow-downgrades`，不受这些优先级影响。
   - 不在发布清单里的 Ubuntu 包，仍然可以在 Discover 里正常更新。
+  - 2026-10-04 补充（[docs/109](109-dev-release-channel.md)）：实机只读核对和真实 apt、unattended-upgrades 的离线模拟确认这套 pin 有效，元包被删后 pin 仍然有效；补上两处缺口：与耦合包同源的已装兄弟包（plasma-workspace 的私有库）按已装版本一起 pin，unattended-upgrades 另有按发布生成的精确名单（`52rungic-release`）。G100 S 只读核对：`apt-cache policy` 中发布包的已装版本都是 1001 的候选，`apt-get -s dist-upgrade` 不动任何发布包或耦合包，容器里的 unattended-upgrades 每天运行、从未升级过发布包；plasma-workspace 的私有库（libtaskmanager6 等）优先级 500，没有 pin。离线测试 `tools/test_rungic_release_pins.py`。
   - 测试包应当收进发布仓库、随发布部署，不要直接 `dpkg -i` 到日常使用的手机上。本地开发改用 `tools/rungic_dev.py` 的开发覆盖：有自己的仓库和 pin，状态里可见，可以一条命令撤销（docs/97，2026-09-30）。
 - 部署：预检、记录dpkg状态与完整性、同步仓库、在transient unit中安装（**每个包都带精确版本**：apt不会为满足依赖自动降级，回滚需要这一点）、安装成功后再同步发布中的Android侧文件（失败时两侧都停在上一版本）、解除被发布取代的hold、按需重启会话、完整性与冒烟验收、记录到`.work/deploy/`。
 - 实测：20260926.1（现有18个重建包原样入库）部署；20260926.2（kwin moto18）部署并重启会话；`rollback`回到.1（实际降级kwin并重启会话）；20260926.3部署结果`ok`。

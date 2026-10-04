@@ -68,7 +68,7 @@ def driver(tmp_path_factory):
     (build / 'driver.c').write_text(DRIVER)
     program = build / 'driver'
     subprocess.run(['cc', '-O1', '-pthread', f'-I{ROOT}/shared/media', '-o', str(program), str(build / 'driver.c'),
-                    str(ROOT / 'shared/media/codec-client.c')], check=True)
+                    str(ROOT / 'shared/media/codec-client.c'), str(ROOT / 'shared/media/codec-v4l2.c')], check=True)
     return program
 
 

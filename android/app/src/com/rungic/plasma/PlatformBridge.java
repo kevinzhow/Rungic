@@ -44,7 +44,8 @@ final class PlatformBridge implements Closeable {
     private final OcrBridge ocr;
     private final AndroidBluetoothBridge bluetooth;
     private final AndroidTelephonyBridge telephony;
-    PlatformBridge(Activity activity,CaptureBridge capture) { this.activity=activity;this.capture=capture;path=new File(activity.getFilesDir(),"tmp/platform.sock");network=new AndroidNetworkBridge(activity);bluetooth=new AndroidBluetoothBridge(activity,network);telephony=new AndroidTelephonyBridge(activity,network);ocr=new OcrBridge(activity); }
+    private final AndroidSmsBridge sms;
+    PlatformBridge(Activity activity,CaptureBridge capture) { this.activity=activity;this.capture=capture;path=new File(activity.getFilesDir(),"tmp/platform.sock");network=new AndroidNetworkBridge(activity);bluetooth=new AndroidBluetoothBridge(activity,network);telephony=new AndroidTelephonyBridge(activity,network);sms=new AndroidSmsBridge(activity,network);ocr=new OcrBridge(activity); }
     void start() throws IOException {
         if(running)return;
         path.delete();
@@ -116,6 +117,12 @@ final class PlatformBridge implements Closeable {
                         client.getOutputStream().write((result.toString()+"\n").getBytes(StandardCharsets.UTF_8));
                         continue;
                     }
+                    if(request.optString("op").equals("sms")) {
+                        // A send waits up to a minute for the radio: answer on its own thread.
+                        LocalSocket owned=client;client=null;
+                        Thread text=new Thread(() -> answerSms(owned,request),"rungic-sms");text.setDaemon(true);text.start();
+                        continue;
+                    }
                     if(request.optString("op").equals("container-memory")) {
                         JSONObject result;
                         try { result=network.containerMemory(request); }
@@ -183,6 +190,14 @@ final class PlatformBridge implements Closeable {
             } catch(Exception e) { result=new JSONObject().put("error",e.getMessage()==null?"投屏请求失败":e.getMessage()); }
             c.getOutputStream().write((result.toString()+"\n").getBytes(StandardCharsets.UTF_8));
         } catch(Exception e) { Log.w("RungicPlatform","Cast request failed: "+e.getClass().getSimpleName()); }
+    }
+    private void answerSms(LocalSocket c,JSONObject request) {
+        try(LocalSocket client=c) {
+            JSONObject result;
+            try { result=sms.handle(request); }
+            catch(Exception e) { result=new JSONObject().put("error",e.getMessage()==null?"Text message request failed":e.getMessage()); }
+            client.getOutputStream().write((result.toString()+"\n").getBytes(StandardCharsets.UTF_8));
+        } catch(Exception e) { Log.w("RungicPlatform","SMS request failed: "+e.getClass().getSimpleName()); }
     }
     private void answerWatch(LocalSocket c,JSONObject request) {
         try(LocalSocket client=c) {

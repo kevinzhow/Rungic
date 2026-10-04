@@ -176,17 +176,19 @@ class Capture(_Server):
 
 
 HALF = 16 * 1024 * 1024
-MAGIC, OPEN, CHANNEL = 0x4d434231, 0x4f50454e, 0x4d434631
+MAGIC, OPEN, CHANNEL, MAGIC2 = 0x4d434231, 0x4f50454e, 0x4d434631, 0x4d434232
 FRAME, DRAIN, FLUSH, CLOSE, ACK = 1, 2, 3, 4, 0xac
 DONE, ENCODED, DECODED, CONFIG, EOS, ERROR = 0, 1, 2, 3, 4, -1
 
 
 class Codec(_Server):
-    """The app's codec broker. `refuse` makes every configure fail as without a hardware component."""
+    """The app's codec broker. `refuse` makes every configure fail as without a hardware component.
+    Channel version 2 (pictures still in shared memory: the app may decline buffers) unless
+    `version=1`, an app before it."""
 
-    def __init__(self, refuse=False, depth=2, burst=2):
+    def __init__(self, refuse=False, depth=2, burst=2, version=2):
         super().__init__('codec')
-        self.refuse = refuse
+        self.refuse, self.version = refuse, version
         # Pictures wait until `depth` later frames came (no later frame of the stream may then come
         # before them: as deep as the stream reorders), and leave `burst` at a time.
         self.depth, self.burst = depth, burst
@@ -248,9 +250,14 @@ class Codec(_Server):
         conn.sendall(struct.pack('>ii', ERROR, len(message)) + message)
 
     def session(self, conn, shared):
-        values = [self._int(conn) for _ in range(12)]
-        if values[0] != MAGIC:
+        magic = self._int(conn, False)
+        if magic == MAGIC2 and self.version < 2:
+            self._error(conn, 'Channel version')
+            return
+        if magic not in (MAGIC, MAGIC2):
             raise ValueError('channel version')
+        values = [magic] + [self._int(conn) for _ in range(12 if magic == MAGIC2 else 11)]
+        version = 2 if magic == MAGIC2 else 1
         encoder, kind, width, height = values[1] == 1, values[2], values[3], values[4]
         name = f'c2.qti.{("avc", "hevc", "vp9")[kind]}.{"encoder" if encoder else "decoder"}'
         if self.refuse:
@@ -291,17 +298,20 @@ class Codec(_Server):
             else:
                 raise ValueError(f'codec operation {cmd}')
             for pts, fid in out:
-                self._picture(conn, shared, fid, pts, width, height)
+                self._picture(conn, shared, fid, pts, width, height, version)
             if cmd == DRAIN:
                 conn.sendall(struct.pack('>i', EOS))
             conn.sendall(struct.pack('>i', DONE))
 
-    def _picture(self, conn, shared, fid, pts, width, height):
+    def _picture(self, conn, shared, fid, pts, width, height, version):
         luma, chroma = width * height, (width // 2) * (height // 2)
         shared[HALF:HALF + luma] = bytes([fid % 200 + 16]) * luma
         shared[HALF + luma:HALF + luma + 2 * chroma] = b'\x80' * (2 * chroma)
         meta = (width, height, 0, 0, width, 1, luma, width // 2, 1, chroma, width // 2, 1, chroma)
-        conn.sendall(struct.pack('>iiiiq13i', DECODED, fid, 0, luma + 2 * chroma, pts, *meta))
+        record = struct.pack('>iiiiq13i', DECODED, fid, 0, luma + 2 * chroma, pts, *meta)
+        if version == 2:          # plane offsets, shared memory (-1), depth
+            record += struct.pack('>5i', 0, luma, luma + chroma, -1, 8)
+        conn.sendall(record)
         if self._int(conn) != ACK:
             raise ValueError('frame acknowledgment')
         with self.lock:

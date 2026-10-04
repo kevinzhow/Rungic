@@ -37,6 +37,16 @@ Android 使用 MODE_IN_COMMUNICATION、VOICE_COMMUNICATION、AEC/NS 和有线/US
 
 播放控制具有独立 session/epoch；flush 后旧帧不再进入 AudioTrack。截断采用 Android playback-head cursor，并限制在实际提交的模型音频长度内。当前 PA 管道起点与 Android 100 ms 游标更新仍有边界误差，必须经声学实测，不能把 cursor 读取等同于已证明“听到了什么”。
 
+### 应用里的入口和通话状态（2026-10-04）
+
+界面按用户确认的 Claude Design 画布“Agent 通话”实现，取代原来对话底部的一排电话模式按钮。
+
+- **入口**：对话顶栏的电话按钮在当前对话里开始通话；对话列表里的“和 Agent 通话”先新开一段对话再开始。Agent 正在替用户打电话、另一段对话在通话或正按住说话时，按钮显示为不可用，点一下说明原因（`call.js` 的 `blocked`）。
+- **通话条**（设计系统的 `CallBar`）：位于顶栏下方，显示状态、时长、静音和挂断按钮。状态按以下顺序取第一个成立的：正在连接 → 等你回答（这次通话里有任务在等用户回答）→ 正在回答 → 正在听 → 正在处理 → 麦克风已关 → 通话中。通话在别的对话时只显示“前往”。点通话条打开 `CallSheet`（设计系统的 `CallPanel`），里面有打断、这次通话的任务和去回答。通话中输入条显示“通话中 · 直接说就行”，键盘仍可输入；按住说话停用。
+- **后端字段**：`phone-state` 和 PhoneSnapshot 增加 `startedAt`（开始时间，秒）和 `thinking`。`thinking` 在用户说完、回复还没开始时为真：本地语音转写已完成但还没提交，或者已提交、正在等回复。“这次通话的任务”指本对话里、创建时间不早于 `startedAt` 的任务。
+- **摘要**：挂断时协调器发出 `phone-ended`（时长、这次通话的任务、结束原因），存进对话历史。对话里显示为“通话结束”卡片，可去回答等待中的任务，或者再打给它。
+- **边界**：断线会直接结束通话，没有重连，所以 `CallBar` 的 reconnecting 状态目前不会出现。对话列表还没有“通话中”标记。离线验证：`tools/tests/test_agent_call.py` 和 `session-test` 的相应断言，以及浅色和深色两种主题的截图。真人通话下的状态切换还没有在手机上验收。
+
 ## 构建、回退与验收
 
 开发机现场核验为 mibook/x86_64；Linux ARM64 包在 macmini 的 rungic-build 容器构建，使用其系统 Surge 代理。G100 为 ZY32M9MRVP，Android 16、portov_cn。G100 S 不用于首轮部署。

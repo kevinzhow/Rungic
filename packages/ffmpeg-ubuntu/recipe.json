@@ -1,0 +1,26 @@
+{
+ "comment": "Pinned upstream of Ubuntu's own FFmpeg (the system libavcodec that mpv/Haruna, VLC, Qt Multimedia and thumbnailers use), rebuilt with this project's hardware decoders registered ahead of the software ones (docs/108). Distinct from packages/ffmpeg, the private FFmpeg of rungic-codec for Firefox. packages/ffmpeg-ubuntu/debian replaces its debian/ (Ubuntu's packaging plus our patches under debian/patches/rungic); the shared codec client and adapter are placed into libavcodec by the overlay, so libavcodec carries them itself and depends on nothing of ours. Built without the extra flavour (pkg.ffmpeg.noextra): the phone has the standard libraries.",
+ "kind": "ubuntu",
+ "source": "ffmpeg",
+ "version": "8.0.1-3ubuntu2",
+ "series": "resolute",
+ "upstream": "https://git.ffmpeg.org/ffmpeg.git",
+ "licenses": "GPL-2.0-or-later as configured by Ubuntu (see COPYING.* and debian/copyright)",
+ "files": {
+  "ffmpeg_8.0.1-3ubuntu2.dsc": "70ac30ebbb7e89fc4ebc4438457fab7c1deea5b62986577bfb1c866fee72436e",
+  "ffmpeg_8.0.1.orig.tar.xz": "05ee0b03119b45c0bdb4df654b96802e909e0a752f72e4fe3794f487229e5a41",
+  "ffmpeg_8.0.1.orig.tar.xz.asc": "54ab4020bb4eb280444da74d7aabc282acf6e8500cf6feaefd9821373fa9e72c",
+  "ffmpeg_8.0.1-3ubuntu2.debian.tar.xz": "a32bd75677bca735105b04a0ebd190a3481e0d8c2fcacd7d9f17524e240ee879"
+ },
+ "fetch": "https://launchpad.net/ubuntu/+archive/primary/+sourcefiles/ffmpeg/7:8.0.1-3ubuntu2/{file}",
+ "build_arch_only": true,
+ "build_profiles": ["pkg.ffmpeg.noextra"],
+ "overlay": {
+  "libavcodec/rungic_codec.c": "shared/media/ffmpeg-rungic-codec.c",
+  "libavcodec/rungic-codec-client.h": "shared/media/codec-client.h",
+  "libavcodec/codec-client.h": "shared/media/codec-client.h",
+  "libavcodec/codec-v4l2.h": "shared/media/codec-v4l2.h",
+  "libavcodec/rungic_codec_client.c": "shared/media/codec-client.c",
+  "libavcodec/rungic_codec_v4l2.c": "shared/media/codec-v4l2.c"
+ }
+}

@@ -837,6 +837,35 @@ features:
       - android/app/src/com/rungic/plasma/AndroidTelephonyBridge.java
     docs: [docs/73-reduce-upstream-changes.md]
 
+  - id: desktop.sms
+    title: 通过安卓 SIM 收发短信
+    scenario: desktop.connect
+    status: experimental
+    platform: android
+    interfaces: [telephony]
+    summary: Linux 与 Agent 经安卓短信接口发出用户授权的内容，并按号码与时间读取回复；安卓保管消息，原短信应用保持不变。
+    experience:
+      - id: E1
+        text: 发送的号码与内容经过校验；使用明确的活动短信卡，长短信分段，只有全部无线电回报成功才记为已发出。
+      - id: E2
+        text: 发出与送达分开；重复回调、失败分段、未知或失败回执和超时不被误记为成功，也不自动重发。
+      - id: E3
+        text: 按号码与发送时间读回复，短号精确匹配，不漏掉发送调用结束前到达的回复；读取不修改未读状态，无回复超时明确返回。
+    pitfalls:
+      - text: 短号受系统或运营商限制；接口受理、无线电发出、送达回执与客服回复是不同证据。
+        docs: [docs/107-android-sms.md]
+    code:
+      - android/app/src/com/rungic/plasma/AndroidSmsBridge.java
+      - android/app/src/com/rungic/plasma/SmsState.java
+      - android/app/src/com/rungic/plasma/SmsIntents.java
+      - android/sms-tests/SmsIntentDriver.java
+      - android/sms-tests/SmsReceiptDriver.java
+      - android/test-sms-intents.sh
+      - shared/platform/sms.py
+      - tools/tests/test_sms.py
+      - tools/tests/SmsStateDriver.java
+    docs: [docs/107-android-sms.md]
+
   - id: desktop.host-bridges
     title: 安卓状态及时到达 Linux
     scenario: desktop.connect

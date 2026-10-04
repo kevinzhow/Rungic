@@ -22,6 +22,8 @@ var bodies = {
  "key": "<circle cx=\"8\" cy=\"15\" r=\"4\"/><path d=\"M11 12l8-8\"/><path d=\"M16 7l2.5 2.5\"/><path d=\"M14 9l2 2\"/>",
  "keyboard": "<rect x=\"3\" y=\"6\" width=\"18\" height=\"12\" rx=\"2\"/><path d=\"M7 10h.01M11 10h.01M15 10h.01M7 14h10\"/>",
  "menu": "<path d=\"M4 7h16\"/><path d=\"M4 12h10\"/><path d=\"M4 17h16\"/>",
+ "mic-off": "<rect x=\"9\" y=\"3.5\" width=\"6\" height=\"11\" rx=\"3\"/><path d=\"M6 11.5a6 6 0 0 0 12 0\"/><path d=\"M12 17.5v3\"/><path d=\"M4.5 4.5l15 15\"/>",
+ "mic": "<rect x=\"9\" y=\"3.5\" width=\"6\" height=\"11\" rx=\"3\"/><path d=\"M6 11.5a6 6 0 0 0 12 0\"/><path d=\"M12 17.5v3\"/>",
  "open-in-app": "<path d=\"M5 5h14v10H10l-4 4v-4H5z\"/>",
  "phone": "<path d=\"M6.5 3.5h3l1.5 4-2 1.5a11 11 0 0 0 6 6l1.5-2 4 1.5v3a2 2 0 0 1-2 2A16 16 0 0 1 4.5 5.5a2 2 0 0 1 2-2z\"/>",
  "plus": "<path d=\"M12 6v12\"/><path d=\"M6 12h12\"/>",

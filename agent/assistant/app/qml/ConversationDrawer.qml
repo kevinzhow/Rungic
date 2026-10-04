@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-// The conversations, in the side panel (docs/87): search, "New conversation" and "Main conversation"
+// The conversations, in the side panel (docs/87): search, "New conversation", "Call the Agent" and "Main conversation"
 // (the one holding Home talks in, docs/67: always there, not deleted, not filtered by the search),
 // then "Other conversations", the user's own, by day (the open one marked), and the settings at the
 // bottom. Holding one of those offers to delete it.
@@ -16,6 +16,7 @@ SideDrawer {
     property string deleting: ""               // the conversation held to delete
     signal openRequested(string id, string title)
     signal newRequested()
+    signal callRequested()
     signal settingsRequested()
     signal suggestionsRequested()
     signal deleted(string id)
@@ -72,6 +73,12 @@ SideDrawer {
             iconName: "compose"
             text: i18nc("@action:button", "New conversation")
             onClicked: drawer.newRequested()
+        }
+        // A call with the Agent, in a new conversation (Claude Design canvas "Agent 通话", board 2).
+        NavItem {
+            iconName: "phone"
+            text: i18nc("@action:button", "Call the Agent")
+            onClicked: drawer.callRequested()
         }
         // Beside "New conversation", as one of the panel's own entries: the conversation holding
         // Home talks in.

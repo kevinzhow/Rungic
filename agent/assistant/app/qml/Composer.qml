@@ -8,6 +8,8 @@
 //   voice         idle: + · Hold to talk · keyboard
 //   busy          the agent works or speaks: + · Hold to add more · stop
 //   unavailable   the user is on a call themselves
+//   call          on a call with the Agent here: just talk (the keyboard still types to it)
+//   callElsewhere on a call with the Agent in another conversation: Hold to talk waits for it
 //   hold          held: the wave, the time, the two targets above
 //   cancel        held over ×
 //   toText        held over 文
@@ -29,6 +31,7 @@ Item {
     property bool busy: false
     property bool speaking: false
     property bool canTalk: true
+    property string call: ""                  // the call with the Agent: "here", "elsewhere" or none
     property real micLevel: -90
     property var attachments: []              // [{path, name, kind}]
     signal talkPressed()
@@ -54,6 +57,8 @@ Item {
         : chat && chat.handsFree ? "handsFree"
         : attachOpen ? "attach"
         : keyboard ? "keyboard"
+        : call === "here" ? "call"
+        : call === "elsewhere" ? "callElsewhere"
         : !canTalk ? "unavailable"
         : busy || speaking ? "busy" : "voice"
     state: phase
@@ -81,6 +86,14 @@ Item {
         State {
             name: "unavailable"
             PropertyChanges { composer.barMode: "disabled"; composer.label: i18nc("@info the voice bar while the user is on a call", "You're on a call"); composer.canHold: false; composer.showKeyboardButton: false; composer.showPlus: false }
+        },
+        State {
+            name: "call"
+            PropertyChanges { composer.label: i18nc("@info the voice bar on a call with the Agent", "On a call · just talk"); composer.canHold: false; composer.showPlus: false }
+        },
+        State {
+            name: "callElsewhere"
+            PropertyChanges { composer.barMode: "disabled"; composer.label: i18nc("@info the voice bar while the call with the Agent is in another conversation", "On a call in another conversation"); composer.canHold: false }
         },
         State {
             name: "hold"
