@@ -2,6 +2,7 @@
 // covers: agent.phone-mode/E3 agent.phone-mode/E4 agent.phone-mode/E5 agent.phone-mode/E6 agent.phone-mode/E7
 #include "session.h"
 #include <QCoreApplication>
+#include <QDateTime>
 #include <QElapsedTimer>
 #include <QJsonDocument>
 #include <QLocalServer>
@@ -109,6 +110,32 @@ int main(int argc,char **argv){
         check(!m.audio.recorder&&!m.audio.player&&!m.audio.opened,"hung up: capture and playback released");
         check(until([&]{return released;}),"hung up: the backend's call audio is released");
         check(m.phase=="closed"&&m.id.isEmpty(),"hung up: the session is closed");
+    }
+    // covers: agent.phone-mode/E14 agent.phone-mode/E15
+    // The app's call bar and its summary (docs/101): the state says when the call began and when the
+    // Agent is taking in what was said; hanging up leaves the call's summary in its conversation.
+    {
+        Session c;QList<QJsonObject> out;c.output=[&](QJsonObject o){out.append(o);};
+        c.conversation="call-conv";c.id="call-summary";c.configured=true;c.generation=1;
+        c.started=QDateTime::currentSecsSinceEpoch()-75;
+        check(c.fields()["startedAt"].toDouble()==double(c.started),"the state says when the call began");
+        c.submitted=false;c.utterance="u1";c.localSpeech=false;
+        check(c.thinking()&&c.fields()["thinking"].toBool(),"said and not yet answered: thinking");
+        c.localSpeech=true;check(!c.thinking(),"still speaking: not thinking");
+        c.localSpeech=false;c.responseActive=true;check(!c.thinking(),"answering: not thinking");
+        c.responseActive=false;c.submitted=true;c.utterance.clear();check(!c.thinking(),"nothing said: not thinking");
+        auto before=c.tasks.add("old work",true,"call-conv","before");c.tasks.find(before)->created=c.started-10;
+        auto during=c.tasks.add("sort the screenshots",true,"call-conv","during");
+        c.tasks.add("elsewhere",true,"other-conv","other");
+        c.stop("Voice paused while Plasma is hidden");
+        QJsonObject ended;bool kept=false;
+        for(const auto &o:out)if(o["type"]=="event"&&o["event"].toObject()["type"]=="phone-ended"){ended=o["event"].toObject();kept=o["keep"].toBool();}
+        check(!ended.isEmpty()&&kept,"hanging up keeps the call's summary in its conversation");
+        check(ended["conversation"]=="call-conv"&&ended["seconds"].toDouble()>=75,"the summary says how long the call was");
+        auto work=ended["tasks"].toArray();
+        check(work.size()==1&&work[0].toObject()["taskId"]==during,"the summary lists only what was started in this call, in this conversation");
+        check(ended["reason"]=="Voice paused while Plasma is hidden","the summary says why the call ended when it was not hung up");
+        check(c.started==0&&c.fields()["startedAt"].toDouble()==0,"after the call no start time is left");
     }
     std::puts("session state, transcript fidelity, late events, cancellation and hangup checks passed");
 }
