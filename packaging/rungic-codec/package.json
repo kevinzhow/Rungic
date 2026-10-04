@@ -3,7 +3,7 @@
   "formerly": "moto-codec",
   "architecture": "arm64",
   "build": "device",
-  "paths": ["shared/media/codec-client.c", "shared/media/codec-client.h", "shared/media/gst-rungic-codec.c",
+  "paths": ["shared/media/codec-client.c", "shared/media/codec-client.h", "shared/media/codec-v4l2.c", "shared/media/codec-v4l2.h", "shared/media/gst-rungic-codec.c",
             "shared/media/ffmpeg-rungic-codec.c"],
   "upstream": ["ffmpeg"],
   "depends": "rungic-plasma-bridges",

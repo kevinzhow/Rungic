@@ -28,6 +28,7 @@ def driver(tmp_path_factory):
     out = tmp_path_factory.mktemp('codec') / 'contract_codec_driver'
     subprocess.run([compiler, '-std=gnu11', '-O1', f'-I{ROOT}/shared/media',
                     str(ROOT / 'tools/tests/contract_codec_driver.c'), str(ROOT / 'shared/media/codec-client.c'),
+                    str(ROOT / 'shared/media/codec-v4l2.c'),
                     '-Wl,--wrap=connect', '-lpthread', '-o', str(out)], check=True)
     return out
 

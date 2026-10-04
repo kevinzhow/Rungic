@@ -239,4 +239,4 @@ Every feature, the experience it must give and the code, tests and documents beh
 | [mac-offline-desktop-link.md](research/mac-offline-desktop-link.md) | A MacBook reaching the phone's desktop without a network: opendrop-rs assessed |
 | [miracast-video-modes.md](research/miracast-video-modes.md) | Miracast video modes: real capabilities, exact selection and acceptance |
 | [106-codex-desktop-operation.md](106-codex-desktop-operation.md) | Codex desktop operation by default, with optional API execution (2026-10-03) |
-| [108-codec-bridge-buffers.md](108-codec-bridge-buffers.md) | The codec bridge: decoded frames as DMA-BUFs, 10-bit (P010), where the CPU actually goes; the Iris driver and direct V4L2 (2026-10-04) |
+| [108-codec-bridge-buffers.md](108-codec-bridge-buffers.md) | Hardware video decoding straight through msm_vidc V4L2 (5x less CPU), the MediaCodec bridge with DMA-BUFs and 10-bit as fallback; the Iris driver (2026-10-04) |

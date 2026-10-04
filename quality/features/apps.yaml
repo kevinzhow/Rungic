@@ -686,8 +686,14 @@ features:
         text: 新的 Linux 端遇到旧 APK（通道版本 1）自动退回共享内存，8bit 照常硬件解码；手机的解码缓冲读不了时同样退回。
         evidence:
           - {doc: docs/108-codec-bridge-buffers.md, date: 2026-10-04, note: "APK 2.30 配新 Linux 端，H.264/HEVC/VP9 与软解 md5 一致"}
+      - id: E9
+        text: 有高通 msm_vidc 解码节点（/dev/video32）的手机，解码直接走 V4L2，不经过 APK：实时 1080p60 约占一个核的 23%（MediaCodec 桥约 105%），1080p 吞吐约 240 帧/秒；没有这个节点、显式关掉或在 Firefox 的沙箱里，照旧用 MediaCodec 桥。
+        evidence:
+          - {doc: docs/108-codec-bridge-buffers.md, date: 2026-10-04, note: "G100 S 容器内 GStreamer：H.264/HEVC/VP9/Main10 与软解 md5 一致，无固件错误"}
     pitfalls:
-      - text: 硬件解码路径的 CPU 大头是 MediaCodec/Codec2 框架每帧的消息、binder 和缓冲映射，加上同步轮询；去掉复制只省了约 10%，实时 1080p60 仍约一个核（Linux、APK、Codec2 服务合计）。吞吐卡在约 82 帧/秒，因为一帧一帧同步往返。
+      - text: msm_vidc 的 V4L2 解码只收 DMA-BUF；OUTPUT 开流前排入码流、或 CAPTURE 配好前排入第二个码流单元，会让固件断言并复位整个视频核心（Android 正在用的解码一起中断）。codec-v4l2.c 严格按“开 OUTPUT → 一个单元 → 等 SOURCE_CHANGE → 配 NV12/P010 的 CAPTURE”的顺序，刷新时整段重开。
+        docs: [docs/108-codec-bridge-buffers.md]
+      - text: 经 APK 的 MediaCodec 桥，CPU 大头是 Codec2 框架和高通编解码服务每帧的消息、binder 和缓冲交接（每帧约 12 ms CPU）；去掉复制、改异步只省了约 10%，实时 1080p60 仍约一个核，吞吐被 Codec2 按码流帧率设定的时钟限在约 83 帧/秒。这是 V4L2 直通的理由，桥只作回退。
         docs: [docs/108-codec-bridge-buffers.md]
       - text: 渲染到 Surface 时高通解码器默认写 UBWC 压缩格式，要设 vendor.qti-ext-dec-forceNonUBWC.value=1；读平面布局不能用 Image.getPlanes()，遇到 UBWC 缓冲框架会直接 abort，连同桌面一起崩溃。
         docs: [docs/108-codec-bridge-buffers.md]
@@ -699,7 +705,7 @@ features:
         docs: [docs/research/35-hardware-codec-integration.md]
       - text: 做成 VA-API 驱动换不掉 FFmpeg 补丁、Snapshot 补丁和 Firefox 预加载（Firefox 的 glxtest 在 KGSL 软件 EGL 设备处就关掉 VA-API），维持现状；VA-API 只能作为另一项新能力单独立项。
         docs: [docs/research/74-vaapi-feasibility.md]
-      - text: 原厂 V4L2 节点 video32 能直接硬解（只收 DMABUF，调用顺序错了会让固件断言并复位视频核心，Android 正在用的解码也会中断）；上游 Iris 驱动不支持 parrot，也不能和 msm_video 共存。默认仍走 MediaCodec，不为它扩大 LXC 权限。
+      - text: 上游 Iris 驱动不支持 parrot，也不能和原厂 msm_video 共存；用的是原厂驱动的 V4L2 接口（容器只多映射了 /dev/video32，DMA 堆本来就为 GPU 映射了）。
         docs: [docs/108-codec-bridge-buffers.md, docs/research/34-hardware-codec-audit.md]
       - text: VP8、AV1 在本机只有软件组件，不能宣称硬件编解码；没有 4K（上限 2560×1440）、HDR 显示和 DRM 视频；10bit 只在解码侧。
         docs: [docs/research/34-hardware-codec-audit.md]
@@ -713,6 +719,10 @@ features:
       - android/app/src/com/rungic/plasma/CodecBridge.java
       - android/app/src/com/rungic/plasma/MediaBuffers.java
       - android/app/jni/media/
+      - shared/media/codec-v4l2.c
+      - shared/media/codec-v4l2.h
+      - tools/tests/codec_v4l2_driver.c
+      - tools/tests/test_codec_v4l2.py
       - packages/ffmpeg/
       - packaging/rungic-codec/
       - tools/system/tests/media_codec.py

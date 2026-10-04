@@ -15,7 +15,7 @@ install -Dm644 "$SRC/system/config/etc/pipewire/client.conf.d/50-rungic-video.co
     /etc/pipewire/client.conf.d/50-rungic-video.conf
 lib=/usr/lib/rungic-codec
 mkdir -p "$lib"
-cc -O2 -g1 -fPIC -shared -pthread -Wl,-soname,librungiccodec.so -o "$lib/librungiccodec.so" "$M/codec-client.c"
+cc -O2 -g1 -fPIC -shared -pthread -Wl,-soname,librungiccodec.so -o "$lib/librungiccodec.so" "$M/codec-client.c" "$M/codec-v4l2.c"
 plugins=$(pkg-config --variable=pluginsdir gstreamer-1.0)
 cc -O2 -g1 -fPIC -shared -o "$plugins/libgstrungiccodec.so" "$M/gst-rungic-codec.c" \
     $(pkg-config --cflags --libs gstreamer-video-1.0) -L"$lib" -lrungiccodec -Wl,-rpath,"$lib"

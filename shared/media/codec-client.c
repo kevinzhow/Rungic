@@ -5,6 +5,7 @@
  */
 #define _GNU_SOURCE
 #include "codec-client.h"
+#include "codec-v4l2.h"
 #include <sys/socket.h>
 #include <sys/time.h>
 #include <sys/un.h>
@@ -31,7 +32,8 @@ static int broker=-1;static pid_t broker_pid;
  * consumers built against it (the private FFmpeg). A slot is one of the app's decoder buffers. */
 #define SLOTS 48
 typedef struct {int id,fd;uint8_t *map;size_t size;} Slot;
-typedef struct {int fd,version;Slot slot[SLOTS];} Channel;
+/* version 3: no channel, the msm_vidc V4L2 decoder itself (codec-v4l2.c); fd is its device. */
+typedef struct {int fd,version;Slot slot[SLOTS];V4l2Decoder *v4l2;} Channel;
 static Channel channels[32];
 static pthread_mutex_t channel_lock=PTHREAD_MUTEX_INITIALIZER;
 static int app_version1; /* the app refused channel version 2 once: an older Rungic APK */
@@ -54,10 +56,14 @@ static void slot_clear(Slot *s) {
  if(s->map)munmap(s->map,s->size);if(s->fd>=0)close(s->fd);
  s->map=NULL;s->size=0;s->fd=-1;s->id=-1;
 }
-static void channel_remove(int fd) {
- Channel *c=channel_of(fd);if(!c)return;
+/* 1 when the descriptor was a V4L2 decoder's (closed here with it). */
+static int channel_remove(int fd) {
+ Channel *c=channel_of(fd);if(!c)return 0;
+ int v4l2=c->v4l2!=NULL;
  for(int s=0;s<SLOTS;s++)slot_clear(&c->slot[s]);
- pthread_mutex_lock(&channel_lock);c->version=0;c->fd=-1;pthread_mutex_unlock(&channel_lock);
+ if(c->v4l2)v4l2_close(c->v4l2);
+ pthread_mutex_lock(&channel_lock);c->version=0;c->fd=-1;c->v4l2=NULL;pthread_mutex_unlock(&channel_lock);
+ return v4l2;
 }
 static int io(int fd,void *data,size_t length,int sending) {
  uint8_t *p=data;
@@ -205,11 +211,27 @@ static int default_options(void) {
 int rungic_codec_open(RungicCodec *c,const RungicCodecConfig *config) {
  return rungic_codec_open_options(c,config,RUNGIC_OPTIONS_DEFAULT);
 }
+/* Decoders go straight to the msm_vidc V4L2 decoder when there is one (RUNGIC_CODEC_V4L2=0
+ * turns that off; Firefox's preload, whose sandbox cannot open devices, only with =1). */
+static int open_v4l2(RungicCodec *c,const RungicCodecConfig *config,int options) {
+ const char *wanted=getenv("RUNGIC_CODEC_V4L2");
+ if(config->encoder || (wanted && !strcmp(wanted,"0")) || (getenv("RUNGIC_CODEC_PRECONNECT") && !(wanted && !strcmp(wanted,"1"))))return -1;
+ char error[sizeof(c->error)];
+ V4l2Decoder *d=v4l2_open(config,(options&RUNGIC_OPTION_TEN_BIT)!=0,error,sizeof(error));
+ if(!d)return -1;
+ void *memory=mmap(NULL,RUNGIC_CODEC_HALF*2,PROT_READ|PROT_WRITE,MAP_PRIVATE|MAP_ANONYMOUS,-1,0);
+ Channel *channel=memory==MAP_FAILED?NULL:channel_add(v4l2_fd(d),3);
+ if(!channel){if(memory!=MAP_FAILED)munmap(memory,RUNGIC_CODEC_HALF*2);v4l2_close(d);return -1;}
+ channel->v4l2=d;c->fd=v4l2_fd(d);c->memory=memory;
+ snprintf(c->name,sizeof(c->name),"msm_vidc_decoder (V4L2)");
+ return 0;
+}
 int rungic_codec_open_options(RungicCodec *c,const RungicCodecConfig *config,int options) {
  rungic_codec_close(c);c->ended=0;c->input_count=c->output_count=0;c->error[0]=0;
  const char *disabled=getenv("RUNGIC_CODEC_DISABLE");
  if(disabled && !strcmp(disabled,"1")){errno=ENODEV;return fail(c,"Hardware disabled by environment");}
  if(options==RUNGIC_OPTIONS_DEFAULT)options=default_options();
+ if(!open_v4l2(c,config,options))return 0;
  for(int version=app_version1?1:2;;version=1) {
   if(version==1 && (options&RUNGIC_OPTION_TEN_BIT)){errno=ENOTSUP;fail(c,"10-bit output needs a newer Rungic app");return -1;}
   if(open_channel(c)){fail(c,"Open codec channel");rungic_codec_close(c);return -1;}
@@ -244,6 +266,12 @@ static Slot *install_slot(Channel *channel,int id,int received,int size) {
 int rungic_codec_exchange(RungicCodec *c,int cmd,int id,int64_t pts,int flags,int length,RungicCodecOutput callback,void *user) {
  int consumer_failed=0;
  if(c->fd<0){errno=ENOTCONN;return fail(c,"Codec closed");}
+ Channel *direct=channel_of(c->fd);
+ if(direct && direct->v4l2) {
+  if(cmd==RUNGIC_FRAME && (length<=0 || (unsigned)length>RUNGIC_CODEC_HALF)){errno=EINVAL;return fail(c,"Codec exchange");}
+  if(cmd==RUNGIC_FRAME)c->input_count++;
+  return v4l2_exchange(direct->v4l2,cmd,id,pts,c->memory,length,callback,user,&c->ended,&c->output_count,c->error,sizeof(c->error));
+ }
  if(put32(c->fd,cmd))goto error;
  if(cmd==RUNGIC_FRAME) {
   if(length<=0 || (unsigned)length>RUNGIC_CODEC_HALF){errno=EINVAL;goto error;}
@@ -288,7 +316,7 @@ int rungic_codec_exchange(RungicCodec *c,int cmd,int id,int64_t pts,int flags,in
 error:return fail(c,"Codec exchange");
 }
 void rungic_codec_close(RungicCodec *c) {
- if(c->fd>=0){channel_remove(c->fd);shutdown(c->fd,SHUT_RDWR);close(c->fd);c->fd=-1;}
+ if(c->fd>=0){if(!channel_remove(c->fd)){shutdown(c->fd,SHUT_RDWR);close(c->fd);}c->fd=-1;}
  if(c->memory){munmap(c->memory,RUNGIC_CODEC_HALF*2);c->memory=NULL;}
 }
 /* Plane p's first visible sample, or NULL when w x h samples of size bytes (step apart) do not

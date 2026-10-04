@@ -4,7 +4,7 @@
 
 以产品功能和用户场景为骨架：每条功能是用户能感知的一件事；“体验”是它必须做到的，每条都标明由什么检查（自动测试、实机验收、人工验证或已登记的缺口）。数据在 `quality/`，规则见 [quality/README.md](../quality/README.md)。
 
-共 160 条功能、672 条体验，其中 628 条有检查。
+共 160 条功能、673 条体验，其中 629 条有检查。
 
 ## Agent 能力
 
@@ -905,15 +905,17 @@ Linux 应用用手机的相机拍照录像，用手机的扬声器和麦克风�
 - **E6** 解码帧留在解码器自己的缓冲里（DMA-BUF，每个缓冲只传一次描述符、只映射一次），APK 里不再复制；GStreamer 直接输出 NV12（下游不接受时 I420），与 FFmpeg 软解逐字节一致。（单元测试、人工）
 - **E7** 10bit 的 HEVC Main10、VP9 Profile 2 由硬件解码，输出 P010，不悄悄压成 8bit；不支持时打开失败，交给软件解码。（单元测试、人工）
 - **E8** 新的 Linux 端遇到旧 APK（通道版本 1）自动退回共享内存，8bit 照常硬件解码；手机的解码缓冲读不了时同样退回。（单元测试、人工）
+- **E9** 有高通 msm_vidc 解码节点（/dev/video32）的手机，解码直接走 V4L2，不经过 APK：实时 1080p60 约占一个核的 23%（MediaCodec 桥约 105%），1080p 吞吐约 240 帧/秒；没有这个节点、显式关掉或在 Firefox 的沙箱里，照旧用 MediaCodec 桥。（单元测试、人工）
 
 注意：
-- 硬件解码路径的 CPU 大头是 MediaCodec/Codec2 框架每帧的消息、binder 和缓冲映射，加上同步轮询；去掉复制只省了约 10%，实时 1080p60 仍约一个核（Linux、APK、Codec2 服务合计）。吞吐卡在约 82 帧/秒，因为一帧一帧同步往返。 [docs/108-codec-bridge-buffers.md](../docs/108-codec-bridge-buffers.md)
+- msm_vidc 的 V4L2 解码只收 DMA-BUF；OUTPUT 开流前排入码流、或 CAPTURE 配好前排入第二个码流单元，会让固件断言并复位整个视频核心（Android 正在用的解码一起中断）。codec-v4l2.c 严格按“开 OUTPUT → 一个单元 → 等 SOURCE_CHANGE → 配 NV12/P010 的 CAPTURE”的顺序，刷新时整段重开。 [docs/108-codec-bridge-buffers.md](../docs/108-codec-bridge-buffers.md)
+- 经 APK 的 MediaCodec 桥，CPU 大头是 Codec2 框架和高通编解码服务每帧的消息、binder 和缓冲交接（每帧约 12 ms CPU）；去掉复制、改异步只省了约 10%，实时 1080p60 仍约一个核，吞吐被 Codec2 按码流帧率设定的时钟限在约 83 帧/秒。这是 V4L2 直通的理由，桥只作回退。 [docs/108-codec-bridge-buffers.md](../docs/108-codec-bridge-buffers.md)
 - 渲染到 Surface 时高通解码器默认写 UBWC 压缩格式，要设 vendor.qti-ext-dec-forceNonUBWC.value=1；读平面布局不能用 Image.getPlanes()，遇到 UBWC 缓冲框架会直接 abort，连同桌面一起崩溃。 [docs/108-codec-bridge-buffers.md](../docs/108-codec-bridge-buffers.md)
 - 解码输入块设成 16 MiB 时，Codec2 每帧映射、解映射一次，光解映射就占 APK 解码线程约 1/5；按分辨率设置。 [docs/108-codec-bridge-buffers.md](../docs/108-codec-bridge-buffers.md)
 - 硬件编码经宿主桥接的吞吐约 50 fps：1080×2400@60 单路被拒，两路大分辨率同时编码第二路 CodecException；多屏或 60 fps 时把每路缩到长边 ≤1920。 [docs/48-plasma-media-pipelines.md](../docs/48-plasma-media-pipelines.md)
 - Android SharedMemory 可能是 st_size=0 的 ashmem 字符设备，不能只接受普通 memfd。 [docs/research/35-hardware-codec-integration.md](../docs/research/35-hardware-codec-integration.md)
 - 做成 VA-API 驱动换不掉 FFmpeg 补丁、Snapshot 补丁和 Firefox 预加载（Firefox 的 glxtest 在 KGSL 软件 EGL 设备处就关掉 VA-API），维持现状；VA-API 只能作为另一项新能力单独立项。 [docs/research/74-vaapi-feasibility.md](../docs/research/74-vaapi-feasibility.md)
-- 原厂 V4L2 节点 video32 能直接硬解（只收 DMABUF，调用顺序错了会让固件断言并复位视频核心，Android 正在用的解码也会中断）；上游 Iris 驱动不支持 parrot，也不能和 msm_video 共存。默认仍走 MediaCodec，不为它扩大 LXC 权限。 [docs/108-codec-bridge-buffers.md](../docs/108-codec-bridge-buffers.md) [docs/research/34-hardware-codec-audit.md](../docs/research/34-hardware-codec-audit.md)
+- 上游 Iris 驱动不支持 parrot，也不能和原厂 msm_video 共存；用的是原厂驱动的 V4L2 接口（容器只多映射了 /dev/video32，DMA 堆本来就为 GPU 映射了）。 [docs/108-codec-bridge-buffers.md](../docs/108-codec-bridge-buffers.md) [docs/research/34-hardware-codec-audit.md](../docs/research/34-hardware-codec-audit.md)
 - VP8、AV1 在本机只有软件组件，不能宣称硬件编解码；没有 4K（上限 2560×1440）、HDR 显示和 DRM 视频；10bit 只在解码侧。 [docs/research/34-hardware-codec-audit.md](../docs/research/34-hardware-codec-audit.md)
 - broker 只允许 UID 0/1000，最多 64 条连接、6 个活动 codec，只接受编解码固定命令。 [docs/research/35-hardware-codec-integration.md](../docs/research/35-hardware-codec-integration.md)
 

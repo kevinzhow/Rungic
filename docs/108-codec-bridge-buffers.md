@@ -1,4 +1,4 @@
-# 编解码桥：解码帧走 DMA-BUF，支持 10bit
+# 视频硬件解码：V4L2 直通，MediaCodec 桥支持 DMA-BUF 与 10bit
 
 2026-10-04。G100 S（ZY32MVJS25，SM6435 parrot）、Android 16、APK 2.30 → 2.33。起因是 Kevin 让调研高通 Iris 视频驱动能不能用（结论见文末），讨论后决定先优化现有的 MediaCodec 编解码桥（[35 篇](research/35-hardware-codec-integration.md)）：它走 Android 公开接口，换机型也能用，出错由 Codec2 兜底。
 
@@ -94,10 +94,43 @@ G100 S 装 APK 2.33（`adb install -r`，数据保留），Linux 端用 `rungic-
 
 **结论**：要在性能上有数量级的提升，只能让 Linux 绕开 Codec2，直接用 msm_vidc 的 V4L2 接口，MediaCodec 桥（本篇的 v2）作为其他机型和失败时的回退。代价见文末附录：只收 DMABUF、调用顺序必须固定（错了会让固件复位）、要把设备节点映射进 LXC。
 
+## V4L2 直通后端（`shared/media/codec-v4l2.c`）
+
+Kevin 定了方向（2026-10-04）：解码绕开 Codec2，`librungiccodec` 直接用 msm_vidc 的 V4L2 解码器，MediaCodec 桥作为回退。GStreamer 和私有 FFmpeg 都经过同一个 `codec-client`，上层不用改。
+
+- **选择**：解码器（非编码器）在 `/dev` 里找 QUERYCAP 名为 `msm_vidc_decoder`、OUTPUT 格式里有该编码的节点。找不到、打不开或启动失败，就走 MediaCodec 桥。`RUNGIC_CODEC_V4L2=0` 关闭；Firefox 预加载（`RUNGIC_CODEC_PRECONNECT`）下也不用，因为沙箱打不开设备，除非设 `=1`。
+- **调用顺序**（固件只认这一种）：
+  1. S_FMT OUTPUT，REQBUFS（DMABUF），从 `/dev/dma_heap/system` 分配并映射，订阅 SOURCE_CHANGE，STREAMON OUTPUT。
+  2. 只排入一个码流单元。之后到来的单元先留在进程里，直到 SOURCE_CHANGE 出现。
+  3. S_FMT CAPTURE 设为 NV12 或 P010，G_SELECTION 取可见区域，按 MIN_BUFFERS_FOR_CAPTURE 再加 4 个缓冲，STREAMON CAPTURE，再排入留着的单元。
+  4. 排空用 `V4L2_DEC_CMD_STOP`，一直取到带 LAST 标志的缓冲。
+- **刷新**（seek）：整段关掉，在同一个描述符号上重开（`dup3`，因为消费者持有这个号），并把保存的 SPS/PPS/VPS 放在下一个单元前面。不在会话中途重启流。中途换分辨率直接报错，由消费者按新 caps 重开。
+- **帧**：时间戳原样带进带出，用它对回帧号。帧直接放在 CAPTURE 缓冲里，读之前和读之后各做一次 `DMA_BUF_IOCTL_SYNC`，消费者用 `rungic_codec_copy_nv12/p010/i420` 复制出去。
+- **容器**：控制器在 `/dev/video32` 存在时，按当前设备号授予 rw，并在 `plasma.config` 里用 `optional` 绑定；DMA 堆原本就为 GPU 映射了。没有这个节点的手机照常启动。
+- **离线测试**（`tools/tests/test_codec_v4l2.py`）：一个假的 msm_vidc 设备（`codec_v4l2_driver.c`，用 `--wrap` 截获 open、ioctl、poll、close、dup3）。它按真驱动的规则把违规记成错误：
+  - 非 DMABUF；
+  - OUTPUT 开流前就排入码流单元；
+  - CAPTURE 配好之前排入第二个单元；
+  - 在 SOURCE_CHANGE 之前配置 CAPTURE。
+
+  SOURCE_CHANGE 要第三次查询才出现，模拟真驱动的延迟。把“只排一个单元”这条去掉的变体，测试会报 5 次违规。
+
+**G100 S 实测**（控制器与 LXC 配置已更新，重启了一次容器；GStreamer 自动选中 V4L2，logcat 中没有 MediaCodec 会话）：
+
+| | MediaCodec 桥（APK 2.30） | V4L2 直通 |
+|---|---|---|
+| 实时 1080p60，单核占用合计 | 约 105%（Linux 20 + APK 55 + Codec2 29） | **约 23%**（Linux 22 + APK 1） |
+| 300 帧 1080p 解码总 CPU | 4.8 秒 | **0.9 秒** |
+| 1080p H.264 吞吐（含 gst-launch 启动） | 82 帧/秒 | **239 帧/秒** |
+| 1080p HEVC / VP9 / HEVC Main10 | 77 / 81 / 不支持 | **183 / 189 / 153 帧/秒** |
+
+- 正确性：全部测试片与 FFmpeg 软解逐字节一致，整轮没有出现固件错误。
+- 剩下的 Linux 侧约 22%，是 GStreamer 本身加上把帧复制给下游的开销。下一步把 CAPTURE 缓冲作为 GStreamer 的 dmabuf 内存直接交出去，做到零复制。
+
 ## 附：Iris 驱动与原厂 V4L2 直通
 
 - G100 S 的视频硬件就是 Iris 这一代：设备树 `qcom,msm-vidc-parrot qcom,msm-vidc-iris2`，固件 `vpu20_1v.mbn`（VPU2 单管线），由原厂 `msm_video.ko` 驱动，导出 `/dev/video32`（解码）、`/dev/video33`（编码）。
 - 上游 Iris（主线 7.3-rc5）支持 sm8250、sc7280、sm8550、sm8650、sm8750、qcs8300、x1p42100、milos，没有 parrot，也没有 SM8845。直接装不上：内核、设备树格式都对不上，而且硬件同一时间只能归一个驱动，换掉 `msm_video` 会让 Android 的 `c2.qti.*` 全部失效。
 - 原厂驱动本身就是标准的有状态 V4L2 解码器，测试程序（Android 侧 root，NDK 编译）在 G100 S 上验证：H.264（含 B 帧、854×480、720×1280、2560×1440）、HEVC Main/Main10、VP9 Profile 0（含 superframe）/2 全部与 FFmpeg 软解逐字节一致；1080p 约 170–210 帧/秒（含写文件），硬件上限 2560×1440。
 - 限制：只接受 DMABUF（`/dev/dma_heap/system`），MMAP/USERPTR 一律 EINVAL，所以现成的 FFmpeg `v4l2m2m`、GStreamer `v4l2` 解码器都不能直接用；必须先开 OUTPUT 流、喂一帧、等 `SOURCE_CHANGE`，再配 NV12 的 CAPTURE（默认是 UBWC 的 Q12C）。第一次把 QBUF 放在 STREAMON 之前，触发了固件断言（`venus_c2_parsing.c`），驱动强制复位了视频核心；之后能自行恢复，但 Android 正在进行的解码会被打断。
-- 结论：作为备选与参考保留；默认路线继续用 MediaCodec。
+- 结论：后来用作默认解码路线，见上文“V4L2 直通后端”。
