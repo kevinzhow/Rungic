@@ -10,18 +10,20 @@
 GST_DEBUG_CATEGORY_STATIC(rungic_debug);
 #define GST_CAT_DEFAULT rungic_debug
 #define RAW_CAPS "video/x-raw,format=I420,width=(int)[16,2560],height=(int)[16,2560]"
+/* Decoded pictures: NV12 as the hardware gives them (I420 when downstream wants it), P010 for 10-bit. */
+#define DECODED_CAPS "video/x-raw,format=(string){NV12,I420,P010_10LE},width=(int)[16,2560],height=(int)[16,2560]"
 static const char *compressed_caps[]={
  "video/x-h264,stream-format=byte-stream,alignment=au,profile=(string){constrained-baseline,baseline,main,high},width=(int)[16,2560],height=(int)[16,2560]",
- "video/x-h265,stream-format=byte-stream,alignment=au,profile=main,width=(int)[16,2560],height=(int)[16,2560]",
- "video/x-vp9,profile=(string)0,width=(int)[16,2560],height=(int)[16,2560]"};
+ "video/x-h265,stream-format=byte-stream,alignment=au,profile=(string){main,main-10},width=(int)[16,2560],height=(int)[16,2560]",
+ "video/x-vp9,profile=(string){0,2},width=(int)[16,2560],height=(int)[16,2560]"};
 static const char *mime_caps[]={"video/x-h264","video/x-h265","video/x-vp9"};
 static void color_config(RungicCodecConfig *c,const GstVideoInfo *info) {
  c->color_range=info->colorimetry.range==GST_VIDEO_COLOR_RANGE_0_255?1:2;
  c->color_standard=info->colorimetry.matrix==GST_VIDEO_COLOR_MATRIX_BT709?1:
      info->colorimetry.matrix==GST_VIDEO_COLOR_MATRIX_BT601?2:0;
- c->color_transfer=3; /* SDR. The advertised compressed profiles exclude HDR/10-bit. */
+ c->color_transfer=3; /* SDR; 10-bit decoders clear it and follow the stream. */
 }
-typedef struct {GstVideoDecoder parent;RungicCodec codec;GstVideoCodecState *input;GstVideoInfo output;GstFlowReturn flow;} RungicDecoder;
+typedef struct {GstVideoDecoder parent;RungicCodec codec;GstVideoCodecState *input;GstVideoInfo output;GstFlowReturn flow;gboolean no_nv12,checked_nv12;} RungicDecoder;
 typedef struct {GstVideoDecoderClass parent;int kind;} RungicDecoderClass;
 G_DEFINE_ABSTRACT_TYPE(RungicDecoder,rungic_decoder,GST_TYPE_VIDEO_DECODER)
 static int decoder_output(void *opaque,const RungicCodecFrame *frame) {
@@ -30,17 +32,33 @@ static int decoder_output(void *opaque,const RungicCodecFrame *frame) {
  if(frame->type!=RUNGIC_DECODED)return -1;
  GstVideoCodecFrame *f=gst_video_decoder_get_frame(decoder,frame->id);
  if(!f){GST_WARNING_OBJECT(self,"No pending frame %d",frame->id);return 0;}
- if(GST_VIDEO_INFO_WIDTH(&self->output)!=frame->width || GST_VIDEO_INFO_HEIGHT(&self->output)!=frame->height) {
-  GstVideoCodecState *state=gst_video_decoder_set_output_state(decoder,GST_VIDEO_FORMAT_I420,frame->width,frame->height,self->input);
-  self->output=state->info;gst_video_codec_state_unref(state);
-  if(!gst_video_decoder_negotiate(decoder)){gst_video_codec_frame_unref(f);self->flow=GST_FLOW_NOT_NEGOTIATED;return -1;}
+ if(frame->depth==8 && !self->checked_nv12) {
+  /* NV12 as decoded unless downstream cannot take it (then I420, the chroma copied apart). */
+  self->checked_nv12=TRUE;
+  GstCaps *want=gst_caps_new_simple("video/x-raw","format",G_TYPE_STRING,"NV12",NULL);
+  GstCaps *peer=gst_pad_peer_query_caps(GST_VIDEO_DECODER_SRC_PAD(decoder),want);
+  self->no_nv12=gst_caps_is_empty(peer);gst_caps_unref(peer);gst_caps_unref(want);
+ }
+ GstVideoFormat format=frame->depth==10?GST_VIDEO_FORMAT_P010_10LE:self->no_nv12?GST_VIDEO_FORMAT_I420:GST_VIDEO_FORMAT_NV12;
+ if(GST_VIDEO_INFO_WIDTH(&self->output)!=frame->width || GST_VIDEO_INFO_HEIGHT(&self->output)!=frame->height || GST_VIDEO_INFO_FORMAT(&self->output)!=format) {
+  for(;;) {
+   GstVideoCodecState *state=gst_video_decoder_set_output_state(decoder,format,frame->width,frame->height,self->input);
+   self->output=state->info;gst_video_codec_state_unref(state);
+   if(gst_video_decoder_negotiate(decoder))break;
+   /* Downstream without NV12: copy the chroma apart as before. */
+   if(format!=GST_VIDEO_FORMAT_NV12){gst_video_codec_frame_unref(f);self->flow=GST_FLOW_NOT_NEGOTIATED;return -1;}
+   self->no_nv12=TRUE;format=GST_VIDEO_FORMAT_I420;
+  }
  }
  self->flow=gst_video_decoder_allocate_output_frame(decoder,f);
  if(self->flow!=GST_FLOW_OK){gst_video_codec_frame_unref(f);return -1;}
  GstVideoFrame raw;
  if(!gst_video_frame_map(&raw,&self->output,f->output_buffer,GST_MAP_WRITE)){gst_video_codec_frame_unref(f);self->flow=GST_FLOW_ERROR;return -1;}
- uint8_t *dst[3];int strides[3];for(int i=0;i<3;i++){dst[i]=GST_VIDEO_FRAME_PLANE_DATA(&raw,i);strides[i]=GST_VIDEO_FRAME_PLANE_STRIDE(&raw,i);}
- int r=rungic_codec_copy_i420(frame,dst,strides);gst_video_frame_unmap(&raw);
+ uint8_t *dst[3];int strides[3];
+ for(guint i=0;i<GST_VIDEO_FRAME_N_PLANES(&raw);i++){dst[i]=GST_VIDEO_FRAME_PLANE_DATA(&raw,i);strides[i]=GST_VIDEO_FRAME_PLANE_STRIDE(&raw,i);}
+ int r=format==GST_VIDEO_FORMAT_I420?rungic_codec_copy_i420(frame,dst,strides):
+       format==GST_VIDEO_FORMAT_NV12?rungic_codec_copy_nv12(frame,dst,strides):rungic_codec_copy_p010(frame,dst,strides);
+ gst_video_frame_unmap(&raw);
  if(r){gst_video_codec_frame_unref(f);self->flow=GST_FLOW_ERROR;return -1;}
  self->flow=gst_video_decoder_finish_frame(decoder,f);return self->flow==GST_FLOW_OK?0:-1;
 }
@@ -48,7 +66,10 @@ static gboolean decoder_set_format(GstVideoDecoder *decoder,GstVideoCodecState *
  RungicDecoder *self=(RungicDecoder *)decoder;RungicDecoderClass *klass=(RungicDecoderClass *)G_OBJECT_GET_CLASS(self);
  RungicCodecConfig config={.kind=klass->kind,.width=GST_VIDEO_INFO_WIDTH(&state->info),.height=GST_VIDEO_INFO_HEIGHT(&state->info)};
  color_config(&config,&state->info);
- if(rungic_codec_open(&self->codec,&config)) {GST_WARNING_OBJECT(self,"%s",self->codec.error);return FALSE;}
+ const gchar *profile=state->caps?gst_structure_get_string(gst_caps_get_structure(state->caps,0),"profile"):NULL;
+ gboolean ten_bit=profile && (!strcmp(profile,"main-10") || !strcmp(profile,"2"));
+ if(ten_bit)config.color_transfer=0; /* HDR or not: what the stream says */
+ if(rungic_codec_open_options(&self->codec,&config,ten_bit?RUNGIC_OPTION_BUFFERS|RUNGIC_OPTION_TEN_BIT:RUNGIC_OPTIONS_DEFAULT)) {GST_WARNING_OBJECT(self,"%s",self->codec.error);return FALSE;}
  if(self->input)gst_video_codec_state_unref(self->input);self->input=gst_video_codec_state_ref(state);
  gst_video_info_init(&self->output);self->flow=GST_FLOW_OK;
  GST_INFO_OBJECT(self,"Hardware decoder %s",self->codec.name);return TRUE;
@@ -85,7 +106,8 @@ static GstFlowReturn decoder_drain(GstVideoDecoder *decoder) {
 static gboolean decoder_stop(GstVideoDecoder *decoder) {
  RungicDecoder *self=(RungicDecoder *)decoder;
  GST_INFO_OBJECT(self,"Close %s input=%u output=%u",self->codec.name,self->codec.input_count,self->codec.output_count);
- rungic_codec_close(&self->codec);if(self->input){gst_video_codec_state_unref(self->input);self->input=NULL;}return TRUE;
+ rungic_codec_close(&self->codec);if(self->input){gst_video_codec_state_unref(self->input);self->input=NULL;}
+ self->checked_nv12=self->no_nv12=FALSE;return TRUE;
 }
 static void rungic_decoder_init(RungicDecoder *self) {
  rungic_codec_init(&self->codec);gst_video_decoder_set_packetized(GST_VIDEO_DECODER(self),TRUE);
@@ -99,7 +121,7 @@ static void rungic_decoder_class_init(RungicDecoderClass *klass) {
 static void decoder_codec_class_init(gpointer klass,gpointer data) {
  RungicDecoderClass *c=klass;c->kind=GPOINTER_TO_INT(data);GstElementClass *element=GST_ELEMENT_CLASS(c);
  gst_element_class_set_metadata(element,"Android hardware video decoder","Codec/Decoder/Video/Hardware","MediaCodec via private shared-memory IPC","Rungic project");
- GstCaps *sink=gst_caps_from_string(compressed_caps[c->kind]),*src=gst_caps_from_string(RAW_CAPS);
+ GstCaps *sink=gst_caps_from_string(compressed_caps[c->kind]),*src=gst_caps_from_string(DECODED_CAPS);
  gst_element_class_add_pad_template(element,gst_pad_template_new("sink",GST_PAD_SINK,GST_PAD_ALWAYS,sink));
  gst_element_class_add_pad_template(element,gst_pad_template_new("src",GST_PAD_SRC,GST_PAD_ALWAYS,src));gst_caps_unref(sink);gst_caps_unref(src);
 }

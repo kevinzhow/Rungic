@@ -41,6 +41,20 @@ if [ "$task_apk_ocr" != none ]; then
     "$task_clang/llvm-strip" --strip-unneeded "$task_ocr/lib/arm64-v8a/librungicocr.so"
     cp -r "$task_ocr/assets/ocr" "$task_build/assets/ocr"
 fi
+# librungicmedia.so (jni/media): decoded HardwareBuffers' DMA-BUFs for the codec bridge (docs/108).
+# Without the NDK the APK still works: decoded frames then go through shared memory.
+task_ndk=${RUNGIC_ANDROID_NDK:-$(ls -d "$task_sdk"/ndk/* 2>/dev/null | sort -V | tail -1 || true)}
+task_media=$task_build/media
+rm -rf "$task_media"
+task_media_clang=$task_ndk/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android30-clang
+if [ -n "$task_ndk" ] && [ -x "$task_media_clang" ]; then
+    mkdir -p "$task_media/lib/arm64-v8a"
+    "$task_media_clang" -std=c11 -O2 -fPIC -shared -Wall -Wextra -o "$task_media/lib/arm64-v8a/librungicmedia.so" \
+        "$task_root/android/app/jni/media/buffers.c" -landroid -lnativewindow -ldl -Wl,--no-undefined
+    "$task_ndk/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip" --strip-unneeded "$task_media/lib/arm64-v8a/librungicmedia.so"
+else
+    echo "warning: no Android NDK: the APK goes without librungicmedia.so (decoded frames through shared memory)" >&2
+fi
 cd "$task_root/android/app"
 "$task_bt/aapt2" compile --dir res -o "$task_build/resources.zip"
 # res/values (English) and res/values-zh-rCN; --java writes R.java for getString(R.string.…).
@@ -55,6 +69,7 @@ cp "$task_build/resources.apk" "$task_build/unsigned.apk"
 (cd "$task_build/dex" && zip -q "$task_build/unsigned.apk" classes.dex)
 (cd "$task_native" && zip -qr "$task_build/unsigned.apk" lib)
 [ ! -d "$task_ocr/lib" ] || (cd "$task_ocr" && zip -qr "$task_build/unsigned.apk" lib)
+[ ! -d "$task_media/lib" ] || (cd "$task_media" && zip -qr "$task_build/unsigned.apk" lib)
 "$task_bt/zipalign" -f 4 "$task_build/unsigned.apk" "$task_build/aligned.apk"
 "$task_bt/apksigner" sign --ks "$task_key" --ks-key-alias launcher --ks-pass pass:android --out "$task_out/Rungic-$task_version.apk" "$task_build/aligned.apk"
 "$task_bt/apksigner" verify "$task_out/Rungic-$task_version.apk"

@@ -119,3 +119,86 @@ def test_disabled_hardware_never_reaches_the_broker(driver):
         result = run(driver, broker, 'decode', RUNGIC_CODEC_DISABLE='1')
     assert result['open'] is False and 'disabled' in result['error']
     assert broker.configs == []
+
+
+def buffer_picture(ten_bit=False):
+    """A decoded 64x48 picture in one of the decoder's own buffers, laid out as Qualcomm's gralloc
+    does for the codec: rows of 128 bytes (256 for P010), 64 rows of luma (aligned to 32), then CbCr
+    interleaved. P010 keeps each 10-bit sample in the high bits of a little-endian 16-bit word."""
+    bytes_ = 2 if ten_bit else 1
+    stride, rows = 128 * bytes_, 64
+    buffer = bytearray(b'\xee' * (stride * rows + stride * (rows // 2)))
+    def sample(value):
+        return (value << 6).to_bytes(2, 'little') if ten_bit else bytes([value & 255])
+    for row in range(H):
+        for x in range(W):
+            at = row * stride + x * bytes_
+            buffer[at:at + bytes_] = sample((x + 3 * row) & (1023 if ten_bit else 255))
+    uv = stride * rows
+    for row in range(H // 2):
+        for i in range(W // 2):
+            at = uv + row * stride + 2 * i * bytes_
+            buffer[at:at + bytes_] = sample((100 + i + row) & 255)
+            buffer[at + bytes_:at + 2 * bytes_] = sample((200 + 2 * i + row) & 255)
+    planes = [(stride, bytes_, uv), (stride, 2 * bytes_, len(buffer) - uv), (stride, 2 * bytes_, len(buffer) - uv - bytes_)]
+    semi_y = b''.join(sample((x + 3 * r) & (1023 if ten_bit else 255)) for r in range(H) for x in range(W))
+    semi_uv = b''.join(sample((100 + i + r) & 255) + sample((200 + 2 * i + r) & 255) for r in range(H // 2) for i in range(W // 2))
+    return bytes(buffer), planes, [0, uv, uv + bytes_], semi_y, semi_uv
+
+
+# covers: apps.hw-codec/E6
+# covers[consumer]: iface:codec
+def test_a_picture_in_a_decoder_buffer_is_mapped_once_and_copied(driver):
+    contents, planes, offsets, semi_y, semi_uv = buffer_picture()
+    _, expected = picture()
+    def decode(config, frame):
+        # Two pictures from the same buffer: its DMA-BUF goes with the first only.
+        return [{'type': 'DECODED', 'id': frame['id'] + n, 'flags': 0, 'pts': frame['pts'] + n, 'width': W, 'height': H,
+                 'planes': planes, 'offsets': offsets, 'buffer': (3, contents)} for n in range(2)]
+    with contracts.CodecStandIn(output=decode) as broker:
+        result = run(driver, broker, 'decode')
+    [config] = broker.configs
+    assert config['version'] == 2 and config['options'] == 1          # buffers by default
+    assert broker.descriptors == 1 and broker.problems == []
+    assert [r['id'] for r in result['frame_records']] == [7, 8]
+    for record in result['frame_records']:
+        assert record['copied'] is True and record['semiplanar'] is True and record['depth'] == 8
+        for plane in 'yuv':
+            assert bytes.fromhex(record[plane]) == expected[plane], plane
+        assert (bytes.fromhex(record['semi_y']), bytes.fromhex(record['semi_uv'])) == (semi_y, semi_uv)
+    assert (result['inputs'], result['outputs']) == (1, 2)
+
+
+# covers: apps.hw-codec/E7
+# covers[consumer]: iface:codec
+def test_a_10_bit_picture_reaches_the_adapter_as_p010(driver):
+    contents, planes, offsets, semi_y, semi_uv = buffer_picture(ten_bit=True)
+    def decode(config, frame):
+        return [{'type': 'DECODED', 'id': frame['id'], 'flags': 0, 'pts': frame['pts'], 'width': W, 'height': H,
+                 'planes': planes, 'offsets': offsets, 'buffer': (0, contents), 'depth': 10}]
+    with contracts.CodecStandIn(output=decode) as broker:
+        result = run(driver, broker, 'decode10')
+    [config] = broker.configs
+    assert config['options'] == 3 and broker.problems == []
+    [record] = result['frame_records']
+    assert record['depth'] == 10 and record['copied'] is False          # never squeezed into 8-bit I420
+    assert record['semiplanar'] is True
+    assert (bytes.fromhex(record['semi_y']), bytes.fromhex(record['semi_uv'])) == (semi_y, semi_uv)
+
+
+# covers: apps.hw-codec/E8
+# covers[consumer]: iface:codec
+def test_an_app_before_channel_version_2_still_decodes_through_shared_memory(driver):
+    planes, expected = picture()
+    def decode(config, frame):
+        return [{'type': 'DECODED', 'id': frame['id'], 'flags': 0, 'pts': frame['pts'],
+                 'width': W, 'height': H, 'crop': (0, 0), 'planes': planes}]
+    with contracts.CodecStandIn(output=decode, version=1) as broker:
+        result = run(driver, broker, 'decode')
+        ten_bit = run(driver, broker, 'decode10')
+    assert result['open'] is True and [c['version'] for c in broker.configs] == [1]
+    [record] = result['frame_records']
+    for plane in 'yuv':
+        assert bytes.fromhex(record[plane]) == expected[plane], plane
+    assert ten_bit['open'] is False and '10-bit' in ten_bit['error']
+    assert broker.problems == []

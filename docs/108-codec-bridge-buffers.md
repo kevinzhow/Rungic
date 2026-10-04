@@ -1,0 +1,87 @@
+# 编解码桥：解码帧走 DMA-BUF，支持 10bit
+
+2026-10-04。G100 S（ZY32MVJS25，SM6435 parrot）、Android 16、APK 2.30 → 2.33。起因是 Kevin 让调研高通 Iris 视频驱动能不能用（结论见文末），讨论后决定先优化现有的 MediaCodec 编解码桥（[35 篇](research/35-hardware-codec-integration.md)）：它走 Android 公开接口，换机型也能用，出错由 Codec2 兜底。
+
+## 基线：硬件解码这条路比软件解码还费 CPU
+
+G100 S 容器里用 GStreamer 解码到 fakesink，每项 3 轮，数字稳定（`real` 含 gst-launch 启动）：
+
+| 项目 | 桥（APK 2.30） | 软件 avdec_h264（4 线程） |
+|---|---|---|
+| 1080p H.264 吞吐 | 约 80 帧/秒；720p 也只有 85–100，卡在每帧固定开销 | 约 240 帧/秒 |
+| 300 帧 1080p 总 CPU | 4.8 秒：Linux 0.9 + APK 2.5 + Codec2 服务（media.hwcodec）1.4 | 3.8 秒 |
+| 实时播放 1080p60 | 约一个核的 105%：Linux 20% + APK 55% + Codec2 29% | — |
+
+测试片是合成画面（testsrc2），软件解码很轻松；真实视频软件解码重得多，但桥本身的开销是实打实的。
+
+simpleperf（APK 与 media.hwcodec，6 秒，2 kHz）：
+
+- APK 的 `CodecLooper`/`MediaCodec_loop` 线程约 1/4 时间在 `libsfplugin_ccodec_utils.so` 的 `CopyRow_NEON`：ByteBuffer 模式下 Codec2 框架每帧把硬件帧复制成一份普通内存图像。
+- 会话线程：`memcpy` 与 `DirectByteBuffer.get` 把三个平面复制进共享内存。半平面的 U、V 是两个重叠视图，色度被复制两遍。`saveParameters` 在 Java 里逐字节扫描整帧码流找 SPS/PPS，约占 9%。
+- Linux 端 `rungic_codec_copy_i420` 再逐字节把交错色度拆成 I420。
+- Codec2 服务每帧映射、解映射一次缓冲（`qcom_sg_attach`、`unmap_page_range`）。
+
+## 改动
+
+### 协议 v2（`quality/contracts/codec.json`）
+
+- 消费者先发 `MAGIC2` 加选项：`OPTION_BUFFERS`（解码帧留在解码器自己的缓冲里）、`OPTION_TEN_BIT`（10bit 输出 P010）。旧 APK 回 `ERROR`（Channel version），`codec-client` 换 v1 重开，进程内记住，之后直接用 v1。
+- 每条记录多 5 个字：三个平面偏移、缓冲槽号（-1 表示共享内存）、位深。某个槽第一次出现时，记录第一个字节带上该缓冲的 DMA-BUF（SCM_RIGHTS）；之后只发槽号。槽号只增不减，换缓冲组就换新号。
+- APK 持有这一帧，直到 Linux 回 ACK。语义和以前一样，同一时间只有一帧在路上。
+
+### APK（2.33）
+
+- 解码器输出到 `ImageReader`（`YUV_420_888`，10bit 用 `YCBCR_P010`），`releaseOutputBuffer(index,true)` 渲染后按时间戳取回 Image。配置里加高通的 `vendor.qti-ext-dec-forceNonUBWC.value=1`：渲染到 Surface 时高通解码器默认写 UBWC 压缩格式，CPU 读不了。
+- ImageReader 不要 CPU 用途：有 CPU 用途时，gralloc 会在 Codec2 每次交回缓冲时都映射一遍，Linux 自己映射一次就够了。
+- 新的 JNI 库 `librungicmedia.so`（`android/app/jni/media/buffers.c`）：从 HardwareBuffer 取 DMA-BUF（`AHardwareBuffer_getNativeHandle`），每个缓冲取一次布局，带描述符写 socket。
+  - 高通线性解码格式（`0x7fa30c04` NV12_VENUS、`0x7fa30c0a` P010_VENUS）在 NDK 里只显示成一个平面，按 msm_media_info 的规则计算：行距取 `AHardwareBuffer_Desc.stride`，Y 行数按 32 对齐，CbCr 紧跟其后。
+  - 其他格式用 `AHardwareBuffer_lockPlanes` 读取；读不了（例如 UBWC）就报 IOException，Linux 记住后改用共享内存。
+  - **不能调用 `Image.getPlanes()`**：缓冲是 UBWC 时，框架会在 JNI 里直接 abort（`NewDirectByteBuffer` 收到空指针），整个 APK 连同桌面一起崩溃。开发时实际发生过一次。
+- 输入缓冲大小按分辨率设置（原来是 16 MiB）。Codec2 每帧都要映射、解映射一次输入块，16 MiB 的块光是解映射就占 APK 解码线程约 1/5。
+- 码流参数扫描到第一个图像片段就停；通道的读写加了缓冲。
+- 没有 `librungicmedia.so` 时退回共享内存。编码端没有改动。
+
+### Linux
+
+- `codec-client.c`：v2 协商与回退；按通道保存槽（mmap 一次，读之前和读之后各做一次 `DMA_BUF_IOCTL_SYNC`）。`RungicCodec`、`RungicCodecConfig` 的布局不变，新字段加在 `RungicCodecFrame` 末尾，私有 FFmpeg 不用重编也能用新库。新增 `rungic_codec_open_options`、`rungic_codec_copy_nv12`、`rungic_codec_copy_p010`。
+- 默认打开缓冲模式；Firefox 的预加载（`RUNGIC_CODEC_PRECONNECT`）暂不打开，因为 RDD 沙箱里 DMA-BUF 的 sync ioctl 还没验证过。可以用 `RUNGIC_CODEC_BUFFERS=0/1` 覆盖。
+- GStreamer 解码器默认输出 NV12（下游不接受时回到 I420），10bit 码流（h265 `main-10`、VP9 profile 2）输出 `P010_10LE`。
+
+## 实机结果
+
+G100 S 装 APK 2.33（`adb install -r`，数据保留），Linux 端用 `rungic-codec` 开发覆盖。
+
+**正确性**：GStreamer 解码后写出原始帧，和 FFmpeg 软解比 md5，以下全部逐字节一致：
+- H.264：720p、1080p 带 3 个 B 帧、1080p60 300 帧；
+- HEVC 1080p；
+- VP9 1080p；
+- HEVC Main10 1080p（P010）；
+- 强制下游只接 I420 的情况。
+
+旧 APK（2.30）配新 Linux 端时自动退回 v1，8bit 格式同样一致；10bit 明确报错，播放器会改用软件解码。
+
+**性能**（容器里 GStreamer 解码到 fakesink，各 3 轮中位数）：
+
+| | APK 2.30 + 旧 Linux 端 | APK 2.33 + 新 Linux 端 |
+|---|---|---|
+| 1080p H.264 吞吐 | 82 帧/秒 | 83 帧/秒 |
+| 720p H.264 吞吐 | 85 帧/秒 | 103 帧/秒 |
+| 300 帧 1080p 总 CPU（Linux + APK + Codec2） | 0.90 + 2.50 + 1.40 = 4.8 秒 | 0.88 + 2.23 + 1.55 = 4.7 秒 |
+| 实时 1080p60 单核占用 | 20% + 55% + 29% | 22% + 49% + 31% |
+| HEVC Main10 1080p | 不支持 | 75 帧/秒 |
+
+**复制去掉了，CPU 却只少了一点。** 改后重新 profile，大头是 MediaCodec/Codec2 框架本身每帧的开销：
+- `ALooper` 消息投递、binder 回调（`onInputBuffersReleased` 等）、`renderOutputBuffer`、ImageReader 释放缓冲；
+- 我们自己的同步轮询：`dequeueInputBuffer(1 ms)`、`dequeueOutputBuffer(2 ms)` 每次都是对 MediaCodec 线程的一次同步往返。
+
+吞吐卡在约 82 帧/秒，因为整个协议是一帧一帧同步往返的：Linux 发一帧，等 APK 回 DONE 才发下一帧。
+
+**下一步**：APK 端改用 MediaCodec 异步模式（回调、阻塞队列，不再轮询），协议允许多帧同时在途，再接 GStreamer 的 dmabuf 内存，做到零复制。三项都要先测再下结论。
+
+## 附：Iris 驱动与原厂 V4L2 直通
+
+- G100 S 的视频硬件就是 Iris 这一代：设备树 `qcom,msm-vidc-parrot qcom,msm-vidc-iris2`，固件 `vpu20_1v.mbn`（VPU2 单管线），由原厂 `msm_video.ko` 驱动，导出 `/dev/video32`（解码）、`/dev/video33`（编码）。
+- 上游 Iris（主线 7.3-rc5）支持 sm8250、sc7280、sm8550、sm8650、sm8750、qcs8300、x1p42100、milos，没有 parrot，也没有 SM8845。直接装不上：内核、设备树格式都对不上，而且硬件同一时间只能归一个驱动，换掉 `msm_video` 会让 Android 的 `c2.qti.*` 全部失效。
+- 原厂驱动本身就是标准的有状态 V4L2 解码器，测试程序（Android 侧 root，NDK 编译）在 G100 S 上验证：H.264（含 B 帧、854×480、720×1280、2560×1440）、HEVC Main/Main10、VP9 Profile 0（含 superframe）/2 全部与 FFmpeg 软解逐字节一致；1080p 约 170–210 帧/秒（含写文件），硬件上限 2560×1440。
+- 限制：只接受 DMABUF（`/dev/dma_heap/system`），MMAP/USERPTR 一律 EINVAL，所以现成的 FFmpeg `v4l2m2m`、GStreamer `v4l2` 解码器都不能直接用；必须先开 OUTPUT 流、喂一帧、等 `SOURCE_CHANGE`，再配 NV12 的 CAPTURE（默认是 UBWC 的 Q12C）。第一次把 QBUF 放在 STREAMON 之前，触发了固件断言（`venus_c2_parsing.c`），驱动强制复位了视频核心；之后能自行恢复，但 Android 正在进行的解码会被打断。
+- 结论：作为备选与参考保留；默认路线继续用 MediaCodec。

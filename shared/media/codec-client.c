@@ -9,6 +9,7 @@
 #include <sys/time.h>
 #include <sys/un.h>
 #include <sys/mman.h>
+#include <sys/ioctl.h>
 #include <sys/stat.h>
 #include <poll.h>
 #include <pthread.h>
@@ -19,11 +20,45 @@
 #include <stdlib.h>
 #include <string.h>
 #include <arpa/inet.h>
+#include <linux/dma-buf.h>
 #define MAGIC 0x4d434231u
+#define MAGIC2 0x4d434232u
 #define OPEN 0x4f50454eu
 #define CHANNEL 0x4d434631u
 static pthread_mutex_t broker_lock=PTHREAD_MUTEX_INITIALIZER;
 static int broker=-1;static pid_t broker_pid;
+/* Channel version 2 state, kept here by channel descriptor: RungicCodec keeps its first layout for
+ * consumers built against it (the private FFmpeg). A slot is one of the app's decoder buffers. */
+#define SLOTS 48
+typedef struct {int id,fd;uint8_t *map;size_t size;} Slot;
+typedef struct {int fd,version;Slot slot[SLOTS];} Channel;
+static Channel channels[32];
+static pthread_mutex_t channel_lock=PTHREAD_MUTEX_INITIALIZER;
+static int app_version1; /* the app refused channel version 2 once: an older Rungic APK */
+static int buffers_unusable; /* this phone's decoder buffers could not be read: shared memory from now on */
+static Channel *channel_of(int fd) {
+ Channel *found=NULL;pthread_mutex_lock(&channel_lock);
+ for(size_t i=0;i<sizeof(channels)/sizeof(channels[0]);i++)if(channels[i].version && channels[i].fd==fd){found=&channels[i];break;}
+ pthread_mutex_unlock(&channel_lock);return found;
+}
+static Channel *channel_add(int fd,int version) {
+ Channel *added=NULL;pthread_mutex_lock(&channel_lock);
+ for(size_t i=0;i<sizeof(channels)/sizeof(channels[0]);i++)if(!channels[i].version) {
+  added=&channels[i];memset(added,0,sizeof(*added));added->fd=fd;added->version=version;
+  for(int s=0;s<SLOTS;s++){added->slot[s].fd=-1;added->slot[s].id=-1;}
+  break;
+ }
+ pthread_mutex_unlock(&channel_lock);return added;
+}
+static void slot_clear(Slot *s) {
+ if(s->map)munmap(s->map,s->size);if(s->fd>=0)close(s->fd);
+ s->map=NULL;s->size=0;s->fd=-1;s->id=-1;
+}
+static void channel_remove(int fd) {
+ Channel *c=channel_of(fd);if(!c)return;
+ for(int s=0;s<SLOTS;s++)slot_clear(&c->slot[s]);
+ pthread_mutex_lock(&channel_lock);c->version=0;c->fd=-1;pthread_mutex_unlock(&channel_lock);
+}
 static int io(int fd,void *data,size_t length,int sending) {
  uint8_t *p=data;
  while(length) {
@@ -38,6 +73,31 @@ static int io(int fd,void *data,size_t length,int sending) {
 }
 static int put32(int fd,uint32_t v){v=htonl(v);return io(fd,&v,4,1);}
 static int get32(int fd,uint32_t *v){int r=io(fd,v,4,0);if(!r)*v=ntohl(*v);return r;}
+/* A record's first word, with the descriptor the app may attach to it (SCM_RIGHTS), else -1. */
+static int get32_fd(int fd,uint32_t *v,int *received) {
+ uint8_t *p=(uint8_t *)v;size_t length=4;*received=-1;
+ while(length) {
+  struct pollfd f={.fd=fd,.events=POLLIN};
+  int r;do {r=poll(&f,1,12000);}while(r<0 && errno==EINTR);
+  if(r<=0){if(!r)errno=ETIMEDOUT;goto fail;}
+  char control[CMSG_SPACE(sizeof(int)*4)];
+  struct iovec vec={.iov_base=p,.iov_len=length};
+  struct msghdr msg={.msg_iov=&vec,.msg_iovlen=1,.msg_control=control,.msg_controllen=sizeof(control)};
+  ssize_t n=recvmsg(fd,&msg,MSG_CMSG_CLOEXEC);
+  if(n<0 && errno==EINTR)continue;
+  if(n<=0){if(!n)errno=EPIPE;goto fail;}
+  for(struct cmsghdr *h=CMSG_FIRSTHDR(&msg);h;h=CMSG_NXTHDR(&msg,h))
+   if(h->cmsg_level==SOL_SOCKET && h->cmsg_type==SCM_RIGHTS)
+    for(size_t i=0;i<(h->cmsg_len-CMSG_LEN(0))/sizeof(int);i++) {
+     int got;memcpy(&got,(char *)CMSG_DATA(h)+i*sizeof(int),sizeof(int));
+     if(*received<0)*received=got;else close(got);
+    }
+  if(msg.msg_flags&MSG_CTRUNC){errno=EPROTO;goto fail;}
+  p+=n;length-=n;
+ }
+ *v=ntohl(*v);return 0;
+fail:if(*received>=0)close(*received);*received=-1;return -1;
+}
 static int connect_broker(void) {
  if(broker>=0 && broker_pid==getpid())return 0;
  if(broker>=0)close(broker);broker=-1;broker_pid=getpid();
@@ -82,10 +142,8 @@ static int remote_error(RungicCodec *c) {
  uint32_t n;if(get32(c->fd,&n) || n>=sizeof(c->error)) {errno=EPROTO;return fail(c,"Backend error");}
  if(io(c->fd,c->error,n,0))return fail(c,"Read error");c->error[n]=0;return -1;
 }
-int rungic_codec_open(RungicCodec *c,const RungicCodecConfig *config) {
- rungic_codec_close(c);c->ended=0;c->input_count=c->output_count=0;c->error[0]=0;
- const char *disabled=getenv("RUNGIC_CODEC_DISABLE");
- if(disabled && !strcmp(disabled,"1")){errno=ENODEV;return fail(c,"Hardware disabled by environment");}
+/* A channel and shared memory from the broker (c->fd, c->memory). */
+static int open_channel(RungicCodec *c) {
  int fdlist[4]={-1,-1,-1,-1},count=0,result=-1;
  pthread_mutex_lock(&broker_lock);
  if(connect_broker() || put32(broker,OPEN))goto broker_error;
@@ -119,15 +177,69 @@ broker_error:
  if(broker>=0)close(broker);broker=-1;
 out:
  {int error=errno;for(int i=0;i<count;i++)if(fdlist[i]>=0)close(fdlist[i]);pthread_mutex_unlock(&broker_lock);errno=error;}
- if(result<0){fail(c,"Open codec channel");rungic_codec_close(c);return -1;}
- const int values[]={MAGIC,config->encoder,config->kind,config->width,config->height,config->fps_num,config->fps_den,config->bitrate,config->key_interval,config->color_standard,config->color_range,config->color_transfer};
- for(size_t i=0;i<sizeof(values)/sizeof(values[0]);i++)if(put32(c->fd,values[i]))goto config_error;
- if(get32(c->fd,&word))goto config_error;
- if(word==(uint32_t)-1){remote_error(c);rungic_codec_close(c);return -1;}
+ return result;
+}
+/* 0 configured, -1 failed (c->error), 1 the app does not know channel version 2. */
+static int configure(RungicCodec *c,const RungicCodecConfig *config,int version,int options) {
+ const int values[]={version==2?(int)MAGIC2:(int)MAGIC,config->encoder,config->kind,config->width,config->height,config->fps_num,config->fps_den,config->bitrate,config->key_interval,config->color_standard,config->color_range,config->color_transfer,options};
+ uint32_t word;
+ for(size_t i=0;i<sizeof(values)/sizeof(values[0])-(version==2?0:1);i++)if(put32(c->fd,values[i]))goto config_error;
+ if(get32(c->fd,&word)) {
+  /* An app before version 2 rejects the magic; a minimal broker may just close the channel. */
+  if(version==2 && (errno==EPIPE || errno==ECONNRESET))return 1;
+  goto config_error;
+ }
+ if(word==(uint32_t)-1){remote_error(c);return version==2 && strstr(c->error,"Channel version")?1:-1;}
  if(word!=RUNGIC_DONE || get32(c->fd,&word) || word>=sizeof(c->name)){errno=EPROTO;goto config_error;}
  if(io(c->fd,c->name,word,0))goto config_error;c->name[word]=0;
+ if(version==2 && !channel_add(c->fd,2)){errno=EMFILE;goto config_error;}
  return 0;
-config_error:fail(c,"Configure codec");rungic_codec_close(c);return -1;
+config_error:fail(c,"Configure codec");return -1;
+}
+static int default_options(void) {
+ const char *buffers=getenv("RUNGIC_CODEC_BUFFERS");
+ if(buffers && *buffers)return !strcmp(buffers,"1")?RUNGIC_OPTION_BUFFERS:0;
+ /* Firefox's RDD sandbox: DMA-BUF sync ioctls there are not verified yet. */
+ return getenv("RUNGIC_CODEC_PRECONNECT") || buffers_unusable?0:RUNGIC_OPTION_BUFFERS;
+}
+int rungic_codec_open(RungicCodec *c,const RungicCodecConfig *config) {
+ return rungic_codec_open_options(c,config,RUNGIC_OPTIONS_DEFAULT);
+}
+int rungic_codec_open_options(RungicCodec *c,const RungicCodecConfig *config,int options) {
+ rungic_codec_close(c);c->ended=0;c->input_count=c->output_count=0;c->error[0]=0;
+ const char *disabled=getenv("RUNGIC_CODEC_DISABLE");
+ if(disabled && !strcmp(disabled,"1")){errno=ENODEV;return fail(c,"Hardware disabled by environment");}
+ if(options==RUNGIC_OPTIONS_DEFAULT)options=default_options();
+ for(int version=app_version1?1:2;;version=1) {
+  if(version==1 && (options&RUNGIC_OPTION_TEN_BIT)){errno=ENOTSUP;fail(c,"10-bit output needs a newer Rungic app");return -1;}
+  if(open_channel(c)){fail(c,"Open codec channel");rungic_codec_close(c);return -1;}
+  int r=configure(c,config,version,options);
+  if(!r){if(version==1 && !app_version1)app_version1=1;return 0;}
+  rungic_codec_close(c);
+  if(r<0 || version==1)return -1;
+ }
+}
+/* The slot a decoded picture is in: mapped from the descriptor that came with its first picture. */
+static Slot *install_slot(Channel *channel,int id,int received,int size) {
+ Slot *slot=NULL,*free_slot=NULL,*oldest=NULL;
+ for(int s=0;s<SLOTS;s++) {
+  Slot *t=&channel->slot[s];
+  if(t->id==id)slot=t;
+  else if(t->id<0){if(!free_slot)free_slot=t;}
+  else if(!oldest || t->id<oldest->id)oldest=t;
+ }
+ if(received<0) {
+  if(!slot || (size_t)size!=slot->size){errno=EPROTO;return NULL;}
+  return slot;
+ }
+ /* Slot numbers only grow: the lowest belongs to a decoder buffer set the app has replaced. */
+ if(!slot)slot=free_slot?free_slot:oldest;
+ slot_clear(slot);
+ if(size<=0 || size>(256<<20)){close(received);errno=EPROTO;return NULL;}
+ void *map=mmap(NULL,size,PROT_READ,MAP_SHARED,received,0);
+ if(map==MAP_FAILED){close(received);return NULL;}
+ slot->id=id;slot->fd=received;slot->map=map;slot->size=size;
+ return slot;
 }
 int rungic_codec_exchange(RungicCodec *c,int cmd,int id,int64_t pts,int flags,int length,RungicCodecOutput callback,void *user) {
  int consumer_failed=0;
@@ -140,16 +252,33 @@ int rungic_codec_exchange(RungicCodec *c,int cmd,int id,int64_t pts,int flags,in
   c->input_count++;
  }
  for(;;) {
-  uint32_t type;if(get32(c->fd,&type))goto error;
+  uint32_t type;int received=-1;Channel *channel=channel_of(c->fd);
+  if(channel?get32_fd(c->fd,&type,&received):get32(c->fd,&type))goto error;
+  if(received>=0 && type!=RUNGIC_DECODED){close(received);errno=EPROTO;goto error;}
   if(type==RUNGIC_DONE){if(cmd==RUNGIC_FLUSH)c->ended=0;return consumer_failed?-1:0;}
-  if(type==(uint32_t)-1)return remote_error(c);
+  if(type==(uint32_t)-1) {remote_error(c);if(strstr(c->error,"not linear YUV"))buffers_unusable=1;return -1;}
   if(type==RUNGIC_EOS){c->ended=1;continue;}
-  if(type<RUNGIC_ENCODED || type>RUNGIC_CONFIG){errno=EPROTO;goto error;}
-  uint32_t h[18];for(int i=0;i<18;i++)if(get32(c->fd,&h[i]))goto error;
-  RungicCodecFrame frame={.type=type,.id=h[0],.flags=h[1],.size=h[2],.pts=(int64_t)(((uint64_t)h[3]<<32)|h[4]),.width=h[5],.height=h[6],.crop_x=h[7],.crop_y=h[8],.data=c->memory+RUNGIC_CODEC_HALF};
-  if(frame.size<0 || (unsigned)frame.size>RUNGIC_CODEC_HALF){errno=EPROTO;goto error;}
+  if(type<RUNGIC_ENCODED || type>RUNGIC_CONFIG){if(received>=0)close(received);errno=EPROTO;goto error;}
+  /* Version 2 adds three plane offsets, the buffer's slot (-1: shared memory) and the depth. */
+  uint32_t h[23]={0};int words=channel?23:18;
+  for(int i=0;i<words;i++)if(get32(c->fd,&h[i])){if(received>=0)close(received);goto error;}
+  RungicCodecFrame frame={.type=type,.id=h[0],.flags=h[1],.size=h[2],.pts=(int64_t)(((uint64_t)h[3]<<32)|h[4]),.width=h[5],.height=h[6],.crop_x=h[7],.crop_y=h[8],.data=c->memory+RUNGIC_CODEC_HALF,.depth=8};
   for(int p=0;p<3;p++){frame.plane[p].stride=h[9+p*3];frame.plane[p].step=h[10+p*3];frame.plane[p].length=h[11+p*3];}
+  Slot *slot=NULL;
+  if(channel) {
+   for(int p=0;p<3;p++)frame.offset[p]=h[18+p];
+   frame.depth=h[22];
+   int id=(int)h[21];
+   if(id>=0)slot=install_slot(channel,id,received,frame.size);
+   else if(received>=0){close(received);errno=EPROTO;goto error;}
+   if(id>=0 && !slot)goto error;
+   if(slot)frame.data=slot->map;
+  } else for(int p=1;p<3;p++)frame.offset[p]=frame.offset[p-1]+frame.plane[p-1].length;
+  if(frame.size<0 || (!slot && (unsigned)frame.size>RUNGIC_CODEC_HALF) || (frame.depth!=8 && frame.depth!=10)){errno=EPROTO;goto error;}
+  for(int p=0;p<3;p++)if(frame.offset[p]<0 || frame.plane[p].length<0 || (int64_t)frame.offset[p]+frame.plane[p].length>frame.size){errno=EPROTO;goto error;}
+  if(slot){struct dma_buf_sync sync={.flags=DMA_BUF_SYNC_START|DMA_BUF_SYNC_READ};ioctl(slot->fd,DMA_BUF_IOCTL_SYNC,&sync);}
   int r=callback && !consumer_failed?callback(user,&frame):0;
+  if(slot){struct dma_buf_sync sync={.flags=DMA_BUF_SYNC_END|DMA_BUF_SYNC_READ};ioctl(slot->fd,DMA_BUF_IOCTL_SYNC,&sync);}
   if(put32(c->fd,0xac))goto error;
   if(type!=RUNGIC_CONFIG)c->output_count++;
   /* A downstream FLUSHING result must not leave response records unread.
@@ -159,24 +288,53 @@ int rungic_codec_exchange(RungicCodec *c,int cmd,int id,int64_t pts,int flags,in
 error:return fail(c,"Codec exchange");
 }
 void rungic_codec_close(RungicCodec *c) {
- if(c->fd>=0){shutdown(c->fd,SHUT_RDWR);close(c->fd);c->fd=-1;}
+ if(c->fd>=0){channel_remove(c->fd);shutdown(c->fd,SHUT_RDWR);close(c->fd);c->fd=-1;}
  if(c->memory){munmap(c->memory,RUNGIC_CODEC_HALF*2);c->memory=NULL;}
 }
+/* Plane p's first visible sample, or NULL when w x h samples of size bytes (step apart) do not
+ * fit its length. */
+static const uint8_t *plane_at(const RungicCodecFrame *f,int p,int w,int h,int bytes) {
+ int x=p?f->crop_x/2:f->crop_x,y=p?f->crop_y/2:f->crop_y;
+ int step=f->plane[p].step,row=f->plane[p].stride,len=f->plane[p].length;
+ if(step<bytes || step>4*bytes || row<1 || len<1 || f->offset[p]<0 || (int64_t)f->offset[p]+len>f->size)return NULL;
+ size_t base=(size_t)y*row+(size_t)x*step,last=base+(size_t)(h-1)*row+(size_t)(w-1)*step+bytes-1;
+ if(last>=(unsigned)len)return NULL;
+ return f->data+f->offset[p]+base;
+}
+static int picture(const RungicCodecFrame *f,int depth) {
+ return f->type==RUNGIC_DECODED && f->depth==depth && f->width>=1 && f->height>=1 && f->width<=2560 && f->height<=2560 && f->crop_x>=0 && f->crop_y>=0;
+}
 int rungic_codec_copy_i420(const RungicCodecFrame *f,uint8_t *const dst[3],const int stride[3]) {
- if(f->type!=RUNGIC_DECODED || f->width<1 || f->height<1 || f->width>2560 || f->height>2560 || f->crop_x<0 || f->crop_y<0)return -1;
- size_t offset=0;
+ if(!picture(f,8))return -1;
  for(int p=0;p<3;p++) {
-  int w=p?(f->width+1)/2:f->width,h=p?(f->height+1)/2:f->height;
-  int x=p?f->crop_x/2:f->crop_x,y=p?f->crop_y/2:f->crop_y;
-  int step=f->plane[p].step,row=f->plane[p].stride,len=f->plane[p].length;
-  if(step<1 || step>2 || row<1 || len<1 || stride[p]<w || offset+(size_t)len>(unsigned)f->size)return -1;
-  size_t base=(size_t)y*row+(size_t)x*step,last=base+(size_t)(h-1)*row+(size_t)(w-1)*step;
-  if(last>=(unsigned)len)return -1;
+  int w=p?(f->width+1)/2:f->width,h=p?(f->height+1)/2:f->height,step=f->plane[p].step,row=f->plane[p].stride;
+  const uint8_t *s=plane_at(f,p,w,h,1);
+  if(!s || stride[p]<w || step>2)return -1;
   for(int r=0;r<h;r++) {
-   const uint8_t *s=f->data+offset+base+(size_t)r*row;uint8_t *d=dst[p]+r*stride[p];
-   if(step==1)memcpy(d,s,w);else for(int col=0;col<w;col++)d[col]=s[col*step];
+   const uint8_t *src=s+(size_t)r*row;uint8_t *d=dst[p]+r*stride[p];
+   if(step==1)memcpy(d,src,w);else for(int col=0;col<w;col++)d[col]=src[col*step];
   }
-  offset+=len;
  }
  return 0;
+}
+/* Y, then CbCr interleaved: rows copied as they are when the picture is semi-planar already. */
+static int copy_semiplanar(const RungicCodecFrame *f,uint8_t *const dst[2],const int stride[2],int bytes) {
+ int w=f->width,h=f->height,cw=(w+1)/2,ch=(h+1)/2;
+ const uint8_t *y=plane_at(f,0,w,h,bytes),*u=plane_at(f,1,cw,ch,bytes),*v=plane_at(f,2,cw,ch,bytes);
+ if(!y || !u || !v || f->plane[0].step!=bytes || stride[0]<w*bytes || stride[1]<cw*2*bytes)return -1;
+ for(int r=0;r<h;r++)memcpy(dst[0]+(size_t)r*stride[0],y+(size_t)r*f->plane[0].stride,(size_t)w*bytes);
+ int interleaved=f->plane[1].step==2*bytes && f->plane[2].step==2*bytes && v==u+bytes && f->plane[1].stride==f->plane[2].stride;
+ for(int r=0;r<ch;r++) {
+  uint8_t *d=dst[1]+(size_t)r*stride[1];
+  if(interleaved){memcpy(d,u+(size_t)r*f->plane[1].stride,(size_t)cw*2*bytes);continue;}
+  const uint8_t *su=u+(size_t)r*f->plane[1].stride,*sv=v+(size_t)r*f->plane[2].stride;
+  for(int col=0;col<cw;col++){memcpy(d+col*2*bytes,su+(size_t)col*f->plane[1].step,bytes);memcpy(d+col*2*bytes+bytes,sv+(size_t)col*f->plane[2].step,bytes);}
+ }
+ return 0;
+}
+int rungic_codec_copy_nv12(const RungicCodecFrame *f,uint8_t *const dst[2],const int stride[2]) {
+ return picture(f,8)?copy_semiplanar(f,dst,stride,1):-1;
+}
+int rungic_codec_copy_p010(const RungicCodecFrame *f,uint8_t *const dst[2],const int stride[2]) {
+ return picture(f,10)?copy_semiplanar(f,dst,stride,2):-1;
 }

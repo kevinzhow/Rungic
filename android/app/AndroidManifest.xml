@@ -1,4 +1,4 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.rungic.plasma" android:versionCode="78" android:versionName="2.30">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.rungic.plasma" android:versionCode="81" android:versionName="2.33">
   <uses-sdk android:minSdkVersion="30" android:targetSdkVersion="35" />
   <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
   <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />

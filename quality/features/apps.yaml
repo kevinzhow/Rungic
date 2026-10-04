@@ -652,7 +652,7 @@ features:
     status: live
     platform: linux
     interfaces: [codec]
-    summary: Linux 的 GStreamer 播放器、相机、录屏和私有 FFmpeg 经 APK 用安卓 MediaCodec（高通 c2.qti）做 H.264/HEVC 编解码和 VP9 解码。
+    summary: Linux 的 GStreamer 播放器、相机、录屏和私有 FFmpeg 经 APK 用安卓 MediaCodec（高通 c2.qti）做 H.264/HEVC 编解码和 VP9 解码（含 10bit 解码）。
     experience:
       - id: E1
         text: playbin3 播放 H.264/HEVC/VP9 时自动选中硬件解码元素（rungich264dec 等，rank PRIMARY+32），seek、暂停/恢复、EOS 正常。
@@ -674,18 +674,34 @@ features:
         evidence:
           - {doc: docs/48-plasma-media-pipelines.md, date: 2026-09-27, note: "录屏收尾 0.29 秒，连续 3 次快捷设置验收通过"}
         device: 编码跟不上取决于手机硬件编码器经宿主桥接的吞吐（约 50 fps），收尾时间也是手机上的时序
+      - id: E6
+        text: 解码帧留在解码器自己的缓冲里（DMA-BUF，每个缓冲只传一次描述符、只映射一次），APK 里不再复制；GStreamer 直接输出 NV12（下游不接受时 I420），与 FFmpeg 软解逐字节一致。
+        evidence:
+          - {doc: docs/108-codec-bridge-buffers.md, date: 2026-10-04, note: "G100 S：H.264/HEVC/VP9 1080p 与软解 md5 一致"}
+      - id: E7
+        text: 10bit 的 HEVC Main10、VP9 Profile 2 由硬件解码，输出 P010，不悄悄压成 8bit；不支持时打开失败，交给软件解码。
+        evidence:
+          - {doc: docs/108-codec-bridge-buffers.md, date: 2026-10-04, note: "G100 S：HEVC Main10 1080p 与软解 P010 md5 一致"}
+      - id: E8
+        text: 新的 Linux 端遇到旧 APK（通道版本 1）自动退回共享内存，8bit 照常硬件解码；手机的解码缓冲读不了时同样退回。
+        evidence:
+          - {doc: docs/108-codec-bridge-buffers.md, date: 2026-10-04, note: "APK 2.30 配新 Linux 端，H.264/HEVC/VP9 与软解 md5 一致"}
     pitfalls:
-      - text: 解码输出按 stride 和 crop 在 CPU 上复制成 I420，不是零复制；1080p NV12 约 3.1 MB/帧。
-        docs: [docs/research/35-hardware-codec-integration.md, docs/research/34-hardware-codec-audit.md]
+      - text: 硬件解码路径的 CPU 大头是 MediaCodec/Codec2 框架每帧的消息、binder 和缓冲映射，加上同步轮询；去掉复制只省了约 10%，实时 1080p60 仍约一个核（Linux、APK、Codec2 服务合计）。吞吐卡在约 82 帧/秒，因为一帧一帧同步往返。
+        docs: [docs/108-codec-bridge-buffers.md]
+      - text: 渲染到 Surface 时高通解码器默认写 UBWC 压缩格式，要设 vendor.qti-ext-dec-forceNonUBWC.value=1；读平面布局不能用 Image.getPlanes()，遇到 UBWC 缓冲框架会直接 abort，连同桌面一起崩溃。
+        docs: [docs/108-codec-bridge-buffers.md]
+      - text: 解码输入块设成 16 MiB 时，Codec2 每帧映射、解映射一次，光解映射就占 APK 解码线程约 1/5；按分辨率设置。
+        docs: [docs/108-codec-bridge-buffers.md]
       - text: 硬件编码经宿主桥接的吞吐约 50 fps：1080×2400@60 单路被拒，两路大分辨率同时编码第二路 CodecException；多屏或 60 fps 时把每路缩到长边 ≤1920。
         docs: [docs/48-plasma-media-pipelines.md]
       - text: Android SharedMemory 可能是 st_size=0 的 ashmem 字符设备，不能只接受普通 memfd。
         docs: [docs/research/35-hardware-codec-integration.md]
       - text: 做成 VA-API 驱动换不掉 FFmpeg 补丁、Snapshot 补丁和 Firefox 预加载（Firefox 的 glxtest 在 KGSL 软件 EGL 设备处就关掉 VA-API），维持现状；VA-API 只能作为另一项新能力单独立项。
         docs: [docs/research/74-vaapi-feasibility.md]
-      - text: 原厂 V4L2 节点 video32/33 只验证到能力枚举，MMAP/USERPTR 返回 EINVAL；不为未验证接口扩大 LXC 权限。
-        docs: [docs/research/34-hardware-codec-audit.md, docs/research/35-hardware-codec-integration.md]
-      - text: VP8、AV1 在本机只有软件组件，不能宣称硬件编解码；没有 4K、HDR、10-bit 和 DRM 视频。
+      - text: 原厂 V4L2 节点 video32 能直接硬解（只收 DMABUF，调用顺序错了会让固件断言并复位视频核心，Android 正在用的解码也会中断）；上游 Iris 驱动不支持 parrot，也不能和 msm_video 共存。默认仍走 MediaCodec，不为它扩大 LXC 权限。
+        docs: [docs/108-codec-bridge-buffers.md, docs/research/34-hardware-codec-audit.md]
+      - text: VP8、AV1 在本机只有软件组件，不能宣称硬件编解码；没有 4K（上限 2560×1440）、HDR 显示和 DRM 视频；10bit 只在解码侧。
         docs: [docs/research/34-hardware-codec-audit.md]
       - text: broker 只允许 UID 0/1000，最多 64 条连接、6 个活动 codec，只接受编解码固定命令。
         docs: [docs/research/35-hardware-codec-integration.md]
@@ -695,6 +711,8 @@ features:
       - shared/media/gst-rungic-codec.c
       - shared/media/ffmpeg-rungic-codec.c
       - android/app/src/com/rungic/plasma/CodecBridge.java
+      - android/app/src/com/rungic/plasma/MediaBuffers.java
+      - android/app/jni/media/
       - packages/ffmpeg/
       - packaging/rungic-codec/
       - tools/system/tests/media_codec.py
@@ -705,6 +723,7 @@ features:
       - docs/research/34-hardware-codec-audit.md
       - docs/research/35-hardware-codec-integration.md
       - docs/research/74-vaapi-feasibility.md
+      - docs/108-codec-bridge-buffers.md
 
   - id: apps.screen-sharing
     title: 屏幕共享门户

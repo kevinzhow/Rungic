@@ -130,3 +130,4 @@
 - {path: docs/research/proactive-system-care.md, kind: journal, note: 主动式系统关怀：设计依据与验收}
 - {path: docs/105-test-debt-2026-10-03.md, kind: journal, note: 测试欠账清理：结果、修复的缺陷、未修的问题与剩下的 device-only}
 - {path: docs/106-codex-desktop-operation.md, kind: journal, note: 默认 Codex 桌面操作与 API 备选的实现和验收}
+- {path: docs/108-codec-bridge-buffers.md, kind: journal, note: 编解码桥 v2：解码帧走 DMA-BUF、10bit P010、CPU 开销分析；附 Iris 驱动与原厂 V4L2 直通调研}
