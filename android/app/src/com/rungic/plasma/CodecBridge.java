@@ -83,6 +83,10 @@ final class CodecBridge implements Closeable {
             }
         }
     }
+    static final class Output {
+        final int index;final MediaCodec.BufferInfo info=new MediaCodec.BufferInfo();
+        Output(int index,MediaCodec.BufferInfo from){this.index=index;info.set(from.offset,from.size,from.presentationTimeUs,from.flags);}
+    }
     static final class Session {
         final FileDescriptor fd;final SharedMemory memory;
         MediaCodec codec;ByteBuffer shared;DataInputStream in;DataOutputStream out;
@@ -93,6 +97,10 @@ final class CodecBridge implements Closeable {
         ImageReader reader;HandlerThread imageThread;ParcelFileDescriptor channel;
         final LinkedBlockingQueue<Image> images=new LinkedBlockingQueue<>();
         final Map<Long,long[]> slots=new HashMap<>();int nextSlot;
+        // Asynchronous MediaCodec: its callbacks queue free input indices (Integer), outputs (Output)
+        // and errors (Exception); the session thread waits on this queue instead of polling.
+        final LinkedBlockingQueue<Object> events=new LinkedBlockingQueue<>();
+        final ArrayDeque<Integer> freeInputs=new ArrayDeque<>();HandlerThread callbackThread;
         final Map<Long,ArrayDeque<Integer>> frames=new HashMap<>();
         final Map<Integer,byte[]> parameters=new TreeMap<>();
         Session(FileDescriptor fd,SharedMemory memory){this.fd=fd;this.memory=memory;}
@@ -108,11 +116,13 @@ final class CodecBridge implements Closeable {
                     while(true) {
                         int cmd=in.readInt();if(cmd==CLOSE)break;
                         if(cmd==FLUSH) {
-                            codec.flush();frames.clear();ended=false;
+                            // Asynchronous mode: flush drops every index the callbacks gave; start() resumes them.
+                            codec.flush();frames.clear();ended=false;events.clear();freeInputs.clear();
                             for(Image image;(image=images.poll())!=null;)image.close();
+                            codec.start();
                             if(!encoder && !parameters.isEmpty()) {
                                 ByteArrayOutputStream csd=new ByteArrayOutputStream();for(byte[] p:parameters.values())csd.write(p);
-                                int index=codec.dequeueInputBuffer(2000000);if(index<0)throw new IOException("Flush input timeout");
+                                int index=nextInput();
                                 byte[] bytes=csd.toByteArray();codec.getInputBuffer(index).put(bytes);
                                 codec.queueInputBuffer(index,0,bytes.length,0,MediaCodec.BUFFER_FLAG_CODEC_CONFIG);
                             }
@@ -125,9 +135,7 @@ final class CodecBridge implements Closeable {
                             if(length<=0 || length>HALF)throw new IOException("Frame size");
                             if(encoder && length!=width*height*3/2)throw new IOException("I420 size");
                             if(frames.size()>128)throw new IOException("Too many delayed frames");}
-                        int index=-1;long deadline=System.nanoTime()+5000000000L;
-                        while(index<0 && System.nanoTime()<deadline) {index=codec.dequeueInputBuffer(1000);if(index<0)drain(false);}
-                        if(index<0)throw new IOException("Input buffer timeout");
+                        int index=nextInput();
                         if(cmd==DRAIN)codec.queueInputBuffer(index,0,0,0,MediaCodec.BUFFER_FLAG_END_OF_STREAM);
                         else {
                             if(encoder) {
@@ -147,6 +155,7 @@ final class CodecBridge implements Closeable {
                     throw e;
                 } finally {
                     if(codec!=null){try{codec.stop();}catch(Exception ignored){}codec.release();}
+                    if(callbackThread!=null)callbackThread.quitSafely();
                     for(Image image;(image=images.poll())!=null;)image.close();
                     if(reader!=null)reader.close();
                     if(imageThread!=null)imageThread.quitSafely();
@@ -208,7 +217,15 @@ final class CodecBridge implements Closeable {
                 },new Handler(imageThread.getLooper()));
                 surface=reader.getSurface();channel=ParcelFileDescriptor.dup(fd);
             }
-            codec=MediaCodec.createByCodecName(name);codec.configure(format,surface,null,encoder?MediaCodec.CONFIGURE_FLAG_ENCODE:0);codec.start();
+            codec=MediaCodec.createByCodecName(name);
+            callbackThread=new HandlerThread("rungic-codec-events");callbackThread.start();
+            codec.setCallback(new MediaCodec.Callback() {
+                @Override public void onInputBufferAvailable(MediaCodec c,int index){events.add(index);}
+                @Override public void onOutputBufferAvailable(MediaCodec c,int index,MediaCodec.BufferInfo info){events.add(new Output(index,info));}
+                @Override public void onError(MediaCodec c,MediaCodec.CodecException e){events.add(e);}
+                @Override public void onOutputFormatChanged(MediaCodec c,MediaFormat f){Log.i("RungicCodec","FORMAT "+name+" "+f);}
+            },new Handler(callbackThread.getLooper()));
+            codec.configure(format,surface,null,encoder?MediaCodec.CONFIGURE_FLAG_ENCODE:0);codec.start();
             shared=memory.mapReadWrite();byte[] bytes=name.getBytes("UTF-8");out.writeInt(DONE);out.writeInt(bytes.length);out.write(bytes);out.flush();
             Log.i("RungicCodec","OPEN "+name+" "+width+"x"+height+(buffers?" buffers":"")+(tenBit?" 10-bit":"")+" uid="+android.os.Process.myUid());
         }
@@ -282,63 +299,79 @@ final class CodecBridge implements Closeable {
                 MediaBuffers.send(channel.getFd(),b.array(),b.position(),attach);
             } finally {if(attach>=0)ParcelFileDescriptor.adoptFd(attach).close();}
         }
-        void drain(boolean eos) throws Exception {
-            long deadline=System.nanoTime()+10000000000L;MediaCodec.BufferInfo info=new MediaCodec.BufferInfo();
-            while(System.nanoTime()<deadline) {
-                int index=codec.dequeueOutputBuffer(info,eos?10000:2000);
-                if(index==MediaCodec.INFO_TRY_AGAIN_LATER){if(eos)continue;return;}
-                if(index==MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {Log.i("RungicCodec","FORMAT "+name+" "+codec.getOutputFormat());continue;}
-                if(index<0)continue;
-                boolean outputEos=(info.flags&MediaCodec.BUFFER_FLAG_END_OF_STREAM)!=0;
-                int type=0,id=-1,size=0;int[] meta=new int[13];int[] offsets=new int[3];
-                Image image=null;
-                try {
-                    try {
-                        // A rendered (Surface) output may report no size: its PTS identifies a picture.
-                        boolean config=(info.flags&MediaCodec.BUFFER_FLAG_CODEC_CONFIG)!=0;
-                        if(info.size>0 || (reader!=null && !config && frames.containsKey(info.presentationTimeUs))) {
-                            if(config)type=CONFIG;
-                            else {ArrayDeque<Integer> queue=frames.get(info.presentationTimeUs);
-                                if(queue==null || queue.isEmpty())throw new IOException("Unmatched output PTS "+info.presentationTimeUs);
-                                id=queue.removeFirst();if(queue.isEmpty())frames.remove(info.presentationTimeUs);outputCount++;
-                                type=encoder?ENCODED:DECODED;}
-                            if(type==DECODED && reader!=null) {
-                                codec.releaseOutputBuffer(index,true);index=-1;
-                                image=renderedImage(info.presentationTimeUs);
-                            } else if(type==DECODED) {
-                                ByteBuffer dst=shared.duplicate();dst.position(HALF);dst.limit(HALF*2);
-                                try(Image decoded=codec.getOutputImage(index)) {
-                                    if(decoded==null)throw new IOException("No decoded image");Rect crop=decoded.getCropRect();
-                                    meta[0]=crop.width();meta[1]=crop.height();meta[2]=crop.left;meta[3]=crop.top;
-                                    Image.Plane[] planes=decoded.getPlanes();
-                                    for(int p=0;p<3;p++) {
-                                        ByteBuffer src=planes[p].getBuffer().duplicate();int n=src.remaining();
-                                        if(n>dst.remaining())throw new IOException("Output image too large");
-                                        meta[4+p*3]=planes[p].getRowStride();meta[5+p*3]=planes[p].getPixelStride();meta[6+p*3]=n;
-                                        offsets[p]=size;dst.put(src);size+=n;
-                                    }
-                                }
-                            } else {ByteBuffer dst=shared.duplicate();dst.position(HALF);dst.limit(HALF*2);
-                                ByteBuffer src=codec.getOutputBuffer(index).duplicate();src.position(info.offset);src.limit(info.offset+info.size);size=info.size;if(size>HALF)throw new IOException("Output AU too large");dst.put(src);}
-                        }
-                    } finally {if(index>=0)codec.releaseOutputBuffer(index,false);}
-                    // Hardware buffer is released before waiting for a paused Linux sink
-                    // (a rendered Image is held until Linux has copied it: its ACK).
-                    if(type!=0) {
-                        if(image!=null)writeBuffer(image,id,info);
-                        else {
-                            out.writeInt(type);out.writeInt(id);out.writeInt(info.flags);out.writeInt(size);out.writeLong(info.presentationTimeUs);
-                            for(int v:meta)out.writeInt(v);
-                            if(version2) {for(int v:offsets)out.writeInt(v);out.writeInt(-1);out.writeInt(8);}
-                            out.flush();
-                        }
-                        if(in.readInt()!=ACK)throw new IOException("Frame acknowledgment");
-                        deadline=System.nanoTime()+10000000000L;
-                    }
-                } finally {if(image!=null)image.close();}
-                if(outputEos) {ended=true;out.writeInt(EOS);return;}
+        /** A free input index: outputs that come meanwhile go to Linux (the decoder may need them back). */
+        int nextInput() throws Exception {
+            long deadline=System.nanoTime()+5000000000L;
+            while(freeInputs.isEmpty()) {
+                long left=deadline-System.nanoTime();
+                Object event=left>0?events.poll(left,TimeUnit.NANOSECONDS):null;
+                if(event==null)throw new IOException("Input buffer timeout");
+                handle(event);
             }
-            throw new IOException("Output EOS timeout");
+            return freeInputs.poll();
+        }
+        /** The outputs ready now, or (eos) every output up to the end of the stream. */
+        void drain(boolean eos) throws Exception {
+            if(!eos) {for(Object event;(event=events.poll())!=null;)handle(event);return;}
+            while(!ended) {
+                Object event=events.poll(10,TimeUnit.SECONDS);
+                if(event==null)throw new IOException("Output EOS timeout");
+                handle(event);
+            }
+        }
+        void handle(Object event) throws Exception {
+            if(event instanceof Integer){freeInputs.add((Integer)event);return;}
+            if(event instanceof Exception)throw new IOException("Codec error: "+event);
+            output(((Output)event).index,((Output)event).info);
+        }
+        void output(int index,MediaCodec.BufferInfo info) throws Exception {
+            boolean outputEos=(info.flags&MediaCodec.BUFFER_FLAG_END_OF_STREAM)!=0;
+            int type=0,id=-1,size=0;int[] meta=new int[13];int[] offsets=new int[3];
+            Image image=null;
+            try {
+                try {
+                    // A rendered (Surface) output may report no size: its PTS identifies a picture.
+                    boolean config=(info.flags&MediaCodec.BUFFER_FLAG_CODEC_CONFIG)!=0;
+                    if(info.size>0 || (reader!=null && !config && frames.containsKey(info.presentationTimeUs))) {
+                        if(config)type=CONFIG;
+                        else {ArrayDeque<Integer> queue=frames.get(info.presentationTimeUs);
+                            if(queue==null || queue.isEmpty())throw new IOException("Unmatched output PTS "+info.presentationTimeUs);
+                            id=queue.removeFirst();if(queue.isEmpty())frames.remove(info.presentationTimeUs);outputCount++;
+                            type=encoder?ENCODED:DECODED;}
+                        if(type==DECODED && reader!=null) {
+                            codec.releaseOutputBuffer(index,true);index=-1;
+                            image=renderedImage(info.presentationTimeUs);
+                        } else if(type==DECODED) {
+                            ByteBuffer dst=shared.duplicate();dst.position(HALF);dst.limit(HALF*2);
+                            try(Image decoded=codec.getOutputImage(index)) {
+                                if(decoded==null)throw new IOException("No decoded image");Rect crop=decoded.getCropRect();
+                                meta[0]=crop.width();meta[1]=crop.height();meta[2]=crop.left;meta[3]=crop.top;
+                                Image.Plane[] planes=decoded.getPlanes();
+                                for(int p=0;p<3;p++) {
+                                    ByteBuffer src=planes[p].getBuffer().duplicate();int n=src.remaining();
+                                    if(n>dst.remaining())throw new IOException("Output image too large");
+                                    meta[4+p*3]=planes[p].getRowStride();meta[5+p*3]=planes[p].getPixelStride();meta[6+p*3]=n;
+                                    offsets[p]=size;dst.put(src);size+=n;
+                                }
+                            }
+                        } else {ByteBuffer dst=shared.duplicate();dst.position(HALF);dst.limit(HALF*2);
+                            ByteBuffer src=codec.getOutputBuffer(index).duplicate();src.position(info.offset);src.limit(info.offset+info.size);size=info.size;if(size>HALF)throw new IOException("Output AU too large");dst.put(src);}
+                    }
+                } finally {if(index>=0)codec.releaseOutputBuffer(index,false);}
+                // Hardware buffer is released before waiting for a paused Linux sink
+                // (a rendered Image is held until Linux has copied it: its ACK).
+                if(type!=0) {
+                    if(image!=null)writeBuffer(image,id,info);
+                    else {
+                        out.writeInt(type);out.writeInt(id);out.writeInt(info.flags);out.writeInt(size);out.writeLong(info.presentationTimeUs);
+                        for(int v:meta)out.writeInt(v);
+                        if(version2) {for(int v:offsets)out.writeInt(v);out.writeInt(-1);out.writeInt(8);}
+                        out.flush();
+                    }
+                    if(in.readInt()!=ACK)throw new IOException("Frame acknowledgment");
+                }
+            } finally {if(image!=null)image.close();}
+            if(outputEos) {ended=true;out.writeInt(EOS);}
         }
     }
     @Override public synchronized void close() throws IOException {
