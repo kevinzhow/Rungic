@@ -64,6 +64,8 @@ class MainLoop:
 
 def service(monkeypatch, socket_path, script, name):
     """A platform service script as a module, its platform bridge the stand-in, its main loop ours."""
+    monkeypatch.setitem(sys.modules, 'rungic_platform_transport',
+                        load('rungic_platform_transport', ROOT / 'shared/platform/rungic_platform_transport.py'))
     monkeypatch.setitem(sys.modules, 'rungic_host_watch', load('rungic_host_watch', ROOT / 'shared/platform/host_watch.py'))
     module = load(name, ROOT / script)
     monkeypatch.setattr(module, 'SOCKET', socket_path)
