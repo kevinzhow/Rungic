@@ -349,7 +349,7 @@ class StatusTests(Workspace):
         self.stub(device_release=lambda: ('20261001.2+dev1', info),
                   integrity_summary=lambda: {'summary': {'state': 'development'}, 'release': {'mismatch': []}},
                   releases=lambda: [{'version': '20261001.1'}, {'version': '20261001.2'}],
-                  rootfs_state=lambda: ('image', 'snapshot'), HISTORY=history)
+                  rootfs_state=lambda: ('image', 'snapshot'), HISTORY=history, run=Phone().run)
         status = rungic_release.status()
         self.assertEqual(status['installed_release'], '20261001.2+dev1')
         self.assertEqual(status['commit'], 'c0ffee')

@@ -56,6 +56,10 @@ REMOTE = '.remote'   # <name>.deb.remote: a .deb kept on the build host for the 
 RELEASES = APT / 'releases'          # <version>.json: what each metapackage pins
 DEPLOY = WORKSPACE / '.work/deploy'
 HISTORY = DEPLOY / 'history.json'
+# Written by deploy next to the pins: unattended-upgrades leaves the release alone by name, even where
+# a pin is missing (docs/61).
+UNATTENDED = '/etc/apt/apt.conf.d/52rungic-release'
+PINS = '/etc/apt/preferences.d/rungic-release'
 # /var/lib/moto-apt before the Rungic rename; both name the same directory from phase C to D (docs/70).
 DEVICE_REPO = rungic_device.first_path('/var/lib/rungic-apt', '/var/lib/moto-apt')
 META = 'rungic-release'
@@ -461,21 +465,64 @@ cmp -s /etc/apt/preferences.d/rungic.new /etc/apt/preferences.d/rungic 2>/dev/nu
 ''', 'container')
 
 
-def pin_release(info):
-    """Pin every package of the installed release to its exact version (docs/61): above the Ubuntu
-    archive and the repository's other builds, so neither Discover's updates nor apt upgrades change
-    them. With the release metapackage Protected, apt also refuses to remove it to get around its
-    exact dependencies."""
+def release_siblings(info):
+    """Installed packages built from the same source as a package of the release but not in it ->
+    their installed versions. plasma-workspace is coupled (its private ABI is used), and its private
+    libraries (libtaskmanager6, libkworkspace6-6, ...) depend on each other only with >=: without a pin
+    of their own an Ubuntu update moves them away from the pinned plasma-workspace (docs/61)."""
+    text = getattr(run("dpkg-query -W -f '${db:Status-Abbrev}\\t${Package}\\t${source:Package}\\t${Version}\\n'",
+                       'container', timeout=120, check=False), 'stdout', '') or ''
+    installed = {name: (source, version) for status, name, source, version in
+                 (line.split('\t') for line in text.splitlines() if line.count('\t') == 3)
+                 if status.startswith(('ii', 'hi'))}
+    sources = {installed[n][0] for n in info['packages'] if n in installed}
+    return {n: v for n, (s, v) in sorted(installed.items())
+            if s in sources and n not in info['packages'] and n not in (META, FORMER_META)}
+
+
+def pin_body(info, siblings):
     lines = ['# Written by tools/rungic_release.py deploy: the packages of release ' + info['version'] + '.']
     for name, version in sorted({**info['packages'], meta_of(info['version']): info['version']}.items()):
         lines += ['', f'Package: {name}', f'Pin: version {version}', 'Pin-Priority: 1001']
-    body = '\n'.join(lines) + '\n'
+    if siblings:
+        lines += ['', '# Installed packages from the same sources, at their installed versions (docs/61).']
+        for name, version in sorted(siblings.items()):
+            lines += ['', f'Package: {name}', f'Pin: version {version}', 'Pin-Priority: 1001']
+    return '\n'.join(lines) + '\n'
+
+
+def unattended_body(info, siblings):
+    """unattended-upgrades' blacklist of the release's packages by exact name. It honours the pins (a
+    pinned installed version is not upgradable), so this holds only where a pin is missing; the static
+    list rungic-plasma-config ships (51rungic-unattended-upgrades) misses components added since.
+    Entries are Python regular expressions matched from the start of the name: '.' and '+' are
+    bracketed, apt.conf has no escapes."""
+    names = sorted({*info['packages'], *siblings, meta_of(info['version'])})
+    entries = ''.join('\t"' + re.sub(r'([.+])', r'[\1]', n) + '$";\n' for n in names)
+    return (f'// Written by tools/rungic_release.py deploy: release {info["version"]} (docs/61). Its packages move\n'
+            f'// only through a release, also where /etc/apt/preferences.d/rungic-release is missing.\n'
+            f'Unattended-Upgrade::Package-Blacklist {{\n{entries}}};\n')
+
+
+def pin_release(info, siblings=None):
+    """Pin every package of the installed release to its exact version (docs/61): above the Ubuntu
+    archive and the repository's other builds, so neither Discover's updates nor apt upgrades change
+    them. With the release metapackage Protected, apt also refuses to remove it to get around its
+    exact dependencies; and the pins do not depend on it: they hold the versions if it goes anyway.
+    Installed packages from the same sources are pinned as installed (release_siblings), and
+    unattended-upgrades gets the release's names as a blacklist (docs/61)."""
+    if siblings is None:
+        siblings = release_siblings(info)
     run(f'''set -e
-cat > /etc/apt/preferences.d/rungic-release.new <<'EOF'
-{body}EOF
-mv /etc/apt/preferences.d/rungic-release.new /etc/apt/preferences.d/rungic-release
+cat > {PINS}.new <<'EOF'
+{pin_body(info, siblings)}EOF
+mv {PINS}.new {PINS}
+cat > {UNATTENDED}.new <<'EOF'
+{unattended_body(info, siblings)}EOF
+mv {UNATTENDED}.new {UNATTENDED}
 apt-get -q update {APT_OURS} >/dev/null 2>&1 || true
 ''', 'container')
+    return siblings
 
 
 def apt_install(info, record):
@@ -804,8 +851,8 @@ def deploy(version=None, restart='auto', acceptance='smoke', record_label=None, 
                 log['result'] = 'install-failed, rolled back to the snapshot' if ok else log['result']
             return log
         # The installed release's exact versions win from now on; a failed install kept the previous pins.
-        pin_release(info)
-        step('pins', packages=len(info['packages']) + 1)
+        siblings = pin_release(info)
+        step('pins', packages=len(info['packages']) + 1, siblings=sorted(siblings))
         # A development overlay (tools/rungic_dev.py, docs/97) the release replaced: its source and pins
         # would make its builds the candidates again. Kept when the install fails, with its packages.
         import rungic_dev
@@ -941,12 +988,32 @@ def rollback(restart='auto', acceptance='smoke'):
     return deploy(target, restart, acceptance, record_label=f'rollback-to-{target}')
 
 
+def protection(info):
+    """How apt holds the installed release (docs/61): its packages whose pin (1001, or the development
+    overlay's 1002) is not their installed release version, whether the metapackage is Protected, and
+    whether the unattended-upgrades blacklist is there."""
+    if not info or 'packages' not in info:
+        return None
+    text = run(f'''cat {PINS} /etc/apt/preferences.d/rungic-dev 2>/dev/null
+echo "@@protected=$(dpkg-query -W -f '${{Protected}}' {META} 2>/dev/null)"
+[ -f {UNATTENDED} ] && echo "@@unattended=yes"; true''', 'container', check=False).stdout or ''
+    pins, name = {}, None
+    for line in text.splitlines():
+        if line.startswith('Package: '):
+            name = line.split(': ', 1)[1].strip()
+        elif line.startswith('Pin: version ') and name:
+            pins.setdefault(name, set()).add(line.split('Pin: version ', 1)[1].strip())
+    unpinned = sorted(n for n, v in info['packages'].items() if v not in pins.get(n, ()))
+    return {'unpinned': unpinned, 'protected': '@@protected=yes' in text, 'unattended': '@@unattended=yes' in text}
+
+
 def status():
     version, info = device_release()
     report = integrity_summary()
     built = releases()
     return {
         'installed_release': version,
+        'apt': protection(info),
         # A development overlay on the release (tools/rungic_dev.py, docs/97).
         'dev_overlay': ({'base': info['dev']['base'], 'overrides': {n: o['version'] for n, o in
                          info['dev']['overrides'].items()}} if (info or {}).get('dev') else None),

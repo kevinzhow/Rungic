@@ -4,7 +4,7 @@
 
 以产品功能和用户场景为骨架：每条功能是用户能感知的一件事；“体验”是它必须做到的，每条都标明由什么检查（自动测试、实机验收、人工验证或已登记的缺口）。数据在 `quality/`，规则见 [quality/README.md](../quality/README.md)。
 
-共 161 条功能、677 条体验，其中 633 条有检查。
+共 161 条功能、678 条体验，其中 634 条有检查。
 
 ## Agent 能力
 
@@ -1225,6 +1225,7 @@ Linux 应用用手机的相机拍照录像，用手机的扬声器和麦克风�
 - **E5** 部署后改动自动生效：变化的系统服务（service_restart）、正在运行的桌面用户服务（user_restart，plasmashell 最后）按规则重启，需要时重启整个会话；没在运行的单元不启动。（单元测试、人工）
 - **E6** status 给出手机上的发布、它的 git 提交、与仓库是否一致、rootfs 快照状态和开发覆盖；每次部署在 .work/deploy/<时间>-<版本>/ 留下逐步记录和 result。（单元测试）
 - **E7** 增量发布装到 Android 侧的文件，与完整镜像的 host seed 路径和权限一致。（单元测试）
+- **E8** Ubuntu 发布了我们重建或耦合的包的更高版本时，apt 升级（Discover 的更新）和 unattended-upgrades 都保留已装发布的版本：每个发布包按精确版本 pin 在 1001，与耦合包同源的已装兄弟包（plasma-workspace 的私有库）按已装版本 pin，unattended-upgrades 另有按发布生成的精确名单；元包被卸掉后 pin 照样有效。（单元测试、人工）
 
 注意：
 - 经 Wi-Fi 部署整套发布会超过 10 分钟；2026-09-30 一次部署被 590 秒的客户端超时杀掉，只能用 rungic_release.py 自己的函数补完。要放在后台运行，不加超时。 [docs/96-desktop-recovery-after-apk-restart.md](../docs/96-desktop-recovery-after-apk-restart.md)
@@ -1232,6 +1233,7 @@ Linux 应用用手机的相机拍照录像，用手机的扬声器和麦克风�
 - 家目录不随快照回滚，失败部署期间写进 ~/.config 的内容会留下（曾留下 kdeglobals 的 SceneGraphBackend=software，抽屉网格空白）；排查部署后的异常时先看这段时间改过的用户配置。 [docs/61-delivery-diagnostics-plan.md](../docs/61-delivery-diagnostics-plan.md)
 - 建快照的重启仍在跑旧版本，那时的崩溃曾被算进新发布、导致误回滚；验收从安装完成时统计，早于安装的崩溃记为 version null。 [docs/61-delivery-diagnostics-plan.md](../docs/61-delivery-diagnostics-plan.md)
 - 容器里的 unattended-upgrades 是开着的，会把重建包静默换成 Ubuntu 的更高版本；重建、被 divert 和 Qt 私有 ABI 相关的包要在黑名单里。 [docs/61-delivery-diagnostics-plan.md](../docs/61-delivery-diagnostics-plan.md)
+- unattended-upgrades 认 pin（被 pin 的已装版本不算可升级），pin 不在时只剩名单；rungic-plasma-config 带的静态名单漏了后来加入的组件（powerdevil、kwayland、xwayland、flatpak、gst-plugins-base 等）和 plasma-workspace 的私有库，部署因此按发布另写 52rungic-release。 [docs/61-delivery-diagnostics-plan.md](../docs/61-delivery-diagnostics-plan.md)
 - 仓库保留历史版本供回滚；只靠仓库整体 pin 时，旧版本同样可能成为候选，所以按包写 pin。 [docs/61-delivery-diagnostics-plan.md](../docs/61-delivery-diagnostics-plan.md)
 - 按包回滚到较早的发布需要它的提交：Android 侧文件从发布记录的提交中读取并按 sha256 核对。 [docs/70-rungic-rebrand.md](../docs/70-rungic-rebrand.md)
 
