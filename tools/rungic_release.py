@@ -23,10 +23,26 @@ reinstalled. The Android-side files listed under "android" are part of a release
   rungic_release.py commit              keep the current system: drop that snapshot
   rungic_release.py status              installed release, its commit, rootfs, repository and integrity
 
+The dev channel (docs/109): releases cut from origin/main only, one publishing point instead of a
+pool and a numbering per machine, the APK part of the release.
+
+  rungic_release.py dev [--host H] [--out DIR] [--apk FILE|--no-apk] [--publish [--yes]]
+                                      on a clean origin/main: build the stale project packages and
+                                      upstream components, the APK, release YYYYMMDD.N (channel dev),
+                                      and a bundle (repository, APK, manifest) in DIR
+  rungic_release.py export V [--out DIR] the bundle of release V
+  rungic_release.py deploy [V] --all    deploy on every connected Rungic phone, a summary at the end
+  rungic_release.py deploy --from FILE  deploy a bundle another machine made (with or without --all)
+  rungic_release.py status --all        one row per connected phone: release, channel, commit, behind
+                                      origin/main, APK, development overlays, how apt holds the release
+  rungic_release.py publish V [--yes]   the GitHub pre-release dev-V (gh); without --yes only the command
+                                      and the notes: publishing is confirmed by the owner first
+
 With an image rootfs (docs/61 §7) deploy first takes a snapshot of the whole rootfs; a failed
 install or verification returns to it automatically, a good release keeps it until commit.
 
-Every deploy leaves a record under .work/deploy/<time>-<version>/.
+Every deploy leaves a record under .work/deploy/<time>-<version>/, and a line in release/history.json
+(version, commit, channel, phone, result), which is committed with the repository.
 """
 import argparse
 import datetime
@@ -36,6 +52,7 @@ import hashlib
 import io
 import json
 import lzma
+import os
 import re
 import shlex
 import shutil
@@ -56,8 +73,17 @@ REMOTE = '.remote'   # <name>.deb.remote: a .deb kept on the build host for the 
 RELEASES = APT / 'releases'          # <version>.json: what each metapackage pins
 DEPLOY = WORKSPACE / '.work/deploy'
 HISTORY = DEPLOY / 'history.json'
+# Every deploy on every phone, committed with the repository (docs/109); HISTORY above is this
+# computer's own record, which rollback reads.
+RELEASE_HISTORY = WORKSPACE / 'release/history.json'
+APKS = APT / 'apk'                    # the releases' APKs (docs/109)
+ANDROID_STORE = APT / 'android'       # Android-side files of imported bundles, by SHA-256
+COMPONENT_BUILDS = APT / 'component-builds.json'   # tree of packages/<name> each component build had
+BUNDLES = WORKSPACE / '.work/release-bundles'      # dev and export write bundles here (--out, RUNGIC_RELEASE_OUT)
+GITHUB = 'kevinzhow/Rungic'
+DEV_TAG = 'dev-'                      # GitHub pre-release tags: dev-<version>
 # Written by deploy next to the pins: unattended-upgrades leaves the release alone by name, even where
-# a pin is missing (docs/61).
+# a pin is missing (docs/109).
 UNATTENDED = '/etc/apt/apt.conf.d/52rungic-release'
 PINS = '/etc/apt/preferences.d/rungic-release'
 # /var/lib/moto-apt before the Rungic rename; both name the same directory from phase C to D (docs/70).
@@ -129,6 +155,22 @@ def git_state():
     dirty = bool(subprocess.run(['git', 'status', '--porcelain', '--untracked-files=no'], cwd=WORKSPACE,
                                 capture_output=True, text=True).stdout.strip())
     return commit, dirty
+
+
+def git(*args, check=True):
+    """A git command in the repository: its output (the dev channel's checks, notes and counts)."""
+    result = subprocess.run(['git', *args], cwd=WORKSPACE, capture_output=True, text=True)
+    if check and result.returncode:
+        raise SystemExit(f'git {" ".join(args)}: {result.stderr.strip()}')
+    return result.stdout.strip()
+
+
+def sha256_file(path):
+    digest = hashlib.sha256()
+    with open(path, 'rb') as f:
+        for block in iter(lambda: f.read(1 << 20), b''):
+            digest.update(block)
+    return digest.hexdigest()
 
 
 # ---------------------------------------------------------------- pool
@@ -211,9 +253,12 @@ rm -rf "$tmp"
 
 # ---------------------------------------------------------------- build
 
-def next_version():
+def next_version(elsewhere=()):
+    """Today's next YYYYMMDD.N: after this pool's releases and the versions in `elsewhere` (the dev
+    channel's published tags and deployments, so two machines do not cut the same number)."""
     today = datetime.date.today().strftime('%Y%m%d')
     taken = [int(p.stem.split('.')[1]) for p in RELEASES.glob(f'{today}.*.json')] if RELEASES.exists() else []
+    taken += [int(v.split('.')[1]) for v in elsewhere if re.fullmatch(rf'{today}\.\d+', v)]
     return f'{today}.{max(taken, default=0) + 1}'
 
 
@@ -227,6 +272,7 @@ def build_meta(version, deps, info, dest=None):
         doc.mkdir(parents=True)
         (doc / 'release.json').write_text(json.dumps(info, indent=1, ensure_ascii=False) + '\n')
         depends = ', '.join(f'{n} (= {v})' for n, v in sorted(deps.items()))
+        channel = f' ({info["channel"]} channel)' if info.get('channel', 'release') != 'release' else ''
         (root / 'DEBIAN/control').write_text(f'''Package: {META}
 Version: {version}
 Architecture: all
@@ -237,7 +283,7 @@ Protected: yes
 Depends: {depends}
 Conflicts: {FORMER_META}
 Replaces: {FORMER_META}
-Description: Rungic: release {version}
+Description: Rungic: release {version}{channel}
  Pins every package of this project's release {version} (git {info["commit"][:12]}).
  See docs/61-delivery-diagnostics-plan.md.
 ''')
@@ -281,7 +327,9 @@ def index(pool=None, label='rungic'):
     (POOL / 'Release').write_bytes(release)
 
 
-def build(version=None, allow_dirty=False, note='', coupled_override=None):
+def build(version=None, allow_dirty=False, note='', coupled_override=None, channel='release', apk=None):
+    """channel: 'release' (a formal release) or 'dev' (rungic_release.py dev, docs/109); apk: the
+    release's APK (release_apk()), installed by deploy where the phone's is older."""
     commit, dirty = git_state()
     if dirty and not allow_dirty:
         raise SystemExit('tracked files have uncommitted changes; commit first (a release records its commit)')
@@ -325,8 +373,9 @@ def build(version=None, allow_dirty=False, note='', coupled_override=None):
     version = version or next_version()
     if (POOL / f'{META}_{version}_all.deb').exists() or (POOL / f'{FORMER_META}_{version}_all.deb').exists():
         raise SystemExit(f'release {version} exists already')
-    info = {'version': version, 'commit': commit, 'dirty': dirty, 'built': datetime.datetime.now().isoformat(
-        timespec='seconds'), 'note': note, 'packages': deps, 'coupled': sorted(coupled),
+    info = {'version': version, 'channel': channel, 'commit': commit, 'dirty': dirty,
+        'built': datetime.datetime.now().isoformat(timespec='seconds'), 'note': note, 'packages': deps,
+        'coupled': sorted(coupled), 'apk': apk,
         'android': android_manifest(s), 'session_restart': s.get('session_restart', []),
         'service_restart': s.get('service_restart', {}), 'user_restart': s.get('user_restart', {})}
     meta = build_meta(version, deps, info)
@@ -469,7 +518,7 @@ def release_siblings(info):
     """Installed packages built from the same source as a package of the release but not in it ->
     their installed versions. plasma-workspace is coupled (its private ABI is used), and its private
     libraries (libtaskmanager6, libkworkspace6-6, ...) depend on each other only with >=: without a pin
-    of their own an Ubuntu update moves them away from the pinned plasma-workspace (docs/61)."""
+    of their own an Ubuntu update moves them away from the pinned plasma-workspace (docs/109)."""
     text = getattr(run("dpkg-query -W -f '${db:Status-Abbrev}\\t${Package}\\t${source:Package}\\t${Version}\\n'",
                        'container', timeout=120, check=False), 'stdout', '') or ''
     installed = {name: (source, version) for status, name, source, version in
@@ -485,7 +534,7 @@ def pin_body(info, siblings):
     for name, version in sorted({**info['packages'], meta_of(info['version']): info['version']}.items()):
         lines += ['', f'Package: {name}', f'Pin: version {version}', 'Pin-Priority: 1001']
     if siblings:
-        lines += ['', '# Installed packages from the same sources, at their installed versions (docs/61).']
+        lines += ['', '# Installed packages from the same sources, at their installed versions (docs/109).']
         for name, version in sorted(siblings.items()):
             lines += ['', f'Package: {name}', f'Pin: version {version}', 'Pin-Priority: 1001']
     return '\n'.join(lines) + '\n'
@@ -499,7 +548,7 @@ def unattended_body(info, siblings):
     bracketed, apt.conf has no escapes."""
     names = sorted({*info['packages'], *siblings, meta_of(info['version'])})
     entries = ''.join('\t"' + re.sub(r'([.+])', r'[\1]', n) + '$";\n' for n in names)
-    return (f'// Written by tools/rungic_release.py deploy: release {info["version"]} (docs/61). Its packages move\n'
+    return (f'// Written by tools/rungic_release.py deploy: release {info["version"]} (docs/109). Its packages move\n'
             f'// only through a release, also where /etc/apt/preferences.d/rungic-release is missing.\n'
             f'Unattended-Upgrade::Package-Blacklist {{\n{entries}}};\n')
 
@@ -510,7 +559,7 @@ def pin_release(info, siblings=None):
     them. With the release metapackage Protected, apt also refuses to remove it to get around its
     exact dependencies; and the pins do not depend on it: they hold the versions if it goes anyway.
     Installed packages from the same sources are pinned as installed (release_siblings), and
-    unattended-upgrades gets the release's names as a blacklist (docs/61)."""
+    unattended-upgrades gets the release's names as a blacklist (docs/109)."""
     if siblings is None:
         siblings = release_siblings(info)
     run(f'''set -e
@@ -549,12 +598,16 @@ systemd-run --unit={unit} --wait --pipe --collect --quiet -p TimeoutStartSec=360
 
 def android_content(info, item):
     """The bytes of an Android-side file as the release has it: the working tree's when they match,
-    else the file at the release's commit (a rollback deploys an older release without checking it
-    out). None when neither matches the recorded sha256."""
+    else the copy an imported bundle brought (ANDROID_STORE: deploy --from on a machine that did not
+    build it), else the file at the release's commit (a rollback deploys an older release without
+    checking it out). None when none matches the recorded sha256."""
     path = WORKSPACE / item['source']
     data = path.read_bytes() if path.exists() else b''
     if hashlib.sha256(data).hexdigest() == item['sha256']:
         return data
+    stored = ANDROID_STORE / item['sha256']
+    if stored.exists() and hashlib.sha256(stored.read_bytes()).hexdigest() == item['sha256']:
+        return stored.read_bytes()
     shown = subprocess.run(['git', 'show', f"{info.get('commit', '')}:{item['source']}"], cwd=WORKSPACE,
                            capture_output=True)
     if shown.returncode == 0 and hashlib.sha256(shown.stdout).hexdigest() == item['sha256']:
@@ -628,6 +681,54 @@ def restore_android(record):
             run(f'rm -f {path}', 'root')
         restored.append(item['path'])
     return restored
+
+
+def installed_apk():
+    """(versionName, versionCode) of the phone's desktop APK, or (None, None)."""
+    text = getattr(run(f'dumpsys package {rungic_device.APK} | grep -m2 -E "versionCode=|versionName="',
+                       'shell', timeout=30, check=False), 'stdout', '') or ''
+    name, code = re.search(r'versionName=(\S+)', text), re.search(r'versionCode=(\d+)', text)
+    return (name[1] if name else None), (int(code[1]) if code else None)
+
+
+def adb_install(path):
+    """adb install -r: the APK replaced and its data kept (docs/97). From this computer, as the Android
+    shell: pm install as Magisk root has failed with Binder errors (AGENTS.md). -> (ok, output)"""
+    result = subprocess.run(rungic_device.adb('install', '-r', str(path)), capture_output=True, text=True,
+                            timeout=600, stdin=subprocess.DEVNULL)
+    output = (result.stdout + result.stderr).strip()
+    return result.returncode == 0 and 'Success' in output, output[-800:]
+
+
+def install_apk(info, restart='auto'):
+    """The release's APK where the phone has an older one (by versionCode): adb install -r keeps the
+    app's data, then the activity starts again, as after installing an APK by hand (docs/96, 97). A
+    phone without the APK is left alone: a first installation is tools/ci/standalone.py's. Replacing
+    the APK restarts the desktop, so --restart never leaves it (recorded). None when the release has
+    no APK."""
+    apk = info.get('apk')
+    if not apk:
+        return None
+    name, before = installed_apk()
+    if before is None:
+        return {'result': 'skipped: the APK is not installed', 'release': apk['version_code']}
+    if before >= apk['version_code']:
+        return {'result': 'current', 'installed': before, 'release': apk['version_code']}
+    if restart == 'never':
+        return {'result': 'skipped: --restart never', 'installed': before, 'release': apk['version_code']}
+    path = APKS / apk['file']
+    if not path.exists() or sha256_file(path) != apk['sha256']:
+        raise SystemExit(f"the APK {apk['file']} of release {info['version']} is not in {APKS} (or differs): "
+                         'deploy --from the release\'s bundle')
+    ok, output = adb_install(path)
+    if not ok:
+        raise SystemExit(f"adb install -r {apk['file']}: {output}")
+    run(f'am start -n {rungic_device.APK}/.MainActivity', 'shell', timeout=30, check=False)
+    _, after = installed_apk()
+    if after != apk['version_code']:
+        raise SystemExit(f"the phone reports APK versionCode {after} after installing {apk['version_code']}")
+    return {'result': 'installed', 'before': f'{name}/{before}', 'after': f"{apk['version_name']}/{after}",
+            'file': apk['file']}
 
 
 def needs_restart(before, after, patterns):
@@ -752,7 +853,33 @@ def history():
     return json.loads(HISTORY.read_text()) if HISTORY.exists() else []
 
 
+def device_serial():
+    """The phone's hardware serial (ro.serialno), else the configured one."""
+    text = (getattr(run('getprop ro.serialno', 'shell', timeout=15, check=False), 'stdout', '') or '').strip()
+    return text or rungic_device.serial()
+
+
+def remember(entry):
+    """Append a deployment to release/history.json, which is committed: which phone got which release
+    (docs/109)."""
+    entries = json.loads(RELEASE_HISTORY.read_text()) if RELEASE_HISTORY.exists() else []
+    entries.append(entry)
+    RELEASE_HISTORY.parent.mkdir(parents=True, exist_ok=True)
+    RELEASE_HISTORY.write_text(json.dumps(entries, indent=1, ensure_ascii=False) + '\n')
+
+
 def deploy(version=None, restart='auto', acceptance='smoke', record_label=None, snapshot='auto'):
+    """deploy_release(), and its result in release/history.json."""
+    serial = device_serial()
+    log = deploy_release(version, restart, acceptance, record_label, snapshot)
+    info = next((r for r in releases() if r['version'] == log.get('version')), {})
+    remember({'time': datetime.datetime.now().astimezone().isoformat(timespec='seconds'), 'version': log.get('version'),
+              'commit': info.get('commit'), 'channel': info.get('channel', 'release'), 'serial': serial,
+              'result': log.get('result')})
+    return log
+
+
+def deploy_release(version=None, restart='auto', acceptance='smoke', record_label=None, snapshot='auto'):
     all_releases = releases()
     if not all_releases:
         raise SystemExit('no release built yet: rungic_release.py build')
@@ -901,6 +1028,15 @@ def deploy(version=None, restart='auto', acceptance='smoke', record_label=None, 
             user_units = restart_user_services(spec, before, after)
             if user_units is not None:
                 step('user-services', output=user_units)
+        # 5b the release's APK (docs/109), after the container side it talks to. Its restart drops the
+        # Wayland connection; the activity brings the session back (docs/96), which is waited for.
+        apk = install_apk(info, restart)
+        if apk is not None:
+            step('apk', **apk)
+            if apk['result'] == 'installed':
+                import rungic_acceptance
+                step('apk-session', ok=rungic_acceptance.session_ready({})['passed'])
+                installed_at = time.time()
         # 6 verify
         integrity_after = integrity_summary()
         (record / 'integrity-after.json').write_text(json.dumps(integrity_after, indent=1, ensure_ascii=False) + '\n')
@@ -989,7 +1125,7 @@ def rollback(restart='auto', acceptance='smoke'):
 
 
 def protection(info):
-    """How apt holds the installed release (docs/61): its packages whose pin (1001, or the development
+    """How apt holds the installed release (docs/109): its packages whose pin (1001, or the development
     overlay's 1002) is not their installed release version, whether the metapackage is Protected, and
     whether the unattended-upgrades blacklist is there."""
     if not info or 'packages' not in info:
@@ -1013,6 +1149,8 @@ def status():
     built = releases()
     return {
         'installed_release': version,
+        'channel': info.get('channel', 'release') if info else None,
+        'apk': '/'.join(map(str, installed_apk())),
         'apt': protection(info),
         # A development overlay on the release (tools/rungic_dev.py, docs/97).
         'dev_overlay': ({'base': info['dev']['base'], 'overrides': {n: o['version'] for n, o in
@@ -1026,6 +1164,442 @@ def status():
         'release_mismatch': (report or {}).get('release', {}).get('mismatch'),
         'last_deploys': history()[-5:],
     }
+
+# ---------------------------------------------------------------- dev channel (docs/109)
+
+def release_info(version):
+    info = next((r for r in releases() if r['version'] == version), None)
+    if not info:
+        raise SystemExit(f'release {version} is not in {RELEASES}')
+    return info
+
+
+def on_origin_main():
+    """A dev release is origin/main as it is: HEAD must be origin/main (fetched now) and the working tree
+    clean, untracked files included. -> the commit"""
+    git('fetch', '-q', 'origin', 'main')
+    head, main = git('rev-parse', 'HEAD'), git('rev-parse', 'origin/main')
+    if head != main:
+        raise SystemExit(f'HEAD {head[:12]} is not origin/main {main[:12]}: dev releases are cut from origin/main only '
+                         '(a clean worktree at origin/main)')
+    changes = git('status', '--porcelain', '--untracked-files=normal')
+    if changes:
+        raise SystemExit(f'the working tree is not clean:\n{changes[:2000]}')
+    return head
+
+
+def build_project():
+    """The release's own packages not built for the current sources, built where device packages build
+    (tools/rungic_package.py). -> their names"""
+    import build_on_device
+    import rungic_package
+    definitions = rungic_package.definitions()
+    stale = [n for n in spec().get('project', {}) if n in definitions and not rungic_package.current(definitions[n])]
+    if stale:
+        rungic_package.build(stale, jobs=build_on_device.host.jobs)
+    return stale
+
+
+def component_tree(name):
+    """Content identity of an upstream component: the git trees of packages/<name> and of the shared
+    files its recipe overlays (what tools/rungic_dev.py calls dirty)."""
+    import pq
+    paths = sorted({f'packages/{name}', *(e['from'] for e in pq.overlay(name).values())})
+    return hashlib.sha256('\n'.join(f"{p}={git('rev-parse', f'HEAD:{p}')}" for p in paths).encode()).hexdigest()[:16]
+
+
+def component_builds():
+    return json.loads(COMPONENT_BUILDS.read_text()) if COMPONENT_BUILDS.exists() else {}
+
+
+def stale_components():
+    """Upstream components ("rebuilt" from packages/<name>) whose release packages at their changelog's
+    version are not in the pool. A patch queue changed without a new changelog entry stops here: the
+    pool has that version already, with the old contents (docs/71)."""
+    builds, have, stale = component_builds(), pool_debs(), []
+    for name, c in spec().get('rebuilt', {}).items():
+        if not c.get('source', '').startswith('packages/'):
+            continue
+        if any(c['version'].split(':', 1)[-1] not in have.get(b, {}) for b in c['packages']):
+            stale.append(name)
+        elif builds.get(name, {}).get('version') == c['version'] and builds[name]['tree'] != component_tree(name):
+            raise SystemExit(f'packages/{name} changed since its build {c["version"]}: add a changelog entry, so '
+                             'the new build has a version of its own')
+    return stale
+
+
+def build_component(name):
+    """An upstream component's release packages, built where tools/build_on_device.py builds and
+    collected into the pool: incrementally on the kept obj tree after a good build, else a full build
+    (as tools/rungic_dev.py does); Mesa with its Meson build and packager (build_mesa.py)."""
+    import build_on_device
+    host, work, started = build_on_device.host, f'{build_on_device.BASE}/{name}', time.time()
+    version = spec()['rebuilt'][name]['version']
+    build_on_device.sync(name)
+    if name == 'mesa':
+        mode = 'targets'
+    else:
+        previous = host.out(f'test -d {work}/src/obj-aarch64-linux-gnu && cat {work}/build.rc 2>/dev/null || true').strip()
+        mode = 'incremental' if previous == '0' else 'full'
+        if mode == 'full':
+            print(build_on_device.build_deps(name), flush=True)
+    build_on_device.start(name, mode, host.jobs)
+    while 'SubState=running' in (state := build_on_device.status(name)) or 'ActiveState=activating' in state:
+        time.sleep(20)
+    if 'Result=success' not in state:
+        raise SystemExit(f'{name}: {mode} build failed on {host.name}\n{state}')
+    if name == 'mesa':
+        import build_mesa
+        build_mesa.package(host, version, git('rev-parse', 'HEAD'))
+    print(build_on_device.collect(name), flush=True)
+    builds = component_builds()
+    builds[name] = {'version': version, 'tree': component_tree(name), 'commit': git('rev-parse', 'HEAD'),
+                    'built': datetime.datetime.now().isoformat(timespec='seconds')}
+    COMPONENT_BUILDS.write_text(json.dumps(builds, indent=1, sort_keys=True) + '\n')
+    return {'component': name, 'version': version, 'mode': mode, 'seconds': round(time.time() - started)}
+
+
+def build_apk_file(out):
+    """android/build-apk.sh into `out` -> the signed APK (Rungic-<versionName>.apk)."""
+    built = subprocess.run(['bash', str(WORKSPACE / 'android/build-apk.sh')], cwd=WORKSPACE,
+                           env=dict(os.environ, RUNGIC_APK_OUT=str(out)))
+    apks = sorted(out.glob('Rungic-*.apk'))
+    if built.returncode or not apks:
+        raise SystemExit('android/build-apk.sh failed (its native libraries come from android/build-native-core.sh); '
+                         'or pass --apk FILE, or --no-apk')
+    return apks[-1]
+
+
+def release_apk(given=None):
+    """The APK of a release (docs/109): built from this commit, or a given file; kept in APKS under a name
+    with its version and hash. -> {'file', 'package', 'version_name', 'version_code', 'sha256', 'size'}"""
+    from apk_manifest_info import manifest_info
+    if given:
+        path = Path(given)
+    else:
+        out = WORKSPACE / '.work/cache/release-apk'
+        shutil.rmtree(out, ignore_errors=True)
+        out.mkdir(parents=True)
+        path = build_apk_file(out)
+    manifest = manifest_info(path)['manifest']
+    if manifest.get('package') != rungic_device.APK:
+        raise SystemExit(f'{path} is {manifest.get("package")}, not {rungic_device.APK}')
+    digest = sha256_file(path)
+    name = f"Rungic-{manifest['versionName']}-{manifest['versionCode']}-{digest[:12]}.apk"
+    APKS.mkdir(parents=True, exist_ok=True)
+    if not (APKS / name).exists():
+        shutil.copy2(path, APKS / name)
+    return {'file': name, 'package': manifest['package'], 'version_name': str(manifest['versionName']),
+            'version_code': int(manifest['versionCode']), 'sha256': digest, 'size': path.stat().st_size}
+
+
+def taken_elsewhere():
+    """Release numbers used beyond this pool: the dev tags on origin (published from any machine) and
+    the committed deployment history."""
+    tags = git('ls-remote', '--tags', 'origin', f'refs/tags/{DEV_TAG}*', check=False)
+    versions = [line.rsplit(f'refs/tags/{DEV_TAG}', 1)[1].removesuffix('^{}') for line in tags.splitlines()
+                if f'refs/tags/{DEV_TAG}' in line]
+    if RELEASE_HISTORY.exists():
+        versions += [e['version'] for e in json.loads(RELEASE_HISTORY.read_text()) if e.get('version')]
+    return versions
+
+
+def dev(host='macmini', out=None, apk=None, no_apk=False, note='', publish_release=False, confirm=False,
+        coupled_override=None):
+    """A dev release (docs/109): only from a clean origin/main, so every machine that cuts one cuts the
+    same thing and nothing merged lives only in overlays on phones. Builds what the pool lacks for this
+    commit (project packages, upstream components), the APK, the release (channel dev) and its bundle;
+    with publish_release the GitHub pre-release (published only with confirm)."""
+    commit = on_origin_main()
+    import build_on_device
+    build_on_device.use(host)
+    print(f'dev release of origin/main {commit[:12]}; device packages build on {host}', flush=True)
+    project = build_project()
+    components = [build_component(name) for name in stale_components()]
+    apk_info = None if no_apk else release_apk(apk)
+    last = next((r for r in reversed(releases()) if r.get('apk')), None)
+    if apk_info and last and last['apk']['version_code'] == apk_info['version_code'] \
+            and last['apk']['sha256'] != apk_info['sha256']:
+        print(f"note: the APK differs from release {last['version']}'s at the same versionCode "
+              f"{apk_info['version_code']}: phones that have that versionCode keep their APK", flush=True)
+    result = build(next_version(taken_elsewhere()), note=note, coupled_override=coupled_override, channel='dev',
+                   apk=apk_info)
+    result.update(channel='dev', project_built=project, components_built=components,
+                  apk=apk_info and f"{apk_info['version_name']}/{apk_info['version_code']}")
+    result['bundle'] = str(export_bundle(result['version'], out))
+    if publish_release:
+        result['publish'] = publish(result['version'], result['bundle'], confirm)
+    return result
+
+
+def bundle_path(version, out=None):
+    return Path(out or os.environ.get('RUNGIC_RELEASE_OUT') or BUNDLES) / f'rungic-{version}.tar'
+
+
+def link(source, target):
+    try:
+        os.link(source, target)
+    except OSError:
+        shutil.copy2(source, target)
+
+
+def export_bundle(version, out=None):
+    """Release `version` as one file another machine deploys (deploy --from): repo/ with the metapackage,
+    the pool's .debs it pins and their index; apk/; android/<sha256>, its Android-side files; and
+    manifest.json, the release record with every file's SHA-256. Packages coupled to Ubuntu's come from
+    the archive: listed in from_archive, not included."""
+    info = release_info(version)
+    have, target = pool_debs(), bundle_path(version, out)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    stage = Path(tempfile.mkdtemp(dir=WORKSPACE / '.work/cache', prefix=f'bundle-{version}-'))
+    try:
+        (stage / 'repo').mkdir()
+        archive = []
+        for name, wanted in sorted({**info['packages'], meta_of(version): version}.items()):
+            deb = have.get(name, {}).get(wanted.split(':', 1)[-1])
+            if deb is None and name in info.get('coupled', []):
+                archive.append(f'{name}={wanted}')
+            elif deb is None:
+                raise SystemExit(f'{name}={wanted} of release {version} is not in the pool {POOL}')
+            else:
+                link(deb, stage / 'repo' / deb.name)
+        index(stage / 'repo')
+        if info.get('apk'):
+            source = APKS / info['apk']['file']
+            if not source.exists() or sha256_file(source) != info['apk']['sha256']:
+                raise SystemExit(f"the APK {info['apk']['file']} of release {version} is not in {APKS} (or differs)")
+            (stage / 'apk').mkdir()
+            link(source, stage / 'apk' / source.name)
+        for item in (info.get('android') or {}).values():
+            data = android_content(info, item)
+            if data is None:
+                raise SystemExit(f"{item['source']} of release {version} is neither in the working tree nor at its commit")
+            (stage / 'android').mkdir(exist_ok=True)
+            (stage / 'android' / item['sha256']).write_bytes(data)
+        files = {str(p.relative_to(stage)): sha256_file(p) for p in sorted(stage.rglob('*')) if p.is_file()}
+        (stage / 'manifest.json').write_text(json.dumps({'schema': 1, 'release': info, 'from_archive': archive,
+                                                         'files': files}, indent=1, ensure_ascii=False) + '\n')
+        partial = target.with_name(target.name + '.part')
+        with tarfile.open(partial, 'w') as tar:
+            for name in ['manifest.json', *files]:
+                tar.add(stage / name, arcname=name)
+        partial.replace(target)
+    finally:
+        shutil.rmtree(stage)
+    return target
+
+
+def import_bundle(path):
+    """A bundle from export_bundle() into this machine's pool, APKs and Android-side files, each file
+    checked against the manifest. A pool file of the same name with other contents stops it, and so does
+    a release of the same version built from something else: two machines' builds are never mixed
+    (docs/109). -> the release's version"""
+    stage = Path(tempfile.mkdtemp(dir=WORKSPACE / '.work/cache', prefix='bundle-import-'))
+    try:
+        with tarfile.open(path) as tar:
+            tar.extractall(stage, filter='data')
+        manifest = json.loads((stage / 'manifest.json').read_text())
+        bad = [n for n, digest in manifest['files'].items()
+               if not (stage / n).is_file() or sha256_file(stage / n) != digest]
+        if bad:
+            raise SystemExit(f'{path}: files missing or changed: {bad[:5]}')
+        info, version = manifest['release'], manifest['release']['version']
+        known = next((r for r in releases() if r['version'] == version), None)
+        if known and (known.get('commit'), known.get('packages')) != (info.get('commit'), info.get('packages')):
+            raise SystemExit(f"release {version} here was built from {known.get('commit', '')[:12]}, the bundle's "
+                             f"from {info.get('commit', '')[:12]}: not the same release")
+        import_debs(sorted((stage / 'repo').glob('*.deb')))
+        for name in manifest['files']:
+            folder = APKS if name.startswith('apk/') else ANDROID_STORE if name.startswith('android/') else None
+            if folder:
+                folder.mkdir(parents=True, exist_ok=True)
+                if not (folder / Path(name).name).exists():
+                    shutil.copy2(stage / name, folder / Path(name).name)
+        index()
+        if not known:
+            RELEASES.mkdir(parents=True, exist_ok=True)
+            (RELEASES / f'{version}.json').write_text(json.dumps(info, indent=1, ensure_ascii=False) + '\n')
+        return version
+    finally:
+        shutil.rmtree(stage)
+
+
+def phones():
+    """The connected adb devices that are Rungic phones (rooted, with the Android-side launcher):
+    ([{'transport', 'serial', 'model'}], the others with why). A phone on two transports (USB and
+    Wi-Fi) counts once."""
+    found, others = [], []
+    for transport, state, model in rungic_device.devices():
+        if state != 'device':
+            others.append({'transport': transport, 'why': state})
+            continue
+        try:
+            with rungic_device.selected(transport=transport):
+                serial = (run('getprop ro.serialno', 'shell', timeout=15, check=False).stdout or '').strip()
+                launcher = run(f'{rungic_device.LAUNCHER_SH}; [ -x "$p" ] && echo yes || echo no', 'root',
+                               timeout=30, check=False).stdout or ''
+        except DeviceError as error:
+            others.append({'transport': transport, 'why': str(error)[:200]})
+            continue
+        if not launcher.strip().endswith('yes'):
+            others.append({'transport': transport, 'serial': serial, 'why': 'no Rungic launcher (or no root)'})
+        elif any(p['serial'] == serial for p in found):
+            others.append({'transport': transport, 'serial': serial, 'why': 'the same phone on another transport'})
+        else:
+            found.append({'transport': transport, 'serial': serial or transport, 'model': model})
+    return found, others
+
+
+def table(rows, columns):
+    """rows as an aligned text table (the summaries of --all)."""
+    cells = [['-' if r.get(c) is None else str(r.get(c)) for c in columns] for r in rows]
+    widths = [max([len(c), *(len(row[i]) for row in cells)]) for i, c in enumerate(columns)]
+
+    def line(values):
+        return '  '.join(v.ljust(w) for v, w in zip(values, widths)).rstrip()
+    return '\n'.join([line(columns), line(['-' * w for w in widths]), *map(line, cells)])
+
+
+def deploy_all(version=None, **options):
+    """deploy on every connected Rungic phone in turn (docs/109). A phone that fails or cannot be reached
+    is recorded and the next one goes on; a table sums up."""
+    found, others = phones()
+    if not found:
+        raise SystemExit(f'no Rungic phone among the adb devices: {others}')
+    if not version:
+        built = releases()
+        version = built[-1]['version'] if built else None
+    rows = []
+    for phone in found:
+        print(f"== {phone['serial']} ({phone['model']}, {phone['transport']})", flush=True)
+        row = {**phone, 'before': None, 'after': None, 'apk': None}
+        with rungic_device.selected(phone['serial'], phone['transport']):
+            try:
+                row['before'] = device_release()[0]
+                log = deploy(version, record_label=f"{version}-{phone['serial']}", **options)
+                row['result'] = log['result']
+                row['apk'] = next((s['result'] for s in log['steps'] if s['step'] == 'apk'), None)
+                row['after'] = device_release()[0]
+            except (Exception, SystemExit) as failure:
+                row['result'] = f'error: {type(failure).__name__}: {failure}'[:300]
+                info = next((r for r in releases() if r['version'] == version), {})
+                remember({'time': datetime.datetime.now().astimezone().isoformat(timespec='seconds'),
+                          'version': version, 'commit': info.get('commit'), 'channel': info.get('channel', 'release'),
+                          'serial': phone['serial'], 'result': row['result']})
+        rows.append(row)
+    print(table(rows, ('serial', 'model', 'before', 'after', 'apk', 'result')), flush=True)
+    return {'result': 'ok' if all(r['result'] == 'ok' for r in rows) else 'failed', 'version': version,
+            'phones': rows, 'skipped': others}
+
+
+def phone_status():
+    """One phone's row of status --all."""
+    version, info = device_release()
+    info = info or {}
+    commit = info.get('commit')
+    behind = git('rev-list', '--count', f'{commit}..origin/main', check=False) if commit else ''
+    name, code = installed_apk()
+    held = protection(info) if info else None
+    apt = None
+    if held:
+        problems = ([f"{len(held['unpinned'])} unpinned"] if held['unpinned'] else []) + \
+                   ([] if held['protected'] else ['metapackage not Protected']) + \
+                   ([] if held['unattended'] else ['no unattended-upgrades list'])
+        apt = ', '.join(problems) or 'ok'
+    return {'release': version, 'channel': info.get('channel', 'release') if info else None,
+            'commit': commit[:12] if commit else None, 'behind_main': int(behind) if behind.isdigit() else None,
+            'apk': f'{name}/{code}' if code else None, 'overlays': len(info.get('dev', {}).get('overrides', {})),
+            'apt': apt}
+
+
+def status_all():
+    """status of every connected Rungic phone, one row each (docs/109)."""
+    git('fetch', '-q', 'origin', 'main', check=False)
+    found, others = phones()
+    rows = []
+    for phone in found:
+        with rungic_device.selected(phone['serial'], phone['transport']):
+            try:
+                rows.append({**phone, **phone_status()})
+            except (Exception, SystemExit) as failure:
+                rows.append({**phone, 'error': f'{type(failure).__name__}: {failure}'[:200]})
+    print(table(rows, ('serial', 'model', 'release', 'channel', 'commit', 'behind_main', 'apk', 'overlays', 'apt',
+                       'error')), flush=True)
+    return {'phones': rows, 'skipped': others}
+
+
+def previous_dev(info):
+    """The dev release before `info`: the newest dev tag or dev release of this pool older than it.
+    -> {'version', 'commit', 'packages' (None for a tag only)} or None"""
+    key = lambda v: [int(x) for x in v.split('.')]
+    candidates = {line[len(DEV_TAG):]: None for line in git('tag', '-l', f'{DEV_TAG}*', check=False).splitlines()
+                  if re.fullmatch(r'\d{8}\.\d+', line[len(DEV_TAG):])}
+    candidates.update({r['version']: r for r in releases() if r.get('channel') == 'dev'})
+    older = sorted((v for v in candidates if key(v) < key(info['version'])), key=key)
+    if not older:
+        return None
+    found = candidates[older[-1]]
+    return {'version': older[-1], 'commit': found['commit'] if found else git('rev-list', '-n1', f'{DEV_TAG}{older[-1]}',
+            check=False), 'packages': found.get('packages') if found else None}
+
+
+def release_notes(version):
+    """Notes of a dev release: the pull requests merged since the previous dev release (squash merges
+    on main end with "(#N)"), other commits, the package versions that changed, the APK, how to deploy."""
+    info = release_info(version)
+    previous = previous_dev(info)
+    since = previous['version'] if previous else None
+    span = [f"{previous['commit']}..{info['commit']}"] if previous and previous.get('commit') else ['-n', '30', info['commit']]
+    prs, other = [], []
+    for line in git('log', '--first-parent', '--format=%h%x09%s', *span, check=False).splitlines():
+        sha, _, subject = line.partition('\t')
+        (prs if re.search(r'\(#\d+\)$', subject) else other).append(f'- {subject} ({sha})')
+    lines = [f"Rungic dev release {version}, origin/main at {info['commit'][:12]}.", '',
+             f"## Merged pull requests {'since ' + since if since else '(no earlier dev release: the last 30 commits)'}",
+             '', *(prs or ['- none']), '']
+    if other:
+        lines += ['## Other commits', '', *other, '']
+    lines += ['## Package versions', '']
+    if previous and previous.get('packages'):
+        before, after = previous['packages'], info['packages']
+        lines += [f"- {n}: {before.get(n, '(new)')} -> {after.get(n, '(removed)')}"
+                  for n in sorted(set(before) | set(after)) if before.get(n) != after.get(n)] or ['- unchanged']
+    else:
+        lines += [f"- {len(info['packages'])} packages; no earlier dev release here to compare with"]
+    apk = info.get('apk')
+    lines += ['', '## APK', '', f"- {apk['file']}: {apk['version_name']} (versionCode {apk['version_code']}), "
+              f"sha256 {apk['sha256']}" if apk else '- not part of this release', '',
+              '## Deploy', '', '```sh', f'python3 tools/rungic_release.py deploy --all --from rungic-{version}.tar', '```', '']
+    return '\n'.join(lines)
+
+
+def gh(argv):
+    """The GitHub CLI (publish)."""
+    return subprocess.run(argv, capture_output=True, text=True, timeout=3600)
+
+
+def publish(version, bundle=None, confirm=False):
+    """The GitHub pre-release dev-<version> on kevinzhow/Rungic: notes from git (release_notes()), the
+    bundle and the APK as assets, the tag at the release's commit. Others see it and it creates a tag:
+    without confirm only the command and the notes come back, for the owner to confirm (docs/109)."""
+    info = release_info(version)
+    if info.get('channel') != 'dev':
+        raise SystemExit(f'release {version} is not a dev release; only dev releases become pre-releases')
+    bundle = Path(bundle) if bundle else bundle_path(version)
+    if not bundle.exists():
+        raise SystemExit(f'{bundle} does not exist: rungic_release.py export {version}')
+    notes = bundle.with_name(f'rungic-{version}.notes.md')
+    notes.write_text(release_notes(version))
+    argv = ['gh', 'release', 'create', f'{DEV_TAG}{version}', '--repo', GITHUB, '--prerelease',
+            '--target', info['commit'], '--title', f'Rungic dev {version}', '--notes-file', str(notes), str(bundle),
+            *([str(APKS / info['apk']['file'])] if info.get('apk') else [])]
+    if not confirm:
+        return {'published': False, 'command': shlex.join(argv), 'notes': str(notes),
+                'next': f'after the owner confirms: rungic_release.py publish {version} --yes'}
+    result = gh(argv)
+    if result.returncode:
+        raise SystemExit(f'gh release create: {(result.stdout + result.stderr).strip()[-1500:]}')
+    return {'published': True, 'tag': f'{DEV_TAG}{version}', 'url': result.stdout.strip()}
 
 
 def main():
@@ -1043,13 +1617,28 @@ def main():
             p.add_argument('version', nargs='?')
             p.add_argument('--snapshot', choices=['auto', 'always', 'never'], default='auto',
                            help='rootfs snapshot before installing (auto: when the rootfs is an image)')
+            p.add_argument('--all', action='store_true', help='every connected Rungic phone, one after another')
+            p.add_argument('--from', dest='bundle', type=Path, help='a release bundle (rungic_release.py dev/export)')
         else:
             p.add_argument('--snapshot', action='store_true',
                            help='return the whole rootfs to the snapshot the last deploy took')
         p.add_argument('--restart', choices=['auto', 'always', 'never'], default='auto')
         p.add_argument('--acceptance', choices=['smoke', 'full', 'none'], default='smoke')
     sub.add_parser('commit')
-    sub.add_parser('status')
+    p = sub.add_parser('status'); p.add_argument('--all', action='store_true', help='every connected Rungic phone')
+    p = sub.add_parser('dev')
+    p.add_argument('--host', choices=['macmini', 'phone'], default=os.environ.get('RUNGIC_BUILD_HOST', 'macmini'),
+                   help='where device packages build (default $RUNGIC_BUILD_HOST, else macmini)')
+    p.add_argument('--out', type=Path, help='where the bundle goes (default $RUNGIC_RELEASE_OUT, else .work/release-bundles)')
+    p.add_argument('--apk', type=Path, help='this APK instead of building one')
+    p.add_argument('--no-apk', action='store_true', help='a release without an APK')
+    p.add_argument('--note', default='')
+    p.add_argument('--coupled-json', type=Path, help='exact coupled package versions; avoids a phone query')
+    p.add_argument('--publish', action='store_true', help='the GitHub pre-release: the command and notes, run with --yes')
+    p.add_argument('--yes', action='store_true', help='with --publish: the owner confirmed, publish')
+    p = sub.add_parser('export'); p.add_argument('version'); p.add_argument('--out', type=Path)
+    p = sub.add_parser('publish'); p.add_argument('version'); p.add_argument('--bundle', type=Path)
+    p.add_argument('--yes', action='store_true', help='the owner confirmed: create the pre-release')
     a = parser.parse_args()
     if a.cmd == 'import-installed':
         result = import_installed()
@@ -1060,15 +1649,28 @@ def main():
         result = build(a.version, a.allow_dirty, a.note,
                        json.loads(a.coupled_json.read_text()) if a.coupled_json else None)
     elif a.cmd == 'list':
-        result = [{k: r[k] for k in ('version', 'commit', 'built', 'note')} for r in releases()]
+        result = [{k: r.get(k) for k in ('version', 'channel', 'commit', 'built', 'note')} for r in releases()]
     elif a.cmd == 'deploy':
-        result = deploy(a.version, a.restart, a.acceptance, snapshot=a.snapshot)
+        version = import_bundle(a.bundle) if a.bundle else a.version
+        if a.bundle and a.version and a.version != version:
+            parser.error(f'the bundle is release {version}, not {a.version}')
+        options = dict(restart=a.restart, acceptance=a.acceptance, snapshot=a.snapshot)
+        result = deploy_all(version, **options) if a.all else deploy(version, **options)
     elif a.cmd == 'rollback':
         result = rollback_snapshot() if a.snapshot else rollback(a.restart, a.acceptance)
     elif a.cmd == 'commit':
         result = commit()
+    elif a.cmd == 'dev':
+        if a.apk and a.no_apk:
+            parser.error('--apk or --no-apk')
+        result = dev(a.host, a.out, a.apk, a.no_apk, a.note, a.publish, a.yes,
+                     json.loads(a.coupled_json.read_text()) if a.coupled_json else None)
+    elif a.cmd == 'export':
+        result = {'bundle': str(export_bundle(a.version, a.out))}
+    elif a.cmd == 'publish':
+        result = publish(a.version, a.bundle, a.yes)
     else:
-        result = status()
+        result = status_all() if a.all else status()
     print(json.dumps(result, indent=1, ensure_ascii=False))
     if isinstance(result, dict) and result.get('result') not in (None, 'ok'):
         sys.exit(1)

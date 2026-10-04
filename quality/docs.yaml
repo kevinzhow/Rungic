@@ -132,3 +132,4 @@
 - {path: docs/106-codex-desktop-operation.md, kind: journal, note: 默认 Codex 桌面操作与 API 备选的实现和验收}
 
 - {path: docs/107-android-sms.md, kind: journal, note: 安卓 SIM 短信接口与 USB G100 验收}
+- {path: docs/109-dev-release-channel.md, kind: reference, note: dev 发布渠道（只从 origin/main 出、含 APK、发布包、多机部署与状态、GitHub 预发布）与发布包不被 Ubuntu 更新替换的分析}

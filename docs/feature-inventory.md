@@ -4,7 +4,7 @@
 
 以产品功能和用户场景为骨架：每条功能是用户能感知的一件事；“体验”是它必须做到的，每条都标明由什么检查（自动测试、实机验收、人工验证或已登记的缺口）。数据在 `quality/`，规则见 [quality/README.md](../quality/README.md)。
 
-共 161 条功能、678 条体验，其中 634 条有检查。
+共 162 条功能、686 条体验，其中 642 条有检查。
 
 ## Agent 能力
 
@@ -1233,11 +1233,33 @@ Linux 应用用手机的相机拍照录像，用手机的扬声器和麦克风�
 - 家目录不随快照回滚，失败部署期间写进 ~/.config 的内容会留下（曾留下 kdeglobals 的 SceneGraphBackend=software，抽屉网格空白）；排查部署后的异常时先看这段时间改过的用户配置。 [docs/61-delivery-diagnostics-plan.md](../docs/61-delivery-diagnostics-plan.md)
 - 建快照的重启仍在跑旧版本，那时的崩溃曾被算进新发布、导致误回滚；验收从安装完成时统计，早于安装的崩溃记为 version null。 [docs/61-delivery-diagnostics-plan.md](../docs/61-delivery-diagnostics-plan.md)
 - 容器里的 unattended-upgrades 是开着的，会把重建包静默换成 Ubuntu 的更高版本；重建、被 divert 和 Qt 私有 ABI 相关的包要在黑名单里。 [docs/61-delivery-diagnostics-plan.md](../docs/61-delivery-diagnostics-plan.md)
-- unattended-upgrades 认 pin（被 pin 的已装版本不算可升级），pin 不在时只剩名单；rungic-plasma-config 带的静态名单漏了后来加入的组件（powerdevil、kwayland、xwayland、flatpak、gst-plugins-base 等）和 plasma-workspace 的私有库，部署因此按发布另写 52rungic-release。 [docs/61-delivery-diagnostics-plan.md](../docs/61-delivery-diagnostics-plan.md)
+- unattended-upgrades 认 pin（被 pin 的已装版本不算可升级），pin 不在时只剩名单；rungic-plasma-config 带的静态名单漏了后来加入的组件（powerdevil、kwayland、xwayland、flatpak、gst-plugins-base 等）和 plasma-workspace 的私有库，部署因此按发布另写 52rungic-release。 [docs/109-dev-release-channel.md](../docs/109-dev-release-channel.md)
+- 耦合包（plasma-workspace）的版本取自出发布时那台手机上装的版本；Ubuntu 的 -updates 索引只留最新版，别的手机要装回这个旧版本时可能已经下载不到，部署会在安装一步失败。 [docs/109-dev-release-channel.md](../docs/109-dev-release-channel.md)
 - 仓库保留历史版本供回滚；只靠仓库整体 pin 时，旧版本同样可能成为候选，所以按包写 pin。 [docs/61-delivery-diagnostics-plan.md](../docs/61-delivery-diagnostics-plan.md)
 - 按包回滚到较早的发布需要它的提交：Android 侧文件从发布记录的提交中读取并按 sha256 核对。 [docs/70-rungic-rebrand.md](../docs/70-rungic-rebrand.md)
 
-文档：[docs/61-delivery-diagnostics-plan.md](../docs/61-delivery-diagnostics-plan.md)、[docs/96-desktop-recovery-after-apk-restart.md](../docs/96-desktop-recovery-after-apk-restart.md)
+文档：[docs/61-delivery-diagnostics-plan.md](../docs/61-delivery-diagnostics-plan.md)、[docs/96-desktop-recovery-after-apk-restart.md](../docs/96-desktop-recovery-after-apk-restart.md)、[docs/109-dev-release-channel.md](../docs/109-dev-release-channel.md)
+
+#### dev 发布渠道：从 main 出发布，装到所有手机
+
+`delivery.dev-channel` · Linux 系统功能 — rungic_release.py dev 只从干净的 origin/main 出 dev 发布（含 APK），导出发布包；deploy --all 逐台部署所有连着的 Rungic 手机，status --all 每台一行；经确认后发成 GitHub 预发布；每次部署记进 release/history.json。
+
+- **E1** dev 只在 HEAD 等于刚取下来的 origin/main、工作区干净（含未跟踪文件）时才出发布；版本号 YYYYMMDD.N 避开本机仓库、origin 上已发布的 dev-* tag 和 release/history.json 里用过的号。（单元测试）
+- **E2** dev 先构建发布缺的东西：源码变了的自有包、changelog 版本不在仓库里的上游组件（补丁队列变了却没加 changelog 条目就拒绝）、APK；发布记录 channel dev、提交和 APK 的文件名、versionName、versionCode、sha256，同时写进元包里的 release.json。（单元测试）
+- **E3** 发布包是一个文件：发布用到的 deb 加索引、APK、Android 侧文件和逐文件 SHA-256 的 manifest；没构建的机器 deploy --from 逐文件核对后导入再部署；同名 deb 内容不同、同一版本号来自别的提交都拒绝，两台机器的构建不会混在一起。（单元测试）
+- **E4** 部署在容器一侧装好之后装发布的 APK：手机上的 versionCode 更低时 adb install -r（保留数据）、重新打开、等会话就绪，再做验收；结果记在部署记录的 apk 一步。版本不低于发布的不动，--restart never 时不装并记录，没装 APK 的手机不首装；装不上算部署失败，回到快照。（单元测试）
+- **E5** deploy --all 逐台部署所有连着的、有 Rungic 启动器的手机（每台用自己的 RUNGIC_SERIAL/RUNGIC_TRANSPORT），某台失败或连不上就记下来继续下一台，最后打印汇总表；同一台手机同时走 USB 和 Wi-Fi 只算一次。（单元测试）
+- **E6** status --all 每台手机一行：已装发布、渠道、提交、比 origin/main 落后的提交数、APK 版本、开发覆盖数、apt 是否按发布钉住（未 pin 的包、元包 Protected、unattended-upgrades 名单）。（单元测试、人工）
+- **E7** publish 默认只给出 gh 命令和说明（上一个 dev 发布以来合并的 PR、其他提交、包版本变化、APK、部署命令），用户确认后加 --yes 才在 kevinzhow/Rungic 上创建预发布 dev-<版本>，附发布包和 APK。（单元测试）
+- **E8** 每次部署（成功、失败、中止，以及 deploy --all 里连不上的手机）在 release/history.json 追加一行：版本、提交、渠道、手机序列号、结果、时间，随仓库提交。（单元测试）
+
+注意：
+- 2026-10-04 之前各开发机有自己的 APT 仓库，发布号在不同机器上各自增长；最后一个正式发布是 20260930.10，之后合并的改动只以开发覆盖散落在手机上。dev 渠道之后只从 origin/main 出发布。 [docs/109-dev-release-channel.md](../docs/109-dev-release-channel.md)
+- 发布号只能避开已发布（有 tag）的号和已提交的部署记录；两台机器同时出还没发布的 dev 发布仍可能撞号，导入时会因提交不同而拒绝。 [docs/109-dev-release-channel.md](../docs/109-dev-release-channel.md)
+- 回滚不会降级 APK：adb install -r 只往高版本装。 [docs/109-dev-release-channel.md](../docs/109-dev-release-channel.md)
+- GitHub 预发布会建 tag、对外可见，必须先给用户看 publish 的输出、得到确认。 [.agents/skills/rungic-dev-release/SKILL.md](../.agents/skills/rungic-dev-release/SKILL.md)
+
+文档：[docs/109-dev-release-channel.md](../docs/109-dev-release-channel.md)
 
 #### rootfs 快照与整体回滚
 

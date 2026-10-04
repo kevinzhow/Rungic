@@ -113,6 +113,7 @@ class DeployFailureTests(unittest.TestCase):
         self.calls = []
         stubs = dict(
             WORKSPACE=self.root, DEPLOY=self.root / 'deploy', HISTORY=self.root / 'history.json',
+            RELEASE_HISTORY=self.root / 'release-history.json',
             releases=lambda: [self.info], preflight=lambda: ([], []), rootfs_state=lambda: ('image', 'none'),
             with_container_stopped=self.stopped, device_release=lambda: ('previous', None),
             android_layouts=lambda info: ('rungic', 'rungic'),
