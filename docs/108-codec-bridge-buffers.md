@@ -168,7 +168,22 @@ Kevin 定了方向（2026-10-04）：解码绕开 Codec2，`librungiccodec` 直�
 - 同样的真机录屏，进程从约 160% 降到约 107%（GL 上下文线程约 32%，编码线程约 28%）。`recording.quicksetting` 验收通过。
 - 剩下的大头是把转换好的 NV12 从 GPU 读回内存（`gldownload`）。纯管线测试里，GL 路径约 0.7 个核，CPU 路径约 1.1 个核。
 - 更正：之前说 GL 转换只要约 0.2 个核，那次的测量以 fakesink 结尾，帧没有被读回，结果偏低。
-- 下一步：把 GL 纹理以 dmabuf 直接交给编码器，去掉读回，前提是确认 Adreno 导出的布局能被 msm_vidc 接受。
+
+### 零拷贝：GL 纹理直接进编码器，KWin 给 DMA-BUF
+
+上面的 GL 路径每帧仍有三次 CPU 拷贝：`gldownload` 读回、编码元素拷进共享内存、V4L2 后端再拷进它的输入缓冲。另外 KWin 给录屏的画面走共享内存（memfd），录屏进程的 GL 线程每帧要把整屏 RGBA 再上传一遍。两处都去掉了：
+
+- **编码器直接收 GL 纹理**（`gst-rungic-codec.c`，`RUNGIC_GST_GL` 编译）：输入格式多了 `video/x-raw(memory:GLMemory),format=NV12`。V4L2 编码器的每个输入缓冲（DMA-BUF，msm_vidc 的布局：行距按 128、行数按 32 对齐）各包成两个 EGLImage（Y 是 R8，CbCr 是 GR88，显式 LINEAR modifier），作为渲染目标。每帧在 GL 线程里把 NV12 纹理 `glBlitFramebuffer` 进一个空闲缓冲，`glFinish` 后按序号交给编码器（`rungic_codec_picture` / `rungic_codec_encode_picture`）。拿不到纹理、编码器不是 V4L2 或导入失败时，照旧映射（读回）再拷贝。
+- **录屏管线**（`recorder.py`）：编码元素收 GL 纹理时去掉 `gldownload`，CONFIG 行写 `convert=gl-textures`。
+- **KWin 补丁** `screencast-dmabuf-other-rgb-format.patch`：录屏流原来只用输出的格式（ARGB8888）向分配器要 DMA-BUF，要不到就退回 memfd。安卓宿主的缓冲租借（`gpu_allocator.rs`）只给 RGBA 顺序（ABGR8888/XBGR8888），所以一直是 memfd。补丁在原格式失败时依次试其他 8bit RGB 格式；渲染时顺带转换，不花 CPU。现在协商结果是 RGBA、modifier 0（线性）。
+
+**验证**：
+- 可行性：容器里把 dma_heap 缓冲按 msm_vidc 布局导入成 R8/GR88 渲染目标，Adreno（FD710）清屏和 blit 都写对了，每帧 blit 加 `glFinish` 约 3 ms。
+- 同样 300 帧 1080×2400，GL 纹理直接进编码器与先 `gldownload` 再编码，解码后逐字节一致；测试进程 CPU 13.2 → 8.5 秒（含生成测试画面）。
+- 离线：`test_codec_v4l2.py` 的替身驱动检查按驱动布局写进输入缓冲、按序号编码，不经过共享内存。
+- 真机录屏（G100 S，用户设置 864×1920@60，含系统声音），整个录屏进程从约 120% 降到约 80%：GL 线程 42% → 20%，编码线程 16% → 11.5%，pipewiresrc 7% → 3%。从录好的文件截帧，方向、颜色正常；`recording.quicksetting` 通过。
+
+剩下的大头：GL 线程和 Mesa 的驱动/提交线程（合计约 36%，多为线程之间的唤醒），音频混音和 AAC 编码约 11%。
 
 ## 系统 FFmpeg（`packages/ffmpeg-ubuntu`）
 

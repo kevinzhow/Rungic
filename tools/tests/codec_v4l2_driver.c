@@ -16,7 +16,8 @@
  * IDR (with SPS and PPS in front, when forced or first) or a P slice whose payload is the
  * picture's first Y, Cb and Cr bytes, so the I420-to-NV12 copy is checked.
  *
- *   codec_v4l2_driver decode|decode10|flush|encode|encode12 KIND FRAMES   (encode12: NV12 input)
+ *   codec_v4l2_driver decode|decode10|flush|encode|encode12|encodegpu KIND FRAMES
+ *   (encode12: NV12 input; encodegpu: pictures written into the encoder's own buffers, as the GPU does)
  * Prints one JSON object: what the client reported, the pictures and the stand-in's log.
  */
 #define _GNU_SOURCE
@@ -312,9 +313,10 @@ static int frame(RungicCodec *c,int id,int params) {
  return rungic_codec_exchange(c,RUNGIC_FRAME,id,id*33333LL,0,n,output,NULL);
 }
 
+static RungicCodecPicture first_picture;
 int main(int argc,char **argv) {
  if(argc!=4)return 2;
- int ten=!strcmp(argv[1],"decode10"),flush=!strcmp(argv[1],"flush"),encode_mode=!strncmp(argv[1],"encode",6),nv12=!strcmp(argv[1],"encode12"),kind=atoi(argv[2]),frames=atoi(argv[3]);
+ int ten=!strcmp(argv[1],"decode10"),flush=!strcmp(argv[1],"flush"),encode_mode=!strncmp(argv[1],"encode",6),nv12=!strcmp(argv[1],"encode12")||!strcmp(argv[1],"encodegpu"),gpu=!strcmp(argv[1],"encodegpu"),kind=atoi(argv[2]),frames=atoi(argv[3]);
  RungicCodec codec;rungic_codec_init(&codec);
  RungicCodecConfig config={.kind=kind,.width=176,.height=144,.encoder=encode_mode,.fps_num=30,.fps_den=1,.bitrate=2000000,.key_interval=1};
  int opened=ten?rungic_codec_open_options(&codec,&config,RUNGIC_OPTION_BUFFERS|RUNGIC_OPTION_TEN_BIT):
@@ -324,7 +326,19 @@ int main(int argc,char **argv) {
  if(!opened && encode_mode) {
   /* I420 pictures: Y 16+i, Cb 100+i, Cr 200+i; the fourth forced to a key frame */
   int w=176,h=144;
-  for(int i=0;i<frames;i++) {
+  for(int i=0;i<frames && gpu;i++) {
+   /* Into a picture buffer through its DMA-BUF, in the driver's layout (stride, rows), then encoded. */
+   RungicCodecPicture picture;
+   if(rungic_codec_picture(&codec,&picture,output,NULL)){failures++;continue;}
+   if(!i)first_picture=picture;
+   uint8_t *map=mmap(NULL,picture.size,PROT_READ|PROT_WRITE,MAP_SHARED,picture.fd,0);
+   if(map==MAP_FAILED){failures++;continue;}
+   for(int r=0;r<h;r++)memset(map+(size_t)r*picture.stride,16+i,w);
+   for(int r=0;r<h/2;r++)for(int x=0;x<w;x+=2){map[picture.uv_offset+(size_t)r*picture.stride+x]=100+i;map[picture.uv_offset+(size_t)r*picture.stride+x+1]=200+i;}
+   munmap(map,picture.size);
+   failures+=rungic_codec_encode_picture(&codec,picture.index,i,i*33333LL,i==3,output,NULL)!=0;
+  }
+  for(int i=0;i<frames && !gpu;i++) {
    memset(codec.memory,16+i,w*h);
    if(nv12)for(int k=0;k<w*h/2;k+=2){codec.memory[w*h+k]=100+i;codec.memory[w*h+k+1]=200+i;}
    else{memset(codec.memory+w*h,100+i,w*h/4);memset(codec.memory+w*h*5/4,200+i,w*h/4);}
@@ -339,7 +353,8 @@ int main(int argc,char **argv) {
   }
   failures+=rungic_codec_exchange(&codec,RUNGIC_DRAIN,0,0,0,0,output,NULL)!=0;
  }
- printf("],\"takes_nv12\":%d,\"failures\":%d,\"ended\":%d,\"inputs\":%u,\"outputs\":%u,\"last_error\":\"%s\"",rungic_codec_input_nv12(&codec),failures,codec.ended,codec.input_count,codec.output_count,failures?codec.error:"");
+ printf("],\"picture\":{\"stride\":%d,\"scanlines\":%d,\"uv_offset\":%zu},",first_picture.stride,first_picture.scanlines,first_picture.uv_offset);
+ printf("\"takes_nv12\":%d,\"failures\":%d,\"ended\":%d,\"inputs\":%u,\"outputs\":%u,\"last_error\":\"%s\"",rungic_codec_input_nv12(&codec),failures,codec.ended,codec.input_count,codec.output_count,failures?codec.error:"");
  rungic_codec_close(&codec);
  printf(",\"sessions\":%d,\"violations\":%d,\"replayed_params\":%s,\"log\":\"%s\"}\n",dev.sessions,dev.violations,
         dev.first_after_open_has_params?"true":"false",dev.log);

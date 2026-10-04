@@ -428,20 +428,29 @@ static int collect_coded(V4l2Codec *d,RungicCodecOutput callback,void *user,unsi
  }
 }
 
+/* A free picture buffer (coded data that comes meanwhile goes to the consumer): its index, or -1. */
+static int free_picture(V4l2Codec *d,RungicCodecOutput callback,void *user,unsigned *outputs,int *last,int *consumer_failed,char *error,size_t n) {
+ for(long waited=0;;) {
+  reclaim_inputs(d);
+  for(int i=0;i<d->n_out;i++)if(!d->out[i].queued)return i;
+  if(collect_coded(d,callback,user,outputs,last,consumer_failed,error,n))return -1;
+  if(waited>=5000){errno=ETIMEDOUT;return failed(error,n,"free picture buffer");}
+  wait_driver(d,10);waited+=10;
+ }
+}
+static int queue_picture(V4l2Codec *d,int index,int64_t pts,int key,char *error,size_t n) {
+ if(key)control(d,V4L2_CID_MPEG_VIDEO_FORCE_KEY_FRAME,1);
+ if(queue(d,OUT,index,(size_t)d->in_bpl*d->in_scanlines*3/2,pts))return failed(error,n,"queue picture");
+ return 0;
+}
+
 /* A picture of the consumers' layout (width*height*3/2: I420, or NV12 when opened for it) into a
  * free picture buffer as NV12. */
 static int put_picture(V4l2Codec *d,const uint8_t *data,int length,int64_t pts,int key,RungicCodecOutput callback,void *user,unsigned *outputs,int *last,int *consumer_failed,char *error,size_t n) {
  int w=d->width,h=d->height,cw=w/2,ch=h/2;
  if(length!=w*h*3/2){errno=EINVAL;return failed(error,n,d->nv12_input?"NV12 size":"I420 size");}
- int index=-1;
- for(long waited=0;;) {
-  reclaim_inputs(d);
-  for(int i=0;i<d->n_out;i++)if(!d->out[i].queued){index=i;break;}
-  if(index>=0)break;
-  if(collect_coded(d,callback,user,outputs,last,consumer_failed,error,n))return -1;
-  if(waited>=5000){errno=ETIMEDOUT;return failed(error,n,"free picture buffer");}
-  wait_driver(d,10);waited+=10;
- }
+ int index=free_picture(d,callback,user,outputs,last,consumer_failed,error,n);
+ if(index<0)return -1;
  Buffer *b=&d->out[index];
  uint8_t *uv=b->map+(size_t)d->in_bpl*d->in_scanlines;
  const uint8_t *u=data+w*h,*v=u+cw*ch;
@@ -453,19 +462,31 @@ static int put_picture(V4l2Codec *d,const uint8_t *data,int length,int64_t pts,i
   for(int x=0;x<cw;x++){row[2*x]=ur[x];row[2*x+1]=vr[x];}
  }
  sync_buffer(b,1,1);
- if(key)control(d,V4L2_CID_MPEG_VIDEO_FORCE_KEY_FRAME,1);
- if(queue(d,OUT,index,(size_t)d->in_bpl*d->in_scanlines*3/2,pts))return failed(error,n,"queue picture");
+ return queue_picture(d,index,pts,key,error,n);
+}
+
+int v4l2_picture(V4l2Codec *d,RungicCodecPicture *picture,RungicCodecOutput callback,void *user,unsigned *outputs,char *error,size_t n) {
+ int last=0,consumer_failed=0;
+ if(!d->encoder){errno=EINVAL;return failed(error,n,"picture buffers of a decoder");}
+ int index=free_picture(d,callback,user,outputs,&last,&consumer_failed,error,n);
+ if(index<0)return -1;
+ if(consumer_failed){snprintf(error,n,"Output consumer stopped");return -1;}
+ *picture=(RungicCodecPicture){.index=index,.fd=d->out[index].fd,.stride=(int)d->in_bpl,.scanlines=(int)d->in_scanlines,
+  .size=d->out[index].size,.uv_offset=(size_t)d->in_bpl*d->in_scanlines};
  return 0;
 }
 
-static int exchange_encoder(V4l2Codec *d,int cmd,int id,int64_t pts,int flags,const uint8_t *data,int length,
+/* index: a picture buffer the caller filled (v4l2_picture), or -1 for data's picture. */
+static int exchange_encoder(V4l2Codec *d,int cmd,int id,int64_t pts,int flags,const uint8_t *data,int length,int index,
                             RungicCodecOutput callback,void *user,int *ended,unsigned *outputs,char *error,size_t n) {
  int last=0,consumer_failed=0;
  if(cmd==RUNGIC_FLUSH){*ended=0;return reopen(d,error,n);}
  if(cmd==RUNGIC_FRAME) {
   if(*ended){errno=EINVAL;return failed(error,n,"input after the end");}
+  if(index>=0 && (index>=d->n_out || d->out[index].queued)){errno=EINVAL;return failed(error,n,"picture buffer");}
   remember(d,pts,id);
-  if(put_picture(d,data,length,pts,flags&1,callback,user,outputs,&last,&consumer_failed,error,n))return -1;
+  if(index>=0?queue_picture(d,index,pts,flags&1,error,n):
+     put_picture(d,data,length,pts,flags&1,callback,user,outputs,&last,&consumer_failed,error,n))return -1;
  }
  if(collect_coded(d,callback,user,outputs,&last,&consumer_failed,error,n))return -1;
  if(cmd==RUNGIC_DRAIN && !*ended) {
@@ -487,7 +508,7 @@ static int exchange_encoder(V4l2Codec *d,int cmd,int id,int64_t pts,int flags,co
 
 int v4l2_exchange(V4l2Codec *d,int cmd,int id,int64_t pts,int flags,const uint8_t *data,int length,
                   RungicCodecOutput callback,void *user,int *ended,unsigned *outputs,char *error,size_t n) {
- if(d->encoder)return exchange_encoder(d,cmd,id,pts,flags,data,length,callback,user,ended,outputs,error,n);
+ if(d->encoder)return exchange_encoder(d,cmd,id,pts,flags,data,length,-1,callback,user,ended,outputs,error,n);
  int last=0,consumer_failed=0;
  if(cmd==RUNGIC_FLUSH){*ended=0;return reopen(d,error,n);}
  if(cmd==RUNGIC_FRAME) {
@@ -542,4 +563,10 @@ int v4l2_exchange(V4l2Codec *d,int cmd,int id,int64_t pts,int flags,const uint8_
   *ended=1;
  }
  return consumer_failed?-1:0;
+}
+
+int v4l2_encode_picture(V4l2Codec *d,int index,int id,int64_t pts,int flags,RungicCodecOutput callback,void *user,
+                        int *ended,unsigned *outputs,char *error,size_t n) {
+ if(!d->encoder || index<0){errno=EINVAL;return failed(error,n,"picture buffer");}
+ return exchange_encoder(d,RUNGIC_FRAME,id,pts,flags,NULL,0,index,callback,user,ended,outputs,error,n);
 }

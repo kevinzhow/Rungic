@@ -37,6 +37,13 @@ int rungic_codec_open(RungicCodec *,const RungicCodecConfig *);
 int rungic_codec_open_options(RungicCodec *,const RungicCodecConfig *,int options);
 int rungic_codec_input_nv12(const RungicCodec *);
 int rungic_codec_exchange(RungicCodec *,int cmd,int id,int64_t pts,int flags,int length,RungicCodecOutput,void *);
+/* The V4L2 encoder's own picture buffers, for a caller that fills them itself (a GPU drawing into
+ * the DMA-BUF, no copy here): rungic_codec_picture gives a free one, NV12 with this layout (-1 when
+ * the codec has none: give pictures through memory as always); rungic_codec_encode_picture encodes
+ * it as RUNGIC_FRAME would. The buffer and its fd stay the codec's. */
+typedef struct {int index,fd,stride,scanlines;size_t size,uv_offset;} RungicCodecPicture;
+int rungic_codec_picture(RungicCodec *,RungicCodecPicture *,RungicCodecOutput,void *);
+int rungic_codec_encode_picture(RungicCodec *,int index,int id,int64_t pts,int flags,RungicCodecOutput,void *);
 void rungic_codec_close(RungicCodec *);
 int rungic_codec_copy_i420(const RungicCodecFrame *,uint8_t *const dst[3],const int stride[3]);
 /* Y and interleaved CbCr: NV12 from an 8-bit picture, P010 from a 10-bit one. */

@@ -40,6 +40,19 @@ def gpu_convert():
     return bool(os.environ.get('WAYLAND_DISPLAY')) and all(
         Gst.ElementFactory.find(n) for n in ('glupload', 'glvideoflip', 'glcolorscale', 'glcolorconvert', 'gldownload'))
 
+def texture_input():
+    """The encoder takes the converted GL textures itself: the GPU copies them into the V4L2
+    encoder's own picture buffers, and nothing is read back (docs/108). Older elements without
+    GLMemory input get the picture through gldownload."""
+    factory = Gst.ElementFactory.find('rungich264enc')
+    if not factory:
+        return False
+    for template in factory.get_static_pad_templates():
+        if template.direction == Gst.PadDirection.SINK:
+            caps = template.get_caps()
+            return any(caps.get_features(i).contains('memory:GLMemory') for i in range(caps.get_size()))
+    return False
+
 def partial_path(output):
     return output.with_suffix('.partial.mp4')
 
@@ -57,6 +70,9 @@ class Recorder:
         # 1080p class (measured 2026-09-24). Such streams are scaled to fit.
         self.fit_1080p = len(streams) > 1 or fps > 30
         self.gl = gpu_convert()
+        self.textures = self.gl and texture_input()
+        download = '' if self.textures else '! gldownload '
+        raw = 'video/x-raw(memory:GLMemory)' if self.textures else 'video/x-raw'
         video = ''
         for i, (node, _) in enumerate(streams):
             # GL: the stream's buffers go to the GPU as they come (DMA-BUFs where KWin gives them),
@@ -65,13 +81,13 @@ class Recorder:
                 # glvideoflip and glcolorscale take RGBA textures: a first glcolorconvert gives them that.
                 convert = (f'! glupload ! glcolorconvert ! glvideoflip name=flip{i} video-direction=auto '
                            f'! queue max-size-buffers=4 leaky=downstream ! glcolorscale ! capsfilter name=fit{i} ! glcolorconvert '
-                           f'! video/x-raw(memory:GLMemory),format=NV12 ! gldownload ')
+                           f'! video/x-raw(memory:GLMemory),format=NV12 {download}')
             else:
                 convert = (f'! video/x-raw ! videoflip name=flip{i} video-direction=auto ! queue max-size-buffers=4 leaky=downstream '
                            f'! videoconvertscale n-threads=2 ! capsfilter name=fit{i} ')
             video += (f'pipewiresrc name=video{i} path={node} do-timestamp=true provide-clock=false keepalive-time={1000//fps} '
                       + convert +
-                      f'! videorate ! video/x-raw,format=NV12,framerate={fps}/1 '
+                      f'! videorate ! {raw},format=NV12,framerate={fps}/1 '
                       # The encoder runs in its own thread and drops what it cannot keep up with here
                       # (measured about 50 fps at 864x1920). Without this, videorate filled every gap
                       # with duplicates in the converter's thread: the stream fell behind real time
@@ -130,7 +146,7 @@ class Recorder:
                 path.unlink(missing_ok=True)
             raise
         print(f'CONFIG quality={quality} bitrate={bitrate} fps={fps} audio={audio} screens={len(streams)} '
-              f'convert={"gl" if self.gl else "cpu"}', flush=True)
+              f'convert={"gl-textures" if self.textures else "gl" if self.gl else "cpu"}', flush=True)
 
     def start_timeout(self):
         if not self.started:

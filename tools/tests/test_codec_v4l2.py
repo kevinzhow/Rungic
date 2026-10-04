@@ -130,3 +130,18 @@ def test_the_v4l2_encoder_takes_nv12_as_it_is_when_asked(driver):
     assert [r['data'][-6:] for r in frames] == [f'{16 + i:02x}{100 + i:02x}{200 + i:02x}' for i in range(3)]
     plain = run(driver, 'encode', frames=1, RUNGIC_CODEC_V4L2_ENCODER=ENCODER)
     assert plain['takes_nv12'] == 0
+
+
+# covers: apps.hw-codec/E10
+def test_pictures_drawn_into_the_encoders_own_buffers_are_encoded_without_a_copy(driver):
+    # The screen recorder's GPU writes the converted picture straight into a V4L2 picture buffer
+    # through its DMA-BUF (gst-rungic-codec.c, GL textures): the client gives a free buffer in the
+    # driver's layout and encodes it by index; nothing goes through the shared memory.
+    result = run(driver, 'encodegpu', frames=5, RUNGIC_CODEC_V4L2_ENCODER=ENCODER)
+    assert result['open'] is True and result['violations'] == 0 and result['failures'] == 0, result
+    assert result['picture'] == {'stride': 256, 'scanlines': 160, 'uv_offset': 256 * 160}   # 176x144, msm_vidc alignment
+    frames = [r for r in result['records'] if r['type'] == 1]
+    assert [r['id'] for r in frames] == list(range(5)) and [r['flags'] for r in frames] == [1, 0, 0, 1, 0]
+    assert [r['data'][-6:] for r in frames] == [f'{16 + i:02x}{100 + i:02x}{200 + i:02x}' for i in range(5)]
+    assert result['inputs'] == 5 and result['ended'] == 1
+

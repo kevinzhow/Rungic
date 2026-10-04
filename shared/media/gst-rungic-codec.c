@@ -1,9 +1,17 @@
 /* SPDX-License-Identifier: MIT */
+#include <errno.h>
+#include <string.h>
 #include <gst/gst.h>
 #include <gst/video/video.h>
 #include <gst/video/gstvideodecoder.h>
 #include <gst/video/gstvideoencoder.h>
 #include "codec-client.h"
+#ifdef RUNGIC_GST_GL
+#include <gst/gl/gl.h>
+#include <gst/gl/gstglfuncs.h>
+#include <EGL/egl.h>
+#include <EGL/eglext.h>
+#endif
 #ifndef PACKAGE
 #define PACKAGE "rungic-codec"
 #endif
@@ -12,6 +20,13 @@ GST_DEBUG_CATEGORY_STATIC(rungic_debug);
 /* Encoder input: NV12 first (the V4L2 encoder's own layout, and what a GL colour conversion gives
  * the screen recorder), I420 as before. */
 #define RAW_CAPS "video/x-raw,format=(string){NV12,I420},width=(int)[16,2560],height=(int)[16,2560]"
+/* NV12 textures (a GL colour conversion's): the GPU copies them into the V4L2 encoder's own picture
+ * buffers through their DMA-BUFs, nothing passes through the CPU. Mapped (read back) otherwise. */
+#ifdef RUNGIC_GST_GL
+#define GL_CAPS "video/x-raw(memory:GLMemory),format=(string)NV12,texture-target=(string)2D,width=(int)[16,2560],height=(int)[16,2560];"
+#else
+#define GL_CAPS ""
+#endif
 /* Decoded pictures: NV12 as the hardware gives them (I420 when downstream wants it), P010 for 10-bit. */
 #define DECODED_CAPS "video/x-raw,format=(string){NV12,I420,P010_10LE},width=(int)[16,2560],height=(int)[16,2560]"
 static const char *compressed_caps[]={
@@ -127,7 +142,10 @@ static void decoder_codec_class_init(gpointer klass,gpointer data) {
  gst_element_class_add_pad_template(element,gst_pad_template_new("sink",GST_PAD_SINK,GST_PAD_ALWAYS,sink));
  gst_element_class_add_pad_template(element,gst_pad_template_new("src",GST_PAD_SRC,GST_PAD_ALWAYS,src));gst_caps_unref(sink);gst_caps_unref(src);
 }
-typedef struct {GstVideoEncoder parent;RungicCodec codec;GstVideoCodecState *input;GstFlowReturn flow;GByteArray *headers;guint bitrate,key_interval;} RungicEncoder;
+/* A picture buffer as GL render targets: Y (R8) and CbCr (GR88) of its DMA-BUF. */
+typedef struct {int fd;void *image[2];unsigned texture[2],framebuffer[2];} GlTarget;
+typedef struct {GstVideoEncoder parent;RungicCodec codec;GstVideoCodecState *input;GstFlowReturn flow;GByteArray *headers;guint bitrate,key_interval;
+ GstObject *gl;GlTarget targets[16];int n_targets;unsigned read_framebuffer;gboolean gl_failed;} RungicEncoder;
 typedef struct {GstVideoEncoderClass parent;int kind;} RungicEncoderClass;
 G_DEFINE_ABSTRACT_TYPE(RungicEncoder,rungic_encoder,GST_TYPE_VIDEO_ENCODER)
 enum { PROP_0,PROP_BITRATE,PROP_KEY_INTERVAL };
@@ -143,12 +161,108 @@ static int encoder_output(void *opaque,const RungicCodecFrame *frame) {
  if(key)GST_VIDEO_CODEC_FRAME_SET_SYNC_POINT(f);
  f->dts=f->pts;self->flow=gst_video_encoder_finish_frame(encoder,f);return self->flow==GST_FLOW_OK?0:-1;
 }
+#ifdef RUNGIC_GST_GL
+#ifndef GL_READ_FRAMEBUFFER
+#define GL_READ_FRAMEBUFFER 0x8CA8
+#define GL_DRAW_FRAMEBUFFER 0x8CA9
+#endif
+#define FOURCC(a,b,c,d) ((uint32_t)(a)|((uint32_t)(b)<<8)|((uint32_t)(c)<<16)|((uint32_t)(d)<<24))
+typedef struct {RungicEncoder *self;GstGLMemory *in[2];RungicCodecPicture picture;int width,height;gboolean ok;} GlCopy;
+static void gl_release(GstGLContext *context,gpointer data) {
+ RungicEncoder *self=data;const GstGLFuncs *gl=context->gl_vtable;
+ PFNEGLDESTROYIMAGEKHRPROC destroy=(PFNEGLDESTROYIMAGEKHRPROC)eglGetProcAddress("eglDestroyImageKHR");
+ for(int i=0;i<self->n_targets;i++) {
+  GlTarget *t=&self->targets[i];
+  gl->DeleteFramebuffers(2,t->framebuffer);gl->DeleteTextures(2,t->texture);
+  for(int p=0;p<2;p++)if(t->image[p] && destroy)destroy(eglGetCurrentDisplay(),t->image[p]);
+ }
+ self->n_targets=0;
+ if(self->read_framebuffer)gl->DeleteFramebuffers(1,&self->read_framebuffer);
+ self->read_framebuffer=0;
+}
+/* The GL targets go with the picture buffers (a new codec has new ones), in the GL thread. */
+static void gl_forget(RungicEncoder *self) {
+ if(self->gl){gst_gl_context_thread_add(GST_GL_CONTEXT(self->gl),gl_release,self);gst_object_unref(self->gl);self->gl=NULL;}
+ self->n_targets=0;self->read_framebuffer=0;
+}
+static GlTarget *gl_target(GstGLContext *context,RungicEncoder *self,const RungicCodecPicture *picture,int width,int height) {
+ for(int i=0;i<self->n_targets;i++)if(self->targets[i].fd==picture->fd)return &self->targets[i];
+ if(self->n_targets==G_N_ELEMENTS(self->targets))return NULL;
+ PFNEGLCREATEIMAGEKHRPROC create=(PFNEGLCREATEIMAGEKHRPROC)eglGetProcAddress("eglCreateImageKHR");
+ if(!create)return NULL;
+ const GstGLFuncs *gl=context->gl_vtable;
+ GlTarget *t=&self->targets[self->n_targets++];memset(t,0,sizeof(*t));t->fd=picture->fd;
+ gl->GenTextures(2,t->texture);gl->GenFramebuffers(2,t->framebuffer);
+ for(int p=0;p<2;p++) {
+  /* Linear, as msm_vidc reads it (without the modifier a driver may assume its own tiling). */
+  EGLint attributes[]={EGL_WIDTH,p?width/2:width,EGL_HEIGHT,p?height/2:height,
+   EGL_LINUX_DRM_FOURCC_EXT,(EGLint)(p?FOURCC('G','R','8','8'):FOURCC('R','8',' ',' ')),
+   EGL_DMA_BUF_PLANE0_FD_EXT,picture->fd,EGL_DMA_BUF_PLANE0_OFFSET_EXT,p?(EGLint)picture->uv_offset:0,
+   EGL_DMA_BUF_PLANE0_PITCH_EXT,picture->stride,EGL_DMA_BUF_PLANE0_MODIFIER_LO_EXT,0,EGL_DMA_BUF_PLANE0_MODIFIER_HI_EXT,0,EGL_NONE};
+  t->image[p]=create(eglGetCurrentDisplay(),EGL_NO_CONTEXT,EGL_LINUX_DMA_BUF_EXT,NULL,attributes);
+  if(t->image[p]==EGL_NO_IMAGE_KHR){t->image[p]=NULL;GST_WARNING_OBJECT(self,"EGL image of a picture buffer: 0x%x",eglGetError());return NULL;}
+  gl->BindTexture(GL_TEXTURE_2D,t->texture[p]);gl->EGLImageTargetTexture2D(GL_TEXTURE_2D,t->image[p]);
+  gl->BindFramebuffer(GL_FRAMEBUFFER,t->framebuffer[p]);
+  gl->FramebufferTexture2D(GL_FRAMEBUFFER,GL_COLOR_ATTACHMENT0,GL_TEXTURE_2D,t->texture[p],0);
+  if(gl->CheckFramebufferStatus(GL_FRAMEBUFFER)!=GL_FRAMEBUFFER_COMPLETE){GST_WARNING_OBJECT(self,"Picture buffer is no render target");return NULL;}
+ }
+ gl->BindTexture(GL_TEXTURE_2D,0);gl->BindFramebuffer(GL_FRAMEBUFFER,0);
+ return t;
+}
+static void gl_copy(GstGLContext *context,gpointer data) {
+ GlCopy *job=data;RungicEncoder *self=job->self;const GstGLFuncs *gl=context->gl_vtable;
+ if(!gl->BlitFramebuffer || !gl->EGLImageTargetTexture2D)return;
+ GlTarget *t=gl_target(context,self,&job->picture,job->width,job->height);
+ if(!t)return;
+ if(!self->read_framebuffer)gl->GenFramebuffers(1,&self->read_framebuffer);
+ for(int p=0;p<2;p++) {
+  int w=MIN((int)gst_gl_memory_get_texture_width(job->in[p]),p?job->width/2:job->width);
+  int h=MIN((int)gst_gl_memory_get_texture_height(job->in[p]),p?job->height/2:job->height);
+  gl->BindFramebuffer(GL_READ_FRAMEBUFFER,self->read_framebuffer);
+  gl->FramebufferTexture2D(GL_READ_FRAMEBUFFER,GL_COLOR_ATTACHMENT0,GL_TEXTURE_2D,gst_gl_memory_get_texture_id(job->in[p]),0);
+  gl->BindFramebuffer(GL_DRAW_FRAMEBUFFER,t->framebuffer[p]);
+  gl->BlitFramebuffer(0,0,w,h,0,0,w,h,GL_COLOR_BUFFER_BIT,GL_NEAREST);
+ }
+ gl->BindFramebuffer(GL_FRAMEBUFFER,0);
+ /* The encoder reads the buffer as soon as it is queued. */
+ gl->Finish();
+ job->ok=gl->GetError()==GL_NO_ERROR;
+}
+/* 0 when the GPU copied the frame's textures into a picture buffer and it is encoding; -1 to take
+ * the frame through memory (no GL textures, no picture buffers, or the import failed: then never again). */
+static int encode_textures(RungicEncoder *self,GstVideoCodecFrame *frame,int id,int64_t pts,int flags,int *result) {
+ GstBuffer *buffer=frame->input_buffer;
+ if(self->gl_failed || gst_buffer_n_memory(buffer)!=2)return -1;
+ GstMemory *y=gst_buffer_peek_memory(buffer,0),*uv=gst_buffer_peek_memory(buffer,1);
+ if(!gst_is_gl_memory(y) || !gst_is_gl_memory(uv))return -1;
+ GstGLContext *context=((GstGLBaseMemory *)y)->context;
+ if(gst_gl_context_get_gl_platform(context)!=GST_GL_PLATFORM_EGL){self->gl_failed=TRUE;return -1;}
+ if(self->gl && self->gl!=GST_OBJECT(context))gl_forget(self);
+ RungicCodecPicture picture;
+ if(rungic_codec_picture(&self->codec,&picture,encoder_output,self)){
+  if(errno==ENOTSUP){self->gl_failed=TRUE;return -1;}
+  *result=-1;return 0;
+ }
+ if(!self->gl)self->gl=gst_object_ref(context);
+ GlCopy job={.self=self,.in={(GstGLMemory *)y,(GstGLMemory *)uv},.picture=picture,
+  .width=GST_VIDEO_INFO_WIDTH(&self->input->info),.height=GST_VIDEO_INFO_HEIGHT(&self->input->info)};
+ GstGLSyncMeta *sync=gst_buffer_get_gl_sync_meta(buffer);
+ if(sync)gst_gl_sync_meta_wait(sync,context);
+ gst_gl_context_thread_add(context,gl_copy,&job);
+ if(!job.ok){GST_WARNING_OBJECT(self,"GPU copy into the encoder's buffers failed: reading frames back");self->gl_failed=TRUE;return -1;}
+ *result=rungic_codec_encode_picture(&self->codec,picture.index,id,pts,flags,encoder_output,self);
+ return 0;
+}
+#else
+static void gl_forget(RungicEncoder *self){(void)self;}
+#endif
 static gboolean encoder_set_format(GstVideoEncoder *encoder,GstVideoCodecState *state) {
  RungicEncoder *self=(RungicEncoder *)encoder;RungicEncoderClass *klass=(RungicEncoderClass *)G_OBJECT_GET_CLASS(self);
  RungicCodecConfig config={.encoder=1,.kind=klass->kind,.width=GST_VIDEO_INFO_WIDTH(&state->info),.height=GST_VIDEO_INFO_HEIGHT(&state->info),
  .fps_num=GST_VIDEO_INFO_FPS_N(&state->info),.fps_den=GST_VIDEO_INFO_FPS_D(&state->info),.bitrate=self->bitrate*1000,.key_interval=self->key_interval};
  color_config(&config,&state->info);
  gboolean nv12=GST_VIDEO_INFO_FORMAT(&state->info)==GST_VIDEO_FORMAT_NV12;
+ gl_forget(self);self->gl_failed=FALSE;
  if(rungic_codec_open_options(&self->codec,&config,nv12?RUNGIC_OPTION_BUFFERS|RUNGIC_OPTION_NV12_INPUT:RUNGIC_OPTIONS_DEFAULT)){GST_WARNING_OBJECT(self,"%s",self->codec.error);return FALSE;}
  if(self->input)gst_video_codec_state_unref(self->input);self->input=gst_video_codec_state_ref(state);g_byte_array_set_size(self->headers,0);
  GstCaps *caps=gst_caps_new_simple(mime_caps[klass->kind],"stream-format",G_TYPE_STRING,"byte-stream","alignment",G_TYPE_STRING,"au",NULL);
@@ -159,6 +273,17 @@ static gboolean encoder_set_format(GstVideoEncoder *encoder,GstVideoCodecState *
 }
 static GstFlowReturn encoder_handle(GstVideoEncoder *encoder,GstVideoCodecFrame *frame) {
  RungicEncoder *self=(RungicEncoder *)encoder;self->flow=GST_FLOW_OK;GstVideoFrame raw;
+#ifdef RUNGIC_GST_GL
+ if(self->input) {
+  int id=frame->system_frame_number,flags=GST_VIDEO_CODEC_FRAME_IS_FORCE_KEYFRAME(frame)?1:0,r=0;
+  int64_t pts=GST_CLOCK_TIME_IS_VALID(frame->pts)?frame->pts/GST_USECOND:(int64_t)id*33333;
+  if(!encode_textures(self,frame,id,pts,flags,&r)) {
+   gst_video_codec_frame_unref(frame);
+   if(r && self->flow==GST_FLOW_OK){GST_ELEMENT_ERROR(self,STREAM,ENCODE,("Android hardware encoder failed"),("%s",self->codec.error));return GST_FLOW_ERROR;}
+   return self->flow;
+  }
+ }
+#endif
  if(!self->input || !self->codec.memory || !gst_video_frame_map(&raw,&self->input->info,frame->input_buffer,GST_MAP_READ)) {gst_video_codec_frame_unref(frame);return GST_FLOW_ERROR;}
  int width=GST_VIDEO_FRAME_WIDTH(&raw),height=GST_VIDEO_FRAME_HEIGHT(&raw),offset=0;
  if(GST_VIDEO_FRAME_FORMAT(&raw)==GST_VIDEO_FORMAT_NV12) {
@@ -193,7 +318,7 @@ static gboolean encoder_flush(GstVideoEncoder *encoder) {
 }
 static gboolean encoder_stop(GstVideoEncoder *encoder) {
  RungicEncoder *self=(RungicEncoder *)encoder;GST_INFO_OBJECT(self,"Close %s input=%u output=%u",self->codec.name,self->codec.input_count,self->codec.output_count);
- rungic_codec_close(&self->codec);if(self->input){gst_video_codec_state_unref(self->input);self->input=NULL;}g_byte_array_set_size(self->headers,0);return TRUE;
+ gl_forget(self);rungic_codec_close(&self->codec);if(self->input){gst_video_codec_state_unref(self->input);self->input=NULL;}g_byte_array_set_size(self->headers,0);return TRUE;
 }
 static void encoder_get_property(GObject *object,guint id,GValue *v,GParamSpec *pspec) {
  RungicEncoder *self=(RungicEncoder *)object;if(id==PROP_BITRATE)g_value_set_uint(v,self->bitrate);else if(id==PROP_KEY_INTERVAL)g_value_set_uint(v,self->key_interval);else G_OBJECT_WARN_INVALID_PROPERTY_ID(object,id,pspec);
@@ -202,7 +327,7 @@ static void encoder_set_property(GObject *object,guint id,const GValue *v,GParam
  RungicEncoder *self=(RungicEncoder *)object;if(id==PROP_BITRATE)self->bitrate=g_value_get_uint(v);else if(id==PROP_KEY_INTERVAL)self->key_interval=g_value_get_uint(v);else G_OBJECT_WARN_INVALID_PROPERTY_ID(object,id,pspec);
 }
 static void encoder_finalize(GObject *object) {
- RungicEncoder *self=(RungicEncoder *)object;rungic_codec_close(&self->codec);g_byte_array_unref(self->headers);G_OBJECT_CLASS(rungic_encoder_parent_class)->finalize(object);
+ RungicEncoder *self=(RungicEncoder *)object;gl_forget(self);rungic_codec_close(&self->codec);g_byte_array_unref(self->headers);G_OBJECT_CLASS(rungic_encoder_parent_class)->finalize(object);
 }
 static void rungic_encoder_init(RungicEncoder *self) {rungic_codec_init(&self->codec);self->headers=g_byte_array_new();self->bitrate=4000;self->key_interval=2;}
 static void rungic_encoder_class_init(RungicEncoderClass *klass) {
@@ -214,7 +339,7 @@ static void rungic_encoder_class_init(RungicEncoderClass *klass) {
 static void encoder_codec_class_init(gpointer klass,gpointer data) {
  RungicEncoderClass *c=klass;c->kind=GPOINTER_TO_INT(data);GstElementClass *element=GST_ELEMENT_CLASS(c);
  gst_element_class_set_metadata(element,"Android hardware video encoder","Codec/Encoder/Video/Hardware","MediaCodec via private shared-memory IPC","Rungic project");
- GstCaps *sink=gst_caps_from_string(RAW_CAPS),*src=gst_caps_new_simple(mime_caps[c->kind],"stream-format",G_TYPE_STRING,"byte-stream","alignment",G_TYPE_STRING,"au",NULL);
+ GstCaps *sink=gst_caps_from_string(GL_CAPS RAW_CAPS),*src=gst_caps_new_simple(mime_caps[c->kind],"stream-format",G_TYPE_STRING,"byte-stream","alignment",G_TYPE_STRING,"au",NULL);
  gst_element_class_add_pad_template(element,gst_pad_template_new("sink",GST_PAD_SINK,GST_PAD_ALWAYS,sink));
  gst_element_class_add_pad_template(element,gst_pad_template_new("src",GST_PAD_SRC,GST_PAD_ALWAYS,src));gst_caps_unref(sink);gst_caps_unref(src);
 }

@@ -910,13 +910,14 @@ Linux 应用用手机的相机拍照录像，用手机的扬声器和麦克风�
 - **E7** 10bit 的 HEVC Main10、VP9 Profile 2 由硬件解码，输出 P010，不悄悄压成 8bit；不支持时打开失败，交给软件解码。（单元测试、人工）
 - **E8** 新的 Linux 端遇到旧 APK（通道版本 1）自动退回共享内存，8bit 照常硬件解码；手机的解码缓冲读不了时同样退回。（单元测试、人工）
 - **E9** 有高通 msm_vidc 解码节点（/dev/video32）的手机，解码直接走 V4L2，不经过 APK：实时 1080p60 约占一个核的 23%（MediaCodec 桥约 105%），1080p 吞吐约 240 帧/秒；没有这个节点、显式关掉或在 Firefox 的沙箱里，照旧用 MediaCodec 桥。（单元测试、人工）
-- **E10** 有 msm_vidc 编码节点（/dev/video33）的手机，H.264/HEVC 编码直接走 V4L2：录屏 1080×2400@30 能跟上实时，编码本身约占一个核的 2–3%（MediaCodec 桥约 75% 以上且跟不上 30 帧）；参数集单独给出，关键帧可强制；NV12 输入原样收下。录屏的颜色转换在 GPU 上做，整个录屏进程从约 160% 降到约 107%。（单元测试、人工）
+- **E10** 有 msm_vidc 编码节点（/dev/video33）的手机，H.264/HEVC 编码直接走 V4L2：录屏 1080×2400@30 能跟上实时，编码本身约占一个核的 2–3%（MediaCodec 桥约 75% 以上且跟不上 30 帧）；参数集单独给出，关键帧可强制；NV12 输入原样收下。录屏的颜色转换在 GPU 上做，转好的纹理由 GPU 直接写进编码器的输入缓冲，KWin 给录屏的画面是 DMA-BUF，整个过程不经过 CPU 拷贝。（单元测试、人工）
 - **E11** 用系统 FFmpeg 的应用（mpv/Haruna、VLC、Qt Multimedia、缩略图）默认选中硬件解码器 h264/hevc/vp9_rungic，打不开硬件时回退软件；应用默认的软件编码器不变。（单元测试、人工）
 - **E12** Flatpak 里用 GStreamer 的应用（Freedesktop/GNOME 运行时）经扩展 org.freedesktop.Platform.GStreamer.rungic 用上 V4L2 硬件编解码；没有设备权限的应用照常软件解码。（单元测试、人工）
 - **E13** 走 MediaCodec 桥的解码（Firefox、没有 msm_vidc 的手机）在 APK 的原生线程里运行（AMediaCodec 异步回调、AImageReader、原生 socket），协议与 Java 会话相同，编码仍交给 Java；各格式（含 10bit）与软解逐字节一致，APK 里我们自己的代码不到 1%。（单元测试、人工）
 
 注意：
 - Mozilla 官方 arm64 Firefox 没有启用 MOZ_ENABLE_V4L2，RDD 的沙箱 broker 拒绝打开 /dev/video*；Firefox 仍走 MediaCodec 桥。沙箱前预开 DMA 堆不解决问题，还会把它交给所有内容进程，不要这么做。 [docs/108-codec-bridge-buffers.md](../docs/108-codec-bridge-buffers.md)
+- 安卓宿主的缓冲租借（gpu_allocator.rs）只给 RGBA 顺序（ABGR8888/XBGR8888）。KWin 录屏原来只按输出格式 ARGB8888 要 DMA-BUF，要不到就悄悄退回 memfd，每帧 CPU 读回再上传；补丁 screencast-dmabuf-other-rgb-format 改为换格式再试。 [docs/108-codec-bridge-buffers.md](../docs/108-codec-bridge-buffers.md)
 - NDK 的 AImageReader 按配置格式严格检查缓冲：配成 YCBCR_P010 时会拒收高通解码器自己的 P010（0x7fa30c0a），第二帧起取不到图（Java 的 ImageReader 不拒）。10bit 用 PRIVATE 格式的 reader。 [docs/108-codec-bridge-buffers.md](../docs/108-codec-bridge-buffers.md)
 - mpv 默认在主线程解码，硬件解码器的出帧时序抖动让约 10% 的帧在 vo 端被判来晚丢掉（解码速度足够，vd-queue-enable=yes 时为 0）。 [docs/108-codec-bridge-buffers.md](../docs/108-codec-bridge-buffers.md)
 - msm_vidc 的 V4L2 编码器必须先开图像（OUTPUT）流、再开码流（CAPTURE），两路都开流后才能排缓冲；先排码流缓冲再送第一张图，固件同样断言复位。 [docs/108-codec-bridge-buffers.md](../docs/108-codec-bridge-buffers.md)

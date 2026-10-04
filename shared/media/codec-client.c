@@ -212,6 +212,17 @@ int rungic_codec_input_nv12(const RungicCodec *c) {
  Channel *channel=c->fd>=0?channel_of(c->fd):NULL;
  return channel && channel->v4l2 && v4l2_input_nv12(channel->v4l2);
 }
+int rungic_codec_picture(RungicCodec *c,RungicCodecPicture *picture,RungicCodecOutput callback,void *user) {
+ Channel *channel=c->fd>=0?channel_of(c->fd):NULL;
+ if(!channel || !channel->v4l2 || !v4l2_input_nv12(channel->v4l2)){errno=ENOTSUP;return -1;}
+ return v4l2_picture(channel->v4l2,picture,callback,user,&c->output_count,c->error,sizeof(c->error));
+}
+int rungic_codec_encode_picture(RungicCodec *c,int index,int id,int64_t pts,int flags,RungicCodecOutput callback,void *user) {
+ Channel *channel=c->fd>=0?channel_of(c->fd):NULL;
+ if(!channel || !channel->v4l2){errno=ENOTSUP;return fail(c,"Picture buffers");}
+ c->input_count++;
+ return v4l2_encode_picture(channel->v4l2,index,id,pts,flags,callback,user,&c->ended,&c->output_count,c->error,sizeof(c->error));
+}
 int rungic_codec_open(RungicCodec *c,const RungicCodecConfig *config) {
  return rungic_codec_open_options(c,config,RUNGIC_OPTIONS_DEFAULT);
 }

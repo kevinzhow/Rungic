@@ -691,9 +691,10 @@ features:
         evidence:
           - {doc: docs/108-codec-bridge-buffers.md, date: 2026-10-04, note: "G100 S 容器内 GStreamer：H.264/HEVC/VP9/Main10 与软解 md5 一致，无固件错误"}
       - id: E10
-        text: 有 msm_vidc 编码节点（/dev/video33）的手机，H.264/HEVC 编码直接走 V4L2：录屏 1080×2400@30 能跟上实时，编码本身约占一个核的 2–3%（MediaCodec 桥约 75% 以上且跟不上 30 帧）；参数集单独给出，关键帧可强制；NV12 输入原样收下。录屏的颜色转换在 GPU 上做，整个录屏进程从约 160% 降到约 107%。
+        text: 有 msm_vidc 编码节点（/dev/video33）的手机，H.264/HEVC 编码直接走 V4L2：录屏 1080×2400@30 能跟上实时，编码本身约占一个核的 2–3%（MediaCodec 桥约 75% 以上且跟不上 30 帧）；参数集单独给出，关键帧可强制；NV12 输入原样收下。录屏的颜色转换在 GPU 上做，转好的纹理由 GPU 直接写进编码器的输入缓冲，KWin 给录屏的画面是 DMA-BUF，整个过程不经过 CPU 拷贝。
         evidence:
           - {doc: docs/108-codec-bridge-buffers.md, date: 2026-10-04, note: "G100 S：录屏快捷设置验收通过（视频+音频），codec.hw 通过"}
+          - {doc: docs/108-codec-bridge-buffers.md, date: 2026-10-04, note: "G100 S 零拷贝录屏 864×1920@60：进程约 120%→80%，截帧方向颜色正常，GL 直写与读回编码逐字节一致"}
       - id: E11
         text: 用系统 FFmpeg 的应用（mpv/Haruna、VLC、Qt Multimedia、缩略图）默认选中硬件解码器 h264/hevc/vp9_rungic，打不开硬件时回退软件；应用默认的软件编码器不变。
         evidence:
@@ -708,6 +709,8 @@ features:
           - {doc: docs/108-codec-bridge-buffers.md, date: 2026-10-04, note: "G100 S APK 2.34 同进程交替：实时 1080p60 APK 49%→40%，300 帧 APK CPU 2.24→1.95 秒"}
     pitfalls:
       - text: Mozilla 官方 arm64 Firefox 没有启用 MOZ_ENABLE_V4L2，RDD 的沙箱 broker 拒绝打开 /dev/video*；Firefox 仍走 MediaCodec 桥。沙箱前预开 DMA 堆不解决问题，还会把它交给所有内容进程，不要这么做。
+        docs: [docs/108-codec-bridge-buffers.md]
+      - text: 安卓宿主的缓冲租借（gpu_allocator.rs）只给 RGBA 顺序（ABGR8888/XBGR8888）。KWin 录屏原来只按输出格式 ARGB8888 要 DMA-BUF，要不到就悄悄退回 memfd，每帧 CPU 读回再上传；补丁 screencast-dmabuf-other-rgb-format 改为换格式再试。
         docs: [docs/108-codec-bridge-buffers.md]
       - text: NDK 的 AImageReader 按配置格式严格检查缓冲：配成 YCBCR_P010 时会拒收高通解码器自己的 P010（0x7fa30c0a），第二帧起取不到图（Java 的 ImageReader 不拒）。10bit 用 PRIVATE 格式的 reader。
         docs: [docs/108-codec-bridge-buffers.md]

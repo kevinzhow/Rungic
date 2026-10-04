@@ -8,5 +8,7 @@ BRANCH=25.08
 EXT=/var/lib/flatpak/extension/org.freedesktop.Platform.GStreamer.rungic/aarch64/$BRANCH
 M=$SRC/shared/media
 mkdir -p "$DESTDIR$EXT"
+# The encoders take GL textures straight into their picture buffers where GStreamer has GL (EGL).
+gl=$(pkg-config --cflags --libs gstreamer-gl-1.0 egl 2>/dev/null) && gl="$gl -DRUNGIC_GST_GL" || gl=
 cc -O2 -g1 -fPIC -shared -pthread -fvisibility=hidden -o "$DESTDIR$EXT/libgstrungiccodec.so" \
-   "$M/gst-rungic-codec.c" "$M/codec-client.c" "$M/codec-v4l2.c" $(pkg-config --cflags --libs gstreamer-video-1.0)
+   "$M/gst-rungic-codec.c" "$M/codec-client.c" "$M/codec-v4l2.c" $(pkg-config --cflags --libs gstreamer-video-1.0) $gl

@@ -17,5 +17,7 @@ lib=/usr/lib/rungic-codec
 mkdir -p "$lib"
 cc -O2 -g1 -fPIC -shared -pthread -Wl,-soname,librungiccodec.so -o "$lib/librungiccodec.so" "$M/codec-client.c" "$M/codec-v4l2.c"
 plugins=$(pkg-config --variable=pluginsdir gstreamer-1.0)
+# The encoders take GL textures straight into their picture buffers where GStreamer has GL (EGL).
+gl=$(pkg-config --cflags --libs gstreamer-gl-1.0 egl 2>/dev/null) && gl="$gl -DRUNGIC_GST_GL" || gl=
 cc -O2 -g1 -fPIC -shared -o "$plugins/libgstrungiccodec.so" "$M/gst-rungic-codec.c" \
-    $(pkg-config --cflags --libs gstreamer-video-1.0) -L"$lib" -lrungiccodec -Wl,-rpath,"$lib"
+    $(pkg-config --cflags --libs gstreamer-video-1.0) $gl -L"$lib" -lrungiccodec -Wl,-rpath,"$lib"

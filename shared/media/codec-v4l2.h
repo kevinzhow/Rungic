@@ -11,5 +11,9 @@ int v4l2_fd(V4l2Codec *);
 /* As rungic_codec_exchange; data is a FRAME's access unit (decoder) or I420 picture (encoder). */
 int v4l2_exchange(V4l2Codec *,int cmd,int id,int64_t pts,int flags,const uint8_t *data,int length,
                   RungicCodecOutput callback,void *user,int *ended,unsigned *outputs,char *error,size_t n);
+/* Encoder: a free picture buffer for the caller to fill, then encoded by index. */
+int v4l2_picture(V4l2Codec *,RungicCodecPicture *,RungicCodecOutput,void *,unsigned *outputs,char *error,size_t n);
+int v4l2_encode_picture(V4l2Codec *,int index,int id,int64_t pts,int flags,RungicCodecOutput callback,void *user,
+                        int *ended,unsigned *outputs,char *error,size_t n);
 void v4l2_close(V4l2Codec *);
 #endif

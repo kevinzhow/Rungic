@@ -3,8 +3,10 @@ M=$SRC/shared/media
 lib=$DESTDIR/usr/lib/rungic-codec
 mkdir -p "$lib" "$DESTDIR/usr/lib/aarch64-linux-gnu/gstreamer-1.0"
 cc -O2 -g1 -fPIC -shared -pthread -Wl,-soname,librungiccodec.so -o "$lib/librungiccodec.so" "$M/codec-client.c" "$M/codec-v4l2.c"
+# The encoders take GL textures straight into their picture buffers where GStreamer has GL (EGL).
+gl=$(pkg-config --cflags --libs gstreamer-gl-1.0 egl 2>/dev/null) && gl="$gl -DRUNGIC_GST_GL" || gl=
 cc -O2 -g1 -fPIC -shared -o "$DESTDIR/usr/lib/aarch64-linux-gnu/gstreamer-1.0/libgstrungiccodec.so" "$M/gst-rungic-codec.c" \
-    $(pkg-config --cflags --libs gstreamer-video-1.0) -L"$lib" -lrungiccodec -Wl,-rpath,/usr/lib/rungic-codec
+    $(pkg-config --cflags --libs gstreamer-video-1.0) $gl -L"$lib" -lrungiccodec -Wl,-rpath,/usr/lib/rungic-codec
 # Private FFmpeg (packages/ffmpeg: the release with the codec registration patches, docs/71).
 cd "$SRC/upstream/ffmpeg"
 set -- --prefix=/usr/lib/rungic-codec/ffmpeg --enable-shared --disable-static \
