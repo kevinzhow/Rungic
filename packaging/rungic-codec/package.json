@@ -3,11 +3,11 @@
   "formerly": "moto-codec",
   "architecture": "arm64",
   "build": "device",
-  "paths": ["shared/media/codec-client.c", "shared/media/codec-client.h", "shared/media/gst-rungic-codec.c",
+  "paths": ["shared/media/codec-client.c", "shared/media/codec-client.h", "shared/media/codec-v4l2.c", "shared/media/codec-v4l2.h", "shared/media/gst-rungic-codec.c",
             "shared/media/ffmpeg-rungic-codec.c"],
   "upstream": ["ffmpeg"],
   "depends": "rungic-plasma-bridges",
-  "build_depends": ["libgstreamer1.0-dev", "libgstreamer-plugins-base1.0-dev", "libx264-dev", "libx265-dev", "libvpx-dev",
+  "build_depends": ["libgstreamer1.0-dev", "libgstreamer-plugins-base1.0-dev", "libegl-dev", "libx264-dev", "libx265-dev", "libvpx-dev",
                     "libopus-dev", "libdav1d-dev", "nasm", "pkgconf", "gcc", "make"],
   "description": "Android hardware codecs for Linux applications\nlibrungiccodec (IPC to Android MediaCodec), the GStreamer elements rungich264/h265/vp9dec and\nrungich264/h265enc, and a private FFmpeg 8.1.2 with the moto encoders and decoders, used by\nFirefox and Snapshot (docs/48).",
   "obsolete": ["/usr/local/lib/moto-codec"]

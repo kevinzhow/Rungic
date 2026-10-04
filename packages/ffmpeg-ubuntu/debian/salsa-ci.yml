@@ -1,0 +1,25 @@
+---
+include:
+  - https://salsa.debian.org/salsa-ci-team/pipeline/raw/master/recipes/debian.yml
+
+variables:
+  # Disable 'blhc' for now until `CFLAGS missing` and `LDFLAGS missing` issues
+  # are resolved
+  SALSA_CI_DISABLE_BLHC: 1
+
+  # Disable 'test-crossbuild-arm64' for now as it does not do anything useful,
+  # it fails while setting up the VM to do the build with the following error:
+  #
+  # The following packages have unmet dependencies:
+  # clang-14:arm64 : Depends: binutils:arm64 but it is not installable
+  # E: Unable to correct problems, you have held broken packages.
+  SALSA_CI_DISABLE_CROSSBUILD_ARM64: 1
+
+  # Disable 'reprotest' for now as ffmpeg does not build reproducible
+  # https://bugs.debian.org/985187 documents one reason as
+  # build paths are made part of the executables
+  # ffmpeg 5.x seems to have introduced another source of non-determinism
+  #
+  # The following URL may help in fixing reproducibility:
+  # https://tests.reproducible-builds.org/debian/rb-pkg/unstable/amd64/diffoscope-results/ffmpeg.html
+  SALSA_CI_DISABLE_REPROTEST: 1

@@ -1,26 +1,30 @@
 {
   "interface": "codec",
-  "comment": "Android's hardware codecs (CodecBridge, MediaCodec c2.qti.*) for the Linux side's GStreamer and FFmpeg adapters, through their shared transport shared/media/codec-client.c. A binary protocol, not JSON lines: every number a big-endian 32-bit word (pts: two words, high first). The broker socket /mnt/android-wayland/codec.sock takes MAGIC once, then OPEN per codec; for each it answers CHANNEL with two descriptors (SCM_RIGHTS): a channel socket and shared memory of two halves of HALF bytes (input in the first, output in the second), or ERROR when all codec slots are taken. On the channel: the consumer sends `configure`; the provider answers DONE and the codec's name (`configured`) or ERROR, a length and a message (`error`). Then commands: FRAME with `frame` (the input in the first half), DRAIN, FLUSH or CLOSE; the provider answers any number of `output` records (each acknowledged with ACK; the output in the second half: compressed data, or a decoded picture's three planes one after another with their row stride, pixel step and length, which may overlap as in Android's semi-planar images), EOS after a drain, and DONE. kind: 0 H.264, 1 HEVC, 2 VP9 (decode only); encoder input is I420 of width*height*3/2 bytes. Every exchange opens Android's hardware codec, so there is no read-only query: the provider side is acceptance codec.hw (an H.264 encode and decode through the GStreamer and FFmpeg adapters on the phone). Consumer side: tools/tests/test_contract_codec.py (the real codec-client.c, built here, against tools/contracts.py's CodecStandIn).",
+  "comment": "Android's hardware codecs (CodecBridge, MediaCodec c2.qti.*) for the Linux side's GStreamer and FFmpeg adapters, through their shared transport shared/media/codec-client.c. A binary protocol, not JSON lines: every number a big-endian 32-bit word (pts: two words, high first). The broker socket /mnt/android-wayland/codec.sock takes MAGIC once, then OPEN per codec; for each it answers CHANNEL with two descriptors (SCM_RIGHTS): a channel socket and shared memory of two halves of HALF bytes (input in the first, output in the second), or ERROR when all codec slots are taken. On the channel: the consumer sends `configure`; the provider answers DONE and the codec's name (`configured`) or ERROR, a length and a message (`error`). Then commands: FRAME with `frame` (the input in the first half), DRAIN, FLUSH or CLOSE; the provider answers any number of `output` records (each acknowledged with ACK; the output in the second half: compressed data, or a decoded picture's three planes one after another with their row stride, pixel step and length, which may overlap as in Android's semi-planar images), EOS after a drain, and DONE. kind: 0 H.264, 1 HEVC, 2 VP9 (decode only); encoder input is I420 of width*height*3/2 bytes. Channel version 2 (CodecBridge since APK 2.33): `configure2` starts with MAGIC2 and adds options (OPTION_BUFFERS: decoded pictures stay in the decoder's own buffers; OPTION_TEN_BIT: 10-bit pictures as P010), and every record is an `output2`: three plane offsets, a buffer (-1: the output half of the shared memory, as before; else the slot of one of the decoder's buffers) and the depth (8, or 10 for P010). A picture in a slot arrives with the slot's DMA-BUF attached (SCM_RIGHTS on the record's first byte) the first time the slot appears; size is then the buffer's length and the offsets are from its start; the consumer maps it, brackets its reads with DMA_BUF_IOCTL_SYNC and keeps it until the channel closes; slot numbers only grow (a new buffer set gets new ones). The app holds the picture until the ACK. An app before version 2 answers MAGIC2 with ERROR (Channel version): the consumer then uses version 1. Every exchange opens Android's hardware codec, so there is no read-only query: the provider side is acceptance codec.hw (an H.264 encode and decode through the GStreamer and FFmpeg adapters on the phone). Consumer side: tools/tests/test_contract_codec.py (the real codec-client.c, built here, against tools/contracts.py's CodecStandIn).",
   "sockets": {
     "broker": {"path": "/mnt/android-wayland/codec.sock"}
   },
   "framing": "binary",
   "constants": {
     "MAGIC": "0x4d434231",
+    "MAGIC2": "0x4d434232",
     "OPEN": "0x4f50454e",
     "CHANNEL": "0x4d434631",
     "HALF": "0x1000000",
     "ACK": "0xac",
     "ERROR": "0xffffffff",
+    "OPTION_BUFFERS": "1", "OPTION_TEN_BIT": "2",
     "FRAME": "1", "DRAIN": "2", "FLUSH": "3", "CLOSE": "4",
     "DONE": "0", "ENCODED": "1", "DECODED": "2", "CONFIG": "3", "EOS": "4"
   },
   "messages": {
     "configure": ["MAGIC", "encoder", "kind", "width", "height", "fps_num", "fps_den", "bitrate", "key_interval", "color_standard", "color_range", "color_transfer"],
+    "configure2": ["MAGIC2", "encoder", "kind", "width", "height", "fps_num", "fps_den", "bitrate", "key_interval", "color_standard", "color_range", "color_transfer", "options"],
     "configured": ["DONE", "name_length", "name: name_length bytes UTF-8"],
     "error": ["ERROR", "length", "message: length bytes UTF-8"],
     "frame": ["FRAME", "id", "pts_high", "pts_low", "flags", "length"],
-    "output": ["type: ENCODED, DECODED or CONFIG", "id", "flags", "size", "pts_high", "pts_low", "width", "height", "crop_x", "crop_y", "stride0", "step0", "length0", "stride1", "step1", "length1", "stride2", "step2", "length2"]
+    "output": ["type: ENCODED, DECODED or CONFIG", "id", "flags", "size", "pts_high", "pts_low", "width", "height", "crop_x", "crop_y", "stride0", "step0", "length0", "stride1", "step1", "length1", "stride2", "step2", "length2"],
+    "output2": ["type: ENCODED, DECODED or CONFIG", "id", "flags", "size", "pts_high", "pts_low", "width", "height", "crop_x", "crop_y", "stride0", "step0", "length0", "stride1", "step1", "length1", "stride2", "step2", "length2", "offset0", "offset1", "offset2", "buffer", "depth"]
   },
   "queries": []
 }

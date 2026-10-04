@@ -4,7 +4,7 @@
 
 以产品功能和用户场景为骨架：每条功能是用户能感知的一件事；“体验”是它必须做到的，每条都标明由什么检查（自动测试、实机验收、人工验证或已登记的缺口）。数据在 `quality/`，规则见 [quality/README.md](../quality/README.md)。
 
-共 162 条功能、686 条体验，其中 642 条有检查。
+共 162 条功能、694 条体验，其中 650 条有检查。
 
 ## Agent 能力
 
@@ -897,7 +897,7 @@ Linux 应用用手机的相机拍照录像，用手机的扬声器和麦克风�
 
 #### 视频硬件编解码（GStreamer 与 FFmpeg）
 
-`apps.hw-codec` · Linux 系统功能 — Linux 的 GStreamer 播放器、相机、录屏和私有 FFmpeg 经 APK 用安卓 MediaCodec（高通 c2.qti）做 H.264/HEVC 编解码和 VP9 解码。
+`apps.hw-codec` · Linux 系统功能 — Linux 的 GStreamer 播放器、相机、录屏和私有 FFmpeg 经 APK 用安卓 MediaCodec（高通 c2.qti）做 H.264/HEVC 编解码和 VP9 解码（含 10bit 解码）。
 
 经由接口：`codec`
 
@@ -906,17 +906,35 @@ Linux 应用用手机的相机拍照录像，用手机的扬声器和麦克风�
 - **E3** 要求硬件的编码器（rungich264enc、h264_rungic）在拿不到硬件组件时报错，不悄悄换成软件编码；混合编码器 h264_rungic_auto 打开失败时回退软件。（单元测试、系统测试、人工）
 - **E4** 带 B 帧的 H.264 解码时间戳正确；seek 后 FLUSH 不会让后续响应错位。（单元测试、系统测试、人工）
 - **E5** 编码跟不上设定帧率时丢掉编码前的帧而不是积压，停止后收尾在 1 秒内完成。（实机验收、人工；只能在手机上看：编码跟不上取决于手机硬件编码器经宿主桥接的吞吐（约 50 fps），收尾时间也是手机上的时序）
+- **E6** 解码帧留在解码器自己的缓冲里（DMA-BUF，每个缓冲只传一次描述符、只映射一次），APK 里不再复制；GStreamer 直接输出 NV12（下游不接受时 I420），与 FFmpeg 软解逐字节一致。（单元测试、人工）
+- **E7** 10bit 的 HEVC Main10、VP9 Profile 2 由硬件解码，输出 P010，不悄悄压成 8bit；不支持时打开失败，交给软件解码。（单元测试、人工）
+- **E8** 新的 Linux 端遇到旧 APK（通道版本 1）自动退回共享内存，8bit 照常硬件解码；手机的解码缓冲读不了时同样退回。（单元测试、人工）
+- **E9** 有高通 msm_vidc 解码节点（/dev/video32）的手机，解码直接走 V4L2，不经过 APK：实时 1080p60 约占一个核的 23%（MediaCodec 桥约 105%），1080p 吞吐约 240 帧/秒；没有这个节点、显式关掉或在 Firefox 的沙箱里，照旧用 MediaCodec 桥。（单元测试、人工）
+- **E10** 有 msm_vidc 编码节点（/dev/video33）的手机，H.264/HEVC 编码直接走 V4L2：录屏 1080×2400@30 能跟上实时，编码本身约占一个核的 2–3%（MediaCodec 桥约 75% 以上且跟不上 30 帧）；参数集单独给出，关键帧可强制；NV12 输入原样收下。录屏的颜色转换在 GPU 上做，转好的纹理由 GPU 直接写进编码器的输入缓冲，KWin 给录屏的画面是 DMA-BUF，整个过程不经过 CPU 拷贝。（单元测试、人工）
+- **E11** 用系统 FFmpeg 的应用（mpv/Haruna、VLC、Qt Multimedia、缩略图）默认选中硬件解码器 h264/hevc/vp9_rungic，打不开硬件时回退软件；应用默认的软件编码器不变。（单元测试、人工）
+- **E12** Flatpak 里用 GStreamer 的应用（Freedesktop/GNOME 运行时）经扩展 org.freedesktop.Platform.GStreamer.rungic 用上 V4L2 硬件编解码；没有设备权限的应用照常软件解码。（单元测试、人工）
+- **E13** 走 MediaCodec 桥的解码（Firefox、没有 msm_vidc 的手机）在 APK 的原生线程里运行（AMediaCodec 异步回调、AImageReader、原生 socket），协议与 Java 会话相同，编码仍交给 Java；各格式（含 10bit）与软解逐字节一致，APK 里我们自己的代码不到 1%。（单元测试、人工）
 
 注意：
-- 解码输出按 stride 和 crop 在 CPU 上复制成 I420，不是零复制；1080p NV12 约 3.1 MB/帧。 [docs/research/35-hardware-codec-integration.md](../docs/research/35-hardware-codec-integration.md) [docs/research/34-hardware-codec-audit.md](../docs/research/34-hardware-codec-audit.md)
+- Mozilla 官方 arm64 Firefox 没有启用 MOZ_ENABLE_V4L2，RDD 的沙箱 broker 拒绝打开 /dev/video*；Firefox 仍走 MediaCodec 桥。沙箱前预开 DMA 堆不解决问题，还会把它交给所有内容进程，不要这么做。 [docs/108-codec-bridge-buffers.md](../docs/108-codec-bridge-buffers.md)
+- 安卓宿主的缓冲租借（gpu_allocator.rs）只给 RGBA 顺序（ABGR8888/XBGR8888）。KWin 录屏原来只按输出格式 ARGB8888 要 DMA-BUF，要不到就悄悄退回 memfd，每帧 CPU 读回再上传；补丁 screencast-dmabuf-other-rgb-format 改为换格式再试。 [docs/108-codec-bridge-buffers.md](../docs/108-codec-bridge-buffers.md)
+- 编码元素直接用 GLMemory 的纹理 ID 前必须以 GST_MAP_GL 映射；经过直通元素时 GStreamer 推迟上传，纹理是空的（编出几乎不变的画面）。 [docs/108-codec-bridge-buffers.md](../docs/108-codec-bridge-buffers.md)
+- 不要在手机上把整段原始视频写进容器 /tmp（3.7 GB tmpfs）或整块读入比较：2026-10-04 因此内存耗尽，VPN 被杀、内核 panic 重启。只抽少量帧，或传回电脑计算。 [docs/108-codec-bridge-buffers.md](../docs/108-codec-bridge-buffers.md)
+- NDK 的 AImageReader 按配置格式严格检查缓冲：配成 YCBCR_P010 时会拒收高通解码器自己的 P010（0x7fa30c0a），第二帧起取不到图（Java 的 ImageReader 不拒）。10bit 用 PRIVATE 格式的 reader。 [docs/108-codec-bridge-buffers.md](../docs/108-codec-bridge-buffers.md)
+- mpv 默认在主线程解码，硬件解码器的出帧时序抖动让约 10% 的帧在 vo 端被判来晚丢掉（解码速度足够，vd-queue-enable=yes 时为 0）。 [docs/108-codec-bridge-buffers.md](../docs/108-codec-bridge-buffers.md)
+- msm_vidc 的 V4L2 编码器必须先开图像（OUTPUT）流、再开码流（CAPTURE），两路都开流后才能排缓冲；先排码流缓冲再送第一张图，固件同样断言复位。 [docs/108-codec-bridge-buffers.md](../docs/108-codec-bridge-buffers.md)
+- msm_vidc 的 V4L2 解码只收 DMA-BUF；OUTPUT 开流前排入码流、或 CAPTURE 配好前排入第二个码流单元，会让固件断言并复位整个视频核心（Android 正在用的解码一起中断）。codec-v4l2.c 严格按“开 OUTPUT → 一个单元 → 等 SOURCE_CHANGE → 配 NV12/P010 的 CAPTURE”的顺序，刷新时整段重开。 [docs/108-codec-bridge-buffers.md](../docs/108-codec-bridge-buffers.md)
+- 经 APK 的 MediaCodec 桥，CPU 大头是 Codec2 框架和高通编解码服务每帧的消息、binder 和缓冲交接（每帧约 12 ms CPU）；去掉复制、改异步只省了约 10%，实时 1080p60 仍约一个核，吞吐被 Codec2 按码流帧率设定的时钟限在约 83 帧/秒。这是 V4L2 直通的理由，桥只作回退。 [docs/108-codec-bridge-buffers.md](../docs/108-codec-bridge-buffers.md)
+- 渲染到 Surface 时高通解码器默认写 UBWC 压缩格式，要设 vendor.qti-ext-dec-forceNonUBWC.value=1；读平面布局不能用 Image.getPlanes()，遇到 UBWC 缓冲框架会直接 abort，连同桌面一起崩溃。 [docs/108-codec-bridge-buffers.md](../docs/108-codec-bridge-buffers.md)
+- 解码输入块设成 16 MiB 时，Codec2 每帧映射、解映射一次，光解映射就占 APK 解码线程约 1/5；按分辨率设置。 [docs/108-codec-bridge-buffers.md](../docs/108-codec-bridge-buffers.md)
 - 硬件编码经宿主桥接的吞吐约 50 fps：1080×2400@60 单路被拒，两路大分辨率同时编码第二路 CodecException；多屏或 60 fps 时把每路缩到长边 ≤1920。 [docs/48-plasma-media-pipelines.md](../docs/48-plasma-media-pipelines.md)
 - Android SharedMemory 可能是 st_size=0 的 ashmem 字符设备，不能只接受普通 memfd。 [docs/research/35-hardware-codec-integration.md](../docs/research/35-hardware-codec-integration.md)
 - 做成 VA-API 驱动换不掉 FFmpeg 补丁、Snapshot 补丁和 Firefox 预加载（Firefox 的 glxtest 在 KGSL 软件 EGL 设备处就关掉 VA-API），维持现状；VA-API 只能作为另一项新能力单独立项。 [docs/research/74-vaapi-feasibility.md](../docs/research/74-vaapi-feasibility.md)
-- 原厂 V4L2 节点 video32/33 只验证到能力枚举，MMAP/USERPTR 返回 EINVAL；不为未验证接口扩大 LXC 权限。 [docs/research/34-hardware-codec-audit.md](../docs/research/34-hardware-codec-audit.md) [docs/research/35-hardware-codec-integration.md](../docs/research/35-hardware-codec-integration.md)
-- VP8、AV1 在本机只有软件组件，不能宣称硬件编解码；没有 4K、HDR、10-bit 和 DRM 视频。 [docs/research/34-hardware-codec-audit.md](../docs/research/34-hardware-codec-audit.md)
+- 上游 Iris 驱动不支持 parrot，也不能和原厂 msm_video 共存；用的是原厂驱动的 V4L2 接口（容器只多映射了 /dev/video32，DMA 堆本来就为 GPU 映射了）。 [docs/108-codec-bridge-buffers.md](../docs/108-codec-bridge-buffers.md) [docs/research/34-hardware-codec-audit.md](../docs/research/34-hardware-codec-audit.md)
+- VP8、AV1 在本机只有软件组件，不能宣称硬件编解码；没有 4K（上限 2560×1440）、HDR 显示和 DRM 视频；10bit 只在解码侧。 [docs/research/34-hardware-codec-audit.md](../docs/research/34-hardware-codec-audit.md)
 - broker 只允许 UID 0/1000，最多 64 条连接、6 个活动 codec，只接受编解码固定命令。 [docs/research/35-hardware-codec-integration.md](../docs/research/35-hardware-codec-integration.md)
 
-文档：[docs/research/34-hardware-codec-audit.md](../docs/research/34-hardware-codec-audit.md)、[docs/research/35-hardware-codec-integration.md](../docs/research/35-hardware-codec-integration.md)、[docs/research/74-vaapi-feasibility.md](../docs/research/74-vaapi-feasibility.md)
+文档：[docs/research/34-hardware-codec-audit.md](../docs/research/34-hardware-codec-audit.md)、[docs/research/35-hardware-codec-integration.md](../docs/research/35-hardware-codec-integration.md)、[docs/research/74-vaapi-feasibility.md](../docs/research/74-vaapi-feasibility.md)、[docs/108-codec-bridge-buffers.md](../docs/108-codec-bridge-buffers.md)
 
 #### 屏幕共享门户
 
@@ -3011,7 +3029,7 @@ Agent 不靠点界面就能拿到合并日志、崩溃回溯、追踪、截图�
 | `camera` 相机 | 安卓 Camera2 的画面作为 PipeWire 相机节点（rungic.camera.N），按需开关；有哪些相机由平台桥的 capture-info 回答。 | `apps.camera`、`apps.snapshot`、`apps.plasma-camera`、`apps.firefox`、`delivery.acceptance`、`delivery.probes` | 2 | 3 |
 | `audio` 扬声器与麦克风 | 安卓的扬声器和麦克风作为 PulseAudio 设备（android、android_phone 输出与麦克风源），按需挂起；输出经安卓侧的 PulseAudio（system/android-audio）。 | `agent.voice`、`agent.call-proxy`、`apps.phone-audio`、`apps.virtual-audio`、`apps.firefox`、`delivery.acceptance`、`delivery.probes`、`desktop-mode.audio-follow`、`desktop.screen-recording`、`install.cold-start` | 5 | 3 |
 | `communication-audio` 通话音频 | $XDG_RUNTIME_DIR/rungic-communication.sock：电话模式与通话用的双向通信音频（android_communication 设备）。 | `agent.phone-mode` | 1 | 2 |
-| `codec` 硬件编解码 | 安卓 MediaCodec 经 IPC 给 GStreamer、FFmpeg 和 Firefox 用（H.264/HEVC/VP9 解码、H.264 编码）。 | `apps.snapshot`、`apps.hw-codec`、`apps.firefox-hw-video`、`delivery.acceptance`、`desktop.screen-recording` | 6 | 1 |
+| `codec` 硬件编解码 | 安卓 MediaCodec 经 IPC 给 GStreamer、FFmpeg 和 Firefox 用（H.264/HEVC/VP9 解码、H.264 编码）。 | `apps.snapshot`、`apps.hw-codec`、`apps.firefox-hw-video`、`delivery.acceptance`、`desktop.screen-recording` | 9 | 1 |
 | `clipboard` 剪贴板 | 安卓 ClipboardDaemon 与 Wayland 剪贴板双向同步。 | `desktop-mode.clipboard`、`desktop.clipboard`、`desktop.clipboard-history` | 3 | 1 |
 | `network` 网络 | 安卓的 Wi-Fi 与网络状态，经 Linux 一侧的 NetworkManager D-Bus 接口给桌面用。 | `desktop.network` | 3 | 1 |
 | `bluetooth` 蓝牙 | 安卓蓝牙经 Linux 一侧的 BlueZ D-Bus 接口给桌面用。 | `desktop.bluetooth` | 3 | 1 |

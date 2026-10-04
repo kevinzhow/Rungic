@@ -1,0 +1,11 @@
+{
+  "name": "rungic-flatpak-codec",
+  "architecture": "arm64",
+  "build": "device",
+  "image": "freedesktopsdk/sdk:25.08-aarch64",
+  "shlibdeps": false,
+  "paths": ["shared/media/codec-client.c", "shared/media/codec-client.h", "shared/media/codec-v4l2.c",
+            "shared/media/codec-v4l2.h", "shared/media/gst-rungic-codec.c"],
+  "depends": "flatpak",
+  "description": "Hardware video codecs for Flatpak apps\nThis project's GStreamer elements (rungich264/h265/vp9dec, rungich264/h265enc) built against the\nFreedesktop 25.08 runtime as the GStreamer extension org.freedesktop.Platform.GStreamer.rungic,\nwhich the Freedesktop and GNOME runtimes load (docs/108). They decode and encode on Qualcomm's\nmsm_vidc V4L2 devices where an app may open them (--device=all); elsewhere GStreamer keeps its\nsoftware codecs."
+}

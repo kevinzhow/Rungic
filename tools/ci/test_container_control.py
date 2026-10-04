@@ -88,11 +88,14 @@ class Controller(unittest.TestCase):
         self.env = dict(os.environ, PATH=f"{stubs}:{os.environ['PATH']}")
         self.devices('/dev/null', '/dev/zero')
 
-    def devices(self, gpu, heap):
-        """The controller with Android's paths in the sandbox; the GPU and DMA heap nodes are `gpu`, `heap`."""
+    def devices(self, gpu, heap, video=None, encoder=None):
+        """The controller with Android's paths in the sandbox; the GPU, DMA heap and video decoder and
+        encoder nodes are `gpu`, `heap`, `video` and `encoder` (default: none there)."""
         text = re.sub(r'(?<![\w/])(/data/adb|/data/user/0|/storage/emulated/0|/product/etc/rungic|/dev/memcg|/dev/cpuctl)\b',
                       f'{self.root}\\1', CONTROLLER.read_text())
         text = text.replace('/dev/kgsl-3d0', gpu).replace('/dev/dma_heap/system', heap)
+        text = text.replace('/dev/video32', video or str(self.root / 'no-video32'))
+        text = text.replace('/dev/video33', encoder or str(self.root / 'no-video33'))
         self.script = self.root / 'rungic-plasma'
         self.script.write_text(text.replace('#!/system/bin/sh', '#!/bin/sh'))
 
@@ -136,13 +139,27 @@ class Controller(unittest.TestCase):
             start = [line for line in self.log() if line.startswith('start ')][-1]
             for rule in rules:
                 self.assertIn(f'-s lxc.cgroup2.devices.allow={rule}', start)
+        # The video decoder and encoder are granted when the phone has them, their absence stops nothing.
+        self.devices('/dev/null', '/dev/zero', '/dev/urandom', '/dev/random')
+        (self.state / 'running').unlink(missing_ok=True)
+        code, _, err = self.run_action('start')
+        self.assertEqual(code, 0, err)
+        start = [line for line in self.log() if line.startswith('start ')][-1]
+        self.assertIn('-s lxc.cgroup2.devices.allow=c 1:9 rw', start)
+        self.assertIn('-s lxc.cgroup2.devices.allow=c 1:8 rw', start)
+        self.devices('/dev/null', '/dev/zero')
+        (self.state / 'running').unlink()
+        code, _, err = self.run_action('start')
+        self.assertEqual(code, 0, err)
+        start = [line for line in self.log() if line.startswith('start ')][-1]
+        self.assertEqual(start.count('lxc.cgroup2.devices.allow='), 2, start)
         # A node that is missing or not a character device stops the start: nothing is granted blindly.
         self.devices(str(self.root / 'missing-kgsl'), '/dev/zero')
         (self.state / 'running').unlink()
         code, _, err = self.run_action('start')
         self.assertNotEqual(code, 0)
         self.assertIn('Missing character device', err)
-        self.assertEqual(sum(line.startswith('start ') for line in self.log()), 2)
+        self.assertEqual(sum(line.startswith('start ') for line in self.log()), 4)
 
     # covers: install.app-restart-recovery/E5
     def test_remounted_storage_restarts_the_container_and_the_shared_folder_returns(self):
@@ -195,7 +212,7 @@ class LxcConfig(unittest.TestCase):
             'c 1:3 rwm', 'c 1:5 rwm', 'c 1:7 rwm', 'c 1:8 rwm', 'c 1:9 rwm', 'c 5:0 rwm', 'c 5:1 rwm', 'c 5:2 rwm',
             'c 136:* rwm', 'c 10:229 rwm', 'c 10:200 rwm']))
         binds = [e.split()[0] for e in self.entries('lxc.mount.entry') if e.startswith('/dev/')]
-        self.assertEqual(sorted(binds), ['/dev/dma_heap/system', '/dev/kgsl-3d0'])
+        self.assertEqual(sorted(binds), ['/dev/dma_heap/system', '/dev/kgsl-3d0', '/dev/video32', '/dev/video33'])
 
 
 if __name__ == '__main__':

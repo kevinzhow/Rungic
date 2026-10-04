@@ -133,7 +133,8 @@ def record(tmp_path, screens=1, seconds=2.0, quality=None, audio=None, encoder=T
     args = []
     for i, name in enumerate(names):
         args += [str(40 + i), str(videos / name)]
-    env = {**os.environ, 'HOME': str(home), 'STANDIN_LOG': str(log), 'STANDIN_ENCODER': '1' if encoder else '0',
+    # The CPU conversion here; the GL one needs the phone's GPU (docs/108, recording.quicksetting).
+    env = {**os.environ, 'RUNGIC_RECORDING_CONVERT': 'cpu', 'HOME': str(home), 'STANDIN_LOG': str(log), 'STANDIN_ENCODER': '1' if encoder else '0',
            'STANDIN_SLOW_US': str(slow_us), 'STANDIN_SIZES': sizes or '360x800,640x360', 'GST_DEBUG': '0'}
     env.pop('STANDIN_TV_GONE', None)
     if tv_gone_ms:
@@ -200,7 +201,8 @@ def test_a_recording_is_a_playable_mp4_with_h264_and_aac_finished_quickly(tmp_pa
     run, (output,) = record(tmp_path, seconds=2.5)
     assert run.code == 0, run.lines
     assert f'SAVED {output}' in run.lines
-    assert run.config() == {'quality': 'high', 'bitrate': '8000', 'fps': '30', 'audio': 'system', 'screens': '1'}
+    assert run.config() == {'quality': 'high', 'bitrate': '8000', 'fps': '30', 'audio': 'system', 'screens': '1',
+                            'convert': 'cpu'}
     kinds, duration = streams(output)
     assert kinds == [('audio', 'audio/mpeg'), ('video', 'video/x-h264')]
     assert 2.0 <= duration <= 3.6, duration

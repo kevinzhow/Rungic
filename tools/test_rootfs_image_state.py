@@ -38,7 +38,7 @@ class StateOutsideTheSnapshot(unittest.TestCase):
             for f in base.iterdir():
                 f.chmod(0o755)
             script = (f'BASE={base}\nLXC={lxc}\nIMAGES={images}\nENTER={base}/enter\n'
-                      "gpu_rule='lxc.cgroup2.devices.allow = c 1:2 rw'\nheap_rule='lxc.cgroup2.devices.allow = c 1:3 r'\n"
+                      "gpu_rule='lxc.cgroup2.devices.allow = c 1:2 rw'\nheap_rule='lxc.cgroup2.devices.allow = c 1:3 r'\nvideo_rule=\nencoder_rule=\n"
                       + block.group(1))
             result = subprocess.run(['sh', '-c', 'set -eu\n' + script], capture_output=True, text=True, timeout=10,
                                     env=dict(os.environ))

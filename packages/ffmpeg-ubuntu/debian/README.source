@@ -1,0 +1,8 @@
+## Symbols
+
+Symbols files are maintained with the help of pkgkde-symbolshelper.
+See "man pkgkde-symbolshelper" for details on its use.
+
+Symbols starting with avpriv_ are private;
+other packages must not use them.
+Intra-library ABI is ensured by manual dependencies in d/control.

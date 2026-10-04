@@ -3,7 +3,7 @@
  * a flush, close), for tools/tests/test_contract_codec.py. Linked with -Wl,--wrap=connect: the broker's
  * fixed path leads to $RUNGIC_CODEC_TEST_SOCKET, the contract's stand-in; the client is unchanged.
  * Prints one JSON object: what the client reported and the pictures it copied.
- *   contract_codec_driver decode|encode WIDTH HEIGHT
+ *   contract_codec_driver decode|decode10|encode WIDTH HEIGHT      (decode10: 10-bit output asked for)
  */
 #define _GNU_SOURCE
 #include "codec-client.h"
@@ -45,7 +45,8 @@ static int output(void *user, const RungicCodecFrame *f) {
            records++ ? "," : "", f->type, f->id, f->flags, f->size, (long long)f->pts, f->width, f->height);
     if (f->type == RUNGIC_DECODED) {
         int w = f->width, h = f->height, cw = (w + 1) / 2, ch = (h + 1) / 2;
-        uint8_t *planes[3] = {malloc(w * h), malloc(cw * ch), malloc(cw * ch)};
+        printf(",\"depth\":%d", f->depth);
+        uint8_t *planes[3] = {calloc(w, h), calloc(cw, ch), calloc(cw, ch)};
         int stride[3] = {w, cw, cw};
         int copied = rungic_codec_copy_i420(f, planes, stride);
         printf(",\"copied\":%s", copied ? "false" : "true");
@@ -53,6 +54,16 @@ static int output(void *user, const RungicCodecFrame *f) {
         hex("u", planes[1], cw * ch);
         hex("v", planes[2], cw * ch);
         for (int i = 0; i < 3; i++) free(planes[i]);
+        /* NV12 (8-bit) or P010 (10-bit): Y, then CbCr interleaved */
+        int bytes = f->depth == 10 ? 2 : 1;
+        uint8_t *semi[2] = {calloc(w * bytes, h), calloc(cw * 2 * bytes, ch)};
+        int semi_stride[2] = {w * bytes, cw * 2 * bytes};
+        copied = f->depth == 10 ? rungic_codec_copy_p010(f, semi, semi_stride) : rungic_codec_copy_nv12(f, semi, semi_stride);
+        printf(",\"semiplanar\":%s", copied ? "false" : "true");
+        hex("semi_y", semi[0], (size_t)w * bytes * h);
+        hex("semi_uv", semi[1], (size_t)cw * 2 * bytes * ch);
+        free(semi[0]);
+        free(semi[1]);
     } else {
         hex("data", f->data, f->size);
     }
@@ -62,12 +73,14 @@ static int output(void *user, const RungicCodecFrame *f) {
 
 int main(int argc, char **argv) {
     if (argc != 4) return 2;
-    int encode = !strcmp(argv[1], "encode"), width = atoi(argv[2]), height = atoi(argv[3]);
+    int encode = !strcmp(argv[1], "encode"), ten = !strcmp(argv[1], "decode10"), width = atoi(argv[2]), height = atoi(argv[3]);
     RungicCodec codec;
     rungic_codec_init(&codec);
     RungicCodecConfig config = {.encoder = encode, .kind = 0, .width = width, .height = height, .fps_num = 30,
                                 .fps_den = 1, .bitrate = 2000000, .key_interval = 1};
-    printf("{\"open\":%s", rungic_codec_open(&codec, &config) ? "false" : "true");
+    int opened = ten ? rungic_codec_open_options(&codec, &config, RUNGIC_OPTION_BUFFERS | RUNGIC_OPTION_TEN_BIT)
+                     : rungic_codec_open(&codec, &config);
+    printf("{\"open\":%s", opened ? "false" : "true");
     if (codec.fd < 0) {
         text("error", codec.error);
         printf("}\n");

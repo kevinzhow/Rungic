@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: LGPL-2.1-or-later
- * MediaCodec IPC adapters for FFmpeg 8.1.2. Decoder uses AV_CODEC_CAP_HYBRID:
- * hardware for supported SDR streams, the original FFmpeg codec when opening
+ * Hardware codec adapters for FFmpeg 8.x (the private 8.1.2 and Ubuntu's 8.0.1), through the
+ * shared codec client: Qualcomm's V4L2 devices, else the Android app's MediaCodec. Decoder uses
+ * AV_CODEC_CAP_HYBRID: hardware for supported SDR streams, the original FFmpeg codec when opening
  * the hardware path is impossible. The encoder is explicitly hardware-only.
  */
 #include "avcodec.h"
@@ -118,8 +119,11 @@ static int callback(void *opaque,const RungicCodecFrame *frame) {
   return 0;
  }
  if(s->warmup)return 0;
+ /* A picture whose packet is unknown (a decoder that dropped its time) is skipped, not fatal. */
+ if(frame->id<0)return 0;
  Stamp *stamp=&s->stamps[(unsigned)frame->id%256];
- if(!stamp->valid || stamp->id!=frame->id || s->queued>=128)return -1;
+ if(!stamp->valid || stamp->id!=frame->id)return 0;
+ if(s->queued>=128){free_stamp(stamp);return -1;}
  Output *o=av_mallocz(sizeof(*o));if(!o)return -1;
  int ret=0;
  if(frame->type==RUNGIC_DECODED) {
@@ -143,7 +147,9 @@ static int callback(void *opaque,const RungicCodecFrame *frame) {
   if(ctx->flags&AV_CODEC_FLAG_COPY_OPAQUE){p->opaque=stamp->opaque;p->opaque_ref=stamp->opaque_ref?av_buffer_ref(stamp->opaque_ref):NULL;}
  } else {ret=AVERROR_INVALIDDATA;goto fail;}
  free_stamp(stamp);if(s->tail)s->tail->next=o;else s->head=o;s->tail=o;s->queued++;return 0;
-fail:av_frame_free(&o->frame);av_packet_free(&o->packet);av_free(o);s->error=ret;return -1;
+/* The frame is lost (an application's get_buffer2 refused it, as mpv's before it turns direct
+ * rendering off): its time is freed so later packets still find room. */
+fail:av_frame_free(&o->frame);av_packet_free(&o->packet);av_free(o);free_stamp(stamp);s->error=ret;return -1;
 }
 static int exchange(RungicContext *s,int cmd,int id,int64_t pts,int flags,int length) {
  if(rungic_codec_exchange(&s->codec,cmd,id,pts,flags,length,callback,s)) {
@@ -180,7 +186,9 @@ static int receive_software(AVCodecContext *ctx,AVFrame *frame) {
 }
 static int send_compressed(RungicContext *s,AVPacket *pkt) {
  if(pkt->size<=0 || (unsigned)pkt->size>RUNGIC_CODEC_HALF)return AVERROR_INVALIDDATA;
- int id=s->sequence++;Stamp *t=&s->stamps[(unsigned)id%256];if(t->valid)return AVERROR(ENOBUFS);
+ /* A stamp still set 256 packets later belongs to a picture that was lost (dropped after a
+  * refused buffer): reuse it rather than fail every packet from here on. */
+ int id=s->sequence++;Stamp *t=&s->stamps[(unsigned)id%256];if(t->valid)free_stamp(t);
  *t=(Stamp){.valid=1,.id=id,.pts=pkt->pts,.dts=pkt->dts,.duration=pkt->duration,.flags=pkt->flags,.opaque=pkt->opaque,.opaque_ref=pkt->opaque_ref?av_buffer_ref(pkt->opaque_ref):NULL};
  AVRational tb=s->avctx->pkt_timebase;if(!tb.num || !tb.den)tb=AV_TIME_BASE_Q;
  int64_t pts=pkt->pts==AV_NOPTS_VALUE?(int64_t)id*33333:av_rescale_q(pkt->pts,tb,AV_TIME_BASE_Q);
@@ -286,14 +294,14 @@ static int receive_packet(AVCodecContext *ctx,AVPacket *pkt) {
 }
 #define DECODER(NAME,ID) \
 const FFCodec ff_##NAME##_rungic_decoder={ \
- .p.name=#NAME "_rungic",CODEC_LONG_NAME("Android MediaCodec IPC with software fallback"), \
+ .p.name=#NAME "_rungic",CODEC_LONG_NAME("Qualcomm V4L2 or Android MediaCodec, software fallback"), \
  .p.type=AVMEDIA_TYPE_VIDEO,.p.id=ID,.priv_data_size=sizeof(RungicContext),.p.priv_class=&rungic_class, \
  .init=init_decoder,FF_CODEC_RECEIVE_FRAME_CB(receive_frame),.close=close_codec,.flush=flush_decoder, \
  .p.capabilities=AV_CODEC_CAP_DELAY|AV_CODEC_CAP_DR1|AV_CODEC_CAP_HYBRID, \
  .caps_internal=FF_CODEC_CAP_INIT_CLEANUP|FF_CODEC_CAP_SETS_FRAME_PROPS, .p.wrapper_name="rungic" };
 #define ENCODER(NAME,ID) \
 const FFCodec ff_##NAME##_rungic_encoder={ \
- .p.name=#NAME "_rungic",CODEC_LONG_NAME("Android hardware MediaCodec IPC encoder"), \
+ .p.name=#NAME "_rungic",CODEC_LONG_NAME("Qualcomm V4L2 or Android MediaCodec encoder"), \
  .p.type=AVMEDIA_TYPE_VIDEO,.p.id=ID,.priv_data_size=sizeof(RungicContext),.p.priv_class=&rungic_class, \
  .init=init_encoder,FF_CODEC_RECEIVE_PACKET_CB(receive_packet),.close=close_codec, \
  .p.capabilities=AV_CODEC_CAP_DELAY|AV_CODEC_CAP_HARDWARE, \
@@ -305,7 +313,7 @@ ENCODER(h264,AV_CODEC_ID_H264)
 ENCODER(hevc,AV_CODEC_ID_HEVC)
 #define AUTO_ENCODER(NAME,ID) \
 const FFCodec ff_##NAME##_rungic_auto_encoder={ \
- .p.name=#NAME "_rungic_auto",CODEC_LONG_NAME("Android MediaCodec IPC encoder with software fallback"), \
+ .p.name=#NAME "_rungic_auto",CODEC_LONG_NAME("Qualcomm V4L2 or Android MediaCodec encoder, software fallback"), \
  .p.type=AVMEDIA_TYPE_VIDEO,.p.id=ID,.priv_data_size=sizeof(RungicContext),.p.priv_class=&rungic_class, \
  .init=init_encoder,FF_CODEC_RECEIVE_PACKET_CB(receive_packet),.close=close_codec, \
  .p.capabilities=AV_CODEC_CAP_DELAY|AV_CODEC_CAP_HYBRID, \
