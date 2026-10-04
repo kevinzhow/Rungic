@@ -118,3 +118,15 @@ def test_the_v4l2_encoder_takes_i420_and_gives_headers_then_frames(driver):
         slice_type = '65' if i in (0, 3) else '41'
         assert r['data'] == f'00000001{slice_type}{16 + i:02x}{100 + i:02x}{200 + i:02x}'   # Y, then Cb Cr interleaved
 
+
+
+# covers: apps.hw-codec/E10
+def test_the_v4l2_encoder_takes_nv12_as_it_is_when_asked(driver):
+    # The screen recorder's GL conversion gives NV12: the V4L2 encoder takes it without copying the
+    # chroma apart, and says so (the GStreamer element then writes NV12, else I420).
+    result = run(driver, 'encode12', frames=3, RUNGIC_CODEC_V4L2_ENCODER=ENCODER)
+    assert result['open'] is True and result['takes_nv12'] == 1 and result['violations'] == 0, result
+    frames = [r for r in result['records'] if r['type'] == 1]
+    assert [r['data'][-6:] for r in frames] == [f'{16 + i:02x}{100 + i:02x}{200 + i:02x}' for i in range(3)]
+    plain = run(driver, 'encode', frames=1, RUNGIC_CODEC_V4L2_ENCODER=ENCODER)
+    assert plain['takes_nv12'] == 0

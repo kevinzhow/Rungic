@@ -691,7 +691,7 @@ features:
         evidence:
           - {doc: docs/108-codec-bridge-buffers.md, date: 2026-10-04, note: "G100 S 容器内 GStreamer：H.264/HEVC/VP9/Main10 与软解 md5 一致，无固件错误"}
       - id: E10
-        text: 有 msm_vidc 编码节点（/dev/video33）的手机，H.264/HEVC 编码直接走 V4L2：录屏 1080×2400@30 能跟上实时，编码本身约占一个核的 2–3%（MediaCodec 桥约 75% 以上且跟不上 30 帧）；参数集单独给出，关键帧可强制。
+        text: 有 msm_vidc 编码节点（/dev/video33）的手机，H.264/HEVC 编码直接走 V4L2：录屏 1080×2400@30 能跟上实时，编码本身约占一个核的 2–3%（MediaCodec 桥约 75% 以上且跟不上 30 帧）；参数集单独给出，关键帧可强制；NV12 输入原样收下。录屏的颜色转换在 GPU 上做，整个录屏进程从约 160% 降到约 107%。
         evidence:
           - {doc: docs/108-codec-bridge-buffers.md, date: 2026-10-04, note: "G100 S：录屏快捷设置验收通过（视频+音频），codec.hw 通过"}
       - id: E11

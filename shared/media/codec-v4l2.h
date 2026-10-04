@@ -5,7 +5,8 @@
 #include "codec-client.h"
 typedef struct V4l2Codec V4l2Codec;
 /* NULL (error set) when this device has no such decoder or it cannot start. */
-V4l2Codec *v4l2_open(const RungicCodecConfig *config,int ten_bit,char *error,size_t n);
+V4l2Codec *v4l2_open(const RungicCodecConfig *config,int ten_bit,int nv12_input,char *error,size_t n);
+int v4l2_input_nv12(V4l2Codec *);
 int v4l2_fd(V4l2Codec *);
 /* As rungic_codec_exchange; data is a FRAME's access unit (decoder) or I420 picture (encoder). */
 int v4l2_exchange(V4l2Codec *,int cmd,int id,int64_t pts,int flags,const uint8_t *data,int length,

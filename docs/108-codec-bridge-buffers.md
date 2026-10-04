@@ -152,6 +152,24 @@ Kevin 定了方向（2026-10-04）：解码绕开 Codec2，`librungiccodec` 直�
 - 验收 `recording.quicksetting`（从快捷设置录屏，生成带视频和 AAC 音轨的 MP4）和 `codec.hw` 都通过；期间 logcat 中没有 MediaCodec 会话。
 - 剩下的录屏开销主要在把屏幕画面转成 I420。下一步让 PipeWire 的 dmabuf 直接进编码器。
 
+## 录屏：GPU 颜色转换与 NV12 编码输入
+
+真机录屏（快捷设置，1080×2400@30，V4L2 编码）时，录屏进程占约一个核的 160%。按线程拆开：
+- 颜色转换（`videoconvertscale`，RGB→YUV，两个线程）约 59%；
+- pipewiresrc 约 17%；
+- 编码线程约 20%（其中包括把 I420 交错成 NV12）；
+- 音频约 7%。
+
+改动：
+- **recorder.py**：在有 GL 元素和 Wayland 显示的会话里，翻转、缩放、颜色转换都放到 GPU 上做：`glupload ! glcolorconvert ! glvideoflip ! glcolorscale ! glcolorconvert(NV12) ! gldownload`。`glvideoflip` 和 `glcolorscale` 只接受 RGBA 纹理，所以要先转一次。`RUNGIC_RECORDING_CONVERT=cpu|gl` 可以强制选择；离线测试固定用 cpu。
+- **编码器直接收 NV12**：GStreamer 编码元素的输入格式先列 NV12，再列 I420。新增选项 `RUNGIC_OPTION_NV12_INPUT`：V4L2 编码器按行拷贝 NV12，不再交错；桥（MediaCodec）这条路仍收 I420，由元素自己把色度拆开。
+
+**实测**：
+- 同样的真机录屏，进程从约 160% 降到约 107%（GL 上下文线程约 32%，编码线程约 28%）。`recording.quicksetting` 验收通过。
+- 剩下的大头是把转换好的 NV12 从 GPU 读回内存（`gldownload`）。纯管线测试里，GL 路径约 0.7 个核，CPU 路径约 1.1 个核。
+- 更正：之前说 GL 转换只要约 0.2 个核，那次的测量以 fakesink 结尾，帧没有被读回，结果偏低。
+- 下一步：把 GL 纹理以 dmabuf 直接交给编码器，去掉读回，前提是确认 Adreno 导出的布局能被 msm_vidc 接受。
+
 ## 系统 FFmpeg（`packages/ffmpeg-ubuntu`）
 
 mpv/Haruna、VLC、Qt Multimedia（系统里装的是它的 FFmpeg 后端，GStreamer 后端没有构建）、缩略图生成都用 Ubuntu 自己的 libavcodec，以前全是软件解码。现在按补丁队列重建 Ubuntu 的 FFmpeg `7:8.0.1-3ubuntu2`，新版本 `+rungic1`：

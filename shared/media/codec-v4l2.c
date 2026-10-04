@@ -44,7 +44,7 @@ typedef struct {int64_t pts;int id;} Time;
 struct V4l2Codec {
  int fd,kind,width,height,ten_bit,encoder;uint32_t fourcc;
  /* encoder: settings, the picture layout and the parameter sets last given to the consumer */
- int fps_num,fps_den,bitrate,key_interval;uint32_t in_bpl,in_scanlines;
+ int fps_num,fps_den,bitrate,key_interval,nv12_input;uint32_t in_bpl,in_scanlines;
  uint8_t headers[PARAMS];int headers_length;
  Buffer out[OUT_BUFFERS],cap[MAX_CAP];int n_out,n_cap,cap_on,stop_sent;
  /* Access units that came before CAPTURE was set up: only the first is in the driver. */
@@ -336,7 +336,9 @@ static int start_encoder(V4l2Codec *d,char *error,size_t n) {
  return 0;
 }
 
-V4l2Codec *v4l2_open(const RungicCodecConfig *config,int ten_bit,char *error,size_t n) {
+int v4l2_input_nv12(V4l2Codec *d){return d->encoder && d->nv12_input;}
+
+V4l2Codec *v4l2_open(const RungicCodecConfig *config,int ten_bit,int nv12_input,char *error,size_t n) {
  uint32_t fourcc=fourcc_of(config->kind);
  if(!fourcc || (ten_bit && (config->kind==0 || config->encoder)) || (config->encoder && config->kind==2))
   {snprintf(error,n,"V4L2: not a codec this backend takes");return NULL;}
@@ -345,7 +347,8 @@ V4l2Codec *v4l2_open(const RungicCodecConfig *config,int ten_bit,char *error,siz
  V4l2Codec *d=calloc(1,sizeof(*d));
  if(!d){close(fd);return NULL;}
  *d=(V4l2Codec){.fd=fd,.kind=config->kind,.width=config->width,.height=config->height,.ten_bit=ten_bit,.fourcc=fourcc,
-  .encoder=config->encoder,.fps_num=config->fps_num,.fps_den=config->fps_den,.bitrate=config->bitrate,.key_interval=config->key_interval};
+  .encoder=config->encoder,.fps_num=config->fps_num,.fps_den=config->fps_den,.bitrate=config->bitrate,.key_interval=config->key_interval,
+  .nv12_input=nv12_input};
  if(d->encoder?start_encoder(d,error,n):start(d,error,n)){v4l2_close(d);return NULL;}
  return d;
 }
@@ -425,10 +428,11 @@ static int collect_coded(V4l2Codec *d,RungicCodecOutput callback,void *user,unsi
  }
 }
 
-/* An I420 picture (the consumers' layout, width*height*3/2) into a free picture buffer as NV12. */
+/* A picture of the consumers' layout (width*height*3/2: I420, or NV12 when opened for it) into a
+ * free picture buffer as NV12. */
 static int put_picture(V4l2Codec *d,const uint8_t *data,int length,int64_t pts,int key,RungicCodecOutput callback,void *user,unsigned *outputs,int *last,int *consumer_failed,char *error,size_t n) {
  int w=d->width,h=d->height,cw=w/2,ch=h/2;
- if(length!=w*h*3/2){errno=EINVAL;return failed(error,n,"I420 size");}
+ if(length!=w*h*3/2){errno=EINVAL;return failed(error,n,d->nv12_input?"NV12 size":"I420 size");}
  int index=-1;
  for(long waited=0;;) {
   reclaim_inputs(d);
@@ -443,7 +447,8 @@ static int put_picture(V4l2Codec *d,const uint8_t *data,int length,int64_t pts,i
  const uint8_t *u=data+w*h,*v=u+cw*ch;
  sync_buffer(b,0,1);
  for(int r=0;r<h;r++)memcpy(b->map+(size_t)r*d->in_bpl,data+(size_t)r*w,w);
- for(int r=0;r<ch;r++) {
+ if(d->nv12_input)for(int r=0;r<ch;r++)memcpy(uv+(size_t)r*d->in_bpl,u+(size_t)r*2*cw,2*cw);
+ else for(int r=0;r<ch;r++) {
   uint8_t *row=uv+(size_t)r*d->in_bpl;const uint8_t *ur=u+(size_t)r*cw,*vr=v+(size_t)r*cw;
   for(int x=0;x<cw;x++){row[2*x]=ur[x];row[2*x+1]=vr[x];}
  }

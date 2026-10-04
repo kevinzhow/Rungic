@@ -9,8 +9,11 @@ enum { RUNGIC_DONE=0, RUNGIC_ENCODED=1, RUNGIC_DECODED=2, RUNGIC_CONFIG=3, RUNGI
 /* rungic_codec_open_options: decoded pictures in the app's buffers (DMA-BUF, mapped here; no copy in
  * the app), and 10-bit output (P010, needs buffers). rungic_codec_open uses RUNGIC_OPTIONS_DEFAULT:
  * buffers, unless RUNGIC_CODEC_BUFFERS=0 or the Firefox preload (RUNGIC_CODEC_PRECONNECT) without
- * RUNGIC_CODEC_BUFFERS=1. An app without them (channel version 1) gets shared memory. */
-enum { RUNGIC_OPTION_BUFFERS=1, RUNGIC_OPTION_TEN_BIT=2, RUNGIC_OPTIONS_DEFAULT=-1 };
+ * RUNGIC_CODEC_BUFFERS=1. An app without them (channel version 1) gets shared memory.
+ * RUNGIC_OPTION_NV12_INPUT: an encoder that takes NV12 pictures (width*height*3/2, CbCr interleaved)
+ * where it can, the V4L2 encoder; rungic_codec_input_nv12 says whether the opened one does, else
+ * it takes I420 as always. */
+enum { RUNGIC_OPTION_BUFFERS=1, RUNGIC_OPTION_TEN_BIT=2, RUNGIC_OPTION_NV12_INPUT=4, RUNGIC_OPTIONS_DEFAULT=-1 };
 typedef struct {
  int encoder,kind,width,height,fps_num,fps_den,bitrate,key_interval;
  int color_standard,color_range,color_transfer;
@@ -32,6 +35,7 @@ typedef int (*RungicCodecOutput)(void *,const RungicCodecFrame *);
 void rungic_codec_init(RungicCodec *);
 int rungic_codec_open(RungicCodec *,const RungicCodecConfig *);
 int rungic_codec_open_options(RungicCodec *,const RungicCodecConfig *,int options);
+int rungic_codec_input_nv12(const RungicCodec *);
 int rungic_codec_exchange(RungicCodec *,int cmd,int id,int64_t pts,int flags,int length,RungicCodecOutput,void *);
 void rungic_codec_close(RungicCodec *);
 int rungic_codec_copy_i420(const RungicCodecFrame *,uint8_t *const dst[3],const int stride[3]);

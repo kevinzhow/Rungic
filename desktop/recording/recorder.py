@@ -28,6 +28,18 @@ def settings():
     p = c['Recording'] if c.has_section('Recording') else {}
     return p.get('quality', 'high'), p.get('audio', 'system')
 
+def gpu_convert():
+    """Flip, scale and convert the screen on the GPU (GL) rather than the CPU: at 1080x2400 and
+    30 fps the whole video branch took about 1.1 cores with the CPU conversion, 0.7 with GL, most
+    of that the read-back of the converted picture (docs/108).
+    RUNGIC_RECORDING_CONVERT=cpu|gl overrides; the default is GL in a session that has the
+    elements and a display."""
+    wanted = os.environ.get('RUNGIC_RECORDING_CONVERT', 'auto')
+    if wanted in ('cpu', 'gl'):
+        return wanted == 'gl'
+    return bool(os.environ.get('WAYLAND_DISPLAY')) and all(
+        Gst.ElementFactory.find(n) for n in ('glupload', 'glvideoflip', 'glcolorscale', 'glcolorconvert', 'gldownload'))
+
 def partial_path(output):
     return output.with_suffix('.partial.mp4')
 
@@ -44,12 +56,22 @@ class Recorder:
         # alone; a second session or 60 fps needs every stream within the
         # 1080p class (measured 2026-09-24). Such streams are scaled to fit.
         self.fit_1080p = len(streams) > 1 or fps > 30
+        self.gl = gpu_convert()
         video = ''
         for i, (node, _) in enumerate(streams):
+            # GL: the stream's buffers go to the GPU as they come (DMA-BUFs where KWin gives them),
+            # flipped, scaled to fit{i} and converted to NV12 there; the encoder takes NV12 as is.
+            if self.gl:
+                # glvideoflip and glcolorscale take RGBA textures: a first glcolorconvert gives them that.
+                convert = (f'! glupload ! glcolorconvert ! glvideoflip name=flip{i} video-direction=auto '
+                           f'! queue max-size-buffers=4 leaky=downstream ! glcolorscale ! capsfilter name=fit{i} ! glcolorconvert '
+                           f'! video/x-raw(memory:GLMemory),format=NV12 ! gldownload ')
+            else:
+                convert = (f'! video/x-raw ! videoflip name=flip{i} video-direction=auto ! queue max-size-buffers=4 leaky=downstream '
+                           f'! videoconvertscale n-threads=2 ! capsfilter name=fit{i} ')
             video += (f'pipewiresrc name=video{i} path={node} do-timestamp=true provide-clock=false keepalive-time={1000//fps} '
-                      f'! video/x-raw ! videoflip name=flip{i} video-direction=auto ! queue max-size-buffers=4 leaky=downstream '
-                      f'! videoconvertscale n-threads=2 ! capsfilter name=fit{i} '
-                      f'! videorate ! video/x-raw,format=I420,framerate={fps}/1 '
+                      + convert +
+                      f'! videorate ! video/x-raw,format=NV12,framerate={fps}/1 '
                       # The encoder runs in its own thread and drops what it cannot keep up with here
                       # (measured about 50 fps at 864x1920). Without this, videorate filled every gap
                       # with duplicates in the converter's thread: the stream fell behind real time
@@ -107,7 +129,8 @@ class Recorder:
             for path in reserved:
                 path.unlink(missing_ok=True)
             raise
-        print(f'CONFIG quality={quality} bitrate={bitrate} fps={fps} audio={audio} screens={len(streams)}', flush=True)
+        print(f'CONFIG quality={quality} bitrate={bitrate} fps={fps} audio={audio} screens={len(streams)} '
+              f'convert={"gl" if self.gl else "cpu"}', flush=True)
 
     def start_timeout(self):
         if not self.started:
@@ -131,7 +154,8 @@ class Recorder:
             scale = min(1.0, 1920 / long_edge, 1088 / short_edge)
             target_w = max(16, int(width * scale) // 2 * 2)
             target_h = max(16, int(height * scale) // 2 * 2)
-        caps = Gst.Caps.from_string(f'video/x-raw,width={target_w},height={target_h}')
+        memory = '(memory:GLMemory)' if self.gl else ''
+        caps = Gst.Caps.from_string(f'video/x-raw{memory},width={target_w},height={target_h}')
         fit = self.pipeline.get_by_name(f'fit{index}')
         if not fit.get_property('caps') or not fit.get_property('caps').is_equal(caps):
             fit.set_property('caps', caps)

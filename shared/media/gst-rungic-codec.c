@@ -9,7 +9,9 @@
 #endif
 GST_DEBUG_CATEGORY_STATIC(rungic_debug);
 #define GST_CAT_DEFAULT rungic_debug
-#define RAW_CAPS "video/x-raw,format=I420,width=(int)[16,2560],height=(int)[16,2560]"
+/* Encoder input: NV12 first (the V4L2 encoder's own layout, and what a GL colour conversion gives
+ * the screen recorder), I420 as before. */
+#define RAW_CAPS "video/x-raw,format=(string){NV12,I420},width=(int)[16,2560],height=(int)[16,2560]"
 /* Decoded pictures: NV12 as the hardware gives them (I420 when downstream wants it), P010 for 10-bit. */
 #define DECODED_CAPS "video/x-raw,format=(string){NV12,I420,P010_10LE},width=(int)[16,2560],height=(int)[16,2560]"
 static const char *compressed_caps[]={
@@ -146,7 +148,8 @@ static gboolean encoder_set_format(GstVideoEncoder *encoder,GstVideoCodecState *
  RungicCodecConfig config={.encoder=1,.kind=klass->kind,.width=GST_VIDEO_INFO_WIDTH(&state->info),.height=GST_VIDEO_INFO_HEIGHT(&state->info),
  .fps_num=GST_VIDEO_INFO_FPS_N(&state->info),.fps_den=GST_VIDEO_INFO_FPS_D(&state->info),.bitrate=self->bitrate*1000,.key_interval=self->key_interval};
  color_config(&config,&state->info);
- if(rungic_codec_open(&self->codec,&config)){GST_WARNING_OBJECT(self,"%s",self->codec.error);return FALSE;}
+ gboolean nv12=GST_VIDEO_INFO_FORMAT(&state->info)==GST_VIDEO_FORMAT_NV12;
+ if(rungic_codec_open_options(&self->codec,&config,nv12?RUNGIC_OPTION_BUFFERS|RUNGIC_OPTION_NV12_INPUT:RUNGIC_OPTIONS_DEFAULT)){GST_WARNING_OBJECT(self,"%s",self->codec.error);return FALSE;}
  if(self->input)gst_video_codec_state_unref(self->input);self->input=gst_video_codec_state_ref(state);g_byte_array_set_size(self->headers,0);
  GstCaps *caps=gst_caps_new_simple(mime_caps[klass->kind],"stream-format",G_TYPE_STRING,"byte-stream","alignment",G_TYPE_STRING,"au",NULL);
  GstVideoCodecState *output=gst_video_encoder_set_output_state(encoder,caps,state);gst_video_codec_state_unref(output);
@@ -158,6 +161,17 @@ static GstFlowReturn encoder_handle(GstVideoEncoder *encoder,GstVideoCodecFrame 
  RungicEncoder *self=(RungicEncoder *)encoder;self->flow=GST_FLOW_OK;GstVideoFrame raw;
  if(!self->input || !self->codec.memory || !gst_video_frame_map(&raw,&self->input->info,frame->input_buffer,GST_MAP_READ)) {gst_video_codec_frame_unref(frame);return GST_FLOW_ERROR;}
  int width=GST_VIDEO_FRAME_WIDTH(&raw),height=GST_VIDEO_FRAME_HEIGHT(&raw),offset=0;
+ if(GST_VIDEO_FRAME_FORMAT(&raw)==GST_VIDEO_FORMAT_NV12) {
+  /* NV12 as it is when the codec takes it (V4L2), else its chroma copied apart into I420. */
+  int nv12=rungic_codec_input_nv12(&self->codec),cw=width/2,ch=height/2;
+  const uint8_t *y=GST_VIDEO_FRAME_PLANE_DATA(&raw,0),*uv=GST_VIDEO_FRAME_PLANE_DATA(&raw,1);
+  int ys=GST_VIDEO_FRAME_PLANE_STRIDE(&raw,0),uvs=GST_VIDEO_FRAME_PLANE_STRIDE(&raw,1);
+  for(int r=0;r<height;r++)memcpy(self->codec.memory+r*width,y+r*ys,width);
+  offset=width*height;
+  if(nv12)for(int r=0;r<ch;r++)memcpy(self->codec.memory+offset+r*2*cw,uv+r*uvs,2*cw);
+  else for(int r=0;r<ch;r++){uint8_t *u=self->codec.memory+offset+r*cw,*v=u+cw*ch;const uint8_t *s=uv+r*uvs;for(int x=0;x<cw;x++){u[x]=s[2*x];v[x]=s[2*x+1];}}
+  offset+=2*cw*ch;
+ } else
  for(int p=0;p<3;p++) {int w=p?width/2:width,h=p?height/2:height;const uint8_t *src=GST_VIDEO_FRAME_PLANE_DATA(&raw,p);int stride=GST_VIDEO_FRAME_PLANE_STRIDE(&raw,p);
   for(int y=0;y<h;y++)memcpy(self->codec.memory+offset+y*w,src+y*stride,w);offset+=w*h;}
  gst_video_frame_unmap(&raw);

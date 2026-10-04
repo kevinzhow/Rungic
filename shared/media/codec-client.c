@@ -208,6 +208,10 @@ static int default_options(void) {
  /* Firefox's RDD sandbox: DMA-BUF sync ioctls there are not verified yet. */
  return getenv("RUNGIC_CODEC_PRECONNECT") || buffers_unusable?0:RUNGIC_OPTION_BUFFERS;
 }
+int rungic_codec_input_nv12(const RungicCodec *c) {
+ Channel *channel=c->fd>=0?channel_of(c->fd):NULL;
+ return channel && channel->v4l2 && v4l2_input_nv12(channel->v4l2);
+}
 int rungic_codec_open(RungicCodec *c,const RungicCodecConfig *config) {
  return rungic_codec_open_options(c,config,RUNGIC_OPTIONS_DEFAULT);
 }
@@ -218,7 +222,7 @@ static int open_v4l2(RungicCodec *c,const RungicCodecConfig *config,int options)
  const char *wanted=getenv("RUNGIC_CODEC_V4L2");
  if((wanted && !strcmp(wanted,"0")) || (getenv("RUNGIC_CODEC_PRECONNECT") && !(wanted && !strcmp(wanted,"1"))))return -1;
  char error[sizeof(c->error)];
- V4l2Codec *d=v4l2_open(config,(options&RUNGIC_OPTION_TEN_BIT)!=0,error,sizeof(error));
+ V4l2Codec *d=v4l2_open(config,(options&RUNGIC_OPTION_TEN_BIT)!=0,(options&RUNGIC_OPTION_NV12_INPUT)!=0,error,sizeof(error));
  if(!d)return -1;
  void *memory=mmap(NULL,RUNGIC_CODEC_HALF*2,PROT_READ|PROT_WRITE,MAP_PRIVATE|MAP_ANONYMOUS,-1,0);
  Channel *channel=memory==MAP_FAILED?NULL:channel_add(v4l2_fd(d),3);
