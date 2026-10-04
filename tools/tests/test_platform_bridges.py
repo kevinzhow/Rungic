@@ -124,6 +124,7 @@ class Service:
     def __init__(self, script, name, address, host):
         self.lib = tempfile.mkdtemp(prefix='rungic-lib-')
         shutil.copy(PLATFORM / 'host_watch.py', os.path.join(self.lib, 'rungic_host_watch.py'))
+        shutil.copy(PLATFORM / 'rungic_platform_transport.py', os.path.join(self.lib, 'rungic_platform_transport.py'))
         env = dict(os.environ, DBUS_SYSTEM_BUS_ADDRESS=address, RUNGIC_PLATFORM_SOCKET=host.path,
                    PYTHONPATH=self.lib, PYTHONDONTWRITEBYTECODE='1')
         self.process = subprocess.Popen([sys.executable, str(PLATFORM / script)], env=env,

@@ -1,6 +1,6 @@
 package com.rungic.plasma;
 
-import android.app.Activity;
+import android.content.Context;
 import android.net.*;
 import android.net.wifi.*;
 import android.os.SystemClock;
@@ -14,7 +14,8 @@ import java.util.regex.*;
 
 /** Android owns all networking. No network configuration or credentials are stored here. */
 final class AndroidNetworkBridge implements Closeable {
-    private final Activity activity;
+    private final Context context;
+    final String apkPath;
     private final ConnectivityManager cm;
     private final WifiManager wm;
     private final ScheduledExecutorService worker=Executors.newSingleThreadScheduledExecutor();
@@ -22,10 +23,11 @@ final class AndroidNetworkBridge implements Closeable {
     private java.lang.Process rootProcess;
     private BufferedWriter rootInput;
     private BlockingQueue<String> rootOutput;
-    AndroidNetworkBridge(Activity activity) {
-        this.activity=activity;
-        cm=activity.getSystemService(ConnectivityManager.class);
-        wm=activity.getApplicationContext().getSystemService(WifiManager.class);
+    AndroidNetworkBridge(Context context,String apkPath) {
+        this.apkPath=apkPath;
+        this.context=context;
+        cm=context.getSystemService(ConnectivityManager.class);
+        wm=context.getApplicationContext().getSystemService(WifiManager.class);
     }
     // Android's own callbacks tell the Linux side (HostEvents) and refresh the Wi-Fi identity (a root
     // `cmd wifi status`) when something changed; the slow schedule only catches what they miss.
@@ -64,7 +66,7 @@ final class AndroidNetworkBridge implements Closeable {
         if(watching)return;
         watching=true;
         cm.registerNetworkCallback(new NetworkRequest.Builder().clearCapabilities().build(),changes);
-        activity.getApplicationContext().registerReceiver(wifiState,new android.content.IntentFilter(WifiManager.WIFI_STATE_CHANGED_ACTION),
+        context.getApplicationContext().registerReceiver(wifiState,new android.content.IntentFilter(WifiManager.WIFI_STATE_CHANGED_ACTION),
             android.content.Context.RECEIVER_NOT_EXPORTED);
     }
     /** `identity`: the Wi-Fi network may be another one, so its SSID is read again. */
@@ -120,14 +122,16 @@ final class AndroidNetworkBridge implements Closeable {
     private String wifiCommand(String operation,long timeoutMs) throws Exception {
         return rootShell("/system/bin/cmd wifi "+operation,timeoutMs);
     }
-    // The app's one root session, also used by AndroidBluetoothBridge.
+    // One bounded command session for the device backend, also used by Bluetooth.
     synchronized String rootShell(String command,long timeoutMs) throws Exception {
         // One private root session avoids a Magisk grant toast/process launch
         // on every status refresh.
         try {
             if(rootProcess==null || !rootProcess.isAlive()) {
                 closeRoot();
-                ProcessBuilder builder=new ProcessBuilder("/product/bin/su","--mount-master","-c","/system/bin/sh");
+                ProcessBuilder builder=android.os.Process.myUid()==0
+                    ?new ProcessBuilder("/system/bin/sh")
+                    :new ProcessBuilder("/product/bin/su","--mount-master","-c","/system/bin/sh");
                 builder.environment().remove("LD_PRELOAD");builder.environment().remove("LD_LIBRARY_PATH");
                 rootProcess=builder.redirectErrorStream(true).start();
                 rootInput=new BufferedWriter(new OutputStreamWriter(rootProcess.getOutputStream(),StandardCharsets.UTF_8));
@@ -164,20 +168,14 @@ final class AndroidNetworkBridge implements Closeable {
     }
     JSONObject setEnabled(boolean enabled) throws Exception {
         // Invoked on the private socket thread, never Android's UI thread.
-        if(!focused())throw new IOException("请先返回 Plasma Mobile");
         wifiCommand(enabled?"set-wifi-enabled enabled":"set-wifi-enabled disabled");
         identity="{}";
         return new JSONObject().put("accepted",true);
     }
     private static String quote(String value) { return "'"+value.replace("'","'\\''")+"'"; }
-    private boolean focused() throws Exception {
-        FutureTask<Boolean> focus=new FutureTask<>(() -> activity.hasWindowFocus());
-        activity.runOnUiThread(focus);
-        return focus.get(500,TimeUnit.MILLISECONDS);
-    }
     /** Wi-Fi for the Linux side's NetworkManager service (docs/73): scan, scan results, saved
-     * networks, connect, forget, through Android's own `cmd wifi`. Changes need the desktop in the
-     * foreground, as the Wi-Fi switch does. Android keeps the credentials; none are stored here. */
+     * networks, connect, forget, through Android's own `cmd wifi`. Requests are authorized by the private device socket, independent of any
+     * foreground window. Android keeps the credentials; none are stored here. */
     JSONObject wifi(JSONObject request) throws Exception {
         String action=request.optString("action");
         switch(action) {
@@ -191,8 +189,7 @@ final class AndroidNetworkBridge implements Closeable {
                 boolean open=security.equals("open") || security.equals("owe");
                 if(!open && !security.equals("wpa2") && !security.equals("wpa3"))throw new IllegalArgumentException("Unsupported security");
                 if(open ? !passphrase.isEmpty() : !passphrase.matches("[\\x20-\\x7e]{8,63}"))throw new IllegalArgumentException("Invalid passphrase");
-                if(!focused())throw new IOException("请先返回 Plasma Mobile");
-                String reply=wifiCommand("connect-network "+quote(ssid)+" "+security+(open?"":" "+quote(passphrase)),20000);
+                        String reply=wifiCommand("connect-network "+quote(ssid)+" "+security+(open?"":" "+quote(passphrase)),20000);
                 identity="{}";
                 return new JSONObject().put("accepted",true).put("text",reply);
             }
@@ -201,22 +198,19 @@ final class AndroidNetworkBridge implements Closeable {
                 // passphrase): com.rungic.wifi.RootWifi from this APK, run as root.
                 int id=request.getInt("id");
                 if(id<0)throw new IllegalArgumentException("Invalid network id");
-                if(!focused())throw new IOException("请先返回 Plasma Mobile");
-                String reply=rootWifi("connect "+id);
+                        String reply=rootWifi("connect "+id);
                 identity="{}";
                 return new JSONObject().put("accepted",true).put("text",reply);
             }
             case "disconnect": {
-                if(!focused())throw new IOException("请先返回 Plasma Mobile");
-                String reply=rootWifi("disconnect");
+                        String reply=rootWifi("disconnect");
                 identity="{}";
                 return new JSONObject().put("accepted",true).put("text",reply);
             }
             case "forget": {
                 int id=request.getInt("id");
                 if(id<0)throw new IllegalArgumentException("Invalid network id");
-                if(!focused())throw new IOException("请先返回 Plasma Mobile");
-                wifiCommand("forget-network "+id,5000);
+                        wifiCommand("forget-network "+id,5000);
                 identity="{}";
                 return new JSONObject().put("accepted",true);
             }
@@ -224,7 +218,7 @@ final class AndroidNetworkBridge implements Closeable {
         }
     }
     private String rootWifi(String arguments) throws Exception {
-        String apk=activity.getApplicationInfo().sourceDir;
+        String apk=apkPath;
         String reply=rootShell("CLASSPATH="+quote(apk)+" /system/bin/app_process /system/bin com.rungic.wifi.RootWifi "+arguments,20000);
         if(!reply.trim().endsWith("success"))throw new IOException("Android Wi-Fi: "+reply.trim());
         return reply;
@@ -237,7 +231,7 @@ final class AndroidNetworkBridge implements Closeable {
             if(ms<0 || ms>Integer.MAX_VALUE)throw new IllegalArgumentException("Invalid timeout");
             rootShell("/system/bin/settings put system screen_off_timeout "+(ms==0?Integer.MAX_VALUE:ms),3000);
         }
-        long current=android.provider.Settings.System.getLong(activity.getContentResolver(),
+        long current=android.provider.Settings.System.getLong(context.getContentResolver(),
             android.provider.Settings.System.SCREEN_OFF_TIMEOUT,60000);
         return new JSONObject().put("ms",current>=Integer.MAX_VALUE?0:current);
     }
@@ -295,7 +289,7 @@ final class AndroidNetworkBridge implements Closeable {
     @Override public void close() {
         if(watching) {
             try { cm.unregisterNetworkCallback(changes); } catch(IllegalArgumentException ignored) {}
-            try { activity.getApplicationContext().unregisterReceiver(wifiState); } catch(IllegalArgumentException ignored) {}
+            try { context.getApplicationContext().unregisterReceiver(wifiState); } catch(IllegalArgumentException ignored) {}
             watching=false;
         }
         worker.shutdownNow();closeRoot();

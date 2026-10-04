@@ -23,6 +23,7 @@ from xml.sax.saxutils import escape
 from gi.repository import Gio, GLib
 
 import rungic_host_watch
+import rungic_platform_transport
 
 NM = 'org.freedesktop.NetworkManager'
 BASE = '/org/freedesktop/NetworkManager'
@@ -44,20 +45,10 @@ RESOLV_MAX_SERVERS = 3  # glibc reads at most three nameservers
 
 
 def host_request(timeout=3.5, **request):
-    with socket.socket(socket.AF_UNIX) as client:
-        client.settimeout(timeout)
-        client.connect(SOCKET)
-        client.sendall(json.dumps(request).encode() + b'\n')
-        data = bytearray()
-        while b'\n' not in data:
-            part = client.recv(8192)
-            if not part or len(data) + len(part) > 524288:
-                raise OSError('Invalid Android response')
-            data.extend(part)
-        result = json.loads(data.split(b'\n', 1)[0])
-        if 'error' in result:
-            raise OSError(result['error'])
-        return result
+    result = rungic_platform_transport.request(request, timeout, ui_socket=SOCKET, limit=524288)
+    if 'error' in result:
+        raise OSError(result['error'])
+    return result
 
 
 def resolv_conf_text(snapshot):

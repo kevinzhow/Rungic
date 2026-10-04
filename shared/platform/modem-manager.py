@@ -26,6 +26,7 @@ import time
 from gi.repository import Gio, GLib
 
 import rungic_host_watch
+import rungic_platform_transport
 
 MM = 'org.freedesktop.ModemManager1'
 BASE = '/org/freedesktop/ModemManager1'
@@ -78,20 +79,10 @@ INTROSPECTION = {
 
 
 def host_request(timeout=10, **request):
-    with socket.socket(socket.AF_UNIX) as client:
-        client.settimeout(timeout)
-        client.connect(SOCKET)
-        client.sendall(json.dumps(dict(op='telephony', **request)).encode() + b'\n')
-        data = bytearray()
-        while b'\n' not in data:
-            part = client.recv(65536)
-            if not part or len(data) + len(part) > 65536:
-                raise OSError('Invalid Android response')
-            data.extend(part)
-        result = json.loads(data.split(b'\n', 1)[0])
-        if 'error' in result:
-            raise OSError(result['error'])
-        return result
+    result = rungic_platform_transport.request(dict(op='telephony', **request), timeout, ui_socket=SOCKET, limit=65536)
+    if 'error' in result:
+        raise OSError(result['error'])
+    return result
 
 
 def props(**kwargs):

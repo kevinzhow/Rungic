@@ -1,4 +1,4 @@
 [D-BUS Service]
 Name=com.rungic.VoiceAgent
-Exec=/usr/bin/rungic-voice-agent --service
+Exec=/usr/libexec/rungic-agent-start /usr/bin/rungic-voice-agent --service
 SystemdService=rungic-voice-agent.service

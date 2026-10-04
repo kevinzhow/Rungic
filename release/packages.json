@@ -294,6 +294,11 @@
       "mode": "755"
     },
     {
+      "source": "system/android-device",
+      "path": "/data/adb/rungic-plasma/android-device",
+      "mode": "755"
+    },
+    {
       "source": "system/plasma.config",
       "path": "/data/adb/rungic-lxc/runtime/var/lib/lxc/plasma/config",
       "mode": "644"

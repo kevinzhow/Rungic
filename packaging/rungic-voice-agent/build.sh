@@ -32,3 +32,6 @@ install -Dm644 "$V/com.rungic.VoiceAssistant.service" "$DESTDIR/usr/share/dbus-1
 install -Dm644 "$V/com.rungic.VoiceAssistant.desktop" "$DESTDIR/usr/share/applications/com.rungic.VoiceAssistant.desktop"
 install -Dm644 "$V/kconf_update/rungic-voice-agent.upd" "$DESTDIR/usr/share/kconf_update/rungic-voice-agent.upd"
 install -Dm755 "$V/kconf_update/rungic-codex-setup.sh" "$DESTDIR/usr/share/kconf_update/rungic-codex-setup.sh"
+
+install -Dm644 "$V/rungic-agent-user.service" "$DESTDIR/usr/lib/systemd/system/rungic-agent-user.service"
+install -Dm755 "$V/rungic-agent-start" "$DESTDIR/usr/libexec/rungic-agent-start"

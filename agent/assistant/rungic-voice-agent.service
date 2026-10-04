@@ -1,12 +1,12 @@
 [Unit]
 Description=Voice assistant (GPT Realtime + Codex agent)
-After=rungic-plasma-media.service
-PartOf=graphical-session.target
+After=dbus.socket
+# Execution belongs to the user manager; the phone UI may disconnect or restart.
 
 [Service]
 Type=dbus
 BusName=com.rungic.VoiceAgent
-ExecStart=/usr/bin/rungic-voice-agent --service
+ExecStart=/usr/libexec/rungic-agent-start /usr/bin/rungic-voice-agent --service
 Restart=on-failure
 RestartSec=3
 # It and its children (codex app-server, call proxy, rungic-cua) hold API keys
@@ -15,4 +15,4 @@ LimitCORE=0
 
 [Install]
 # Resident: holding Home should only have to open the realtime link (docs/67).
-WantedBy=plasma-workspace.target
+WantedBy=default.target

@@ -26,6 +26,9 @@
     "user": [
       "rungic-voice-agent.service",
       "rungic-voice-overlay.service"
+    ],
+    "system": [
+      "rungic-agent-user.service"
     ]
   },
   "obsolete": [

@@ -1,0 +1,14 @@
+[Unit]
+Description=Keep the agent account available without a phone display session
+After=systemd-logind.service
+Requires=systemd-logind.service
+
+[Service]
+Type=oneshot
+# Only the configured desktop account (UID 1000), not every Linux account.
+ExecCondition=/usr/bin/getent passwd 1000
+ExecStart=/bin/sh -ec 'name=$$(getent passwd 1000 | cut -d: -f1); exec loginctl enable-linger "$$name"'
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

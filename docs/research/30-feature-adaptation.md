@@ -236,3 +236,8 @@ USB G100 已部署 `20260930.12`：suggestions `0.452`、voice-agent `0.453`、d
 ## Codex 默认操作桌面（2026-10-03，开发 G100）
 
 默认任务使用当前 Codex 登录和所选模型，通过共享 KWin 截图、portal 输入和窗口工具完成桌面操作；Luna API 作为显式备选，Agent App 设置提供选择。常驻 Agent 的 Kalk 137 × 29 看图/点按/结果核对通过，进展和 token 事件归属原对话，忙时切换被拒绝。离线 Python 106 项和 ARM64 原生音频辅助 3 项通过。实际登录仍为 API key，没有切换到 ChatGPT。本轮没有向联系人发送语音或拨真实电话；这些不能算已验收。部署、配套 KWin 和路由加载问题见 [106](../106-codex-desktop-operation.md)。
+
+
+## 独立 Linux 服务与 root 硬件后台（2026-10-05）
+
+候选实现把网络、蓝牙、SIM 和短信从显示 APK 移到独立 root DeviceDaemon，Linux 直连硬件端点，Agent 用户服务也不再随手机图形会话停止。实现、发行版归属、Android 16 探针及未验范围见 [113 篇](../113-independent-linux-services.md)。短信库和合成结果回调已核对，未把旧 APK 的无线电测试当作新后台验收。

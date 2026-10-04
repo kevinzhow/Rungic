@@ -1,0 +1,14 @@
+#!/bin/sh
+# A resident agent needs its login/proxy environment before any display session starts.
+set -eu
+[ ! -f /etc/profile.d/proxy.sh ] || . /etc/profile.d/proxy.sh
+if [ -x /usr/libexec/rungic-login-environment ]; then
+    login_env=$(/usr/libexec/rungic-login-environment 2>/dev/null) || login_env=
+    [ -z "$login_env" ] || eval "$login_env"
+fi
+[ ! -f /etc/plasma/gpu-env ] || . /etc/plasma/gpu-env
+# Android's optional audio cookie; native Linux uses its ordinary user audio server.
+if [ -r /var/lib/rungic-host/audio-cookie ]; then
+    export PULSE_COOKIE=/var/lib/rungic-host/audio-cookie
+fi
+exec "$@"

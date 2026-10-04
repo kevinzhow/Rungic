@@ -1,7 +1,7 @@
 package com.rungic.plasma;
 
 import android.Manifest;
-import android.app.Activity;
+import android.content.Context;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothClass;
 import android.bluetooth.BluetoothDevice;
@@ -24,7 +24,7 @@ import java.util.*;
  * start, after those operations and every 10 minutes. The on/off switch is Android's cmd
  * bluetooth_manager. Bonding is started here and confirmed by the user in Android's pairing dialog. */
 final class AndroidBluetoothBridge {
-    private final Activity activity;
+    private final Context context;
     private final AndroidNetworkBridge root;
     private final Map<String,JSONObject> found=new HashMap<>();
     private boolean receiving;
@@ -32,7 +32,7 @@ final class AndroidBluetoothBridge {
     private String address;
     private long calibrated;               // elapsedRealtime of the last root calibration, 0: needed
     private boolean watching;
-    AndroidBluetoothBridge(Activity activity,AndroidNetworkBridge root) { this.activity=activity;this.root=root; }
+    AndroidBluetoothBridge(Context context,AndroidNetworkBridge root) { this.context=context;this.root=root; }
 
     private final BroadcastReceiver links=new BroadcastReceiver() {
         @Override public void onReceive(Context context,Intent intent) {
@@ -49,8 +49,8 @@ final class AndroidBluetoothBridge {
 
     private void permissions() throws Exception {
         for(String permission:new String[]{Manifest.permission.BLUETOOTH_SCAN,Manifest.permission.BLUETOOTH_CONNECT})
-            if(activity.checkSelfPermission(permission)!=PackageManager.PERMISSION_GRANTED)
-                root.rootShell("/system/bin/pm grant "+activity.getPackageName()+" "+permission,10000);
+            if(context.checkSelfPermission(permission)!=PackageManager.PERMISSION_GRANTED)
+                root.rootShell("/system/bin/pm grant "+context.getPackageName()+" "+permission,10000);
         if(!watching) {
             IntentFilter filter=new IntentFilter(BluetoothDevice.ACTION_ACL_CONNECTED);
             filter.addAction(BluetoothDevice.ACTION_ACL_DISCONNECTED);
@@ -58,7 +58,7 @@ final class AndroidBluetoothBridge {
             filter.addAction(BluetoothDevice.ACTION_BOND_STATE_CHANGED);
             filter.addAction(BluetoothAdapter.ACTION_DISCOVERY_STARTED);
             filter.addAction(BluetoothAdapter.ACTION_DISCOVERY_FINISHED);
-            activity.getApplicationContext().registerReceiver(links,filter,Context.RECEIVER_EXPORTED);
+            context.getApplicationContext().registerReceiver(links,filter,Context.RECEIVER_EXPORTED);
             watching=true;
         }
     }
@@ -118,14 +118,14 @@ final class AndroidBluetoothBridge {
     };
 
     private BluetoothAdapter adapter() {
-        BluetoothManager manager=activity.getSystemService(BluetoothManager.class);
+        BluetoothManager manager=context.getSystemService(BluetoothManager.class);
         return manager==null?null:manager.getAdapter();
     }
 
     private static final java.util.regex.Pattern ADDRESS=java.util.regex.Pattern.compile("[0-9A-F]{2}(:[0-9A-F]{2}){5}");
 
     private JSONObject helper(String arguments) throws Exception {
-        String apk=activity.getApplicationInfo().sourceDir;
+        String apk=root.apkPath;
         String reply=root.rootShell("CLASSPATH='"+apk.replace("'","'\\''")+"' /system/bin/app_process /system/bin com.rungic.bluetooth.RootBluetooth "+arguments+" || true",15000);
         String[] lines=reply.trim().split("\n");
         JSONObject result=new JSONObject(lines[lines.length-1]);
@@ -162,7 +162,7 @@ final class AndroidBluetoothBridge {
                     if(!receiving) {
                         IntentFilter filter=new IntentFilter(BluetoothDevice.ACTION_FOUND);
                         filter.addAction(BluetoothDevice.ACTION_NAME_CHANGED);
-                        activity.getApplicationContext().registerReceiver(receiver,filter,Context.RECEIVER_EXPORTED);
+                        context.getApplicationContext().registerReceiver(receiver,filter,Context.RECEIVER_EXPORTED);
                         receiving=true;
                     }
                     if(!adapter.isDiscovering() && !adapter.startDiscovery())throw new IOException("Discovery refused");

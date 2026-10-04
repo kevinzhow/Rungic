@@ -15,25 +15,14 @@ import re
 import socket
 import sys
 import time
+import rungic_platform_transport
 
 SOCKET = os.environ.get('RUNGIC_PLATFORM_SOCKET', '/mnt/android-wayland/platform.sock')
 MAX_TEXT = 1000  # AndroidSmsBridge.MAX_TEXT
 
 
 def request(data, timeout):
-    with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as conn:
-        conn.settimeout(timeout)
-        conn.connect(SOCKET)
-        conn.sendall(json.dumps(data, ensure_ascii=False).encode() + b'\n')
-        with conn.makefile('rb') as stream:
-            raw = stream.readline(524289)
-    if len(raw) > 524288:
-        raise ValueError('The Android side sent a response that is too large')
-    if not raw:
-        raise ConnectionError('The Android side closed the connection (Rungic APK older than 2.31?)')
-    result = json.loads(raw)
-    if not isinstance(result, dict):
-        raise ValueError('Invalid SMS response: expected an object')
+    result = rungic_platform_transport.request(data, timeout, ui_socket=SOCKET)
     if 'error' in result and result.get('status') not in ('failed', 'pending'):
         raise RuntimeError(result['error'])
     return result

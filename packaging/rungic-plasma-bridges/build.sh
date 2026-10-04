@@ -9,6 +9,7 @@ for domain in rungic-platform rungic-render; do
 done
 install -Dm755 "$SRC/shared/platform/clipboard.py" "$DESTDIR/usr/bin/rungic-clipboard"
 install -Dm755 "$SRC/shared/platform/sms.py" "$DESTDIR/usr/bin/rungic-sms"
+install -Dm644 "$SRC/shared/platform/rungic_platform_transport.py" "$DESTDIR/usr/lib/python3/dist-packages/rungic_platform_transport.py"
 install -Dm644 "$SRC/shared/platform/host_watch.py" "$DESTDIR/usr/lib/python3/dist-packages/rungic_host_watch.py"
 install -Dm755 "$SRC/shared/platform/network-manager.py" "$DESTDIR/usr/libexec/rungic-android-network"
 install -Dm755 "$SRC/shared/platform/bluez.py" "$DESTDIR/usr/libexec/rungic-android-bluetooth"

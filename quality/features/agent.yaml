@@ -62,6 +62,8 @@ features:
           - {doc: docs/89-agent-progress.md, date: 2026-09-29, note: "只验证了服务端 Use，界面路径待真人验收"}
       - id: E8
         text: 没配 OpenAI API Key 时只有语音不可用并提示去配置，打字照常；没装 Codex 时服务不退出，对话里提示先安装。
+      - id: E9
+        text: 助理执行由 Linux 用户管理器常驻；手机图形会话停止或尚未打开时，服务与任务不跟随退出。
     pitfalls:
       - text: Codex 的实时会话固定用服务端 VAD（静音 500 ms 即结束一轮），app-server 不提供修改或手动提交的接口；所以按住期间先存本地、松手后整段上传并补 900 ms 静音。
         docs: [docs/59-voice-agent.md, docs/87-agent-app-redesign.md]
@@ -76,6 +78,9 @@ features:
       - text: 实时模型对“情绪不增加话语”这类规则执行得不严格；语气未经人耳评估。
         docs: [docs/59-voice-agent.md]
     code:
+      - agent/assistant/rungic-agent-start
+      - agent/assistant/rungic-agent-user.service
+      - tools/tests/test_device_services.py
       - agent/assistant/rungic_voice_agent.py
       - agent/assistant/voice_i18n.py
       - agent/assistant/po/zh_CN/rungic-voice-agent.po
@@ -85,7 +90,7 @@ features:
       - agent/assistant/app/qml/Composer.qml
       - packaging/rungic-voice-agent/
       - tools/tests/test_voice_agent_service.py
-    docs: [docs/59-voice-agent.md, docs/87-agent-app-redesign.md, docs/89-agent-progress.md, docs/agent-ready-interfaces.md]
+    docs: [docs/59-voice-agent.md, docs/87-agent-app-redesign.md, docs/89-agent-progress.md, docs/agent-ready-interfaces.md, docs/113-independent-linux-services.md]
 
   - id: agent.home-hold
     title: 长按 Home 呼出语音助手

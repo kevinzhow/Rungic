@@ -1,7 +1,7 @@
 package com.rungic.plasma;
 
 import android.Manifest;
-import android.app.Activity;
+import android.content.Context;
 import android.content.pm.PackageManager;
 import android.os.Build;
 import android.telephony.ServiceState;
@@ -16,9 +16,9 @@ import org.json.JSONObject;
  * READ_PHONE_STATE and the data switch (svc data) come from root, like the Bluetooth bridge's
  * privileges. */
 final class AndroidTelephonyBridge {
-    private final Activity activity;
+    private final Context context;
     private final AndroidNetworkBridge root;
-    AndroidTelephonyBridge(Activity activity,AndroidNetworkBridge root) { this.activity=activity;this.root=root; }
+    AndroidTelephonyBridge(Context context,AndroidNetworkBridge root) { this.context=context;this.root=root; }
 
     /** Tells the Linux side (HostEvents) when the service, the signal level or mobile data changed, so
      * it asks for the state then rather than every few seconds. Registered once the permission is there. */
@@ -41,14 +41,14 @@ final class AndroidTelephonyBridge {
         if(tm==null || subscription==watchedSubscription)return;
         try {
             if(watched!=null)watched.unregisterTelephonyCallback(changes);
-            tm.registerTelephonyCallback(activity.getMainExecutor(),changes);
+            tm.registerTelephonyCallback(context.getMainExecutor(),changes);
             watched=tm;watchedSubscription=subscription;
         } catch(SecurityException e) { watched=null;watchedSubscription=Integer.MIN_VALUE; }
     }
     private final Changes changes=new Changes();
 
     private TelephonyManager telephony() {
-        TelephonyManager tm=activity.getSystemService(TelephonyManager.class);
+        TelephonyManager tm=context.getSystemService(TelephonyManager.class);
         int sub=SubscriptionManager.getDefaultDataSubscriptionId();
         return tm!=null && sub!=SubscriptionManager.INVALID_SUBSCRIPTION_ID?tm.createForSubscriptionId(sub):tm;
     }
@@ -74,12 +74,12 @@ final class AndroidTelephonyBridge {
             return new JSONObject().put("accepted",true);
         }
         if(!action.equals("state"))throw new IllegalArgumentException("Unknown telephony action");
-        if(activity.checkSelfPermission(Manifest.permission.READ_PHONE_STATE)!=PackageManager.PERMISSION_GRANTED)
-            root.rootShell("/system/bin/pm grant "+activity.getPackageName()+" "+Manifest.permission.READ_PHONE_STATE,10000);
+        if(context.checkSelfPermission(Manifest.permission.READ_PHONE_STATE)!=PackageManager.PERMISSION_GRANTED)
+            root.rootShell("/system/bin/pm grant "+context.getPackageName()+" "+Manifest.permission.READ_PHONE_STATE,10000);
         TelephonyManager tm=telephony();
         watch(tm);
         boolean modem=tm!=null && tm.getPhoneType()!=TelephonyManager.PHONE_TYPE_NONE
-                && activity.getPackageManager().hasSystemFeature(PackageManager.FEATURE_TELEPHONY_RADIO_ACCESS);
+                && context.getPackageManager().hasSystemFeature(PackageManager.FEATURE_TELEPHONY_RADIO_ACCESS);
         JSONObject result=new JSONObject().put("modem",modem).put("manufacturer",Build.MANUFACTURER).put("model",Build.MODEL);
         if(!modem)return result;
         ServiceState service=tm.getServiceState();

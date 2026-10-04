@@ -79,3 +79,8 @@ Android 官方 [SmsMessage.getStatus](https://developer.android.com/reference/an
 review 修正提交 16f6098e 后，main 同时合入 DNS 跟随修正 19a10f37 与 Agent 电话界面 dbf2ab6c；PR 的冲突仅在 docs/feature-inventory.md。合入最新 main，保留双方质量定义并重新生成清单，严格检查仍为 0 错误、44 个既有提示。Android 目录与 16f6098e 完全相同，本次不重装 APK、不再发送短信，也不把上游新 Linux 包自动装到设备。
 
 同步后的短信、文档、APK 准备门槛、DNS 与电话界面合并检查最初为 38 passed/1 failed/29 subtests；失败是宿主 Python 3.15 的 concurrent.futures.ThreadPoolExecutor 延迟导入对象不可调用，在原样最新 main dbf2ab6c 对照中同样为 23 passed/1 failed/29 subtests。测试进程启动时显式导入 ThreadPoolExecutor 后，同一组 39 项、29 子测试全部通过；没有修改生产 DNS 代码来规避它。本节不将旧 df49e28c 的全量对照结果误作最新 main 的全量验收，最新同步只执行上述相关检查。
+
+
+## 独立硬件后台（2026-10-05）
+
+候选短信实现改用独立 root DeviceDaemon：外部 SMS provider 查询及进程自身 Binder PendingIntent 回调，显示 APK 仅兼容转发。详见 [113 篇](113-independent-linux-services.md)。只读查询与合成回调通过；本轮未再次发短信，旧 2.32 的运营商发送结果不代表新后台已经实机发出。

@@ -106,3 +106,12 @@
     - system/rungic-plasma
     - android/app/src/com/rungic/plasma/FirstBootState.java
 
+
+- id: device-backend
+  title: 独立硬件后端
+  summary: Linux 客户端直连独立端点（当前 Android root com.rungic.device.v1）；网络、蓝牙、SIM、短信和事件不跟随显示 APK。显示/相机/编解码仍走各自接口，替换后端不重放提交。
+  provider:
+    - android/app/src/com/rungic/plasma/DeviceDaemon.java
+    - android/app/src/com/rungic/plasma/DeviceContext.java
+    - android/app/src/com/rungic/plasma/DeviceOperations.java
+    - system/android-device

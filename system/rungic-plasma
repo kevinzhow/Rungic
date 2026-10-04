@@ -282,6 +282,7 @@ case "$action" in
     # Surface recreation and explicit restarts can overlap; serialize them.
     flock 9 9>&9
     if [ "$action" = stop ]; then
+      "$BASE/android-device" stop 9>&-
       "$BASE/android-calls" stop 9>&-
       "$BASE/android-clipboard" stop 9>&-
       if running; then "$ENTER" /usr/bin/lxc-stop -n plasma -t 15 9>&-; fi
@@ -292,6 +293,8 @@ case "$action" in
     fi
     startup_phase=android-audio
     "$BASE/android-audio" start 9>&-
+    startup_phase=android-device
+    "$BASE/android-device" start 9>&-
     startup_phase=android-clipboard
     "$BASE/android-clipboard" start 9>&-
     startup_phase=android-calls

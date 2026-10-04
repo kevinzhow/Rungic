@@ -4,7 +4,7 @@
 
 以产品功能和用户场景为骨架：每条功能是用户能感知的一件事；“体验”是它必须做到的，每条都标明由什么检查（自动测试、实机验收、人工验证或已登记的缺口）。数据在 `quality/`，规则见 [quality/README.md](../quality/README.md)。
 
-共 162 条功能、695 条体验，其中 651 条有检查。
+共 162 条功能、700 条体验，其中 656 条有检查。
 
 ## Agent 能力
 
@@ -28,6 +28,7 @@
 - **E6** 关闭“朗读回答”后不播语音回复；点某条回答的“朗读”只出声，不多出一条消息、不写进记录。（单元测试、人工）
 - **E7** 按住说话、发文字和朗读总是作用在用户正在看的对话上；用浮层说过话再回到 App 说话，不会进到别的对话。（单元测试、人工）
 - **E8** 没配 OpenAI API Key 时只有语音不可用并提示去配置，打字照常；没装 Codex 时服务不退出，对话里提示先安装。（单元测试）
+- **E9** 助理执行由 Linux 用户管理器常驻；手机图形会话停止或尚未打开时，服务与任务不跟随退出。（单元测试）
 
 注意：
 - Codex 的实时会话固定用服务端 VAD（静音 500 ms 即结束一轮），app-server 不提供修改或手动提交的接口；所以按住期间先存本地、松手后整段上传并补 900 ms 静音。 [docs/59-voice-agent.md](../docs/59-voice-agent.md) [docs/87-agent-app-redesign.md](../docs/87-agent-app-redesign.md)
@@ -37,7 +38,7 @@
 - 投屏时音量键调的是电视那一路；手机扬声器的媒体音量要在未投屏时调。输入转写常为繁体，显示时转简体。 [docs/59-voice-agent.md](../docs/59-voice-agent.md)
 - 实时模型对“情绪不增加话语”这类规则执行得不严格；语气未经人耳评估。 [docs/59-voice-agent.md](../docs/59-voice-agent.md)
 
-文档：[docs/59-voice-agent.md](../docs/59-voice-agent.md)、[docs/87-agent-app-redesign.md](../docs/87-agent-app-redesign.md)、[docs/89-agent-progress.md](../docs/89-agent-progress.md)、[docs/agent-ready-interfaces.md](../docs/agent-ready-interfaces.md)
+文档：[docs/59-voice-agent.md](../docs/59-voice-agent.md)、[docs/87-agent-app-redesign.md](../docs/87-agent-app-redesign.md)、[docs/89-agent-progress.md](../docs/89-agent-progress.md)、[docs/agent-ready-interfaces.md](../docs/agent-ready-interfaces.md)、[docs/113-independent-linux-services.md](../docs/113-independent-linux-services.md)
 
 #### 长按 Home 呼出语音助手
 
@@ -2377,6 +2378,7 @@ Agent 不靠点界面就能拿到合并日志、崩溃回溯、追踪、截图�
 - **E5** 安卓接口异常或超时时状态变为未知，不继续显示过期的“已连接”；不支持的操作明确返回 NotSupported，不伪造成功。（单元测试）
 - **E6** Linux 程序的域名解析跟随安卓当前默认网络（开 VPN 时用 VPN 的 DNS）：/etc/resolv.conf 随网络变化原子更新，断网时不保留已失效的服务器；安卓侧连不上时保持原样。（单元测试）
 - **E7** 用户手工写的 /etc/resolv.conf（没有 Rungic 标记行）或符号链接不被覆盖。（单元测试）
+- **E8** 手机显示 APK 不在时，网络状态与事件仍由独立硬件后端提供；故障明确报错，不重复提交操作。（单元测试）
 
 注意：
 - 镜像只带一行占位注释的 /etc/resolv.conf，原先没有任何机制写入 DNS，新装设备的 Linux 程序解析不了域名（issue [docs/research/32-network-integration.md](../docs/research/32-network-integration.md)
@@ -2386,7 +2388,7 @@ Agent 不靠点界面就能拿到合并日志、崩溃回溯、追踪、截图�
 - 实际连接新网络未在实机验证：离开当前 Wi-Fi 会断开 adb。设置页启动时曾短暂看到临时连接 Settings/wifi，待查。 [docs/73-reduce-upstream-changes.md](../docs/73-reduce-upstream-changes.md)
 - ObjectManager 在 /org/freedesktop，Manager 在 /org/freedesktop/NetworkManager，两个路径不能混淆。 [docs/research/32-network-integration.md](../docs/research/32-network-integration.md)
 
-文档：[docs/research/32-network-integration.md](../docs/research/32-network-integration.md)、[docs/73-reduce-upstream-changes.md](../docs/73-reduce-upstream-changes.md)
+文档：[docs/research/32-network-integration.md](../docs/research/32-network-integration.md)、[docs/73-reduce-upstream-changes.md](../docs/73-reduce-upstream-changes.md)、[docs/113-independent-linux-services.md](../docs/113-independent-linux-services.md)
 
 #### 蓝牙
 
@@ -2424,31 +2426,34 @@ Agent 不靠点界面就能拿到合并日志、崩溃回溯、追踪、截图�
 
 `desktop.sms` · 依赖安卓 — Linux 与 Agent 经安卓短信接口发出用户授权的内容，并按号码与时间读取回复；安卓保管消息，原短信应用保持不变。
 
-经由接口：`telephony`
+经由接口：`telephony`、`device-backend`
 
 - **E1** 发送的号码与内容经过校验；使用明确的活动短信卡，长短信分段，只有全部无线电回报成功才记为已发出。（单元测试）
 - **E2** 发出与送达分开；重复回调、失败分段、未知或失败回执和超时不被误记为成功，也不自动重发。（单元测试）
 - **E3** 按号码与发送时间读回复，短号精确匹配，不漏掉发送调用结束前到达的回复；读取不修改未读状态，无回复超时明确返回。（单元测试）
+- **E4** 显示 APK 不在时仍可连接短信后端；结果回调属于后台进程，连接中断不会自动重发。（单元测试）
 
 注意：
 - 短号受系统或运营商限制；接口受理、无线电发出、送达回执与客服回复是不同证据。 [docs/107-android-sms.md](../docs/107-android-sms.md)
 
-文档：[docs/107-android-sms.md](../docs/107-android-sms.md)
+文档：[docs/107-android-sms.md](../docs/107-android-sms.md)、[docs/113-independent-linux-services.md](../docs/113-independent-linux-services.md)
 
 #### 安卓状态及时到达 Linux
 
-`desktop.host-bridges` · Linux 系统功能 — 网络、蓝牙、蜂窝、剪贴板、相机等服务经平台桥的长轮询 watch 等安卓自己的回调，不再各自轮询。
+`desktop.host-bridges` · Linux 系统功能 — 网络、蓝牙、蜂窝、剪贴板、相机等服务经对应后台的长轮询 watch 等安卓自己的回调，不再各自轮询。
 
-经由接口：`platform-bridge`
+经由接口：`platform-bridge`、`device-backend`
 
 - **E1** 安卓状态变化时，watch 在版本号变化时立即返回，服务取完整状态；没有变化时最长 60 秒兜底一次。（单元测试、人工）
 - **E2** 遇到不支持 watch 的旧 APK，服务退回原来的轮询间隔继续工作。（单元测试）
-- **E3** APK 每次启动换 epoch，看到旧 epoch 的服务会重新取状态；平台 socket 只接受 UID 0/1000 的请求。（单元测试）
+- **E3** 各后端每次启动换 epoch，看到旧 epoch 的服务会重新取状态；平台 socket 只接受 UID 0/1000 的请求。（单元测试）
+- **E4** 网络、蓝牙、SIM 和短信经独立硬件端点；显示、触摸和相机等界面能力经显示宿主端点。（单元测试）
+- **E5** 独立后端退出后有限恢复，退出记录有界落盘；不能重启健康的容器或重放短信。（单元测试）
 
 注意：
 - 平台桥只在 APK 私有目录，校验对端 UID；剪贴板后端走抽象 Unix socket，依赖 LXC 与安卓共享网络命名空间，仍须校验对端 UID。 [docs/research/31-backend-integration.md](../docs/research/31-backend-integration.md) [docs/research/clipboard-background.md](../docs/research/clipboard-background.md)
 
-文档：[docs/49-plasma-performance.md](../docs/49-plasma-performance.md)、[docs/research/30-feature-adaptation.md](../docs/research/30-feature-adaptation.md)
+文档：[docs/49-plasma-performance.md](../docs/49-plasma-performance.md)、[docs/research/30-feature-adaptation.md](../docs/research/30-feature-adaptation.md)、[docs/113-independent-linux-services.md](../docs/113-independent-linux-services.md)
 
 ### 设置与管理手机里的电脑
 
@@ -3024,7 +3029,7 @@ Agent 不靠点界面就能拿到合并日志、崩溃回溯、追踪、截图�
 
 | 接口 | 说明 | 使用它的功能 | 使用方测试 | 提供方测试 |
 |---|---|---|---|---|
-| `platform-bridge` 平台桥 | 逐行 JSON 的 Unix socket（Rungic 应用 files/tmp/platform.sock）：状态、显示、亮度、方向、振动、设置面板、桌面模式、助理屏、电视与导播台、文字提交。 | `agent.voice`、`agent.progress`、`agent.phone-mode`、`agent.workspaces`、`agent.where`、`delivery.acceptance`、`delivery.agent-diagnostics`、`delivery.system-tests`、`desktop-mode.on-off`、`desktop-mode.floating-window`、`desktop-mode.fullscreen`、`desktop-mode.cast-connect`、`desktop-mode.tv-computer-mode`、`desktop-mode.tv-touchpad`、`desktop-mode.audio-follow`、`desktop-mode.director`、`desktop-mode.tv-director`、`desktop-mode.remote-viewing`、`desktop-mode.cast-test-pattern`、`desktop.orientation`、`desktop.resolution-refresh`、`desktop.brightness`、`desktop.host-bridges`、`desktop.power`、`desktop.device-panel` | 10 | 1 |
+| `platform-bridge` 平台桥 | 逐行 JSON 的 Unix socket（Rungic 应用 files/tmp/platform.sock）：状态、显示、亮度、方向、振动、设置面板、桌面模式、助理屏、电视与导播台、文字提交。 | `agent.voice`、`agent.progress`、`agent.phone-mode`、`agent.workspaces`、`agent.where`、`delivery.acceptance`、`delivery.agent-diagnostics`、`delivery.system-tests`、`desktop-mode.on-off`、`desktop-mode.floating-window`、`desktop-mode.fullscreen`、`desktop-mode.cast-connect`、`desktop-mode.tv-computer-mode`、`desktop-mode.tv-touchpad`、`desktop-mode.audio-follow`、`desktop-mode.director`、`desktop-mode.tv-director`、`desktop-mode.remote-viewing`、`desktop-mode.cast-test-pattern`、`desktop.orientation`、`desktop.resolution-refresh`、`desktop.brightness`、`desktop.host-bridges`、`desktop.power`、`desktop.device-panel` | 11 | 1 |
 | `kwin-android-host` KWin 安卓宿主 | KWin 的 android-host 后端与 Rungic 应用里的宿主：输出、帧时钟、零拷贝呈现、显式同步、空闲抑制、投屏输出。 | `agent.workspaces`、`apps.gpu`、`apps.vulkan`、`apps.xwayland-gpu`、`delivery.acceptance`、`delivery.trace`、`delivery.probes`、`desktop-mode.tv-computer-mode`、`desktop-mode.external-screen`、`desktop-mode.tv-director`、`desktop-mode.apk-fullscreen`、`desktop.session`、`desktop.panels`、`desktop.orientation`、`desktop.host-display`、`desktop.resolution-refresh`、`desktop.display-size`、`desktop.power`、`install.desktop-entry`、`install.app-restart-recovery`、`install.apk-build` | — | 5 |
 | `host-input` 宿主输入 | 安卓的触摸、按键、指针、手势与输入法文字送进 KWin（直接触摸、触控板、电视遥控与键盘）。 | `delivery.acceptance`、`delivery.ui-automation`、`desktop-mode.fullscreen`、`desktop-mode.fullscreen-touch`、`desktop-mode.tv-computer-mode`、`desktop-mode.tv-touchpad`、`desktop-mode.apk-fullscreen`、`desktop.touch`、`desktop.edge-back`、`desktop.android-text` | — | 1 |
 | `camera` 相机 | 安卓 Camera2 的画面作为 PipeWire 相机节点（rungic.camera.N），按需开关；有哪些相机由平台桥的 capture-info 回答。 | `apps.camera`、`apps.snapshot`、`apps.plasma-camera`、`apps.firefox`、`delivery.acceptance`、`delivery.probes` | 2 | 3 |
@@ -3032,11 +3037,12 @@ Agent 不靠点界面就能拿到合并日志、崩溃回溯、追踪、截图�
 | `communication-audio` 通话音频 | $XDG_RUNTIME_DIR/rungic-communication.sock：电话模式与通话用的双向通信音频（android_communication 设备）。 | `agent.phone-mode` | 1 | 2 |
 | `codec` 硬件编解码 | 安卓 MediaCodec 经 IPC 给 GStreamer、FFmpeg 和 Firefox 用（H.264/HEVC/VP9 解码、H.264 编码）。 | `apps.snapshot`、`apps.hw-codec`、`apps.firefox-hw-video`、`delivery.acceptance`、`desktop.screen-recording` | 9 | 1 |
 | `clipboard` 剪贴板 | 安卓 ClipboardDaemon 与 Wayland 剪贴板双向同步。 | `desktop-mode.clipboard`、`desktop.clipboard`、`desktop.clipboard-history` | 3 | 1 |
-| `network` 网络 | 安卓的 Wi-Fi 与网络状态，经 Linux 一侧的 NetworkManager D-Bus 接口给桌面用。 | `desktop.network` | 3 | 1 |
-| `bluetooth` 蓝牙 | 安卓蓝牙经 Linux 一侧的 BlueZ D-Bus 接口给桌面用。 | `desktop.bluetooth` | 3 | 1 |
-| `telephony` 蜂窝与通话 | 蜂窝网络状态（ModemManager 接口）、来电去电与通话控制。 | `agent.cellular-call`、`desktop.cellular`、`desktop.sms` | 9 | 1 |
+| `network` 网络 | 安卓的 Wi-Fi 与网络状态，经 Linux 一侧的 NetworkManager D-Bus 接口给桌面用。 | `desktop.network` | 4 | 2 |
+| `bluetooth` 蓝牙 | 安卓蓝牙经 Linux 一侧的 BlueZ D-Bus 接口给桌面用。 | `desktop.bluetooth` | 3 | 2 |
+| `telephony` 蜂窝与通话 | 蜂窝网络状态（ModemManager 接口）、来电去电与通话控制。 | `agent.cellular-call`、`desktop.cellular`、`desktop.sms` | 11 | 2 |
 | `ocr` 文字识别 | 手机 GPU 上的 OCR（PP-OCR），给目标式电脑操作用。 | `agent.plan-two` | 2 | 1 |
 | `wifi-display` 无线投屏 | 经安卓（高通）Wi-Fi Display 栈把输出投到电视：扫描、连接、断开、重连。 | `desktop-mode.cast-connect`、`desktop-mode.tv-shows-linux`、`desktop-mode.cast-video-modes`、`desktop-mode.cast-install`、`desktop-mode.tv-director` | 4 | 1 |
 | `shared-storage` 共享存储 | 安卓的共享存储（/storage/emulated/0/Plasma，MediaProvider FUSE）挂到容器的 /mnt/android-shared，用户目录和 ~/Shared 都在上面。 | `desktop.screen-recording` | 3 | 1 |
 | `gpu-device` GPU 设备 | 内核的 KGSL（/dev/kgsl-3d0）与 dma-heap（/dev/dma_heap/system）设备节点，Mesa、Xwayland、Flatpak 和系统监视器经它们用 Adreno；PC 上换成 DRM。 | `desktop.host-display` | — | 1 |
 | `host-controller` 宿主控制器 | Rungic 应用经 Magisk su 调用的 rungic-plasma 动作及其输出：账户状态与设置、安装发布、启停会话、内存上限；安装状态写在应用私有的 rungic-install.properties。 | `desktop.session`、`desktop.edge-back`、`desktop.host-display` | 3 | 1 |
+| `device-backend` 独立硬件后端 | Linux 客户端直连独立端点（当前 Android root com.rungic.device.v1）；网络、蓝牙、SIM、短信和事件不跟随显示 APK。显示/相机/编解码仍走各自接口，替换后端不重放提交。 | `desktop.sms`、`desktop.host-bridges` | 1 | 1 |

@@ -748,6 +748,8 @@ features:
         text: Linux 程序的域名解析跟随安卓当前默认网络（开 VPN 时用 VPN 的 DNS）：/etc/resolv.conf 随网络变化原子更新，断网时不保留已失效的服务器；安卓侧连不上时保持原样。
       - id: E7
         text: 用户手工写的 /etc/resolv.conf（没有 Rungic 标记行）或符号链接不被覆盖。
+      - id: E8
+        text: 手机显示 APK 不在时，网络状态与事件仍由独立硬件后端提供；故障明确报错，不重复提交操作。
     pitfalls:
       - text: 镜像只带一行占位注释的 /etc/resolv.conf，原先没有任何机制写入 DNS，新装设备的 Linux 程序解析不了域名（issue #7）。容器与安卓共用网络命名空间（lxc.net.0.type = none），可以直接用安卓默认网络的 DNS。严格模式的私人 DNS（DoT）不在此列：容器仍按普通 53 端口查询。
         docs: [docs/research/32-network-integration.md]
@@ -772,6 +774,7 @@ features:
       - docs/research/32-network-integration.md
       - docs/73-reduce-upstream-changes.md
 
+      - docs/113-independent-linux-services.md
   - id: desktop.bluetooth
     title: 蓝牙
     scenario: desktop.connect
@@ -842,7 +845,7 @@ features:
     scenario: desktop.connect
     status: experimental
     platform: android
-    interfaces: [telephony]
+    interfaces: [telephony, device-backend]
     summary: Linux 与 Agent 经安卓短信接口发出用户授权的内容，并按号码与时间读取回复；安卓保管消息，原短信应用保持不变。
     experience:
       - id: E1
@@ -851,10 +854,15 @@ features:
         text: 发出与送达分开；重复回调、失败分段、未知或失败回执和超时不被误记为成功，也不自动重发。
       - id: E3
         text: 按号码与发送时间读回复，短号精确匹配，不漏掉发送调用结束前到达的回复；读取不修改未读状态，无回复超时明确返回。
+      - id: E4
+        text: 显示 APK 不在时仍可连接短信后端；结果回调属于后台进程，连接中断不会自动重发。
     pitfalls:
       - text: 短号受系统或运营商限制；接口受理、无线电发出、送达回执与客服回复是不同证据。
         docs: [docs/107-android-sms.md]
     code:
+      - android/app/src/com/rungic/plasma/SmsCallbacks.java
+      - android/app/src/com/rungic/plasma/SmsProvider.java
+      - tools/tests/android_device/
       - android/app/src/com/rungic/plasma/AndroidSmsBridge.java
       - android/app/src/com/rungic/plasma/SmsState.java
       - android/app/src/com/rungic/plasma/SmsIntents.java
@@ -864,15 +872,15 @@ features:
       - shared/platform/sms.py
       - tools/tests/test_sms.py
       - tools/tests/SmsStateDriver.java
-    docs: [docs/107-android-sms.md]
+    docs: [docs/107-android-sms.md, docs/113-independent-linux-services.md]
 
   - id: desktop.host-bridges
     title: 安卓状态及时到达 Linux
     scenario: desktop.connect
     status: live
     platform: linux
-    interfaces: [platform-bridge]
-    summary: 网络、蓝牙、蜂窝、剪贴板、相机等服务经平台桥的长轮询 watch 等安卓自己的回调，不再各自轮询。
+    interfaces: [platform-bridge, device-backend]
+    summary: 网络、蓝牙、蜂窝、剪贴板、相机等服务经对应后台的长轮询 watch 等安卓自己的回调，不再各自轮询。
     experience:
       - id: E1
         text: 安卓状态变化时，watch 在版本号变化时立即返回，服务取完整状态；没有变化时最长 60 秒兜底一次。
@@ -881,11 +889,22 @@ features:
       - id: E2
         text: 遇到不支持 watch 的旧 APK，服务退回原来的轮询间隔继续工作。
       - id: E3
-        text: APK 每次启动换 epoch，看到旧 epoch 的服务会重新取状态；平台 socket 只接受 UID 0/1000 的请求。
+        text: 各后端每次启动换 epoch，看到旧 epoch 的服务会重新取状态；平台 socket 只接受 UID 0/1000 的请求。
+      - id: E4
+        text: 网络、蓝牙、SIM 和短信经独立硬件端点；显示、触摸和相机等界面能力经显示宿主端点。
+      - id: E5
+        text: 独立后端退出后有限恢复，退出记录有界落盘；不能重启健康的容器或重放短信。
     pitfalls:
       - text: 平台桥只在 APK 私有目录，校验对端 UID；剪贴板后端走抽象 Unix socket，依赖 LXC 与安卓共享网络命名空间，仍须校验对端 UID。
         docs: [docs/research/31-backend-integration.md, docs/research/clipboard-background.md]
     code:
+      - android/app/src/com/rungic/plasma/DeviceDaemon.java
+      - android/app/src/com/rungic/plasma/DeviceContext.java
+      - android/app/src/com/rungic/plasma/DeviceOperations.java
+      - android/app/src/com/rungic/plasma/AndroidDeviceBridge.java
+      - system/android-device
+      - shared/platform/rungic_platform_transport.py
+      - tools/tests/test_device_services.py
       - shared/platform/host_watch.py
       - shared/README.md
       - desktop/rungic-plasma-media.service
@@ -897,6 +916,7 @@ features:
     docs:
       - docs/49-plasma-performance.md
       - docs/research/30-feature-adaptation.md
+      - docs/113-independent-linux-services.md
 
   # ---------------------------------------------------------------- desktop.manage
   - id: desktop.power

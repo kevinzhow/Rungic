@@ -8,6 +8,7 @@ import socket
 import sys
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+import rungic_platform_transport
 
 SOCKET = os.environ.get('RUNGIC_PLATFORM_SOCKET', '/mnt/android-wayland/platform.sock')
 # Follows the Plasma desktop language (LANGUAGE/LANG of the session).
@@ -15,18 +16,10 @@ _translation = gettext.translation('rungic-platform', localedir='/usr/share/loca
 _, pgettext = _translation.gettext, _translation.pgettext
 
 def request(data):
-    with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as conn:
-        conn.settimeout(4)
-        conn.connect(SOCKET)
-        conn.sendall(json.dumps(data, ensure_ascii=False).encode() + b'\n')
-        with conn.makefile('rb') as stream:
-            raw = stream.readline(65537)
-        if len(raw) > 65536:
-            raise ValueError(_('The Android host sent a response that is too large'))
-        result = json.loads(raw)
-        if 'error' in result:
-            raise RuntimeError(result['error'])
-        return result
+    result = rungic_platform_transport.request(data, 4, ui_socket=SOCKET, limit=65536)
+    if 'error' in result:
+        raise RuntimeError(result['error'])
+    return result
 
 if len(sys.argv) > 1 and sys.argv[1] == '--request':
     print(json.dumps(request(json.loads(sys.argv[2])), ensure_ascii=False, indent=2))

@@ -134,3 +134,4 @@
 - {path: docs/107-android-sms.md, kind: journal, note: 安卓 SIM 短信接口与 USB G100 验收}
 - {path: docs/108-codec-bridge-buffers.md, kind: journal, note: 视频硬解改走 msm_vidc V4L2 直通（CPU 降到约 1/5）；MediaCodec 桥 v2（DMA-BUF、10bit）作回退；Iris 驱动调研}
 - {path: docs/109-dev-release-channel.md, kind: reference, note: dev 发布渠道（只从 origin/main 出、含 APK、发布包、多机部署与状态、GitHub 预发布）与发布包不被 Ubuntu 更新替换的分析}
+- {path: docs/113-independent-linux-services.md, kind: journal, note: Linux 用户服务与可替换硬件后端的生命周期边界、Android 16 root 探针和待验范围}

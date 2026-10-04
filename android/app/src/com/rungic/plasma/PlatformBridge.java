@@ -34,18 +34,17 @@ final class PlatformBridge implements Closeable {
      * front (rungic-plasma boost), through the app's root session, in order. */
     void desktopBoost(boolean front) {
         boostWorker.execute(() -> {
-            try { network.rootShell("/data/adb/rungic-plasma/rungic-plasma boost "+(front?"on":"off"),10000); }
+            try { AndroidDeviceBridge.request(new JSONObject().put("op","desktop-boost").put("enabled",front)); }
             catch(Exception e) { Log.w("RungicPlatform","desktop boost: "+e.getMessage()); }
         });
     }
     private final AndroidClipboardBridge clipboard=new AndroidClipboardBridge();
-    private final AndroidNetworkBridge network;
     private final CaptureBridge capture;
     private final OcrBridge ocr;
-    private final AndroidBluetoothBridge bluetooth;
-    private final AndroidTelephonyBridge telephony;
-    private final AndroidSmsBridge sms;
-    PlatformBridge(Activity activity,CaptureBridge capture) { this.activity=activity;this.capture=capture;path=new File(activity.getFilesDir(),"tmp/platform.sock");network=new AndroidNetworkBridge(activity);bluetooth=new AndroidBluetoothBridge(activity,network);telephony=new AndroidTelephonyBridge(activity,network);sms=new AndroidSmsBridge(activity,network);ocr=new OcrBridge(activity); }
+    private final AndroidDeviceBridge device=new AndroidDeviceBridge();
+    private final java.util.concurrent.ExecutorService deviceClients=new java.util.concurrent.ThreadPoolExecutor(0,8,30,TimeUnit.SECONDS,
+        new java.util.concurrent.SynchronousQueue<Runnable>(),new java.util.concurrent.ThreadPoolExecutor.AbortPolicy());
+    PlatformBridge(Activity activity,CaptureBridge capture) { this.activity=activity;this.capture=capture;path=new File(activity.getFilesDir(),"tmp/platform.sock");ocr=new OcrBridge(activity); }
     void start() throws IOException {
         if(running)return;
         path.delete();
@@ -54,7 +53,7 @@ final class PlatformBridge implements Closeable {
         server=new LocalServerSocket(bound.getFileDescriptor());
         try { android.system.Os.chmod(path.getAbsolutePath(),0666); } catch(Exception e) { throw new IOException(e); }
         running=true;
-        network.start();
+        device.start();
         clipboard.start();
         Thread thread=new Thread(() -> {
             while(running) {
@@ -68,6 +67,14 @@ final class PlatformBridge implements Closeable {
                     int b;
                     while((b=client.getInputStream().read())!=-1 && b!='\n') { if(bytes.size()>=524288)throw new IOException("Request too large");bytes.write(b); }
                     JSONObject request=new JSONObject(bytes.toString("UTF-8"));
+                    if(DeviceOperations.handles(request.optString("op"))) {
+                        LocalSocket owned=client;
+                        try { deviceClients.execute(() -> answerDevice(owned,request));client=null; }
+                        catch(java.util.concurrent.RejectedExecutionException e) {
+                            client.getOutputStream().write("{\"error\":\"Device bridge busy; request not submitted\"}\n".getBytes(StandardCharsets.UTF_8));
+                        }
+                        continue;
+                    }
                     if(request.optString("op").startsWith("clipboard-")) {
                         JSONObject result=AndroidClipboardBridge.request(request,3000);
                         client.getOutputStream().write((result.toString()+"\n").getBytes(StandardCharsets.UTF_8));
@@ -101,55 +108,6 @@ final class PlatformBridge implements Closeable {
                         // The pixels follow the request line; recognition runs on the OCR thread (docs/64).
                         LocalSocket owned=client;client=null;
                         ocr.answer(owned,request);
-                        continue;
-                    }
-                    if(request.optString("op").equals("bluetooth")) {
-                        JSONObject result;
-                        try { result=bluetooth.handle(request); }
-                        catch(Exception e) { result=new JSONObject().put("error",e.getMessage()==null?"Bluetooth request failed":e.getMessage()); }
-                        client.getOutputStream().write((result.toString()+"\n").getBytes(StandardCharsets.UTF_8));
-                        continue;
-                    }
-                    if(request.optString("op").equals("telephony")) {
-                        JSONObject result;
-                        try { result=telephony.handle(request); }
-                        catch(Exception e) { result=new JSONObject().put("error",e.getMessage()==null?"Telephony request failed":e.getMessage()); }
-                        client.getOutputStream().write((result.toString()+"\n").getBytes(StandardCharsets.UTF_8));
-                        continue;
-                    }
-                    if(request.optString("op").equals("sms")) {
-                        // A send waits up to a minute for the radio: answer on its own thread.
-                        LocalSocket owned=client;client=null;
-                        Thread text=new Thread(() -> answerSms(owned,request),"rungic-sms");text.setDaemon(true);text.start();
-                        continue;
-                    }
-                    if(request.optString("op").equals("container-memory")) {
-                        JSONObject result;
-                        try { result=network.containerMemory(request); }
-                        catch(Exception e) { result=new JSONObject().put("error",e.getMessage()==null?"memory limit request failed":e.getMessage()); }
-                        client.getOutputStream().write((result.toString()+"\n").getBytes(StandardCharsets.UTF_8));
-                        continue;
-                    }
-                    if(request.optString("op").equals("screen-timeout")) {
-                        JSONObject result;
-                        try { result=network.screenTimeout(request); }
-                        catch(Exception e) { result=new JSONObject().put("error",e.getMessage()==null?"screen timeout request failed":e.getMessage()); }
-                        client.getOutputStream().write((result.toString()+"\n").getBytes(StandardCharsets.UTF_8));
-                        continue;
-                    }
-                    if(request.optString("op").equals("wifi")) {
-                        // Root commands with timeouts: on this socket thread, not the UI thread.
-                        JSONObject result;
-                        try { result=network.wifi(request); }
-                        catch(Exception e) { result=new JSONObject().put("error",e.getMessage()==null?"Wi-Fi request failed":e.getMessage()); }
-                        client.getOutputStream().write((result.toString()+"\n").getBytes(StandardCharsets.UTF_8));
-                        continue;
-                    }
-                    if(request.optString("op").equals("network-wifi")) {
-                        JSONObject result;
-                        try { result=network.setEnabled(request.getBoolean("enabled")); }
-                        catch(Exception e) { result=new JSONObject().put("error",e.getMessage()==null?"Wi-Fi request failed":e.getMessage()); }
-                        client.getOutputStream().write((result.toString()+"\n").getBytes(StandardCharsets.UTF_8));
                         continue;
                     }
                     FutureTask<JSONObject> task=new FutureTask<>(() -> handle(request));
@@ -191,13 +149,13 @@ final class PlatformBridge implements Closeable {
             c.getOutputStream().write((result.toString()+"\n").getBytes(StandardCharsets.UTF_8));
         } catch(Exception e) { Log.w("RungicPlatform","Cast request failed: "+e.getClass().getSimpleName()); }
     }
-    private void answerSms(LocalSocket c,JSONObject request) {
+    private void answerDevice(LocalSocket c,JSONObject request) {
         try(LocalSocket client=c) {
             JSONObject result;
-            try { result=sms.handle(request); }
-            catch(Exception e) { result=new JSONObject().put("error",e.getMessage()==null?"Text message request failed":e.getMessage()); }
+            try { result=AndroidDeviceBridge.request(request); }
+            catch(Exception e) { result=new JSONObject().put("error","Device backend unavailable; outcome may be unknown, do not resend automatically"); }
             client.getOutputStream().write((result.toString()+"\n").getBytes(StandardCharsets.UTF_8));
-        } catch(Exception e) { Log.w("RungicPlatform","SMS request failed: "+e.getClass().getSimpleName()); }
+        } catch(Exception ignored) {}
     }
     private void answerWatch(LocalSocket c,JSONObject request) {
         try(LocalSocket client=c) {
@@ -212,7 +170,6 @@ final class PlatformBridge implements Closeable {
         String op=request.optString("op");
         if(op.equals("status"))return status();
         if(op.equals("display-get"))return ((MainActivity)activity).displayInfo();
-        if(op.equals("network-get"))return network.snapshot();
         if(op.equals("capture-info"))return capture.info();
         if(op.equals("brightness-get"))return brightness();
         if(op.equals("native-stats")) {
@@ -327,6 +284,6 @@ final class PlatformBridge implements Closeable {
         // A queued "boost off" still needs the root session.
         boostWorker.shutdown();
         try { boostWorker.awaitTermination(3,TimeUnit.SECONDS); } catch(InterruptedException ignored) {}
-        clipboard.close();network.close();if(server!=null)server.close();if(bound!=null)bound.close();path.delete();
+        clipboard.close();device.close();deviceClients.shutdownNow();if(server!=null)server.close();if(bound!=null)bound.close();path.delete();
     }
 }

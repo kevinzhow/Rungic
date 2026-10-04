@@ -13,22 +13,13 @@ import json
 import socket
 import threading
 import time
+import rungic_platform_transport
 
 SOCKET = os.environ.get('RUNGIC_PLATFORM_SOCKET', '/mnt/android-wayland/platform.sock')
 
 
 def _request(request, timeout):
-    with socket.socket(socket.AF_UNIX) as client:
-        client.settimeout(timeout)
-        client.connect(SOCKET)
-        client.sendall(json.dumps(request).encode() + b'\n')
-        data = bytearray()
-        while b'\n' not in data:
-            part = client.recv(65536)
-            if not part:
-                raise OSError('platform bridge closed the connection')
-            data.extend(part)
-        return json.loads(data.split(b'\n', 1)[0])
+    return rungic_platform_transport.request(request, timeout, ui_socket=SOCKET)
 
 
 def watch(topics, on_change, fallback=60, legacy=5, name='host-watch'):
