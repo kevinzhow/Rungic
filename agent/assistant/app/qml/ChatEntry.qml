@@ -38,6 +38,8 @@ Item {
     property bool callMonitor: false
     property bool callCanMonitor: true
     signal readAloud(string text)
+    signal callAgain()                     // the summary of a call with the Agent: call it again
+    signal answerTask(string taskId)       // ... and show the task that waits for an answer
     signal openSettings(string page)
     // A picture of an answer tapped (docs/88): the page shows it large.
     signal openImage(url source, string name)
@@ -76,6 +78,7 @@ Item {
         sourceComponent: {
             switch (entry.kind) {
             case "phone-task": return phoneTask
+            case "call-ended": return callEnded
             case "work": return work
             case "call": return call
             case "approval": return approval
@@ -276,6 +279,73 @@ Item {
             font.family: Theme.fontFamily
             font.pixelSize: Theme.labelSize
             color: Theme.dim
+        }
+    }
+
+    // The end of a call with the Agent (Claude Design canvas "Agent 通话", board 9): how long it was and
+    // what was started in it; a task still waiting for the user's answer can be answered from here.
+    Component {
+        id: callEnded
+        Rectangle {
+            id: summary
+            readonly property var call: entry.output ? JSON.parse(entry.output) : ({seconds: 0, tasks: []})
+            readonly property var work: call.tasks || []
+            readonly property var waiting: work.find(t => t.status === "waiting_input")
+            readonly property int done: work.filter(t => t.status === "completed").length
+            implicitHeight: summaryColumn.implicitHeight + 24
+            radius: Theme.radiusM
+            color: Theme.fill
+            ColumnLayout {
+                id: summaryColumn
+                anchors { left: parent.left; right: parent.right; top: parent.top; margins: 14; topMargin: 12 }
+                spacing: 8
+                RowLayout {
+                    spacing: 8
+                    Icon { name: "phone"; color: Theme.text; Layout.preferredWidth: Theme.iconS; Layout.preferredHeight: Theme.iconS }
+                    Text {
+                        Layout.fillWidth: true
+                        text: i18nc("@info the call with the Agent", "Call ended")
+                        font.family: Theme.fontFamily
+                        font.pixelSize: Theme.metaSize
+                        font.weight: Font.DemiBold
+                        color: Theme.text
+                    }
+                    Text {
+                        readonly property int total: Math.round(summary.call.seconds || 0)
+                        text: total >= 60 ? i18nc("@info how long the call was", "%1 min %2 s", Math.floor(total / 60), total % 60)
+                                          : i18nc("@info how long the call was", "%1 s", total)
+                        font.family: Theme.fontFamily
+                        font.pixelSize: Theme.labelSize
+                        font.features: { "tnum": 1 }
+                        color: Theme.dim
+                    }
+                }
+                Text {
+                    Layout.fillWidth: true
+                    wrapMode: Text.Wrap
+                    text: summary.work.length === 0 ? i18nc("@info a call with the Agent started no task", "Nothing was started in this call.")
+                        : summary.work.length === 1 ? i18nc("@info %1 is what the task was", "Started in this call: %1.", summary.work[0].text)
+                        : i18nc("@info %1 tasks started in the call, %2 of them done", "%1 tasks were started in this call, %2 done.", summary.work.length, summary.done)
+                          + (summary.waiting ? " " + i18nc("@info", "One is waiting for your answer.") : "")
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.metaSize
+                    color: Theme.dim
+                }
+                Flow {
+                    Layout.fillWidth: true
+                    spacing: 8
+                    PillButton {
+                        visible: !!summary.waiting
+                        text: i18nc("@action:button a task waits for the user's answer", "Answer")
+                        onClicked: entry.answerTask(summary.waiting.taskId)
+                    }
+                    PillButton {
+                        iconName: "phone"
+                        text: i18nc("@action:button call the Agent again", "Call again")
+                        onClicked: entry.callAgain()
+                    }
+                }
+            }
         }
     }
 

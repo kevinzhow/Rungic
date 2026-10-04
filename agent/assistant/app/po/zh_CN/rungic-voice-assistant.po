@@ -1485,3 +1485,171 @@ msgstr "请在任务结束后切换，切换会重启 Agent 连接。两种模�
 msgctxt "@info"
 msgid "The accessibility and OCR mode is selected. Choose Codex or Luna to use screenshots."
 msgstr "当前选择了无障碍与 OCR 模式。选择 Codex 或 Luna 可改用截图操作。"
+
+msgctxt "@info:status the call with the Agent"
+msgid "Connecting…"
+msgstr "正在连接…"
+
+msgctxt "@info:status the call with the Agent"
+msgid "Waiting for your answer"
+msgstr "等你回答"
+
+msgctxt "@info:status the call with the Agent"
+msgid "Answering"
+msgstr "正在回答"
+
+msgctxt "@info:status the call with the Agent"
+msgid "Listening"
+msgstr "正在听"
+
+msgctxt "@info:status the call with the Agent"
+msgid "Working"
+msgstr "正在处理"
+
+msgctxt "@info:status the call with the Agent"
+msgid "Microphone off"
+msgstr "麦克风已关"
+
+msgctxt "@info:status the call with the Agent"
+msgid "On a call"
+msgstr "通话中"
+
+msgctxt "@info:status"
+msgid "The Agent can't hear you"
+msgstr "Agent 听不到你"
+
+msgctxt "@info:status"
+msgid "Call in another conversation"
+msgstr "通话在另一段对话中"
+
+msgctxt "@info:status tasks of the call"
+msgid "1 task running"
+msgstr "1 个任务在做"
+
+msgctxt "@info:status tasks of the call; %1 is a count above 1"
+msgid "%1 tasks running"
+msgstr "%1 个任务在做"
+
+msgctxt "@info:status a task of the call"
+msgid "Waiting for your answer"
+msgstr "等你回答"
+
+msgctxt "@info:status a task of the call"
+msgid "Queued"
+msgstr "排队中"
+
+msgctxt "@info:status a task of the call"
+msgid "Done"
+msgstr "已完成"
+
+msgctxt "@info:status a task of the call"
+msgid "Stopped"
+msgstr "已停止"
+
+msgctxt "@info:status a task of the call"
+msgid "Interrupted"
+msgstr "已中断"
+
+msgctxt "@info:status a task of the call"
+msgid "Failed"
+msgstr "失败"
+
+msgctxt "@info:status a task of the call"
+msgid "Stopping…"
+msgstr "正在停止…"
+
+msgctxt "@info:status a task of the call"
+msgid "Working"
+msgstr "正在处理"
+
+msgctxt "@info"
+msgid "The Agent is on a call for you: call it when that ends"
+msgstr "Agent 正在替你打电话，打完再和它通话"
+
+msgctxt "@info"
+msgid "A call is going on in another conversation"
+msgstr "另一段对话正在通话"
+
+msgctxt "@info"
+msgid "Let go of Hold to talk first"
+msgstr "先松开“按住说话”"
+
+msgctxt "@title the call with the Agent"
+msgid "Call with the Agent"
+msgstr "和 Agent 通话"
+
+msgctxt "@title:group the tasks started during the call"
+msgid "Tasks in this call"
+msgstr "这次通话里的任务"
+
+msgctxt "@action:button the call with the Agent"
+msgid "Mute"
+msgstr "静音"
+
+msgctxt "@action:button the call with the Agent"
+msgid "Unmute"
+msgstr "取消静音"
+
+msgctxt "@action:button the call with the Agent"
+msgid "Hang up"
+msgstr "挂断"
+
+msgctxt "@action:button stop the Agent's spoken answer"
+msgid "Interrupt"
+msgstr "打断"
+
+msgctxt "@action:button a task waits for the user's answer"
+msgid "Answer"
+msgstr "回答"
+
+msgctxt "@action:button"
+msgid "Call the Agent"
+msgstr "和 Agent 通话"
+
+msgctxt "@action:button open the call with the Agent"
+msgid "Open the call"
+msgstr "展开通话"
+
+msgctxt "@action:button go to the conversation the call is in"
+msgid "Go there"
+msgstr "前往"
+
+msgctxt "@info the call with the Agent"
+msgid "Call ended"
+msgstr "通话结束"
+
+msgctxt "@info how long the call was"
+msgid "%1 min %2 s"
+msgstr "%1 分 %2 秒"
+
+msgctxt "@info how long the call was"
+msgid "%1 s"
+msgstr "%1 秒"
+
+msgctxt "@info a call with the Agent started no task"
+msgid "Nothing was started in this call."
+msgstr "这次通话没有发起任务。"
+
+msgctxt "@info %1 is what the task was"
+msgid "Started in this call: %1."
+msgstr "这次通话做了：%1。"
+
+msgctxt "@info %1 tasks started in the call, %2 of them done"
+msgid "%1 tasks were started in this call, %2 done."
+msgstr "这次通话发起了 %1 个任务，完成了 %2 个。"
+
+msgctxt "@info"
+msgid "One is waiting for your answer."
+msgstr "有一个在等你回答。"
+
+msgctxt "@action:button call the Agent again"
+msgid "Call again"
+msgstr "再打给它"
+
+msgctxt "@info the voice bar on a call with the Agent"
+msgid "On a call · just talk"
+msgstr "通话中 · 直接说就行"
+
+msgctxt "@info the voice bar while the call with the Agent is in another conversation"
+msgid "On a call in another conversation"
+msgstr "通话在另一段对话中"

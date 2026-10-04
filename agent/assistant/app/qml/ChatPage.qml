@@ -1,13 +1,16 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-// A conversation (docs/59, docs/87): the top bar (conversations, title, new), the thread
+// A conversation (docs/59, docs/87): the top bar (conversations, title, call, new), the thread
 // in a reading column, bottom-aligned, and the composer. A new conversation is only
-// created in the agent when something is said or typed in it.
+// created in the agent when something is said or typed in it. The call with the Agent (Claude
+// Design canvas "Agent 通话", docs/101): the phone in the top bar starts it, a bar under the top bar
+// shows it while it goes on (CallBar; a tap opens CallSheet), and its summary stays in the thread.
 import QtQuick
 import QtQuick.Layouts
 import QtQuick.Window
 import QtQuick.Controls as QQC2
 import com.rungic.design
 import com.rungic.voiceassistant
+import "call.js" as Call
 
 Item {
     id: page
@@ -18,7 +21,31 @@ Item {
     property bool creating: false             // the agent is creating this new conversation
     property var afterCreate: []              // what waits for it
     readonly property string screenName: Window.window ? Window.window.screen.name : ""
-    Component.onCompleted: AgentClient.request("PhoneSnapshot")
+    Component.onCompleted: { AgentClient.request("PhoneSnapshot"); drawer.refresh() }
+
+    // ---- the call with the Agent ------------------------------------------------------
+    readonly property string callMode: Call.mode(phone, conversationId)
+    readonly property bool inCallHere: callMode !== "" && callMode !== "elsewhere"
+    property real now: Date.now()
+    Timer { interval: 1000; repeat: true; running: !!page.phone.sessionId; triggeredOnStart: true; onTriggered: page.now = Date.now() }
+    property string notice: ""                 // the session's last notice, while connecting
+    property string reason: ""                 // why a call can't start, shown for a moment
+    Timer { id: reasonShown; interval: 3000; onTriggered: page.reason = "" }
+    function titleOf(id) { const c = drawer.all.find(c => c.id === id); return c ? c.title || "" : "" }
+    function startCall() {
+        const why = Call.blocked(i18nc, phone, conversationId, chat, composer.holding)
+        if (why) { reason = why; reasonShown.restart(); return }
+        ensure(() => AgentClient.request("StartPhoneMode", [page.conversationId]))
+    }
+    // A task of this conversation, its card brought into view (an answer it waits for).
+    function showTask(taskId) {
+        for (let i = 0; i < chat.entries.count; ++i)
+            if (chat.entries.get(i).kind === "phone-task" && chat.entries.get(i).itemId === taskId) {
+                view.follow = false
+                view.positionViewAtIndex(i, ListView.Center)
+                return
+            }
+    }
 
     ChatModel { id: chat }
     readonly property alias model: chat
@@ -71,11 +98,13 @@ Item {
         function onEvent(json) {
             const e = JSON.parse(json)
             if (e.type === "phone-state") {
+                if (!e.sessionId || e.phase !== "connecting") page.notice = ""
                 page.phone = e
                 for (const task of (e.tasks || [])) if (task.conversation === page.conversationId) chat.apply({type: "phone-task", task: task}, true)
                 return
             }
             if (e.conversation && e.conversation !== page.conversationId) return
+            if (e.type === "phone-notice") page.notice = e.text || ""
             if (e.type === "level") { composer.micLevel = e.db; return }
             // Codex restarted (a new key or sign-in) or the whole service did: this conversation
             // is opened again, and a turn that was running shows as ended.
@@ -115,7 +144,7 @@ Item {
             onClicked: drawer.open()
         }
         Text {
-            anchors { left: parent.left; right: parent.right; leftMargin: 64; rightMargin: 64; verticalCenter: parent.verticalCenter }
+            anchors { left: parent.left; right: parent.right; leftMargin: callButton.visible ? 108 : 64; rightMargin: callButton.visible ? 108 : 64; verticalCenter: parent.verticalCenter }
             horizontalAlignment: Text.AlignHCenter
             text: !page.conversationId && chat.entries.count === 0 ? "Agent"
                 : chat.titleText(page.loaded ? chat.title : page.initialTitle)
@@ -126,7 +155,21 @@ Item {
             color: Theme.text
             Accessible.role: Accessible.Heading
         }
+        // Call the Agent: here, in this conversation. When it can't start now, it shows so, and a
+        // tap says why (the reason under the top bar for a moment).
         IconButton {
+            id: callButton
+            anchors { right: newButton.left; verticalCenter: parent.verticalCenter }
+            visible: !page.inCallHere
+            iconName: "phone"
+            text: i18nc("@action:button", "Call the Agent")
+            readonly property string why: Call.blocked(i18nc, page.phone, page.conversationId, chat, composer.holding)
+            forcedState: why ? "disabled" : ""
+            Accessible.description: why
+            onClicked: page.startCall()
+        }
+        IconButton {
+            id: newButton
             anchors { right: parent.right; rightMargin: 6; verticalCenter: parent.verticalCenter }
             iconName: "compose"
             text: i18nc("@action:button", "New conversation")
@@ -135,11 +178,64 @@ Item {
         }
     }
 
+    // ---- the call bar: under the top bar while a call goes on -----------------------------
+    Item {
+        id: callArea
+        anchors { left: parent.left; right: parent.right; top: top.bottom }
+        height: page.callMode !== "" ? callBar.height + Theme.spaceS : 0
+        Behavior on height { NumberAnimation { duration: Theme.normal; easing.type: Easing.Bezier; easing.bezierCurve: Theme.easing } }
+        clip: true
+        CallBar {
+            id: callBar
+            anchors { left: parent.left; right: parent.right; top: parent.top; leftMargin: Theme.spaceM; rightMargin: Theme.spaceM }
+            visible: page.callMode !== ""
+            mode: page.callMode === "" ? "idle" : page.callMode
+            readonly property var said: Call.words(i18nc, page.phone, page.conversationId, page.now,
+                                                   page.titleOf(page.phone.conversation || ""), page.notice)
+            label: said[0]
+            detail: said[1]
+            openText: i18nc("@action:button open the call with the Agent", "Open the call")
+            muteText: i18nc("@action:button the call with the Agent", "Mute")
+            unmuteText: i18nc("@action:button the call with the Agent", "Unmute")
+            hangUpText: i18nc("@action:button the call with the Agent", "Hang up")
+            goText: i18nc("@action:button go to the conversation the call is in", "Go there")
+            onOpened: callSheet.open()
+            onMuteToggled: AgentClient.request("SetPhoneMuted", [page.phone.sessionId, !page.phone.muted])
+            onHangUp: AgentClient.request("StopPhoneMode", [page.phone.sessionId])
+            onGo: page.open(page.phone.conversation, page.titleOf(page.phone.conversation))
+        }
+    }
+    // Why a call can't start now, for a moment after the call button was tapped.
+    Rectangle {
+        anchors { left: parent.left; right: parent.right; bottom: composer.top; margins: Theme.gutter; bottomMargin: Theme.spaceM }
+        z: 2
+        visible: page.reason !== ""
+        implicitHeight: reasonText.implicitHeight + 24
+        radius: Theme.radiusM
+        color: Theme.strong
+        Accessible.role: Accessible.AlertMessage
+        Accessible.name: page.reason
+        RowLayout {
+            anchors { fill: parent; leftMargin: 14; rightMargin: 14 }
+            spacing: 10
+            Icon { name: "alert"; color: Theme.strongInk; Layout.preferredWidth: Theme.iconM; Layout.preferredHeight: Theme.iconM }
+            Text {
+                id: reasonText
+                Layout.fillWidth: true
+                text: page.reason
+                wrapMode: Text.Wrap
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.metaSize
+                color: Theme.strongInk
+            }
+        }
+    }
+
     // ---- the thread ----------------------------------------------------------------
     ListView {
         id: view
         readonly property real column: Math.min(width - Theme.gutter * 2, Theme.readingWidth)
-        anchors { left: parent.left; right: parent.right; top: top.bottom; bottom: phoneBar.top }
+        anchors { left: parent.left; right: parent.right; top: callArea.bottom; bottom: composer.top }
         clip: true
         // Short threads sit just above the composer.
         topMargin: Math.max(8, height - contentHeight - bottomMargin)
@@ -157,6 +253,8 @@ Item {
             onReadAloud: text => AgentClient.readAloud(text)
             onOpenImage: (source, name) => viewer.show(source, name)
             onOpenSettings: which => page.Window.window.openSettings(which === "codex" ? "CodexPage.qml" : "KeyPage.qml")
+            onCallAgain: page.startCall()
+            onAnswerTask: taskId => page.showTask(taskId)
         }
         // New content keeps the view at the end only while the reader is there.
         property bool follow: true
@@ -180,7 +278,7 @@ Item {
 
     // ---- a new conversation: a question and a few things to try ----------------------
     ColumnLayout {
-        anchors { left: parent.left; right: parent.right; top: top.bottom; bottom: phoneBar.top }
+        anchors { left: parent.left; right: parent.right; top: callArea.bottom; bottom: composer.top }
         anchors.leftMargin: 16
         anchors.rightMargin: 16
         // Only while the composer is a plain bar: typing, the + panel or a hold take its room.
@@ -219,7 +317,7 @@ Item {
 
     // Scrolled away from the end: a way back.
     PillButton {
-        anchors { horizontalCenter: parent.horizontalCenter; bottom: phoneBar.top; bottomMargin: 8 }
+        anchors { horizontalCenter: parent.horizontalCenter; bottom: composer.top; bottomMargin: 8 }
         visible: !view.follow && !view.atYEnd && view.contentHeight > view.height
         iconName: "chevron-down"
         text: i18nc("@action:button scroll to the end of the thread", "Jump to latest")
@@ -231,50 +329,6 @@ Item {
         ensure(() => AgentClient.sendText(text, JSON.stringify(attachments)))
     }
 
-    Column {
-        id: phoneBar
-        anchors {left: parent.left; right: parent.right; bottom: composer.top}
-        width: parent.width
-        spacing: 6
-        Text {
-            anchors.horizontalCenter: parent.horizontalCenter
-            visible: !!page.phone.sessionId
-            text: page.phone.phase === "connecting" ? i18nc("@info:status", "Connecting phone mode…")
-                  : page.phone.conversation !== page.conversationId ? i18nc("@info:status", "Phone mode in another conversation")
-                  : page.phone.muted ? i18nc("@info:status", "Microphone muted") : i18nc("@info:status", "Phone mode · Listening")
-            color: Theme.dim
-            font.family: Theme.fontFamily
-            font.pixelSize: Theme.metaSize
-        }
-        Flow {
-            width: parent.width - 24
-            anchors.horizontalCenter: parent.horizontalCenter
-            spacing: 6
-            PillButton {
-                visible: !page.phone.sessionId
-                text: i18nc("@action:button", "Phone mode")
-                enabled: chat.callPhase !== "user" && !chat.inCall
-                onClicked: page.ensure(() => AgentClient.request("StartPhoneMode", [page.conversationId]))
-            }
-            PillButton {
-                visible: !!page.phone.sessionId
-                text: page.phone.muted ? i18nc("@action:button", "Unmute") : i18nc("@action:button", "Mute")
-                onClicked: AgentClient.request("SetPhoneMuted", [page.phone.sessionId, !page.phone.muted])
-            }
-            PillButton {
-                visible: !!page.phone.sessionId
-                text: i18nc("@action:button", "Stop speaking")
-                onClicked: AgentClient.request("StopSpeaking", [page.phone.sessionId])
-            }
-            PillButton {
-                visible: !!page.phone.sessionId
-                negative: true
-                text: i18nc("@action:button", "Hang up")
-                onClicked: AgentClient.request("StopPhoneMode", [page.phone.sessionId])
-            }
-        }
-    }
-
     Composer {
         id: composer
         anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
@@ -282,6 +336,8 @@ Item {
         busy: page.busy
         speaking: page.speaking
         canTalk: chat.callPhase !== "user" && !page.phone.sessionId && !(page.phone.tasks || []).some(t => ["queued", "starting", "running", "stopping", "waiting_input"].indexOf(t.status) >= 0)
+        // On a call with the Agent: here, just talk (typing still works); elsewhere, Hold to talk waits.
+        call: page.inCallHere ? "here" : page.callMode === "elsewhere" ? "elsewhere" : ""
         onTalkPressed: {
             view.follow = true
             view.positionViewAtEnd()
@@ -312,6 +368,16 @@ Item {
         onSettingsRequested: { drawer.close(); page.Window.window.openSettings() }
         onSuggestionsRequested: { drawer.close(); page.Window.window.openSuggestions("") }
         onDeleted: id => { if (id === page.conversationId) page.newConversation() }
+        onCallRequested: { drawer.close(); page.newConversation(); page.startCall() }
+    }
+
+    CallSheet {
+        id: callSheet
+        phone: page.phone
+        conversation: page.conversationId
+        title: chat.titleText(page.loaded ? chat.title : page.initialTitle)
+        now: page.now
+        onAnswerRequested: taskId => page.showTask(taskId)
     }
 
     // A picture of an answer, large (docs/88).
