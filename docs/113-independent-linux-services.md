@@ -71,6 +71,7 @@ root `app_process` 不经过应用 Zygote 的 telephony / Bluetooth 初始化，
 - 合成 sent callback、合成 GSM status-report PDU callback 通过；另测 token 跨 Parcel、分段绑定、重复/失败回调、不合法回执和关闭后的晚到回调。不是新的真实无线电发送或运营商回执验收。
 - 候选 DeviceDaemon 的实际命令行和 cgroup 已核对：UID 0；memory `/apps`（没有 APK `/uid_...`）、cpuset/cpu/blkio/unified 根组。不能仅凭 `setsid` 宣称脱离 freezer。
 - Linux 真实 socket / 对端身份、请求大小与不确定结果不重放、后台与显示路由、bounded supervisor / inherited-app-cgroup 拒绝、Agent 单元生命周期和无 DISPLAY 启动在离线回归中验证。
+- 临时实际 DeviceDaemon PID 13339 由 Linux UID 1000 连接，核对 socket 对端 UID 0。另一个 KWin PR 的 20 次 APK 强停重连以及超过 35 秒断开、熄屏轮次中，该 PID 与 epoch 保持不变。此证据只证明候选后台进程的独立寿命；看守和新 Agent 用户服务尚未装入生产路径，不能据此算作完整部署验收。
 
 真实 root SmsManager 提交、长短信/多 SIM/运营商结果、后台网络写入、实际用户管理器跨图形会话的任务连续性以及整夜待机仍待配套版本部署验收。既有 APK 2.32 的 10000 实机结果见 [docs/107](107-android-sms.md)，不冒充这个新 backend 的发送结果。夜间整容器被杀的根因仍未证实；此 PR 解决可观察的依赖，不宣称已修复全部夜间问题。
 
