@@ -71,6 +71,18 @@ int main(int argc,char **argv){
     s.incoming({{"type","error"},{"error",QJsonObject{{"code","invalid_response"},{"message","test protocol failure"}}}});
     check(s.id.isEmpty()&&s.phase=="closed","unknown protocol failure releases voice resources");
     {
+        // covers: agent.phone-mode/E16
+        // How much of a reply to play: by what Android has played of it, not by its buffer (which the
+        // communication service keeps full of PulseAudio's silence), and late ticks are made up.
+        check(Session::chunksDue(0,0,0)==8&&Session::chunksDue(4800,0,0)==5,"a reply starts 300 ms ahead, 8 chunks a tick at most");
+        check(Session::chunksDue(7200,0,0)==0,"300 ms ahead of what was played: nothing more now");
+        check(Session::chunksDue(7200,48000+960,48000)==1,"20 ms played: 20 ms more");
+        check(Session::chunksDue(7200,48000+2880,48000)==3,"a tick late by 40 ms: three chunks, not one");
+        check(Session::chunksDue(7200,40000,48000)==0,"Android's frames before the reply began are not the reply's");
+        check(Session::chunksDue(24000,48000+33600,48000)==0&&Session::chunksDue(24000,48000+48000,48000)==8,
+              "however full Android's buffer is with silence, the reply goes on as it is played");
+    }
+    {
         // covers: agent.phone-mode/E8
         // Mute and hang-up against a stand-in of the Android communication audio backend (its socket,
         // $XDG_RUNTIME_DIR/rungic-communication.sock): muting stops the microphone capture and tells

@@ -208,6 +208,11 @@ void Session::stopSpeaking(){
     if(responseActive){send({{"type","response.cancel"}});responseActive=false;}
 }
 
+int Session::chunksDue(quint64 pushed,quint64 played,quint64 start){
+    constexpr qint64 Ahead=48000*300/1000,Chunk=960;     // 48 kHz frames: 300 ms; a chunk is 20 ms
+    const qint64 ahead=qint64(pushed)*2-qint64(played>start?played-start:0);
+    return ahead>=Ahead?0:int(std::min<qint64>(8,(Ahead-ahead+Chunk-1)/Chunk));
+}
 void Session::tick(){
     const auto now=clock.elapsed();
     if(localSpeech)lastVoice=now;
@@ -223,9 +228,14 @@ void Session::tick(){
                 if(!text.isEmpty()){event({{"type","message"},{"id",utterance},{"role","user"},{"text",text}});requestReply({text,utterance,generation,false});}
             } else if(now-lastVoice>10000){submitted=true;event({{"type","phone-notice"},{"text","That utterance was not completed; please repeat"}});}
         }
-        if(!audio.flushing&&!playback.pending.isEmpty()&&!localSpeech&&audio.written-std::min(audio.written,audio.played)<4800){
-            auto chunk=playback.pending.left(960);playback.pending.remove(0,chunk.size());playedSamples+=chunk.size()/2;lastPlaybackPush=now;audio.play(chunk);
-        }
+        // The reply is kept ahead of what Android has played of it. Not by Android's own buffer: the
+        // communication service keeps that a little ahead with PulseAudio's silence whatever is played,
+        // and holding back while it looked full let silence take the reply's place for good (docs/101,
+        // 2026-10-04). A late tick is made up in the next: one 20 ms chunk a tick fell behind and stuttered.
+        if(!audio.flushing&&!localSpeech)
+            for(int n=chunksDue(playedSamples,audio.played,playStart);n>0&&!playback.pending.isEmpty();--n){
+                auto chunk=playback.pending.left(960);playback.pending.remove(0,chunk.size());playedSamples+=chunk.size()/2;lastPlaybackPush=now;audio.play(chunk);
+            }
         if(!narrationSuppressed&&!notices.isEmpty()&&!localSpeech&&!serverSpeech&&!responseActive&&playback.pending.isEmpty()&&now-lastPlaybackPush>300&&now-lastUser>1500&&now-lastProgress>5000){
             QString text=notices.join("\n");notices.clear();lastProgress=now;requestReply({text,{},generation,true},"Report only these verified task updates in one short sentence. Do not start or modify any task.");
         }

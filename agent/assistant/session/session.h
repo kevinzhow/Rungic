@@ -48,6 +48,10 @@ public:
     void incoming(QJsonObject o);
     void onSpeech(bool value);
     void tick();
+    // How many 20 ms chunks of the reply to play now: enough to keep it 300 ms ahead of what Android has
+    // played of it (`pushed`: 24 kHz samples of the reply played so far; `played`, `start`: Android's
+    // 48 kHz frames now and when the reply began), at most 8 in one tick.
+    static int chunksDue(quint64 pushed,quint64 played,quint64 start);
     void stopSpeaking();
     void requestReply(ResponseContext context,QString instruction={});
     void tool(QString name,QJsonObject args,QString callId,QString responseId);

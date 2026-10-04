@@ -91,3 +91,45 @@ APK 2.29/77 单独构建安装。Java-only 构建复用 G100 已安装 APK 的�
 - 测试：`tools/tests/test_phone_session.py` 新增 4 项（无 `id` 的回复和非 JSON 行被跳过，之后的回复和事件照常处理；`post()` 编号；协调器停止时 `post()` 不抛异常；Agent 代码里不再直接调用 `phone._write(`），共 9 项通过。
 
 **部署**：待用户同意。部署 `rungic-voice-agent` 会重启 `rungic-voice-agent.service`、`rungic-voice-overlay.service`，并关闭正在运行的 Agent App。
+
+## 故障：通话中 Agent 说话一卡一卡（2026-10-04）
+
+**现象**：用户反映，和 Agent 通话的整个过程中，Agent 说话都一卡一卡。
+
+**证据（G100 S，只读）**：AudioFlinger 的轨道记录里，Rungic APK 的通话播放轨道（单声道 48 kHz，`USAGE_VOICE_COMMUNICATION`）欠载很多：
+
+| 时间（手机） | 播放时长 | 欠载 |
+|---|---|---|
+| 10-03 13:19 | 11.3 s | 1.17 s（10.3%） |
+| 10-04 10:47 | 5.3 s | 1.12 s（21.3%） |
+
+同一时间的 logcat 有 `BUFFER TIMEOUT: remove track … due to underrun` 和 `AudioTrack … disabled due to previous underrun, restarting`。作为对比，平时语音回复用的媒体轨道（`phone-output`）是 7.8 s 里欠载 0.16 s（2.1%）。
+
+**原因**：两层都在给播放定节奏，而且都会落后。
+- `shared/media/communication-audio.cpp` 的 `readOutput()`（bd35b7a，2026-10-02）：
+  - 每次从 `android_communication` 的管道最多读 1920 字节（20 ms），然后固定停 20 ms 再读。
+  - PulseAudio 的 pipe sink 往管道里写多快，完全取决于这边读多快，所以每一轮实际是 20 ms 加上事件循环的延迟。
+  - 结果是送出的数据一直比播放慢。
+- 会话的 `Session::tick()` 每 20 ms 只推 20 ms 的回复，而且只在 Android 缓冲不到 100 ms（`written − played < 4800` 帧）时才推。定时器晚了也不补。
+- Android 的通话轨道只有 100 ms 缓冲，很快被吃空。
+
+**第一次修复失败（同日）**：只改了服务端的节奏（按时钟读，始终让 Android 领先 80 ms），以开发覆盖装到 G100 S 后，通话只剩开头一声，之后一直静音。
+- 原因：Android 一直保持着 80 ms 的余量，再加上播放位置 100 ms 一跳，会话看到的“缓冲”常常超过 100 ms，于是停止推送。
+- 会话一停，PulseAudio 就往管道里填静音，服务照样按时把静音送给 Android，Android 一直显得满，会话就再也不推了。
+- AudioFlinger 的记录是：播了 7.26 s，欠载为 0，内容却是静音。
+- 处理：回滚到旧版本，用户确认回滚后有声音但仍卡。
+- 当时的系统测试没发现：它直接用 PulseAudio 播放，绕过了会话的门槛；替身也没有按实时播放、回报位置。
+
+**修法**（两处一起部署，缺一不可）：
+- **服务**（`rungic-plasma-bridges`）：按时钟读管道。允许送出的量 = 从开始到现在应播放的量 + 80 ms − 已送出的量，一次最多 20 ms。管道空了以后，放弃欠下的部分；flush 后重新计时。
+- **会话**（`rungic-voice-agent`）：不再看 Android 的缓冲（里面有 PulseAudio 的静音），改看“这段回复已推出的量 − Android 已播放的量”（`Session::chunksDue`）。领先不到 300 ms 就补足差额，一次 tick 最多推 8 块，晚了的 tick 下一次补上。打断时这些都会被 flush 清掉，打断的速度和“听到多少”的计算不受影响。
+
+**验证**：在 Mac mini 的无头系统测试 `communication_audio` 里，用真实的 `Session`（`tools/system/call_playback.cpp`）、真的 PulseAudio、通信音频服务，以及按实时播放、缓冲 100 ms、位置 100 ms 一跳的 Android 替身，播放 3 s 的回复：
+
+| 组合 | 结果 |
+|---|---|
+| 旧服务 + 旧会话（原状态） | Android 等数据共 900 ms（卡顿） |
+| 新服务 + 旧会话（第一次修复） | 每 100 ms 的音量为 `[0, 3569, 0, 0, …]`，即开头一声后静音，回复剩 101760 字节没播 |
+| 新服务 + 新会话 | 3 次运行，3.0–3.1 s 全部听到，Android 等数据 17–20 ms（含开头和结尾） |
+
+另有两项：持续写满管道时，送达始终领先播放 29–63 ms，没有漂移；不静音时（经过回声消除参照），2 s 正弦波逐字节到达。`phone_session_units` 里有 `chunksDue` 的单元断言。手机上的复核见下文“部署”。

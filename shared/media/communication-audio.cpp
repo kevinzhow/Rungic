@@ -2,6 +2,7 @@
 // Shared communication profile: PulseAudio PCM devices, Android AEC and playback cursor.
 #include <QCoreApplication>
 #include <QDir>
+#include <QElapsedTimer>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QLocalServer>
@@ -38,6 +39,10 @@ public:
     QString session, inputPath, outputPath;
     int inputFd=-1,outputFd=-1,sharedFd=-1,micRetries=0; QString sourceModule,sinkModule;
     QSocketNotifier *outputWatch=nullptr;
+    // The call's playback is paced by the clock (readOutput): what was sent since `paced` started,
+    // against the time that has passed, keeping Android `Lead` bytes ahead of what it plays.
+    static constexpr qint64 BytesPerSecond=48000*2, Lead=BytesPerSecond*80/1000;
+    QElapsedTimer paced; qint64 sent=0; bool drained=false;
     GstElement *pipeline=nullptr,*micSrc=nullptr,*speakerSrc=nullptr;
     bool micHeader=false,outHeader=false,controlHeader=false,muted=false,flushing=false,closing=false;
     quint64 epoch=1; QTimer position;
@@ -80,7 +85,7 @@ public:
         }
     }
     bool open(bool initialMuted) {
-        epoch=1;muted=initialMuted;flushing=false;micRetries=0;
+        epoch=1;muted=initialMuted;flushing=false;micRetries=0;paced.invalidate();sent=0;
         inputPath=runtime+"/rungic-communication-input.pcm";outputPath=runtime+"/rungic-communication-output.pcm";
         for(const auto &path:{inputPath,outputPath}) {
             struct stat st;
@@ -180,16 +185,32 @@ public:
     void push(GstElement *src,const QByteArray &data,quint64 e) {
         if(!src||data.isEmpty())return;guint64 queued=0;g_object_get(src,"current-level-bytes",&queued,nullptr);if(queued>19200){fail("Shared audio processing stalled");return;}GstBuffer *b=gst_buffer_new_allocate(nullptr,data.size(),nullptr);gst_buffer_fill(b,0,data.data(),data.size());GST_BUFFER_OFFSET(b)=e;gst_app_src_push_buffer(GST_APP_SRC(src),b);
     }
+    // PulseAudio's pipe sink writes as fast as the pipe is read, so the reading sets the pace: as much
+    // as the time since the start allows, plus Lead; the rest waits in the pipe (PA's backpressure
+    // bounds the queue). Reading a fixed 20 ms and then waiting 20 ms fell behind by every
+    // millisecond the loop was late, and Android's 100 ms track ran dry: 10-21 % of a call's speech
+    // was underrun, heard as stutter (docs/101). After an empty pipe what was not sent is forgone
+    // (Android has played it out by then), so a pause is not made up later as a burst; a flush
+    // starts again.
     void readOutput() {
-        char b[1920];ssize_t n;
-        while(outputFd>=0&&(n=::read(outputFd,b,sizeof(b)))>0) {
-            if(!flushing&&outHeader){if(speakerSrc)push(speakerSrc,QByteArray(b,n),epoch);else if(muted)speaker(QByteArray(b,n),epoch);}
-            if(!flushing&&outputWatch){
-                // Pace the pipe at the hardware rate, allowing PA backpressure
-                // to bound its queue instead of forwarding bursts to Android.
+        constexpr qint64 Block=1920;char b[Block];
+        if(flushing) {while(outputFd>=0&&::read(outputFd,b,sizeof(b))>0){}paced.invalidate();return;}
+        if(!paced.isValid()){paced.start();sent=0;drained=false;}
+        if(drained){sent=std::max(sent,paced.nsecsElapsed()*BytesPerSecond/1000000000);drained=false;}
+        while(outputFd>=0) {
+            const qint64 due=paced.nsecsElapsed()*BytesPerSecond/1000000000;
+            const qint64 allowed=(due+Lead-sent)&~qint64(1);
+            if(allowed<=0) {
+                if(!outputWatch)return;
                 outputWatch->setEnabled(false);const auto token=session;
-                QTimer::singleShot(20,this,[this,token]{if(session==token&&outputWatch)outputWatch->setEnabled(true);});return;
+                const int wait=int(std::max<qint64>(1,(Block/2-allowed)*1000/BytesPerSecond));
+                QTimer::singleShot(wait,Qt::PreciseTimer,this,[this,token]{if(session==token&&outputWatch){outputWatch->setEnabled(true);readOutput();}});
+                return;
             }
+            const ssize_t n=::read(outputFd,b,std::min<qint64>(allowed,Block));
+            if(n<=0){drained=true;return;}
+            sent+=n;
+            if(outHeader){if(speakerSrc)push(speakerSrc,QByteArray(b,n),epoch);else if(muted)speaker(QByteArray(b,n),epoch);}
         }
     }
     void speaker(const QByteArray &data,quint64 e) {
