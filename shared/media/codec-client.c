@@ -189,7 +189,11 @@ out:
 static int configure(RungicCodec *c,const RungicCodecConfig *config,int version,int options) {
  const int values[]={version==2?(int)MAGIC2:(int)MAGIC,config->encoder,config->kind,config->width,config->height,config->fps_num,config->fps_den,config->bitrate,config->key_interval,config->color_standard,config->color_range,config->color_transfer,options};
  uint32_t word;
- for(size_t i=0;i<sizeof(values)/sizeof(values[0])-(version==2?0:1);i++)if(put32(c->fd,values[i]))goto config_error;
+ for(size_t i=0;i<sizeof(values)/sizeof(values[0])-(version==2?0:1);i++)if(put32(c->fd,values[i])) {
+  /* An app before version 2 may close the channel after the magic, before the rest is written. */
+  if(version==2 && (errno==EPIPE || errno==ECONNRESET))return 1;
+  goto config_error;
+ }
  if(get32(c->fd,&word)) {
   /* An app before version 2 rejects the magic; a minimal broker may just close the channel. */
   if(version==2 && (errno==EPIPE || errno==ECONNRESET))return 1;
