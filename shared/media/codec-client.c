@@ -33,7 +33,7 @@ static int broker=-1;static pid_t broker_pid;
 #define SLOTS 48
 typedef struct {int id,fd;uint8_t *map;size_t size;} Slot;
 /* version 3: no channel, the msm_vidc V4L2 decoder itself (codec-v4l2.c); fd is its device. */
-typedef struct {int fd,version;Slot slot[SLOTS];V4l2Decoder *v4l2;} Channel;
+typedef struct {int fd,version;Slot slot[SLOTS];V4l2Codec *v4l2;} Channel;
 static Channel channels[32];
 static pthread_mutex_t channel_lock=PTHREAD_MUTEX_INITIALIZER;
 static int app_version1; /* the app refused channel version 2 once: an older Rungic APK */
@@ -211,19 +211,19 @@ static int default_options(void) {
 int rungic_codec_open(RungicCodec *c,const RungicCodecConfig *config) {
  return rungic_codec_open_options(c,config,RUNGIC_OPTIONS_DEFAULT);
 }
-/* Decoders go straight to the msm_vidc V4L2 decoder when there is one (RUNGIC_CODEC_V4L2=0
+/* Codecs go straight to msm_vidc's V4L2 decoder or encoder when there is one (RUNGIC_CODEC_V4L2=0
  * turns that off; Firefox's preload, whose sandbox cannot open devices, only with =1). */
 static int open_v4l2(RungicCodec *c,const RungicCodecConfig *config,int options) {
  const char *wanted=getenv("RUNGIC_CODEC_V4L2");
- if(config->encoder || (wanted && !strcmp(wanted,"0")) || (getenv("RUNGIC_CODEC_PRECONNECT") && !(wanted && !strcmp(wanted,"1"))))return -1;
+ if((wanted && !strcmp(wanted,"0")) || (getenv("RUNGIC_CODEC_PRECONNECT") && !(wanted && !strcmp(wanted,"1"))))return -1;
  char error[sizeof(c->error)];
- V4l2Decoder *d=v4l2_open(config,(options&RUNGIC_OPTION_TEN_BIT)!=0,error,sizeof(error));
+ V4l2Codec *d=v4l2_open(config,(options&RUNGIC_OPTION_TEN_BIT)!=0,error,sizeof(error));
  if(!d)return -1;
  void *memory=mmap(NULL,RUNGIC_CODEC_HALF*2,PROT_READ|PROT_WRITE,MAP_PRIVATE|MAP_ANONYMOUS,-1,0);
  Channel *channel=memory==MAP_FAILED?NULL:channel_add(v4l2_fd(d),3);
  if(!channel){if(memory!=MAP_FAILED)munmap(memory,RUNGIC_CODEC_HALF*2);v4l2_close(d);return -1;}
  channel->v4l2=d;c->fd=v4l2_fd(d);c->memory=memory;
- snprintf(c->name,sizeof(c->name),"msm_vidc_decoder (V4L2)");
+ snprintf(c->name,sizeof(c->name),"%s (V4L2)",config->encoder?"msm_vidc_encoder":"msm_vidc_decoder");
  return 0;
 }
 int rungic_codec_open_options(RungicCodec *c,const RungicCodecConfig *config,int options) {
@@ -270,7 +270,7 @@ int rungic_codec_exchange(RungicCodec *c,int cmd,int id,int64_t pts,int flags,in
  if(direct && direct->v4l2) {
   if(cmd==RUNGIC_FRAME && (length<=0 || (unsigned)length>RUNGIC_CODEC_HALF)){errno=EINVAL;return fail(c,"Codec exchange");}
   if(cmd==RUNGIC_FRAME)c->input_count++;
-  return v4l2_exchange(direct->v4l2,cmd,id,pts,c->memory,length,callback,user,&c->ended,&c->output_count,c->error,sizeof(c->error));
+  return v4l2_exchange(direct->v4l2,cmd,id,pts,flags,c->memory,length,callback,user,&c->ended,&c->output_count,c->error,sizeof(c->error));
  }
  if(put32(c->fd,cmd))goto error;
  if(cmd==RUNGIC_FRAME) {

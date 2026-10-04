@@ -11,7 +11,12 @@
  * at the third look for it ($FAKE_VIDC_EVENT_DELAY): the real one takes milliseconds, during which
  * the consumer keeps sending.
  *
- *   codec_v4l2_driver decode|decode10|flush KIND FRAMES
+ * The encoder stand-in ($RUNGIC_CODEC_V4L2_ENCODER) keeps the encoder's rule: pictures (OUTPUT)
+ * stream before CAPTURE, and nothing is queued before both stream. Each NV12 picture becomes an
+ * IDR (with SPS and PPS in front, when forced or first) or a P slice whose payload is the
+ * picture's first Y, Cb and Cr bytes, so the I420-to-NV12 copy is checked.
+ *
+ *   codec_v4l2_driver decode|decode10|flush|encode KIND FRAMES
  * Prints one JSON object: what the client reported, the pictures and the stand-in's log.
  */
 #define _GNU_SOURCE
@@ -50,6 +55,11 @@ static struct {
  int first_after_open_has_params,au_after_open;
 } dev={.fd=-1,.heap=-1};
 
+static struct {
+ int fd,out_on,cap_on,stop,last_sent,force_key,frames;uint32_t width,height,bpl,scan,fourcc;
+ Slot out[32],cap[32];int n_out,n_cap;int ready[64],n_ready;
+} enc={.fd=-1};
+
 static void note(const char *format,...) {
  va_list a;va_start(a,format);
  int n=vsnprintf(dev.log+dev.log_length,sizeof(dev.log)-dev.log_length,format,a);
@@ -60,6 +70,11 @@ static int violation(const char *what){dev.violations++;note("VIOLATION %s",what
 
 int __wrap_open(const char *path,int flags,...) {
  va_list a;va_start(a,flags);int mode=va_arg(a,int);va_end(a);
+ const char *encoder=getenv("RUNGIC_CODEC_V4L2_ENCODER");
+ if(encoder && !strcmp(path,encoder) && getenv("FAKE_VIDC")) {
+  memset(&enc,0,sizeof(enc));enc.fd=memfd_create("fake-venc",MFD_CLOEXEC);dev.sessions++;note("open encoder");
+  return enc.fd;
+ }
  const char *video=getenv("RUNGIC_CODEC_V4L2_DEVICE");
  if(video && !strcmp(path,video) && getenv("FAKE_VIDC")) {
   int fd=memfd_create("fake-vidc",MFD_CLOEXEC);
@@ -80,6 +95,7 @@ int __wrap_dup3(int old,int target,int flags) {
 }
 int __wrap_close(int fd) {
  if(fd==dev.fd && fd>=0){note("close");dev.fd=-1;}
+ if(fd==enc.fd && fd>=0){note("close encoder");enc.fd=-1;}
  return __real_close(fd);
 }
 
@@ -121,6 +137,71 @@ static void decode(void) {
  }
 }
 
+/* Every picture queued while both stream becomes coded data in a free coded buffer. */
+static void encode(void) {
+ if(!enc.out_on || !enc.cap_on)return;
+ for(int i=0;i<enc.n_out;i++) {
+  Slot *o=&enc.out[i];
+  if(!o->queued || o->done)continue;
+  int c=-1;for(int k=0;k<enc.n_cap;k++)if(enc.cap[k].queued){c=k;break;}
+  if(c<0)return;
+  uint8_t px[3]={0};
+  if(pread(o->fd,px,1,0)<0 || pread(o->fd,px+1,2,(off_t)enc.bpl*enc.scan)<0)px[0]=0;
+  uint8_t data[64];int n=0,key=enc.frames==0 || enc.force_key;
+  static const uint8_t headers[]={0,0,0,1,0x67,0x42,0xc0,0x1f,0,0,0,1,0x68,0xce,0x3c,0x80};
+  if(key){memcpy(data,headers,sizeof(headers));n=sizeof(headers);}
+  const uint8_t slice[]={0,0,0,1,(uint8_t)(key?0x65:0x41),px[0],px[1],px[2]};
+  memcpy(data+n,slice,sizeof(slice));n+=sizeof(slice);
+  if(pwrite(enc.cap[c].fd,data,n,0)<0)n=0;
+  enc.cap[c].queued=0;enc.cap[c].bytes=n;enc.cap[c].ts=o->ts;enc.cap[c].done=key;
+  enc.ready[enc.n_ready++]=c;o->done=1;enc.frames++;enc.force_key=0;
+ }
+ int pending=0;for(int i=0;i<enc.n_out;i++)if(enc.out[i].queued && !enc.out[i].done)pending=1;
+ if(enc.stop==1 && !pending && !enc.last_sent)
+  for(int k=0;k<enc.n_cap;k++)if(enc.cap[k].queued){enc.cap[k].queued=0;enc.cap[k].bytes=0;enc.cap[k].done=2;enc.ready[enc.n_ready++]=k;enc.last_sent=1;break;}
+}
+
+static int encoder_ioctl(unsigned long request,void *arg) {
+ switch(request) {
+ case VIDIOC_QUERYCAP:{struct v4l2_capability *c=arg;memset(c,0,sizeof(*c));strcpy((char *)c->card,"msm_vidc_encoder");return 0;}
+ case VIDIOC_ENUM_FMT:{struct v4l2_fmtdesc *d=arg;static const uint32_t f[]={V4L2_PIX_FMT_H264,V4L2_PIX_FMT_HEVC};
+  if(d->type!=CAP || d->index>=2){errno=EINVAL;return -1;}d->pixelformat=f[d->index];return 0;}
+ case VIDIOC_S_FMT:{struct v4l2_format *f=arg;
+  if(f->type==CAP){enc.fourcc=f->fmt.pix_mp.pixelformat;f->fmt.pix_mp.width=320;f->fmt.pix_mp.height=240;f->fmt.pix_mp.plane_fmt[0].sizeimage=1<<16;return 0;}
+  if(f->fmt.pix_mp.pixelformat!=V4L2_PIX_FMT_NV12){errno=EINVAL;return -1;}
+  enc.width=f->fmt.pix_mp.width;enc.height=f->fmt.pix_mp.height;enc.bpl=align(enc.width,128);enc.scan=align(enc.height,32);
+  f->fmt.pix_mp.height=enc.scan;f->fmt.pix_mp.num_planes=1;f->fmt.pix_mp.plane_fmt[0].bytesperline=enc.bpl;
+  f->fmt.pix_mp.plane_fmt[0].sizeimage=enc.bpl*enc.scan*3/2+4096;note("encoder picture %ux%u",enc.width,enc.height);return 0;}
+ case VIDIOC_G_FMT:{struct v4l2_format *f=arg;f->fmt.pix_mp.width=enc.width;f->fmt.pix_mp.height=enc.height;f->fmt.pix_mp.plane_fmt[0].sizeimage=1<<16;return 0;}
+ case VIDIOC_S_PARM:return 0;
+ case VIDIOC_S_CTRL:{struct v4l2_control *c=arg;if(c->id==V4L2_CID_MPEG_VIDEO_FORCE_KEY_FRAME)enc.force_key=1;return 0;}
+ case VIDIOC_REQBUFS:{struct v4l2_requestbuffers *r=arg;if(r->memory!=V4L2_MEMORY_DMABUF){errno=EINVAL;return -1;}
+  if(r->count>32)r->count=32;if(r->type==OUT)enc.n_out=r->count;else enc.n_cap=r->count;return 0;}
+ case VIDIOC_STREAMON:{int t=*(int *)arg;
+  if(t==CAP){if(!enc.out_on)return violation("encoder: coded stream before the picture stream");enc.cap_on=1;note("encoder stream coded");}
+  else{enc.out_on=1;note("encoder stream pictures");}
+  encode();return 0;}
+ case VIDIOC_STREAMOFF:{int t=*(int *)arg;if(t==OUT)enc.out_on=0;else enc.cap_on=0;return 0;}
+ case VIDIOC_QBUF:{struct v4l2_buffer *b=arg;
+  if(b->memory!=V4L2_MEMORY_DMABUF || !b->m.planes){errno=EINVAL;return -1;}
+  if(!enc.out_on || !enc.cap_on)return violation("encoder: a buffer before both streams");
+  Slot *s=b->type==OUT?&enc.out[b->index]:&enc.cap[b->index];
+  s->fd=b->m.planes[0].m.fd;s->bytes=b->m.planes[0].bytesused;s->queued=1;s->done=0;s->ts=b->timestamp;
+  encode();return 0;}
+ case VIDIOC_DQBUF:{struct v4l2_buffer *b=arg;
+  if(b->type==OUT){for(int i=0;i<enc.n_out;i++)if(enc.out[i].queued && enc.out[i].done){enc.out[i].queued=0;b->index=i;return 0;}errno=EAGAIN;return -1;}
+  if(!enc.n_ready){errno=enc.stop==2?EPIPE:EAGAIN;return -1;}
+  int c=enc.ready[0];memmove(enc.ready,enc.ready+1,sizeof(int)*(--enc.n_ready));
+  b->index=c;b->m.planes[0].bytesused=enc.cap[c].bytes;b->m.planes[0].data_offset=0;b->timestamp=enc.cap[c].ts;
+  b->flags=enc.cap[c].done==1?V4L2_BUF_FLAG_KEYFRAME:0;
+  if(enc.cap[c].done==2){b->flags=V4L2_BUF_FLAG_LAST;enc.stop=2;}
+  return 0;}
+ case VIDIOC_ENCODER_CMD:{struct v4l2_encoder_cmd *c=arg;if(c->cmd!=V4L2_ENC_CMD_STOP){errno=EINVAL;return -1;}enc.stop=1;note("encoder stop");encode();return 0;}
+ case VIDIOC_DQEVENT:errno=ENOENT;return -1;
+ }
+ errno=ENOTTY;return -1;
+}
+
 int __wrap_ioctl(int fd,unsigned long request,...) {
  va_list a;va_start(a,request);void *arg=va_arg(a,void *);va_end(a);
  if(fd==dev.heap && fd>=0 && request==DMA_HEAP_IOCTL_ALLOC) {
@@ -130,6 +211,7 @@ int __wrap_ioctl(int fd,unsigned long request,...) {
   h->fd=b;return 0;
  }
  if(request==DMA_BUF_IOCTL_SYNC && fd!=dev.fd)return 0;
+ if(fd==enc.fd && fd>=0)return encoder_ioctl(request,arg);
  if(fd!=dev.fd || fd<0)return __real_ioctl(fd,request,arg);
  switch(request) {
  case VIDIOC_QUERYCAP:{struct v4l2_capability *c=arg;memset(c,0,sizeof(*c));strcpy((char *)c->card,"msm_vidc_decoder");strcpy((char *)c->driver,"msm_vidc_driver");return 0;}
@@ -192,6 +274,7 @@ int __wrap_ioctl(int fd,unsigned long request,...) {
 }
 
 int __wrap_poll(struct pollfd *fds,nfds_t n,int timeout) {
+ for(nfds_t i=0;i<n;i++)if(fds[i].fd==enc.fd && enc.fd>=0){fds[i].revents=(enc.n_ready?POLLIN:0)|POLLOUT;return 1;}
  for(nfds_t i=0;i<n;i++)if(fds[i].fd==dev.fd && dev.fd>=0) {
   fds[i].revents=(dev.event_pending && dev.event_delay<=0?POLLPRI:0)|(dev.n_ready?POLLIN:0)|POLLOUT;return 1;
  }
@@ -202,6 +285,12 @@ int __wrap_poll(struct pollfd *fds,nfds_t n,int timeout) {
 static int records;
 static int output(void *user,const RungicCodecFrame *f) {
  (void)user;
+ if(f->type!=RUNGIC_DECODED) {
+  printf("%s{\"type\":%d,\"id\":%d,\"flags\":%d,\"pts\":%lld,\"data\":\"",records++?",":"",f->type,f->id,f->flags,(long long)f->pts);
+  for(int i=0;i<f->size;i++)printf("%02x",f->data[i]);
+  printf("\"}");
+  return 0;
+ }
  int w=f->width,h=f->height,cw=(w+1)/2,ch=(h+1)/2,bytes=f->depth==10?2:1;
  uint8_t *semi[2]={calloc(w*bytes,h),calloc(cw*2*bytes,ch)};int stride[2]={w*bytes,cw*2*bytes};
  int r=f->depth==10?rungic_codec_copy_p010(f,semi,stride):rungic_codec_copy_nv12(f,semi,stride);
@@ -225,13 +314,21 @@ static int frame(RungicCodec *c,int id,int params) {
 
 int main(int argc,char **argv) {
  if(argc!=4)return 2;
- int ten=!strcmp(argv[1],"decode10"),flush=!strcmp(argv[1],"flush"),kind=atoi(argv[2]),frames=atoi(argv[3]);
+ int ten=!strcmp(argv[1],"decode10"),flush=!strcmp(argv[1],"flush"),encode_mode=!strcmp(argv[1],"encode"),kind=atoi(argv[2]),frames=atoi(argv[3]);
  RungicCodec codec;rungic_codec_init(&codec);
- RungicCodecConfig config={.kind=kind,.width=176,.height=144};
+ RungicCodecConfig config={.kind=kind,.width=176,.height=144,.encoder=encode_mode,.fps_num=30,.fps_den=1,.bitrate=2000000,.key_interval=1};
  int opened=ten?rungic_codec_open_options(&codec,&config,RUNGIC_OPTION_BUFFERS|RUNGIC_OPTION_TEN_BIT):rungic_codec_open(&codec,&config);
  printf("{\"open\":%s,\"name\":\"%s\",\"error\":\"%s\",\"records\":[",opened?"false":"true",codec.name,opened?codec.error:"");
  int failures=0;
- if(!opened) {
+ if(!opened && encode_mode) {
+  /* I420 pictures: Y 16+i, Cb 100+i, Cr 200+i; the fourth forced to a key frame */
+  int w=176,h=144;
+  for(int i=0;i<frames;i++) {
+   memset(codec.memory,16+i,w*h);memset(codec.memory+w*h,100+i,w*h/4);memset(codec.memory+w*h*5/4,200+i,w*h/4);
+   failures+=rungic_codec_exchange(&codec,RUNGIC_FRAME,i,i*33333LL,i==3,w*h*3/2,output,NULL)!=0;
+  }
+  failures+=rungic_codec_exchange(&codec,RUNGIC_DRAIN,0,0,0,0,output,NULL)!=0;
+ } else if(!opened) {
   for(int i=0;i<frames;i++)failures+=frame(&codec,i,i==0)!=0;
   if(flush) {
    failures+=rungic_codec_exchange(&codec,RUNGIC_FLUSH,0,0,0,0,NULL,NULL)!=0;

@@ -690,7 +690,13 @@ features:
         text: 有高通 msm_vidc 解码节点（/dev/video32）的手机，解码直接走 V4L2，不经过 APK：实时 1080p60 约占一个核的 23%（MediaCodec 桥约 105%），1080p 吞吐约 240 帧/秒；没有这个节点、显式关掉或在 Firefox 的沙箱里，照旧用 MediaCodec 桥。
         evidence:
           - {doc: docs/108-codec-bridge-buffers.md, date: 2026-10-04, note: "G100 S 容器内 GStreamer：H.264/HEVC/VP9/Main10 与软解 md5 一致，无固件错误"}
+      - id: E10
+        text: 有 msm_vidc 编码节点（/dev/video33）的手机，H.264/HEVC 编码直接走 V4L2：录屏 1080×2400@30 能跟上实时，编码本身约占一个核的 2–3%（MediaCodec 桥约 75% 以上且跟不上 30 帧）；参数集单独给出，关键帧可强制。
+        evidence:
+          - {doc: docs/108-codec-bridge-buffers.md, date: 2026-10-04, note: "G100 S：录屏快捷设置验收通过（视频+音频），codec.hw 通过"}
     pitfalls:
+      - text: msm_vidc 的 V4L2 编码器必须先开图像（OUTPUT）流、再开码流（CAPTURE），两路都开流后才能排缓冲；先排码流缓冲再送第一张图，固件同样断言复位。
+        docs: [docs/108-codec-bridge-buffers.md]
       - text: msm_vidc 的 V4L2 解码只收 DMA-BUF；OUTPUT 开流前排入码流、或 CAPTURE 配好前排入第二个码流单元，会让固件断言并复位整个视频核心（Android 正在用的解码一起中断）。codec-v4l2.c 严格按“开 OUTPUT → 一个单元 → 等 SOURCE_CHANGE → 配 NV12/P010 的 CAPTURE”的顺序，刷新时整段重开。
         docs: [docs/108-codec-bridge-buffers.md]
       - text: 经 APK 的 MediaCodec 桥，CPU 大头是 Codec2 框架和高通编解码服务每帧的消息、binder 和缓冲交接（每帧约 12 ms CPU）；去掉复制、改异步只省了约 10%，实时 1080p60 仍约一个核，吞吐被 Codec2 按码流帧率设定的时钟限在约 83 帧/秒。这是 V4L2 直通的理由，桥只作回退。

@@ -168,10 +168,11 @@ start_container() {
     if apply_memory_limit; then echo $$ > "$MEMCG/cgroup.procs" 2>/dev/null || true; fi
     gpu_rule=$(device_rule /dev/kgsl-3d0 rw)
     heap_rule=$(device_rule /dev/dma_heap/system r)
-    # Qualcomm's V4L2 video decoder (msm_vidc): librungiccodec decodes on it directly (docs/108).
-    # Optional: a phone without it starts the same, its decoding through the APK's MediaCodec.
-    video_rule=
+    # Qualcomm's V4L2 video decoder and encoder (msm_vidc): librungiccodec codes on them directly
+    # (docs/108). Optional: a phone without them starts the same, its coding through the APK.
+    video_rule= encoder_rule=
     [ ! -c /dev/video32 ] || video_rule=$(device_rule /dev/video32 rw)
+    [ ! -c /dev/video33 ] || encoder_rule=$(device_rule /dev/video33 rw)
     label=$(ls -dZ /data/user/0/com.rungic.plasma/files | cut -d ' ' -f 1)
     case "$label" in u:object_r:app_data_file:s0:c*) ;;
       *) echo 'Cannot identify desktop APK SELinux label' >&2; exit 1;;
@@ -182,6 +183,7 @@ start_container() {
     printf '%s\n' "$label" | sed 's/:app_data_file:/:appdomain_tmpfs:/' > "$HOST_STATE/android-shm-context"
     set -- -s "$gpu_rule" -s "$heap_rule"
     [ -z "$video_rule" ] || set -- "$@" -s "$video_rule"
+    [ -z "$encoder_rule" ] || set -- "$@" -s "$encoder_rule"
     # An image rootfs (system/rootfs-image, docs/61 §7): a pre-mount hook mounts its device-mapper
     # device onto the rootfs directory, and the data that must not roll back with the system comes
     # from state/ (bind mounts).

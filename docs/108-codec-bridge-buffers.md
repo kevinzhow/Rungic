@@ -127,6 +127,31 @@ Kevin 定了方向（2026-10-04）：解码绕开 Codec2，`librungiccodec` 直�
 - 正确性：全部测试片与 FFmpeg 软解逐字节一致，整轮没有出现固件错误。
 - 剩下的 Linux 侧约 22%，是 GStreamer 本身加上把帧复制给下游的开销。下一步把 CAPTURE 缓冲作为 GStreamer 的 dmabuf 内存直接交出去，做到零复制。
 
+## V4L2 编码（`/dev/video33`）
+
+同一个后端加上编码器。录屏（`desktop/recording/recorder.py` 里的 `rungich264enc`）、Snapshot 相机录像、私有 FFmpeg 的编码器都经过 `codec-client`，自动用上。
+
+- **调用顺序**（G100 S 上试出来的）：
+  1. S_FMT CAPTURE（H.264/HEVC）→ S_FMT OUTPUT（NV12；驱动返回行距和对齐后的高度）→ 再取一次 CAPTURE 的 sizeimage，它会随图像尺寸更新；
+  2. S_PARM 帧率；控制项：VBR、码率、GOP = 关键帧间隔 × 帧率、无 B 帧、H.264 Constrained Baseline（WebRTC 需要）或 HEVC Main、IDR 前带 SPS/PPS；
+  3. 两路 REQBUFS（DMABUF）→ **先 STREAMON OUTPUT，再 STREAMON CAPTURE**，然后才排入码流缓冲。
+
+  第一次试时先排码流缓冲、再开两路流，在送入第一张图时触发了 `venus_c2_parsing.c:1231` 断言，和解码那次同一类（固件找不到会话），视频核心被复位一次，当时 Android 没有在用编解码器。改成上面的顺序后正常。
+- **输入**：消费者给的是紧密排列的 I420（GStreamer 元素和私有 FFmpeg 都这样），在这里交错成 NV12 写进 OUTPUT 缓冲。
+- **输出**：码流里开头的参数集（H.264 SPS/PPS，HEVC VPS/SPS/PPS）拆出来，有变化时作为 CONFIG 记录给出，帧数据作为 ENCODED，关键帧带标志，和 MediaCodec 桥的约定一致。强制关键帧用 `V4L2_CID_MPEG_VIDEO_FORCE_KEY_FRAME`，排空用 `V4L2_ENC_CMD_STOP`。
+- **测试替身**：把"开流顺序"和"两路都开流才能排缓冲"记成违规；输出的每帧带上该图第一个 Y、Cb、Cr 字节，用来检查 I420→NV12 的交错。先开 CAPTURE 的变体会被拦下。
+
+**G100 S 实测**（容器多映射了 `/dev/video33`，又重启了一次容器）：1080×2400@30 的 I420 测试画面实时送 10 秒，2 轮中位数：
+
+| | MediaCodec 桥 | V4L2 直通 |
+|---|---|---|
+| 实时 30 帧 | 跟不上：300 帧用了 12 秒（约 25 帧/秒） | 跟上；满速约 53 帧/秒 |
+| 编码段 CPU（减去测试画面源） | APK 7.3 秒 + Codec2 1.5 秒，再加 Linux 侧复制 | 约 0.24 秒（约一个核的 2–3%） |
+
+- 两边都是 300 帧，2 秒一个关键帧，互相比 PSNR 约 74 dB。
+- 验收 `recording.quicksetting`（从快捷设置录屏，生成带视频和 AAC 音轨的 MP4）和 `codec.hw` 都通过；期间 logcat 中没有 MediaCodec 会话。
+- 剩下的录屏开销主要在把屏幕画面转成 I420。下一步让 PipeWire 的 dmabuf 直接进编码器。
+
 ## 附：Iris 驱动与原厂 V4L2 直通
 
 - G100 S 的视频硬件就是 Iris 这一代：设备树 `qcom,msm-vidc-parrot qcom,msm-vidc-iris2`，固件 `vpu20_1v.mbn`（VPU2 单管线），由原厂 `msm_video.ko` 驱动，导出 `/dev/video32`（解码）、`/dev/video33`（编码）。

@@ -93,3 +93,25 @@ def test_without_the_device_or_turned_off_decoding_goes_to_the_app(driver):
             result = run(driver, 'decode', frames=2, broker=broker, fake=fake, **env)
         assert result['open'] is True and result['name'] == 'c2.qti.avc.decoder', (env, result)
         assert result['sessions'] == 0 and len(broker.configs) == 1
+
+
+ENCODER = '/dev/rungic-test-video33'
+
+
+# covers: apps.hw-codec/E10
+def test_the_v4l2_encoder_takes_i420_and_gives_headers_then_frames(driver):
+    result = run(driver, 'encode', frames=5, RUNGIC_CODEC_V4L2_ENCODER=ENCODER)
+    assert result['open'] is True and result['name'] == 'msm_vidc_encoder (V4L2)', result
+    assert result['violations'] == 0 and result['failures'] == 0 and result['ended'] == 1, result
+    log = result['log']
+    assert log.index('encoder stream pictures') < log.index('encoder stream coded') < log.index('encoder stop')
+    records = result['records']
+    headers = '000000016742c01f0000000168ce3c80'
+    # The parameter sets once (the forced IDR repeats the same ones), then every frame without them.
+    assert [(r['type'], r['data']) for r in records if r['type'] == 3] == [(3, headers)]
+    frames = [r for r in records if r['type'] == 1]
+    assert [r['id'] for r in frames] == list(range(5)) and [r['pts'] for r in frames] == [i * 33333 for i in range(5)]
+    assert [r['flags'] for r in frames] == [1, 0, 0, 1, 0]                     # the first and the forced one
+    for i, r in enumerate(frames):
+        slice_type = '65' if i in (0, 3) else '41'
+        assert r['data'] == f'00000001{slice_type}{16 + i:02x}{100 + i:02x}{200 + i:02x}'   # Y, then Cb Cr interleaved
