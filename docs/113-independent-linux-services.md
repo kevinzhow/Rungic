@@ -76,3 +76,11 @@ root `app_process` 不经过应用 Zygote 的 telephony / Bluetooth 初始化，
 真实 root SmsManager 提交、长短信/多 SIM/运营商结果、后台网络写入、实际用户管理器跨图形会话的任务连续性以及整夜待机仍待配套版本部署验收。既有 APK 2.32 的 10000 实机结果见 [docs/107](107-android-sms.md)，不冒充这个新 backend 的发送结果。夜间整容器被杀的根因仍未证实；此 PR 解决可观察的依赖，不宣称已修复全部夜间问题。
 
 最终离线回归：112 项通过；`DeviceBuildTests.test_library_dependencies_and_debug_symbols_by_build_id` 在 Fedora 本机得不到 Debian `libc6` 依赖字段，同一未改 main `c9d549ce` 精确复现，列为既有构建环境限制。完整 Java / D8 / APK 2.36 构建和 shell 语法检查通过，严格功能清单 162 功能、0 错误、44 项既有仅设备缺口。
+
+## APK 2.38 兼容入口回归（2026-10-05 USB G100）
+
+统一 dev 20261005.3（main `68f640aa`、APK 2.37/85）首次完整部署后，Linux UID 1000 直连生产 root DeviceDaemon 的网络、蓝牙、SIM、短信读取及 watch 可用，三个旧平台桥契约却失败。实际 Android 16 小探针确认：新 LocalSocket 在 connect 前调用 setSoTimeout 抛 `IOException: socket not created`，connect 后设置通过。APK 的普通请求与硬件事件监听都误用了这个顺序；2.38/86 把两处都改为先连接，再设置超时并核对服务 UID。
+
+USB 安装候选 APK 2.38 后，`contract.network`、`contract.bluetooth`、`contract.telephony` 全部通过；旧平台桥 watch 返回 network/telephony/bluetooth 的版本均为 2，确认 APK 的事件转发也工作。原生库和 OCR 资源沿用并逐文件核对 20261005.3 的内容。DeviceProbe 增加实际 AndroidDeviceBridge 的只读请求回归，须有运行中的 DeviceDaemon；不是新的短信发送验收。
+
+同次升级还发现旧系统仅保留 plasma-workspace.target 的 Agent 启用链接，新 default.target 链接缺失，虽然 deb-systemd-helper 的记录已经包含它。包的 postinst 对原本已启用的服务刷新 WantedBy 链接；主动禁用或屏蔽的服务不重新启用，也不修改离线 DPKG_ROOT 或卸载状态。USB 补齐链接后 WantedBy 含 default.target，UID 1000 Linger=yes，Agent 未被重启。26 项后端、单元、启用迁移和容器控制回归通过；修复后的 USB 候选组合通过全部 19 项 smoke（含摄像头帧、音频读写和输入）。完整部署与待机记录另按最终统一发布版本登记，不能把候选 APK 与 .3 清单混算为 .3 全部通过。

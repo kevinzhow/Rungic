@@ -14,8 +14,8 @@ final class AndroidDeviceBridge implements Closeable {
     private Thread watcher;
     static JSONObject request(JSONObject request) throws Exception {
         try(LocalSocket c=new LocalSocket()) {
-            c.setSoTimeout(75000);
             c.connect(new LocalSocketAddress(DeviceDaemon.SOCKET,LocalSocketAddress.Namespace.ABSTRACT));
+            c.setSoTimeout(75000);
             if(c.getPeerCredentials().getUid()!=0)throw new SecurityException("Unexpected device backend identity");
             c.getOutputStream().write((request.toString()+"\n").getBytes(StandardCharsets.UTF_8));
             return read(c);
@@ -35,8 +35,9 @@ final class AndroidDeviceBridge implements Closeable {
             String epoch="";JSONObject seen=new JSONObject();
             while(running) {
                 try(LocalSocket c=new LocalSocket()) {
-                    watching=c;c.setSoTimeout(65000);
+                    watching=c;
                     c.connect(new LocalSocketAddress(DeviceDaemon.SOCKET,LocalSocketAddress.Namespace.ABSTRACT));
+                    c.setSoTimeout(65000);
                     if(c.getPeerCredentials().getUid()!=0)throw new SecurityException();
                     JSONObject request=new JSONObject().put("op","watch")
                         .put("topics",new JSONArray(new String[]{"network","telephony","bluetooth"}))

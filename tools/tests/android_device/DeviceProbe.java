@@ -11,7 +11,8 @@ import java.util.UUID;
 import java.util.concurrent.*;
 
 /** Temporary, read-only device check: no SMS submission, Wi-Fi change or APK lifecycle changes.
- * Build with the candidate classes, run as root in a temporary directory, never install as an app.
+ * Build with the candidate classes; requires a running DeviceDaemon.
+ * Run as root in a temporary directory, never install as an app.
  * Synthetic PendingIntents verify dispatch/extra transport, not real modem callbacks. */
 public final class DeviceProbe {
     private static JSONObject report=new JSONObject();
@@ -38,6 +39,8 @@ public final class DeviceProbe {
         AndroidSmsBridge sms=new AndroidSmsBridge(context,network);
         report.put("uid",android.os.Process.myUid()).put("package",context.getPackageName());
         new Thread(()->{
+            // LocalSocket options require its FD: this catches setting a timeout before connect.
+            check("compatDeviceRequest",()->AndroidDeviceBridge.request(new JSONObject().put("op","device-status")).getInt("uid")==0);
             check("networkCallbacks",()->{network.start();return true;});
             check("networkRead",()->network.snapshot().has("networks"));
             check("telephonyRead",()->telephony.handle(new JSONObject().put("action","state")).has("modem"));

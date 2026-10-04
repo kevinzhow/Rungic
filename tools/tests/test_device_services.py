@@ -167,3 +167,25 @@ def test_supervisor_refuses_to_run_inside_an_app_freezer_group(tmp_path):
     result, calls, state = supervisor(tmp_path, '0::/apps/uid_10123/pid_1234\n')
     assert result.returncode != 0 and not calls.exists()
     assert 'inherited-app-cgroup' in (state / 'lifecycle.log').read_text()
+
+
+# covers: agent.voice/E9
+@pytest.mark.parametrize('enabled', [True, False])
+def test_agent_upgrade_refreshes_targets_only_for_an_enabled_service(tmp_path, enabled):
+    """An old graphical-session enable must migrate; an administrator's disable must survive."""
+    calls = tmp_path / 'calls'
+    ctl = tmp_path / 'systemctl'
+    ctl.write_text('#!/bin/sh\n'
+                   f'echo "$*" >> "{calls}"\n'
+                   f'if [ "$2" = is-enabled ]; then exit {0 if enabled else 1}; fi\n')
+    ctl.chmod(0o755)
+    env = {**os.environ, 'PATH': str(tmp_path) + ':' + os.environ['PATH'], 'DPKG_ROOT': ''}
+    script = ROOT / 'packaging/rungic-voice-agent/postinst'
+    subprocess.run(['sh', str(script), 'configure'], env=env, check=True)
+    seen = calls.read_text().splitlines()
+    assert any(' enable ' in line for line in seen) == enabled
+    # Removal or an offline rootfs operation must not alter the running host's enable state.
+    calls.unlink()
+    subprocess.run(['sh', str(script), 'remove'], env=env, check=True)
+    subprocess.run(['sh', str(script), 'configure'], env={**env, 'DPKG_ROOT': '/offline'}, check=True)
+    assert not calls.exists()
