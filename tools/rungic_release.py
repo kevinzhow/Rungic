@@ -467,6 +467,45 @@ def fetch_kept(kept, device_repo):
     run('\n'.join(lines), 'container', timeout=600 + 120 * len(kept))
 
 
+BUILD_POOL = 'release-pool'   # under build_on_device.BASE: every .deb the phones take from the build host
+
+
+def stage_on_build_host(names, pool):
+    """The .debs `names` of `pool` in the build host's release pool, for the phone to take straight
+    from there (AGENTS.md: devices that reach each other exchange files directly; through this
+    computer a release's new packages took about 20 minutes): what the build host built is linked in
+    from its build directories (collect renames a .ddeb to .deb), anything else is copied there once.
+    -> {name: record} for fetch_kept; empty when the build host is not a Mac mini or fails."""
+    import build_on_device
+    if not names or os.environ.get('RUNGIC_BUILD_HOST', 'macmini') != 'macmini':
+        return {}
+    host = build_on_device.MacMini()
+    wanted = {name: sha256_file(pool / name) for name in names}
+    listing = '\n'.join(f'{name} {digest}' for name, digest in sorted(wanted.items()))
+    script = f'''cd {build_on_device.BASE} && mkdir -p {BUILD_POOL} || exit 1
+while read -r n digest; do
+  for f in {BUILD_POOL}/"$n" */"$n" */"${{n%.deb}}.ddeb" */*/"$n"; do
+    [ -f "$f" ] || continue
+    [ "$(sha256sum < "$f" | cut -d" " -f1)" = "$digest" ] || continue
+    if [ "$f" != {BUILD_POOL}/"$n" ]; then ln -f "$f" {BUILD_POOL}/"$n"; fi
+    echo "$n"
+    break
+  done
+done <<'NAMES'
+{listing}
+NAMES'''
+    try:
+        there = set(host.out(script, timeout=120 + 2 * len(names)).split())
+        for name in sorted(set(wanted) - there):
+            print(f'{name}: not on the build host; copying it there once')
+            host.put(pool / name, f'{build_on_device.BASE}/{BUILD_POOL}/{name}', '644')
+    except Exception as error:  # noqa: BLE001 - the phone is sent the files from here instead
+        print(f'the build host could not stage the packages ({error}); sending them from here')
+        return {}
+    return {name: {'path': f'{BUILD_POOL}/{name}', 'size': (pool / name).stat().st_size, 'sha256': digest}
+            for name, digest in wanted.items()}
+
+
 def sync_repo(pool=None, device_repo=None):
     """Mirror .work/apt/repo to /var/lib/rungic-apt: push missing .debs, replace the index.
     pool and device_repo: the development overlay's repositories (tools/rungic_dev.py), where a
@@ -479,7 +518,16 @@ def sync_repo(pool=None, device_repo=None):
     fetch = {name: k for name, k in kept.items() if name not in listing}
     if fetch:
         fetch_kept(fetch, DEVICE_REPO)
-    send = sorted((here - set(listing)) | {'Packages', 'Packages.gz', 'Packages.xz', 'Release'})
+    # The phone takes the packages from the build host (stage_on_build_host); only the index goes
+    # from here, and the packages too if the build host or the phone's key to it fails.
+    direct = stage_on_build_host(sorted(n for n in here - set(listing) if n.endswith('.deb')), POOL)
+    if direct:
+        try:
+            fetch_kept(direct, DEVICE_REPO)
+        except Exception as error:  # noqa: BLE001 - sent from here instead
+            print(f'the phone did not take the files from the build host ({error}); sending them from here')
+            direct = {}
+    send = sorted((here - set(listing) - set(direct)) | {'Packages', 'Packages.gz', 'Packages.xz', 'Release'})
     remove = sorted(set(listing) - local)
     buffer = io.BytesIO()
     with tarfile.open(fileobj=buffer, mode='w') as tar:
@@ -494,7 +542,7 @@ def sync_repo(pool=None, device_repo=None):
 chown -R root:root {DEVICE_REPO}; chmod 755 {DEVICE_REPO}
 cd {DEVICE_REPO} && rm -f {' '.join(map(shlex.quote, remove)) or '/dev/null/none 2>/dev/null || true'}''',
         'container', check=False)
-    return {'sent': len(send), 'fetched': len(fetch), 'removed': len(remove)}
+    return {'sent': len(send), 'fetched': len(fetch) + len(direct), 'removed': len(remove)}
 
 
 def ensure_apt_source():

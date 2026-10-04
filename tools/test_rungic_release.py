@@ -166,5 +166,73 @@ class DeployFailureTests(unittest.TestCase):
         self.assertIn('boom', [s for s in log['steps'] if s['step'] == 'error'][0]['reason'])
 
 
+
+class BuildHostDirectTests(unittest.TestCase):
+    """The phone takes the packages from the build host's release pool (AGENTS.md); they are sent
+    from here only when the build host or the phone's key to it fails."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.pool = Path(self.tmp.name)
+        for name, data in (('big_1_arm64.deb', b'big'), ('big-dbgsym_1_arm64.deb', b'sym'),
+                           ('changed_1_arm64.deb', b'here'), ('local_1_arm64.deb', b'local')):
+            (self.pool / name).write_bytes(data)
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def test_the_build_host_links_what_it_built_and_gets_the_rest_once(self):
+        names = sorted(p.name for p in self.pool.iterdir())
+        put = []
+        # The build host has the two kwin files (one as .ddeb); the others are copied to it.
+        with patch('build_on_device.MacMini.out', return_value='big_1_arm64.deb\nbig-dbgsym_1_arm64.deb\n') as out, \
+                patch('build_on_device.MacMini.put', side_effect=lambda src, dest, mode: put.append(Path(dest).name)), \
+                patch.dict('os.environ', {'RUNGIC_BUILD_HOST': 'macmini'}):
+            staged = rungic_release.stage_on_build_host(names, self.pool)
+        self.assertEqual(sorted(staged), names)
+        self.assertEqual(sorted(put), ['changed_1_arm64.deb', 'local_1_arm64.deb'])
+        self.assertEqual(staged['big_1_arm64.deb']['path'], 'release-pool/big_1_arm64.deb')
+        self.assertEqual(staged['big_1_arm64.deb']['sha256'], hashlib.sha256(b'big').hexdigest())
+        script = out.call_args[0][0]
+        self.assertIn(f'big_1_arm64.deb {hashlib.sha256(b"big").hexdigest()}', script)
+        self.assertIn('${n%.deb}.ddeb', script)
+
+    def test_an_unreachable_build_host_sends_everything_from_here(self):
+        with patch('build_on_device.MacMini.out', side_effect=OSError('no route')), \
+                patch.dict('os.environ', {'RUNGIC_BUILD_HOST': 'macmini'}):
+            self.assertEqual(rungic_release.stage_on_build_host(['big_1_arm64.deb'], self.pool), {})
+
+    def test_a_build_on_the_phone_sends_everything_from_here(self):
+        with patch.dict('os.environ', {'RUNGIC_BUILD_HOST': 'phone'}):
+            self.assertEqual(rungic_release.stage_on_build_host(['big_1_arm64.deb'], self.pool), {})
+
+    def test_sync_sends_only_what_the_phone_did_not_take(self):
+        sent, taken = [], []
+
+        def extract(archive, dest):
+            import tarfile
+            with tarfile.open(archive) as tar:
+                sent.extend(tar.getnames())
+
+        for fails in (False, True):
+            sent.clear(), taken.clear()
+            fetch = (lambda kept, repo: (_ for _ in ()).throw(rungic_release.DeviceError('no key'))) if fails \
+                else (lambda kept, repo: taken.extend(kept))
+            for index in ('Packages', 'Packages.gz', 'Packages.xz', 'Release'):
+                (self.pool / index).write_bytes(b'')
+            with patch.object(rungic_release, 'run', return_value=type('R', (), {'stdout': ''})()), \
+                    patch.object(rungic_release, 'stage_on_build_host',
+                                 return_value={'big_1_arm64.deb': {'path': 'kwin/big_1_arm64.deb', 'size': 3, 'sha256': ''}}), \
+                    patch.object(rungic_release, 'fetch_kept', side_effect=fetch), \
+                    patch.object(rungic_release, 'DEPLOY', self.pool / 'deploy'), \
+                    patch('rungic_device.extract_in_container', side_effect=extract):
+                rungic_release.sync_repo(pool=self.pool, device_repo='/var/lib/rungic-apt')
+            if fails:
+                self.assertIn('big_1_arm64.deb', sent)
+            else:
+                self.assertEqual(taken, ['big_1_arm64.deb'])
+                self.assertNotIn('big_1_arm64.deb', sent)
+            self.assertIn('local_1_arm64.deb', sent)
+
 if __name__ == '__main__':
     unittest.main()

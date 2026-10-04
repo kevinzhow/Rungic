@@ -64,6 +64,7 @@ python3 tools/rungic_release.py status --all
 - 新工作树的 `.work/apt` 要链接到本机共用的 APT 仓库（`ln -s <主工作树>/.work/apt .work/apt`），否则会从空仓库重建全部包。耦合包的版本取自默认手机（`RUNGIC_SERIAL`）上装的版本，或 `--coupled-json`。
 - APK 构建需要本机的 Android SDK、NDK 和原生库；不行时用 `--apk 文件`，或 `--no-apk`（发布不带 APK）。改了 APK 要提高 versionCode，否则装了同号 APK 的手机不会更新。
 - 发布包 `rungic-<版本>.tar` 默认在 `.work/release-bundles/`（`--out`、`RUNGIC_RELEASE_OUT`）。别的机器部署：`deploy --all --from rungic-<版本>.tar`，不要在那台机器上另出同号的发布。
+- 部署时手机缺的 deb 由手机直接从构建机（Mac mini）的发布池取，部署这台机器只推索引；构建机或手机的密钥不可用时才退回经本机推（docs/109“包从构建机直接到手机”）。不要再让手机经 K8 取包。
 - `deploy --all` 逐台部署，某台失败继续下一台，最后有汇总表；每台的记录在 `.work/deploy/<时间>-<版本>-<序列号>/`，每次部署追加到 `release/history.json`，随下一个提交带上。上一次部署的快照没 commit 的手机会中止（记为 aborted），照“正式发布”第 4 步问用户。
 - APK：部署在容器装好之后，手机上的 versionCode 更低才 `adb install -r` 并重新打开；`--restart never` 不装。APK 不会随回滚降级。
 - **GitHub 预发布要用户确认**：先 `python3 tools/rungic_release.py publish <版本>`（或 `dev --publish`），它只给出 `gh release create dev-<版本> … --prerelease` 命令和说明文件，不访问 GitHub。把命令和说明给用户看，用户明确同意后才执行 `publish <版本> --yes`。不要自己建或推 `dev-*` tag。
