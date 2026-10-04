@@ -6,6 +6,7 @@
 #include <jni.h>
 #include <android/hardware_buffer.h>
 #include <android/hardware_buffer_jni.h>
+#include "buffers.h"
 #include <dlfcn.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -39,43 +40,35 @@ JNIEXPORT jlong JNICALL Java_com_rungic_plasma_MediaBuffers_id(JNIEnv *env, jcla
     return (jlong)(intptr_t)AHardwareBuffer_fromHardwareBuffer(env, buffer);
 }
 
-/** {fd, format, width, height, size, y offset, y stride, cb offset, cb stride, cb step, cr offset,
- *  cr stride, cr step}: fd a new descriptor of the buffer's DMA-BUF (the caller closes it). Offsets
- *  are from the start of the DMA-BUF, read once with a CPU lock. A buffer the CPU cannot read as
- *  three planes (UBWC, compressed) is an IOException, never a crash. sample: bytes per sample, 1 or
- *  2 (P010), for the layouts the NDK reports as one plane. */
 // Qualcomm gralloc's linear decoder formats (msm_media_info.h): Y of stride x scanlines (scanlines
 // aligned to 32), then CbCr interleaved with the same stride. The NDK sees them as one plane.
 #define QTI_NV12_VENUS 0x7fa30c04
 #define QTI_P010_VENUS 0x7fa30c0a
 
-JNIEXPORT jlongArray JNICALL Java_com_rungic_plasma_MediaBuffers_describe(JNIEnv *env, jclass cls, jobject object, jint sample) {
-    (void)cls;
-    AHardwareBuffer *buffer = AHardwareBuffer_fromHardwareBuffer(env, object);
+int rungic_describe_buffer(AHardwareBuffer *buffer, int sample, long out[13], char *message, size_t n) {
     GetNativeHandle get = native_handle();
-    if (!buffer || !get) { throw_io(env, "No AHardwareBuffer native handle"); return NULL; }
+    if (!buffer || !get) { snprintf(message, n, "No AHardwareBuffer native handle"); return -1; }
     const NativeHandle *handle = get(buffer);
-    if (!handle || handle->num_fds < 1) { throw_io(env, "HardwareBuffer without a DMA-BUF"); return NULL; }
+    if (!handle || handle->num_fds < 1) { snprintf(message, n, "HardwareBuffer without a DMA-BUF"); return -1; }
     AHardwareBuffer_Desc desc;
     AHardwareBuffer_describe(buffer, &desc);
-    char message[200];
-    jlong out[13] = {-1, desc.format, desc.width, desc.height, 0};
+    long head[5] = {-1, desc.format, desc.width, desc.height, 0};
+    memcpy(out, head, sizeof head);
     if ((desc.format == QTI_NV12_VENUS || desc.format == QTI_P010_VENUS) && desc.stride > 0) {
         // Known layout: no CPU lock, so the buffers need no CPU usage (gralloc then maps nothing
         // when Codec2 hands them over, frame after frame).
-        jlong stride = (jlong)desc.stride * sample;
-        jlong chroma = stride * ((desc.height + 31) / 32 * 32);
-        jlong layout[8] = {0, stride, chroma, stride, 2 * sample, chroma + sample, stride, 2 * sample};
+        long stride = (long)desc.stride * sample;
+        long chroma = stride * ((desc.height + 31) / 32 * 32);
+        long layout[8] = {0, stride, chroma, stride, 2 * sample, chroma + sample, stride, 2 * sample};
         memcpy(out + 5, layout, sizeof layout);
     } else {
         AHardwareBuffer_Planes planes;
         int locked = AHardwareBuffer_lockPlanes(buffer, AHARDWAREBUFFER_USAGE_CPU_READ_RARELY, -1, NULL, &planes);
         if (locked != 0 || planes.planeCount != 3 || !planes.planes[0].data || !planes.planes[1].data || !planes.planes[2].data) {
             if (locked == 0) AHardwareBuffer_unlock(buffer, NULL);
-            snprintf(message, sizeof message, "Decoded buffer is not linear YUV (format 0x%x, usage 0x%llx, lock %d, planes %u)",
+            snprintf(message, n, "Decoded buffer is not linear YUV (format 0x%x, usage 0x%llx, lock %d, planes %u)",
                      desc.format, (unsigned long long)desc.usage, locked, locked == 0 ? planes.planeCount : 0);
-            throw_io(env, message);
-            return NULL;
+            return -1;
         }
         // The lock maps the whole buffer: the lowest plane address is its start (offset 0 of the
         // DMA-BUF for gralloc's linear YUV, Y first).
@@ -83,26 +76,45 @@ JNIEXPORT jlongArray JNICALL Java_com_rungic_plasma_MediaBuffers_describe(JNIEnv
         for (int i = 0; i < 3; i++) at[i] = (uintptr_t)planes.planes[i].data;
         base = at[0];
         for (int i = 1; i < 3; i++) if (at[i] < base) base = at[i];
-        jlong layout[8] = {at[0] - base, planes.planes[0].rowStride,
-                           at[1] - base, planes.planes[1].rowStride, planes.planes[1].pixelStride,
-                           at[2] - base, planes.planes[2].rowStride, planes.planes[2].pixelStride};
+        long layout[8] = {at[0] - base, planes.planes[0].rowStride,
+                          at[1] - base, planes.planes[1].rowStride, planes.planes[1].pixelStride,
+                          at[2] - base, planes.planes[2].rowStride, planes.planes[2].pixelStride};
         memcpy(out + 5, layout, sizeof layout);
         AHardwareBuffer_unlock(buffer, NULL);
     }
     int fd = fcntl(handle->data[0], F_DUPFD_CLOEXEC, 3);
-    if (fd < 0) { throw_io(env, strerror(errno)); return NULL; }
+    if (fd < 0) { snprintf(message, n, "%s", strerror(errno)); return -1; }
     off_t size = lseek(fd, 0, SEEK_END);
     lseek(fd, 0, SEEK_SET);
     out[0] = fd; out[4] = size;
     // The chroma rows must end inside the buffer (a wrong layout guess fails here, not in a copy).
     if (size <= 0 || out[10] + out[11] * ((desc.height + 1) / 2 - 1) + out[12] * ((desc.width + 1) / 2 - 1) >= size) {
-        snprintf(message, sizeof message, "Decoded planes outside the DMA-BUF (format 0x%x, %ux%u, stride %lld, chroma at %lld, %lld bytes)",
-                 desc.format, desc.width, desc.height, (long long)out[6], (long long)out[7], (long long)size);
-        close(fd); throw_io(env, message); return NULL;
+        snprintf(message, n, "Decoded planes outside the DMA-BUF (format 0x%x, %ux%u, stride %ld, chroma at %ld, %lld bytes)",
+                 desc.format, desc.width, desc.height, out[6], out[7], (long long)size);
+        close(fd);
+        return -1;
     }
+    return 0;
+}
+
+/** {fd, format, width, height, size, y offset, y stride, cb offset, cb stride, cb step, cr offset,
+ *  cr stride, cr step}: fd a new descriptor of the buffer's DMA-BUF (the caller closes it). Offsets
+ *  are from the start of the DMA-BUF, read once. A buffer the CPU cannot read as three planes
+ *  (UBWC, compressed) is an IOException, never a crash. sample: bytes per sample, 1 or 2 (P010),
+ *  for the layouts the NDK reports as one plane. */
+JNIEXPORT jlongArray JNICALL Java_com_rungic_plasma_MediaBuffers_describe(JNIEnv *env, jclass cls, jobject object, jint sample) {
+    (void)cls;
+    long out[13];
+    char message[200];
+    if (rungic_describe_buffer(AHardwareBuffer_fromHardwareBuffer(env, object), sample, out, message, sizeof message)) {
+        throw_io(env, message);
+        return NULL;
+    }
+    jlong values[13];
+    for (int i = 0; i < 13; i++) values[i] = out[i];
     jlongArray result = (*env)->NewLongArray(env, 13);
-    if (result) (*env)->SetLongArrayRegion(env, result, 0, 13, out);
-    else close(fd);
+    if (result) (*env)->SetLongArrayRegion(env, result, 0, 13, values);
+    else close((int)out[0]);
     return result;
 }
 

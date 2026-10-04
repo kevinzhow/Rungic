@@ -702,8 +702,14 @@ features:
         text: Flatpak 里用 GStreamer 的应用（Freedesktop/GNOME 运行时）经扩展 org.freedesktop.Platform.GStreamer.rungic 用上 V4L2 硬件编解码；没有设备权限的应用照常软件解码。
         evidence:
           - {doc: docs/108-codec-bridge-buffers.md, date: 2026-10-04, note: "G100 S：--device=all 选中 msm_vidc_decoder，--device=dri 回退软件"}
+      - id: E13
+        text: 走 MediaCodec 桥的解码（Firefox、没有 msm_vidc 的手机）在 APK 的原生线程里运行（AMediaCodec 异步回调、AImageReader、原生 socket），协议与 Java 会话相同，编码仍交给 Java；各格式（含 10bit）与软解逐字节一致，APK 里我们自己的代码不到 1%。
+        evidence:
+          - {doc: docs/108-codec-bridge-buffers.md, date: 2026-10-04, note: "G100 S APK 2.34 同进程交替：实时 1080p60 APK 49%→40%，300 帧 APK CPU 2.24→1.95 秒"}
     pitfalls:
       - text: Mozilla 官方 arm64 Firefox 没有启用 MOZ_ENABLE_V4L2，RDD 的沙箱 broker 拒绝打开 /dev/video*；Firefox 仍走 MediaCodec 桥。沙箱前预开 DMA 堆不解决问题，还会把它交给所有内容进程，不要这么做。
+        docs: [docs/108-codec-bridge-buffers.md]
+      - text: NDK 的 AImageReader 按配置格式严格检查缓冲：配成 YCBCR_P010 时会拒收高通解码器自己的 P010（0x7fa30c0a），第二帧起取不到图（Java 的 ImageReader 不拒）。10bit 用 PRIVATE 格式的 reader。
         docs: [docs/108-codec-bridge-buffers.md]
       - text: mpv 默认在主线程解码，硬件解码器的出帧时序抖动让约 10% 的帧在 vo 端被判来晚丢掉（解码速度足够，vd-queue-enable=yes 时为 0）。
         docs: [docs/108-codec-bridge-buffers.md]

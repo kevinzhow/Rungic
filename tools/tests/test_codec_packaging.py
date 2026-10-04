@@ -73,3 +73,28 @@ def test_the_flatpak_extension_is_one_plugin_with_the_client_inside(tmp_path):
     assert '-fvisibility=hidden' in args and '-lrungiccodec' not in args
     package = json.loads((ROOT / 'packaging/rungic-flatpak-codec/package.json').read_text())
     assert package['image'].startswith('freedesktopsdk/sdk:25.08')
+
+
+# covers: apps.hw-codec/E13
+def test_the_native_decoder_session_speaks_the_java_sessions_protocol():
+    """Decoder sessions run in jni/media/codec_session.c, encoder sessions in CodecBridge.Session:
+    the same channel words on both sides, and the native side hands every encoder to Java."""
+    java = (ROOT / 'android/app/src/com/rungic/plasma/CodecBridge.java').read_text()
+    native = (ROOT / 'android/app/jni/media/codec_session.c').read_text()
+    def value(text, name):
+        m = re.search(rf'\b{name}\s*=\s*(0x[0-9a-fA-F]+|-?\d+)', text) or re.search(rf'#define {name} (0x[0-9a-fA-F]+)', text)
+        assert m, name
+        return int(m.group(1), 0)
+    for name in ('HALF', 'MAGIC', 'MAGIC2', 'FRAME', 'DRAIN', 'FLUSH', 'CLOSE', 'ACK', 'DONE', 'DECODED', 'CONFIG',
+                 'EOS', 'ERROR', 'OPTION_BUFFERS', 'OPTION_TEN_BIT'):
+        if name == 'HALF':
+            assert '#define HALF (16 * 1024 * 1024)' in native and 'HALF=16*1024*1024' in java
+        else:
+            assert value(native, name) == value(java, name), name
+    # magic, mode, kind, width, height, fps n/d, bitrate, interval, standard, range, transfer, options
+    assert '#define HEADER 13' in native and java.count('config()') >= 13
+    assert 'if (h[1] == 1 ||' in native and 'MediaBuffers.runSession(' in java
+    # A version 2 record is 24 words, a version 1 record 19 (no plane offsets, slot, depth).
+    assert 'uint8_t data[24 * 4]' in native
+    build = (ROOT / 'android/build-apk.sh').read_text()
+    assert 'jni/media/codec_session.c' in build and '-lmediandk' in build

@@ -23,4 +23,7 @@ final class MediaBuffers {
     static native long[] describe(HardwareBuffer buffer,int sample) throws java.io.IOException;
     /** length bytes of data in one message on socket, with descriptor attach (when >= 0). */
     static native void send(int socket,byte[] data,int length,int attach);
+    /** Runs a decoder session on channel with its shared memory to the end; null then. An encoder's
+     * configuration words come back for CodecBridge.Session. */
+    static native int[] runSession(int channel,android.os.SharedMemory memory);
 }

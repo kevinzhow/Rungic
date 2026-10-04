@@ -193,6 +193,29 @@ Freedesktop 25.08 和 GNOME 50 运行时都有 GStreamer 扩展点 `org.freedesk
 - **实测**：在运行时里 `gst-launch` 解码 720p H.264。`--device=all` 时选中 `msm_vidc_decoder`；`--device=dri` 时回退软件，正常结束。
 - **覆盖不到**：Chromium、Telegram 等自带 FFmpeg 的应用，这个扩展管不到。
 
+## 原生解码会话（APK 2.34，`android/app/jni/media/codec_session.c`）
+
+Firefox 不放宽沙箱（Kevin，2026-10-04），只能走 MediaCodec 桥，所以把桥的解码会话整个搬进原生代码：
+
+- Java 只负责接受连接、建立通道和共享内存，然后调用 `MediaBuffers.runSession(通道, 共享内存)`。原生侧读配置头，解码器在原生线程里跑完整个会话；编码器把配置字交回 Java 的 `CodecBridge.Session` 继续。协议没有变，新旧两端可以混用。
+- 原生会话：`AMediaCodec` 异步回调和 `AImageReader` 的监听都只往队列里放事件；会话线程在 socket 上读命令、写记录（第一次出现的缓冲用 `sendmsg` 带上 DMA-BUF）、等 ACK。布局描述与 Java 共用 `rungic_describe_buffer()`（`buffers.c`）。
+- `setprop debug.rungic.codec.native 0` 让解码器也回到 Java 会话，用来在同一个进程里对比。
+- **坑**：NDK 的 `AImageReader` 严格按配置格式检查每个缓冲，配成 `YCBCR_P010` 时拒收高通解码器自己的 P010（`0x7fa30c0a`），第二帧起取不到图；Java 的 ImageReader 不拒。10bit 改用 `AIMAGE_FORMAT_PRIVATE` 的 reader，8bit 仍用 `YUV_420_888`。
+
+**正确性**：强制走桥（`RUNGIC_CODEC_V4L2=0`），H.264 720p/1080p B 帧/1080p60、HEVC、VP9、HEVC Main10（P010）、只接 I420 的下游，全部与 FFmpeg 软解逐字节一致。
+
+**性能**（G100 S，同一个 APK 进程里交替原生和 Java 会话，各 5 轮）：
+
+| | Java 会话 | 原生会话 |
+|---|---|---|
+| 实时 1080p60，APK 单核占用 | 48–50% | 33–41%（中位 40%） |
+| 300 帧 1080p，APK CPU | 2.02–2.36 秒 | 1.88–2.05 秒 |
+| 吞吐 | 约 83 帧/秒 | 约 83 帧/秒 |
+
+Linux 和 Codec2 服务两侧不变。这一轮手机整体比上午的基线忙（同样的 Java 会话上午是 34%），所以只比同一轮里的交替结果。
+
+**桥到底了**：原生会话时剖析 APK 进程，我们自己的库只占 0.4%。剩下的全是进程内的 MediaCodec/CCodec 框架：`queueInputBuffer` 经 binder 发给 Codec2 服务、ALooper 消息、缓冲池和 gralloc 的映射（内核约 40%，其中大半是 binder 和映射）。要再降只能绕开 MediaCodec，这正是 V4L2 直通做的事。所以有 msm_vidc 的手机走 V4L2，桥留给 Firefox 和其他机型。
+
 ## Firefox：仍走 MediaCodec 桥
 
 Firefox 的 RDD 进程有 seccomp 和文件 broker 两道限制。seccomp 本来就放行 V4L2（'V'）、DMA-BUF（'b'）和 aarch64 上的 'H' 类 ioctl。broker 只有在构建时启用了 `MOZ_ENABLE_V4L2` 才会放行 M2M 的 `/dev/video*`。

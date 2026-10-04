@@ -73,7 +73,15 @@ final class CodecBridge implements Closeable {
                 Os.close(remote);
                 final SharedMemory shared=memory;channels.add(local);
                 workers.execute(() -> {
-                    try {new Session(local,shared).run();}catch(Exception e){Log.w("RungicCodec","Session: "+e);}
+                    try {
+                        // Decoders run in native code (jni/media/codec_session.c); an encoder's configuration comes back.
+                        int[] header=null;
+                        if(MediaBuffers.AVAILABLE)try(ParcelFileDescriptor channel=ParcelFileDescriptor.dup(local)) {
+                            header=MediaBuffers.runSession(channel.getFd(),shared);
+                            if(header==null)return;
+                        }
+                        new Session(local,shared,header).run();
+                    }catch(Exception e){Log.w("RungicCodec","Session: "+e);}
                     finally {channels.remove(local);try{Os.close(local);}catch(Exception ignored){}shared.close();codecSlots.release();}
                 });
                 transferred=true;
@@ -103,7 +111,10 @@ final class CodecBridge implements Closeable {
         final ArrayDeque<Integer> freeInputs=new ArrayDeque<>();HandlerThread callbackThread;
         final Map<Long,ArrayDeque<Integer>> frames=new HashMap<>();
         final Map<Integer,byte[]> parameters=new TreeMap<>();
-        Session(FileDescriptor fd,SharedMemory memory){this.fd=fd;this.memory=memory;}
+        final int[] header;int headerRead;
+        Session(FileDescriptor fd,SharedMemory memory,int[] header){this.fd=fd;this.memory=memory;this.header=header;}
+        /** A configuration word: from the header the native session already read, else the channel. */
+        int config() throws IOException {return header!=null?header[headerRead++]:in.readInt();}
         void run() throws Exception {
             try(FileInputStream input=new FileInputStream(Os.dup(fd));FileOutputStream output=new FileOutputStream(Os.dup(fd))) {
                 in=new DataInputStream(new BufferedInputStream(input,4096));out=new DataOutputStream(new BufferedOutputStream(output,4096));
@@ -166,12 +177,12 @@ final class CodecBridge implements Closeable {
             }
         }
         void configure() throws Exception {
-            int magic=in.readInt();if(magic!=MAGIC && magic!=MAGIC2)throw new IOException("Channel version");
+            int magic=config();if(magic!=MAGIC && magic!=MAGIC2)throw new IOException("Channel version");
             version2=magic==MAGIC2;
-            int op=in.readInt();if(op<0 || op>1)throw new IOException("Mode");encoder=op==1;
-            kind=in.readInt();width=in.readInt();height=in.readInt();int fpsn=in.readInt(),fpsd=in.readInt();
-            int bitrate=in.readInt(),interval=in.readInt(),standard=in.readInt(),range=in.readInt(),transfer=in.readInt();
-            int options=version2?in.readInt():0;
+            int op=config();if(op<0 || op>1)throw new IOException("Mode");encoder=op==1;
+            kind=config();width=config();height=config();int fpsn=config(),fpsd=config();
+            int bitrate=config(),interval=config(),standard=config(),range=config(),transfer=config();
+            int options=version2?config():0;
             tenBit=!encoder && (options&OPTION_TEN_BIT)!=0 && kind!=0 && Build.VERSION.SDK_INT>=31;
             boolean buffers=!encoder && (options&OPTION_BUFFERS)!=0 && MediaBuffers.AVAILABLE;
             if(tenBit && !buffers)throw new IOException("10-bit output needs DMA-BUF frames");

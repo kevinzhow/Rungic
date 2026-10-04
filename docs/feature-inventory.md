@@ -4,7 +4,7 @@
 
 以产品功能和用户场景为骨架：每条功能是用户能感知的一件事；“体验”是它必须做到的，每条都标明由什么检查（自动测试、实机验收、人工验证或已登记的缺口）。数据在 `quality/`，规则见 [quality/README.md](../quality/README.md)。
 
-共 161 条功能、684 条体验，其中 640 条有检查。
+共 161 条功能、685 条体验，其中 641 条有检查。
 
 ## Agent 能力
 
@@ -913,9 +913,11 @@ Linux 应用用手机的相机拍照录像，用手机的扬声器和麦克风�
 - **E10** 有 msm_vidc 编码节点（/dev/video33）的手机，H.264/HEVC 编码直接走 V4L2：录屏 1080×2400@30 能跟上实时，编码本身约占一个核的 2–3%（MediaCodec 桥约 75% 以上且跟不上 30 帧）；参数集单独给出，关键帧可强制；NV12 输入原样收下。录屏的颜色转换在 GPU 上做，整个录屏进程从约 160% 降到约 107%。（单元测试、人工）
 - **E11** 用系统 FFmpeg 的应用（mpv/Haruna、VLC、Qt Multimedia、缩略图）默认选中硬件解码器 h264/hevc/vp9_rungic，打不开硬件时回退软件；应用默认的软件编码器不变。（单元测试、人工）
 - **E12** Flatpak 里用 GStreamer 的应用（Freedesktop/GNOME 运行时）经扩展 org.freedesktop.Platform.GStreamer.rungic 用上 V4L2 硬件编解码；没有设备权限的应用照常软件解码。（单元测试、人工）
+- **E13** 走 MediaCodec 桥的解码（Firefox、没有 msm_vidc 的手机）在 APK 的原生线程里运行（AMediaCodec 异步回调、AImageReader、原生 socket），协议与 Java 会话相同，编码仍交给 Java；各格式（含 10bit）与软解逐字节一致，APK 里我们自己的代码不到 1%。（单元测试、人工）
 
 注意：
 - Mozilla 官方 arm64 Firefox 没有启用 MOZ_ENABLE_V4L2，RDD 的沙箱 broker 拒绝打开 /dev/video*；Firefox 仍走 MediaCodec 桥。沙箱前预开 DMA 堆不解决问题，还会把它交给所有内容进程，不要这么做。 [docs/108-codec-bridge-buffers.md](../docs/108-codec-bridge-buffers.md)
+- NDK 的 AImageReader 按配置格式严格检查缓冲：配成 YCBCR_P010 时会拒收高通解码器自己的 P010（0x7fa30c0a），第二帧起取不到图（Java 的 ImageReader 不拒）。10bit 用 PRIVATE 格式的 reader。 [docs/108-codec-bridge-buffers.md](../docs/108-codec-bridge-buffers.md)
 - mpv 默认在主线程解码，硬件解码器的出帧时序抖动让约 10% 的帧在 vo 端被判来晚丢掉（解码速度足够，vd-queue-enable=yes 时为 0）。 [docs/108-codec-bridge-buffers.md](../docs/108-codec-bridge-buffers.md)
 - msm_vidc 的 V4L2 编码器必须先开图像（OUTPUT）流、再开码流（CAPTURE），两路都开流后才能排缓冲；先排码流缓冲再送第一张图，固件同样断言复位。 [docs/108-codec-bridge-buffers.md](../docs/108-codec-bridge-buffers.md)
 - msm_vidc 的 V4L2 解码只收 DMA-BUF；OUTPUT 开流前排入码流、或 CAPTURE 配好前排入第二个码流单元，会让固件断言并复位整个视频核心（Android 正在用的解码一起中断）。codec-v4l2.c 严格按“开 OUTPUT → 一个单元 → 等 SOURCE_CHANGE → 配 NV12/P010 的 CAPTURE”的顺序，刷新时整段重开。 [docs/108-codec-bridge-buffers.md](../docs/108-codec-bridge-buffers.md)

@@ -50,7 +50,8 @@ task_media_clang=$task_ndk/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-lin
 if [ -n "$task_ndk" ] && [ -x "$task_media_clang" ]; then
     mkdir -p "$task_media/lib/arm64-v8a"
     "$task_media_clang" -std=c11 -O2 -fPIC -shared -Wall -Wextra -o "$task_media/lib/arm64-v8a/librungicmedia.so" \
-        "$task_root/android/app/jni/media/buffers.c" -landroid -lnativewindow -ldl -Wl,--no-undefined
+        "$task_root/android/app/jni/media/buffers.c" "$task_root/android/app/jni/media/codec_session.c" \
+        -landroid -lnativewindow -lmediandk -llog -ldl -Wl,--no-undefined
     "$task_ndk/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip" --strip-unneeded "$task_media/lib/arm64-v8a/librungicmedia.so"
 else
     echo "warning: no Android NDK: the APK goes without librungicmedia.so (decoded frames through shared memory)" >&2
