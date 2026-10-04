@@ -744,7 +744,13 @@ features:
           - {doc: docs/49-plasma-performance.md, date: 2026-09-28, note: "平台桥 watch 验收"}
       - id: E5
         text: 安卓接口异常或超时时状态变为未知，不继续显示过期的“已连接”；不支持的操作明确返回 NotSupported，不伪造成功。
+      - id: E6
+        text: Linux 程序的域名解析跟随安卓当前默认网络（开 VPN 时用 VPN 的 DNS）：/etc/resolv.conf 随网络变化原子更新，断网时不保留已失效的服务器；安卓侧连不上时保持原样。
+      - id: E7
+        text: 用户手工写的 /etc/resolv.conf（没有 Rungic 标记行）或符号链接不被覆盖。
     pitfalls:
+      - text: 镜像只带一行占位注释的 /etc/resolv.conf，原先没有任何机制写入 DNS，新装设备的 Linux 程序解析不了域名（issue #7）。容器与安卓共用网络命名空间（lxc.net.0.type = none），可以直接用安卓默认网络的 DNS。严格模式的私人 DNS（DoT）不在此列：容器仍按普通 53 端口查询。
+        docs: [docs/research/32-network-integration.md]
       - text: 没有 Linux NetworkManager 守护进程、wpa_supplicant 或 DHCP；安卓独占网卡、路由、DNS 与凭据。在服务页打开 NetworkManager 等服务可能抢走网卡、断开无线调试。
         docs: [docs/research/32-network-integration.md, docs/83-service-policy.md]
       - text: 普通安卓 API 会脱敏 SSID/BSSID，靠白名单 root cmd wifi 补齐；固定安卓 16 的输出格式，换 ROM 要重验。
@@ -757,6 +763,7 @@ features:
         docs: [docs/research/32-network-integration.md]
     code:
       - shared/platform/network-manager.py
+      - tools/tests/test_resolv_conf.py
       - desktop/rungic-plasma-network.service
       - system/network-manager.conf
       - android/app/src/com/rungic/plasma/AndroidNetworkBridge.java

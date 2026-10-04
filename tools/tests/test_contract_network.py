@@ -67,6 +67,8 @@ def service(monkeypatch, socket_path, script, name):
     monkeypatch.setitem(sys.modules, 'rungic_host_watch', load('rungic_host_watch', ROOT / 'shared/platform/host_watch.py'))
     module = load(name, ROOT / script)
     monkeypatch.setattr(module, 'SOCKET', socket_path)
+    if hasattr(module, 'RESOLV_CONF'):                 # never the test machine's own resolver
+        monkeypatch.setattr(module, 'RESOLV_CONF', str(Path(socket_path).with_name('resolv.conf')))
     monkeypatch.setattr(module, 'GLib', MainLoop())
     return module
 
