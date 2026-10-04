@@ -694,7 +694,19 @@ features:
         text: 有 msm_vidc 编码节点（/dev/video33）的手机，H.264/HEVC 编码直接走 V4L2：录屏 1080×2400@30 能跟上实时，编码本身约占一个核的 2–3%（MediaCodec 桥约 75% 以上且跟不上 30 帧）；参数集单独给出，关键帧可强制。
         evidence:
           - {doc: docs/108-codec-bridge-buffers.md, date: 2026-10-04, note: "G100 S：录屏快捷设置验收通过（视频+音频），codec.hw 通过"}
+      - id: E11
+        text: 用系统 FFmpeg 的应用（mpv/Haruna、VLC、Qt Multimedia、缩略图）默认选中硬件解码器 h264/hevc/vp9_rungic，打不开硬件时回退软件；应用默认的软件编码器不变。
+        evidence:
+          - {doc: docs/108-codec-bridge-buffers.md, date: 2026-10-04, note: "G100 S：libmpv 选中 h264_rungic，10 秒 1080p60 CPU 17.2 秒降到 3.2 秒"}
+      - id: E12
+        text: Flatpak 里用 GStreamer 的应用（Freedesktop/GNOME 运行时）经扩展 org.freedesktop.Platform.GStreamer.rungic 用上 V4L2 硬件编解码；没有设备权限的应用照常软件解码。
+        evidence:
+          - {doc: docs/108-codec-bridge-buffers.md, date: 2026-10-04, note: "G100 S：--device=all 选中 msm_vidc_decoder，--device=dri 回退软件"}
     pitfalls:
+      - text: Mozilla 官方 arm64 Firefox 没有启用 MOZ_ENABLE_V4L2，RDD 的沙箱 broker 拒绝打开 /dev/video*；Firefox 仍走 MediaCodec 桥。沙箱前预开 DMA 堆不解决问题，还会把它交给所有内容进程，不要这么做。
+        docs: [docs/108-codec-bridge-buffers.md]
+      - text: mpv 默认在主线程解码，硬件解码器的出帧时序抖动让约 10% 的帧在 vo 端被判来晚丢掉（解码速度足够，vd-queue-enable=yes 时为 0）。
+        docs: [docs/108-codec-bridge-buffers.md]
       - text: msm_vidc 的 V4L2 编码器必须先开图像（OUTPUT）流、再开码流（CAPTURE），两路都开流后才能排缓冲；先排码流缓冲再送第一张图，固件同样断言复位。
         docs: [docs/108-codec-bridge-buffers.md]
       - text: msm_vidc 的 V4L2 解码只收 DMA-BUF；OUTPUT 开流前排入码流、或 CAPTURE 配好前排入第二个码流单元，会让固件断言并复位整个视频核心（Android 正在用的解码一起中断）。codec-v4l2.c 严格按“开 OUTPUT → 一个单元 → 等 SOURCE_CHANGE → 配 NV12/P010 的 CAPTURE”的顺序，刷新时整段重开。
@@ -727,8 +739,11 @@ features:
       - android/app/jni/media/
       - shared/media/codec-v4l2.c
       - shared/media/codec-v4l2.h
+      - packaging/rungic-flatpak-codec/
+      - packages/ffmpeg-ubuntu/
       - tools/tests/codec_v4l2_driver.c
       - tools/tests/test_codec_v4l2.py
+      - tools/tests/test_codec_packaging.py
       - packages/ffmpeg/
       - packaging/rungic-codec/
       - tools/system/tests/media_codec.py

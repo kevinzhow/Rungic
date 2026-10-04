@@ -77,11 +77,13 @@ def test_a_flush_starts_a_new_session_with_the_parameter_sets_in_front(driver):
     assert result['violations'] == 0 and result['failures'] == 0, result
     assert result['sessions'] == 2 and result['replayed_params'] is True
     assert [r['id'] for r in result['records']] == [0, 1, 2, 100, 101, 102]
-    # A flush before the source change showed drops what was waiting for it (a seek discards it
-    # anyway); nothing of it comes after the flush.
+    # With the source change late (the third look, as the real driver takes milliseconds), the
+    # decoder waits for it briefly: what came before the flush may come out or be dropped (a seek
+    # discards it anyway), never after the new session's pictures.
     result = run(driver, 'flush', frames=3)
     assert result['violations'] == 0 and result['failures'] == 0, result
-    assert [r['id'] for r in result['records']] == [100, 101, 102]
+    ids = [r['id'] for r in result['records']]
+    assert ids[-3:] == [100, 101, 102] and set(ids[:-3]) <= {0, 1, 2}
 
 
 # covers: apps.hw-codec/E9
@@ -115,3 +117,4 @@ def test_the_v4l2_encoder_takes_i420_and_gives_headers_then_frames(driver):
     for i, r in enumerate(frames):
         slice_type = '65' if i in (0, 3) else '41'
         assert r['data'] == f'00000001{slice_type}{16 + i:02x}{100 + i:02x}{200 + i:02x}'   # Y, then Cb Cr interleaved
+

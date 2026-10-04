@@ -212,7 +212,8 @@ int rungic_codec_open(RungicCodec *c,const RungicCodecConfig *config) {
  return rungic_codec_open_options(c,config,RUNGIC_OPTIONS_DEFAULT);
 }
 /* Codecs go straight to msm_vidc's V4L2 decoder or encoder when there is one (RUNGIC_CODEC_V4L2=0
- * turns that off; Firefox's preload, whose sandbox cannot open devices, only with =1). */
+ * turns that off). Not under Firefox's preload (only with =1): Mozilla's arm64 build grants its
+ * RDD process no /dev/video* node, so Firefox keeps the app's bridge (docs/108). */
 static int open_v4l2(RungicCodec *c,const RungicCodecConfig *config,int options) {
  const char *wanted=getenv("RUNGIC_CODEC_V4L2");
  if((wanted && !strcmp(wanted,"0")) || (getenv("RUNGIC_CODEC_PRECONNECT") && !(wanted && !strcmp(wanted,"1"))))return -1;

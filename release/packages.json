@@ -11,6 +11,26 @@
         "libkwin6"
       ]
     },
+    "ffmpeg-ubuntu": {
+      "source": "packages/ffmpeg-ubuntu",
+      "packages": [
+        "ffmpeg",
+        "libavcodec-dev",
+        "libavcodec62",
+        "libavdevice-dev",
+        "libavdevice62",
+        "libavfilter-dev",
+        "libavfilter11",
+        "libavformat-dev",
+        "libavformat62",
+        "libavutil-dev",
+        "libavutil60",
+        "libswresample-dev",
+        "libswresample6",
+        "libswscale-dev",
+        "libswscale9"
+      ]
+    },
     "mesa": {
       "source": "packages/mesa",
       "packages": [
@@ -202,6 +222,9 @@
     },
     "rungic-flatpak-gl": {
       "source": "packaging/rungic-flatpak-gl"
+    },
+    "rungic-flatpak-codec": {
+      "source": "packaging/rungic-flatpak-codec"
     },
     "rungic-suggestions": {
       "source": "packaging/rungic-suggestions"

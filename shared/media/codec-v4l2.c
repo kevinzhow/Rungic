@@ -495,11 +495,15 @@ int v4l2_exchange(V4l2Codec *d,int cmd,int id,int64_t pts,int flags,const uint8_
    } else {
     if(d->n_pending==PENDING){errno=EOVERFLOW;return failed(error,n,"no source change yet");}
     uint8_t *copy=malloc(length);if(!copy)return failed(error,n,"memory");
-    memcpy(copy,data,length);d->pending[d->n_pending++]=(typeof(d->pending[0])){copy,length,pts};
+    memcpy(copy,data,length);
+    d->pending[d->n_pending].data=copy;d->pending[d->n_pending].length=length;d->pending[d->n_pending++].pts=pts;
    }
-   /* The first source change normally comes within milliseconds of the first access unit. */
-   for(int waited=0;!d->cap_on && waited<(d->n_pending>=PENDING/2?2000:0);waited+=10)
-    if(wait_driver(d,10)>0 && events(d,error,n))return -1;
+   /* The first source change normally comes within milliseconds of the first access unit: wait
+    * for it briefly (pictures start sooner; a player does not drop the first ones), longer when
+    * many units are waiting. */
+   int patience=d->n_pending>=PENDING/2?2000:100;
+   for(int waited=0;!d->cap_on && waited<patience;waited+=2)
+    if(wait_driver(d,2)>0 && events(d,error,n))return -1;
   } else if(put(d,data,length,pts,callback,user,outputs,&last,&consumer_failed,error,n))return -1;
  }
  if(events(d,error,n))return -1;

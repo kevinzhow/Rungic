@@ -112,6 +112,37 @@ class DefaultHostTests(unittest.TestCase):
                 action()
 
 
+class BuildProfileTests(unittest.TestCase):
+    # covers: delivery.build-hosts/E1
+    def test_a_recipes_build_profiles_reach_dpkg_buildpackage_and_build_dep(self):
+        # Ubuntu's FFmpeg without its extra flavour: the profile must reach debian/rules (the
+        # variable), dpkg-buildpackage (-P, for Build-Profiles in debian/control) and build-dep.
+        saved = build_on_device.host
+        self.addCleanup(setattr, build_on_device, 'host', saved)
+        started, ran = [], []
+        class Recorder:
+            name = 'macmini'
+            def background(self, component, steps):
+                started.append(steps)
+            def out(self, script, timeout=None):
+                ran.append(script)
+                return ''
+        build_on_device.host = Recorder()
+        with patch('sys.stdout', io.StringIO()):
+            build_on_device.start('ffmpeg-ubuntu', 'full', 4)
+        self.assertIn("DEB_BUILD_PROFILES='pkg.ffmpeg.noextra'", started[0])
+        self.assertIn('dpkg-buildpackage -B -uc -us -Ppkg.ffmpeg.noextra', started[0])
+        build_on_device.build_deps('ffmpeg-ubuntu')
+        self.assertIn('build-dep -y -q --arch-only -P pkg.ffmpeg.noextra .', ran[0])
+        self.assertIn('dpkg-checkbuilddeps -B -Ppkg.ffmpeg.noextra', ran[0])
+        # A recipe without profiles builds as before.
+        started.clear()
+        with patch('sys.stdout', io.StringIO()):
+            build_on_device.start('qt6-multimedia', 'full', 4)
+        self.assertNotIn('PROFILES', started[0])
+        self.assertNotIn(' -P', started[0])
+
+
 class LocalHost:
     """A build host whose container is this machine: scripts run here with sh, BASE under a temp dir."""
     name, jobs = 'local', 2

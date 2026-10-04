@@ -1,0 +1,58 @@
+From: kevinzhow <kevinzhow@local>
+Date: Sun, 4 Oct 2026 14:20:00 +0900
+Subject: Register this project's hardware decoders ahead of the software ones
+
+The decoders run on Qualcomm's msm_vidc V4L2 decoder, else on the Android app's MediaCodec, and on
+FFmpeg's own decoder when neither opens (AV_CODEC_CAP_HYBRID): the shared codec client and the
+adapter (shared/media, placed into libavcodec by the recipe's overlay). Registered first, they are
+what avcodec_find_decoder gives every application of the system libavcodec. The encoders are
+registered last, by name only (-c:v h264_rungic): applications keep their software encoders.
+
+Forwarded: not-needed
+Last-Update: 2026-10-04
+X-Rungic-Status: Inappropriate [device specific: Qualcomm V4L2 and the Android app]
+X-Rungic-Tests: L1:tools/tests/test_codec_v4l2.py L3:codec.hw
+X-Rungic-Docs: docs/108
+---
+ libavcodec/Makefile    | 7 +++++++
+ libavcodec/allcodecs.c | 9 +++++++++
+ 2 files changed, 16 insertions(+)
+
+--- a/libavcodec/Makefile
++++ b/libavcodec/Makefile
+@@ -1414,3 +1414,10 @@
+ $(SUBDIR)qdm2.o: $(SUBDIR)qdm2_tables.h
+ $(SUBDIR)sinewin.o: $(SUBDIR)sinewin_tables.h
+ endif
++
++RUNGIC-OBJS = rungic_codec.o rungic_codec_client.o rungic_codec_v4l2.o
++OBJS-$(CONFIG_H264_RUNGIC_DECODER) += $(RUNGIC-OBJS)
++OBJS-$(CONFIG_HEVC_RUNGIC_DECODER) += $(RUNGIC-OBJS)
++OBJS-$(CONFIG_VP9_RUNGIC_DECODER) += $(RUNGIC-OBJS)
++OBJS-$(CONFIG_H264_RUNGIC_ENCODER) += $(RUNGIC-OBJS)
++OBJS-$(CONFIG_HEVC_RUNGIC_ENCODER) += $(RUNGIC-OBJS)
+--- a/libavcodec/allcodecs.c
++++ b/libavcodec/allcodecs.c
+@@ -34,6 +34,12 @@
+ #include "codec_id.h"
+ #include "codec_internal.h"
+ 
++/* This project's hardware decoders (Qualcomm msm_vidc V4L2, else the Android app's MediaCodec;
++ * software when neither opens) ahead of the software ones, so applications get them by default. */
++extern const FFCodec ff_h264_rungic_decoder;
++extern const FFCodec ff_hevc_rungic_decoder;
++extern const FFCodec ff_vp9_rungic_decoder;
++
+ extern const FFCodec ff_a64multi_encoder;
+ extern const FFCodec ff_a64multi5_encoder;
+ extern const FFCodec ff_aasc_decoder;
+@@ -920,6 +926,9 @@
+ 
+ // null codecs
+ extern const FFCodec ff_vnull_decoder;
++/* Its hardware encoders by name only (-c:v h264_rungic): after every other H.264/HEVC encoder. */
++extern const FFCodec ff_h264_rungic_encoder;
++extern const FFCodec ff_hevc_rungic_encoder;
+ extern const FFCodec ff_vnull_encoder;
+ extern const FFCodec ff_anull_decoder;
+ extern const FFCodec ff_anull_encoder;

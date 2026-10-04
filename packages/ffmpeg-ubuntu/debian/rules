@@ -1,0 +1,325 @@
+#!/usr/bin/make -f
+
+export V=1
+
+# sets DEBIAN_VERSION variable
+include /usr/share/dpkg/pkg-info.mk
+
+# sets DEB_HOST_* variables
+include /usr/share/dpkg/architecture.mk
+
+# Ubuntu ld adds -Bsymbolic-functions by default, but that prevents FFmpeg from building.
+export DEB_LDFLAGS_MAINT_STRIP=-Wl,-Bsymbolic-functions
+
+# Package name for the extra flavor.
+SHLIB_PKGS := $(shell sed -nr '/extra/! s/^Package:[[:space:]]*(lib.*[0-9]+)[[:space:]]*$$/\1/p' debian/control)
+EXTRA_PKGS := $(shell sed -nr 's/^Package:[[:space:]]*(.*extra[0-9]+)[[:space:]]*$$/\1/p' debian/control)
+FLAVORS = standard
+ifeq ($(filter pkg.ffmpeg.noextra,$(DEB_BUILD_PROFILES)),)
+FLAVORS += extra
+endif
+
+# Most possible features, compatible with effective licensing of GPLv2+
+CONFIG := \
+	--prefix=/usr \
+	--extra-version="$(DEB_VERSION_REVISION)" \
+	--toolchain=hardened \
+	--libdir=/usr/lib/$(DEB_HOST_MULTIARCH) \
+	--incdir=/usr/include/$(DEB_HOST_MULTIARCH) \
+	--arch=$(DEB_HOST_ARCH_CPU) \
+	--enable-gpl \
+	--disable-stripping \
+	--disable-pocketsphinx \
+	--disable-libcaca \
+	--disable-libmfx \
+	--disable-omx \
+	--enable-gnutls \
+	--enable-libaom \
+	--enable-libass \
+	--enable-libbs2b \
+	--enable-libcdio \
+	--enable-libcodec2 \
+	--enable-libdav1d \
+	--enable-libflite \
+	--enable-libfontconfig \
+	--enable-libfreetype \
+	--enable-libfribidi \
+	--enable-libglslang \
+	--enable-libgme \
+	--enable-libgsm \
+	--enable-libharfbuzz \
+	--enable-libmp3lame \
+	--enable-libmysofa \
+	--enable-libopenjpeg \
+	--enable-libopenmpt \
+	--enable-libopus \
+	--enable-librubberband \
+	--enable-libshine \
+	--enable-libsnappy \
+	--enable-libsoxr \
+	--enable-libspeex \
+	--enable-libtheora \
+	--enable-libtwolame \
+	--enable-libvidstab \
+	--enable-libvorbis \
+	--enable-libvpx \
+	--enable-libwebp \
+	--enable-libx265 \
+	--enable-libxml2 \
+	--enable-libxvid \
+	--enable-libzimg \
+	--enable-openal \
+	--enable-opencl \
+	--enable-opengl
+
+# disable sndio, it's pulled in via libopenal-dev and autodetected
+CONFIG += --disable-sndio
+
+ifeq (amd64,$(DEB_HOST_ARCH))
+	CONFIG += --enable-libvpl
+else
+	CONFIG += --disable-libvpl
+endif
+
+# The standard configuration only uses the shared CONFIG.
+CONFIG_standard = --enable-shared
+
+# Additional features, compatible with effective licensing of GPLv3+
+CONFIG_extra = \
+	--enable-shared \
+	--enable-version3 \
+	--disable-doc \
+	--disable-programs \
+	--disable-static \
+	--enable-libaribb24 \
+	--enable-libopencore_amrnb \
+	--enable-libopencore_amrwb \
+	--enable-libtesseract \
+	--enable-libvo_amrwbenc
+
+# Do not enable libsmbclient support on hurd-i386
+ifeq (,$(filter hurd-i386,$(DEB_HOST_ARCH)))
+	CONFIG_extra += --enable-libsmbclient
+endif
+
+# Disable optimizations if requested.
+ifneq (,$(filter noopt,$(DEB_BUILD_OPTIONS)))
+	CONFIG += --disable-optimizations
+endif
+
+# Respect CC/CXX from the environment, if they differ from the default.
+# Don't set them if they equal the default, because that disables autodetection needed for cross-building.
+ifneq (cc,$(CC))
+	CONFIG += --cc=$(CC)
+endif
+ifneq (g++,$(CXX))
+	CONFIG += --cxx=$(CXX)
+endif
+
+# Some libraries are built only on linux.
+ifeq (linux,$(DEB_HOST_ARCH_OS))
+	CONFIG += \
+		--enable-libdc1394 \
+		--enable-libdrm \
+		--enable-libiec61883
+endif
+
+# ffmpeg is involved in build-dependency cycles with x264 and chromaprint, so disable them in stage one.
+# Also disable
+# - frei0r, which build-depends on opencv.
+# - rav1e and rsvg2 for bootstrap to avoid a complete rust toolchain.
+# - network protocols srt, ssh, zmq, rabbitmq, rist, ...
+# - device access bluray, jack, dvd, ...
+# - optional features pocketsphix, zvbi, ladsap, lv2, sdl2, ...
+ifneq (,$(filter pkg.ffmpeg.stage1,$(DEB_BUILD_PROFILES)))
+	CONFIG += \
+		--disable-chromaprint \
+		--disable-frei0r \
+		--disable-ladspa \
+		--disable-libbluray \
+		--disable-libdvdnav \
+		--disable-libdvdread \
+		--disable-libjack \
+		--disable-libxjl \
+		--disable-libjxl \
+		--disable-libplacebo \
+		--disable-libpulse \
+		--disable-librabbitmq \
+		--disable-librav1e \
+		--disable-librist \
+		--disable-librsvg \
+		--disable-libsrt \
+		--disable-libssh \
+		--disable-libsvtav1 \
+		--disable-libx264 \
+		--disable-libzmq \
+		--disable-libzvbi \
+		--disable-lv2 \
+		--disable-sdl2
+else
+	CONFIG += \
+		--enable-chromaprint \
+		--enable-frei0r \
+		--enable-ladspa \
+		--enable-libbluray \
+		--enable-libdvdnav \
+		--enable-libdvdread \
+		--enable-libjack \
+		--enable-libjxl \
+		--enable-libpulse \
+		--enable-librabbitmq \
+		--enable-librist \
+		--enable-libsrt \
+		--enable-libssh \
+		--enable-libsvtav1 \
+		--enable-libx264 \
+		--enable-libzmq \
+		--enable-libzvbi \
+		--enable-lv2 \
+		--enable-sdl2
+# Some libraries are built only on linux.
+ifeq (linux,$(DEB_HOST_ARCH_OS))
+	CONFIG += --enable-libplacebo
+else
+	CONFIG += --disable-libplacebo
+endif
+# Rust is not available on most of ports.
+ifeq (,$(filter alpha hppa i386 hurd-i386 m68k sh4 sparc64 x32,$(DEB_HOST_ARCH)))
+	CONFIG += --enable-librav1e
+else
+	CONFIG += --disable-librav1e
+endif
+# avoid librsvg on almost all ports (bug#983344, bug#991556)
+ifeq (,$(filter alpha hppa hurd-i386 m68k sh4 x32,$(DEB_HOST_ARCH)))
+	CONFIG += --enable-librsvg
+else
+	CONFIG += --disable-librsvg
+endif
+endif
+
+# Disable ASM-based optimizations on powerpc and ppc64{,el}.
+# They are currently not maintained and broken:
+# * https://trac.ffmpeg.org/ticket/9604
+# * https://trac.ffmpeg.org/ticket/10955
+ifneq (,$(filter powerpc ppc64 ppc64el,$(DEB_HOST_ARCH)))
+	CONFIG += --disable-asm
+endif
+
+# Disable assembly optimizations on x32, because they don't work (yet).
+ifneq (,$(filter x32,$(DEB_HOST_ARCH)))
+	CONFIG += --disable-asm
+endif
+
+# Disable some tests which fail when FLT_EVAL_METHOD != 0 (found on i386, m68k and s390x)
+ifneq (,$(filter i386 m68k s390x,$(DEB_HOST_ARCH_CPU)))
+	CONFIG += --ignore-tests=hapenc-hap-none,hapenc-hapa-none,hapenc-hapq-none
+endif
+# Disable new tests that were never successful on ppc64el
+# (introduced in 5fdb5ed6132687219d0ef2127115ebaf95514058)
+# https://trac.ffmpeg.org/ticket/9604
+ifeq (ppc64el,$(DEB_HOST_ARCH))
+	CONFIG += --ignore-tests=checkasm-sw_scale,filter-scale2ref_keep_aspect
+endif
+# https://trac.ffmpeg.org/ticket/9855
+ifneq (,$(filter hppa m68k powerpc sparc64 s390x,$(DEB_HOST_ARCH_CPU)))
+	CONFIG += --ignore-tests=filter-overlay_yuv420p10
+endif
+ifeq (ppc64,$(DEB_HOST_ARCH))
+	CONFIG += --ignore-tests=checkasm-sw_scale,filter-overlay_yuv420p10
+endif
+
+# Set cross-build prefix for compiler, pkg-config...
+ifneq ($(DEB_BUILD_GNU_TYPE),$(DEB_HOST_GNU_TYPE))
+	CONFIG += \
+		--cross-prefix=$(DEB_HOST_GNU_TYPE)- \
+		--target-os=$(DEB_HOST_ARCH_OS)
+endif
+
+%:
+	dh $@
+
+# Add configuration options:
+override_dh_auto_configure: $(patsubst %,configure_%,$(FLAVORS))
+configure_%:
+	$(info $()   debian/rules $@)
+	mkdir -p debian/$*
+	cd debian/$* && ../../configure $(strip $(CONFIG) $(CONFIG_$*)) || (cat ffbuild/config.log && exit 1)
+
+# Remove the subdirectories generated for the flavors.
+override_dh_auto_clean:
+	rm -rf $(patsubst %,debian/%,$(FLAVORS))
+
+# Create doxygen documentation:
+override_dh_auto_build-indep:
+	dh_auto_build -i --sourcedirectory=debian/standard -- apidoc documentation
+	# Create the minified CSS files.
+	#  Due to https://github.com/nodejs/node/issues/14752 where nodejs will
+	#  leave set O_NONBLOCK on stderr, we pipe stderr through cat which will
+	#  create a temporary pipe so this doesn't break the rest of the build.
+	#  See: #895154
+	(lessc debian/missing-sources/ffmpeg-web/src/less/style.less | cleancss > debian/standard/doc/style.min.css) 2>&1 | cat >&2
+
+override_dh_auto_build-arch: $(patsubst %,build_%,$(FLAVORS))
+
+# noop fallback for below more specific targets
+prebuild_%:
+	:
+
+# Copy built object files to avoid building them again for the extra flavor.
+$(patsubst %,prebuild_%,$(filter %extra,$(FLAVORS))): prebuild_%: build_standard
+	$(info $()   debian/rules $@)
+	$(eval subdir = debian/$(subst extra,standard,$(subst -extra,,$*)))
+	cd $(subdir) && find libavcodec libavdevice libavfilter libavformat libavutil libswscale libswresample \
+		-type f -name '*.o' \
+		-exec install -m 644 -D -T '{}' '../$*/{}' ';'
+	rm debian/$*/libavcodec/allcodecs.o
+	rm debian/$*/libavfilter/allfilters.o
+
+# Build qt-faststart here, to make it possible to build with 'nocheck'.
+prebuild_standard:
+	$(info $()   debian/rules $@)
+	$(MAKE) -C debian/standard tools/qt-faststart
+
+build_%: prebuild_%
+	$(info $()   debian/rules $@)
+	dh_auto_build -a --sourcedirectory=debian/$* || (cat debian/$*/config.log && exit 1)
+
+# Set the library path for the dynamic linker, because the tests otherwise don't find the libraries.
+override_dh_auto_test-arch:
+	export LD_LIBRARY_PATH="libavcodec:libavdevice:libavfilter:libavformat:libavutil:libswresample:libswscale"; \
+		dh_auto_test -a --sourcedirectory=debian/standard -- -k
+
+# No tests for indep build.
+override_dh_auto_test-indep:
+
+override_dh_auto_install-arch:
+	dh_auto_install -a --sourcedirectory=debian/standard
+ifeq ($(filter pkg.ffmpeg.noextra,$(DEB_BUILD_PROFILES)),)
+	dh_auto_install -a --sourcedirectory=debian/extra --destdir=debian/tmp/extra
+endif
+
+override_dh_auto_install-indep:
+	$(MAKE) -C debian/standard DESTDIR=$(CURDIR)/debian/tmp install-doc install-examples
+	# Create index.html page for the FFmpeg manual
+	cd debian/tmp/usr/share/doc/ffmpeg && tree -H '.' -L 1 -P '*.html' --noreport --charset utf-8 -T 'FFmpeg Manual Index' -o index.html
+
+override_dh_install:
+ifeq ($(filter pkg.ffmpeg.noextra,$(DEB_BUILD_PROFILES)),)
+	dh_install $(addprefix -p,$(EXTRA_PKGS)) --sourcedir=debian/tmp/extra
+endif
+	dh_install --remaining-packages
+
+debian/%.symbols: debian/%.symbols.in
+	sed 's/@DEB_VERSION@/${DEB_VERSION}/;s/@DEB_VERSION_EPOCH_UPSTREAM@/${DEB_VERSION_EPOCH_UPSTREAM}/' $< > $@
+
+execute_before_dh_makeshlibs: $(patsubst %,debian/%.symbols,$(SHLIB_PKGS))
+ifeq ($(filter pkg.ffmpeg.noextra,$(DEB_BUILD_PROFILES)),)
+	set -e && for pkg in $(EXTRA_PKGS); do \
+		mainpkg=`echo $$pkg | sed 's/-extra//'`; \
+		cp -f debian/$$mainpkg.symbols debian/$$pkg.symbols; \
+	done
+endif
+
+# avoid error: Unknown DWARF DW_OP_0
+override_dh_dwz:
+	dh_dwz -Xlibavcodec -Xlibavfilter -Xlibavutil -Xlibswresample -Xlibswscale

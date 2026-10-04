@@ -1,0 +1,24 @@
+#!/bin/sh
+
+set -e
+
+# build the examples
+
+echo "AUTOPKGTEST_TMP directory: $AUTOPKGTEST_TMP"
+cd "$AUTOPKGTEST_TMP"
+
+cp -r /usr/share/doc/ffmpeg/examples ./
+cd examples
+
+if [ -n "$DEB_HOST_MULTIARCH" ]; then
+    export CC="$DEB_HOST_GNU_TYPE-gcc"
+    export PKG_CONFIG_PATH="/usr/lib/$DEB_HOST_MULTIARCH/pkgconfig"
+fi
+
+echo "building the examples..."
+ret=0
+make -k all 2>&1
+ret=$?
+echo "done!"
+
+exit $ret

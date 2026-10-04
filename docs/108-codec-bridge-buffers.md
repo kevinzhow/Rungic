@@ -152,6 +152,39 @@ Kevin 定了方向（2026-10-04）：解码绕开 Codec2，`librungiccodec` 直�
 - 验收 `recording.quicksetting`（从快捷设置录屏，生成带视频和 AAC 音轨的 MP4）和 `codec.hw` 都通过；期间 logcat 中没有 MediaCodec 会话。
 - 剩下的录屏开销主要在把屏幕画面转成 I420。下一步让 PipeWire 的 dmabuf 直接进编码器。
 
+## 系统 FFmpeg（`packages/ffmpeg-ubuntu`）
+
+mpv/Haruna、VLC、Qt Multimedia（系统里装的是它的 FFmpeg 后端，GStreamer 后端没有构建）、缩略图生成都用 Ubuntu 自己的 libavcodec，以前全是软件解码。现在按补丁队列重建 Ubuntu 的 FFmpeg `7:8.0.1-3ubuntu2`，新版本 `+rungic1`：
+
+- **解码器顺序**：`h264_rungic`、`hevc_rungic`、`vp9_rungic` 注册在最前面，`avcodec_find_decoder` 默认就给这几个。它们走 `codec-client`（先 V4L2，再 MediaCodec 桥），都打不开时回退 FFmpeg 自己的解码器（`AV_CODEC_CAP_HYBRID`）。编码器注册在最后，只能按名字用（`-c:v h264_rungic`），应用默认的软件编码器不变。
+- **嵌入，不加依赖**：`codec-client.c`、`codec-v4l2.c` 和适配层由 recipe 的 overlay 直接编进 libavcodec。版本脚本只导出 `av*` 符号，和同进程里的 `librungiccodec.so` 不冲突，libavcodec 也不依赖我们的任何包。
+- **构建**：只构建标准版（`build_profiles: pkg.ffmpeg.noextra`）。为此 `build_on_device.py` 新增了 recipe 的 `build_profiles`，同时传给 `dpkg-buildpackage -P`、`DEB_BUILD_PROFILES` 和 `apt-get build-dep -P`。手机上本来装的就是标准版库。
+- **适配层修正**：
+  - mpv 在关掉直接渲染之前会拒绝几次缓冲（`get_buffer2` 失败），原来这会让后续每一帧都报 "Error while decoding"。现在丢掉那一帧并释放它的时间戳。
+  - 256 个包之后仍被占用的时间戳视为已丢失，复用，不再一直返回 ENOBUFS。
+
+**实测**（G100 S 开发覆盖；libmpv，即 Haruna 的播放核心，`vo=null`）：不改任何设置就选中 `h264_rungic`。10 秒 1080p60 的 CPU 从 17.2 秒（软件，约 172% 单核）降到 3.2 秒（约 32%），帧率 60。
+
+- **已知问题**：mpv 默认在主线程里解码，开流时约有 10% 的帧被视频输出判定为来晚而丢掉。设 `vd-queue-enable=yes`（解码放到单独线程）后丢帧为 0；`untimed` 下 600 帧只要 2.5 秒，说明解码速度本身足够，是时序抖动的问题。下一步是解码器内部改成异步取帧，或者让 Haruna 打开解码队列。
+
+## Flatpak（`rungic-flatpak-codec`）
+
+Freedesktop 25.08 和 GNOME 50 运行时都有 GStreamer 扩展点 `org.freedesktop.Platform.GStreamer`（挂在 `/usr/lib/extensions/gstreamer-1.0`，在 `GST_PLUGIN_SYSTEM_PATH` 里）。仿照 `rungic-flatpak-gl`，在 Freedesktop SDK 镜像里把 GStreamer 元素连同 `codec-client` 编成一个自包含的 `libgstrungiccodec.so`，作为 `org.freedesktop.Platform.GStreamer.rungic` 装到 `/var/lib/flatpak/extension/`。
+
+- **权限**：应用要能打开 `/dev/video32/33`，Flatpak 里这意味着 `--device=all`。只有 `--device=dri` 的应用打不开设备，元素打开失败，GStreamer 改用软件解码器，不会报错。
+- **实测**：在运行时里 `gst-launch` 解码 720p H.264。`--device=all` 时选中 `msm_vidc_decoder`；`--device=dri` 时回退软件，正常结束。
+- **覆盖不到**：Chromium、Telegram 等自带 FFmpeg 的应用，这个扩展管不到。
+
+## Firefox：仍走 MediaCodec 桥
+
+Firefox 的 RDD 进程有 seccomp 和文件 broker 两道限制。seccomp 本来就放行 V4L2（'V'）、DMA-BUF（'b'）和 aarch64 上的 'H' 类 ioctl。broker 只有在构建时启用了 `MOZ_ENABLE_V4L2` 才会放行 M2M 的 `/dev/video*`。
+
+实测 Mozilla 官方 arm64 构建（156）：`MOZ_SANDBOX_LOGGING` 显示 broker 拒绝了打开 `/dev/video32`、`/dev/video33`（`denied op=open`），说明这个构建没有启用 V4L2。
+
+- 所以 Firefox 的私有 FFmpeg 在 RDD 里打不开设备，回到 MediaCodec 桥。仍是硬件解码，只是 CPU 更多。
+- 试过在沙箱建立前预先打开 DMA 堆，但设备节点照样被 broker 拒绝。而且这样会把 DMA 堆交给所有内容进程，已撤回。
+- 要用上 V4L2，只能换一个启用了 V4L2 的 Firefox 构建，或者放宽 RDD 沙箱。后者违背项目原则，没有做。
+
 ## 附：Iris 驱动与原厂 V4L2 直通
 
 - G100 S 的视频硬件就是 Iris 这一代：设备树 `qcom,msm-vidc-parrot qcom,msm-vidc-iris2`，固件 `vpu20_1v.mbn`（VPU2 单管线），由原厂 `msm_video.ko` 驱动，导出 `/dev/video32`（解码）、`/dev/video33`（编码）。

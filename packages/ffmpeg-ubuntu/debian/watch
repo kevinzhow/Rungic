@@ -1,0 +1,8 @@
+version=4
+# check: uscan --report
+# update: gbp import-orig --upstream-vcs-tag=vX.Y.Z --uscan
+
+opts=\
+pgpsigurlmangle=s/$/.asc/,\
+dversionmangle=auto \
+https://ffmpeg.org/releases/ffmpeg@ANY_VERSION@@ARCHIVE_EXT@

@@ -364,9 +364,20 @@ def arch_only(component):
     return recipe.exists() and bool(json.loads(recipe.read_text()).get('build_arch_only'))
 
 
+def build_profiles(component):
+    """The Debian build profiles a patch-queue component's recipe names (build_profiles): for
+    dpkg-buildpackage -P and apt-get build-dep -P, and in DEB_BUILD_PROFILES for debian/rules (an
+    FFmpeg without its extra flavour, pkg.ffmpeg.noextra)."""
+    recipe = WORKSPACE / 'packages' / component / 'recipe.json'
+    return json.loads(recipe.read_text()).get('build_profiles', []) if recipe.exists() else []
+
+
 def start(component, mode, jobs, targets=(), lto=True, cmake_args=()):
     work = f'{BASE}/{component}'
     maint = '' if lto else ' DEB_BUILD_MAINT_OPTIONS=optimize=-lto'
+    profiles = ','.join(build_profiles(component))
+    profiles_env = f" DEB_BUILD_PROFILES='{profiles.replace(',', ' ')}'" if profiles else ''
+    profiles_arg = f' -P{profiles}' if profiles else ''
     obj = f'{work}/src/obj-aarch64-linux-gnu'
     if mode == 'targets' and component_uses_meson(component):
         build = f'{work}/build'
@@ -378,10 +389,10 @@ def start(component, mode, jobs, targets=(), lto=True, cmake_args=()):
                  f"-DCMAKE_INSTALL_PREFIX=/usr -DCMAKE_BUILD_TYPE=RelWithDebInfo -DBUILD_TESTING=OFF {' '.join(cmake_args)}) && "
                  f"cmake --build {build} -j {jobs} --target {' '.join(targets)}")
     elif mode == 'full':
-        steps = (f"export DEB_BUILD_OPTIONS='nocheck parallel={jobs}' {DEBUG_FLAGS}{maint}; "
-                 f"cd {work}/src && dpkg-buildpackage {'-B' if arch_only(component) else '-b'} -uc -us")
+        steps = (f"export DEB_BUILD_OPTIONS='nocheck parallel={jobs}' {DEBUG_FLAGS}{maint}{profiles_env}; "
+                 f"cd {work}/src && dpkg-buildpackage {'-B' if arch_only(component) else '-b'} -uc -us{profiles_arg}")
     else:
-        steps = (f"export DEB_BUILD_OPTIONS='nocheck parallel={jobs}' {DEBUG_FLAGS}{maint}; "
+        steps = (f"export DEB_BUILD_OPTIONS='nocheck parallel={jobs}' {DEBUG_FLAGS}{maint}{profiles_env}; "
                  f"cd {work}/src && test -d {obj} && "
                  f"(if test -f {obj}/build.ninja; then ninja -C {obj} -j{jobs}; "
                  f"else make -C {obj} -j{jobs}; fi) && debian/rules binary")
@@ -423,10 +434,10 @@ def build_deps(component):
     return host.out(f'''set -e
 [ -r /etc/profile.d/proxy.sh ] && . /etc/profile.d/proxy.sh
 cd {BASE}/{component}/src
-if ! dpkg-checkbuilddeps {'-B ' if arch_only(component) else ''}2>/dev/null; then
+if ! dpkg-checkbuilddeps {'-B ' if arch_only(component) else ''}{'-P' + ','.join(build_profiles(component)) + ' ' if build_profiles(component) else ''}2>/dev/null; then
   {update}
   # Waits for another apt (a crash symbolization on the build host); a failure stops the build here.
-  DEBIAN_FRONTEND=noninteractive apt-get -o DPkg::Lock::Timeout=1200 build-dep -y -q {'--arch-only ' if arch_only(component) else ''}. > /tmp/build-dep.log 2>&1 || {{ tail -20 /tmp/build-dep.log; exit 1; }}
+  DEBIAN_FRONTEND=noninteractive apt-get -o DPkg::Lock::Timeout=1200 build-dep -y -q {'--arch-only ' if arch_only(component) else ''}{'-P ' + ','.join(build_profiles(component)) + ' ' if build_profiles(component) else ''}. > /tmp/build-dep.log 2>&1 || {{ tail -20 /tmp/build-dep.log; exit 1; }}
   tail -2 /tmp/build-dep.log
 fi
 ''', timeout=3600)
