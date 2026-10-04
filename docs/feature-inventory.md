@@ -918,6 +918,8 @@ Linux 应用用手机的相机拍照录像，用手机的扬声器和麦克风�
 注意：
 - Mozilla 官方 arm64 Firefox 没有启用 MOZ_ENABLE_V4L2，RDD 的沙箱 broker 拒绝打开 /dev/video*；Firefox 仍走 MediaCodec 桥。沙箱前预开 DMA 堆不解决问题，还会把它交给所有内容进程，不要这么做。 [docs/108-codec-bridge-buffers.md](../docs/108-codec-bridge-buffers.md)
 - 安卓宿主的缓冲租借（gpu_allocator.rs）只给 RGBA 顺序（ABGR8888/XBGR8888）。KWin 录屏原来只按输出格式 ARGB8888 要 DMA-BUF，要不到就悄悄退回 memfd，每帧 CPU 读回再上传；补丁 screencast-dmabuf-other-rgb-format 改为换格式再试。 [docs/108-codec-bridge-buffers.md](../docs/108-codec-bridge-buffers.md)
+- 编码元素直接用 GLMemory 的纹理 ID 前必须以 GST_MAP_GL 映射；经过直通元素时 GStreamer 推迟上传，纹理是空的（编出几乎不变的画面）。 [docs/108-codec-bridge-buffers.md](../docs/108-codec-bridge-buffers.md)
+- 不要在手机上把整段原始视频写进容器 /tmp（3.7 GB tmpfs）或整块读入比较：2026-10-04 因此内存耗尽，VPN 被杀、内核 panic 重启。只抽少量帧，或传回电脑计算。 [docs/108-codec-bridge-buffers.md](../docs/108-codec-bridge-buffers.md)
 - NDK 的 AImageReader 按配置格式严格检查缓冲：配成 YCBCR_P010 时会拒收高通解码器自己的 P010（0x7fa30c0a），第二帧起取不到图（Java 的 ImageReader 不拒）。10bit 用 PRIVATE 格式的 reader。 [docs/108-codec-bridge-buffers.md](../docs/108-codec-bridge-buffers.md)
 - mpv 默认在主线程解码，硬件解码器的出帧时序抖动让约 10% 的帧在 vo 端被判来晚丢掉（解码速度足够，vd-queue-enable=yes 时为 0）。 [docs/108-codec-bridge-buffers.md](../docs/108-codec-bridge-buffers.md)
 - msm_vidc 的 V4L2 编码器必须先开图像（OUTPUT）流、再开码流（CAPTURE），两路都开流后才能排缓冲；先排码流缓冲再送第一张图，固件同样断言复位。 [docs/108-codec-bridge-buffers.md](../docs/108-codec-bridge-buffers.md)
