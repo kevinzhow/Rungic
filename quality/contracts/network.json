@@ -1,10 +1,12 @@
 {
   "interface": "network",
-  "comment": "Android's networks and Wi-Fi (AndroidNetworkBridge, RootWifi) for the Linux side's NetworkManager D-Bus service shared/platform/network-manager.py (rungic-plasma-network), over the independent hardware socket (RUNGIC_DEVICE_SOCKET; explicit legacy RUNGIC_PLATFORM_SOCKET, one JSON object per line each way, one request per connection; errors {\"error\": string}). network-get: version 1; every network row has the fields of the example (Wi-Fi rows may add ssid, bssid, mac, rssi, frequency, linkMbps, security), every route a destination and default (a gateway when it has one; a list's first example item is what every item has). wifi saved / scan-results: the text of Android's `cmd wifi list-networks` / `cmd wifi list-scan-results`, which the consumer parses line by line (SAVED_LINE, SCAN_LINE: the examples are that format). The changes (network-wifi, wifi scan/connect/activate/disconnect/forget) are Android's own and are authorized by the independent backend socket, without a foreground Activity; the provider check never sends them. The mobile data state the service also reads is the telephony contract's. Tested from both ends: tools/tests/test_contract_network.py (the real service, with a recording D-Bus connection, against tools/contracts.py's stand-in) and acceptance scenario contract.network (the Rungic app on the phone; names, addresses and the lists' text are blanked there).",
+  "comment": "Android provides network and Wi-Fi data through AndroidNetworkBridge and RootWifi. The Linux consumer is the NetworkManager D-Bus service in `shared/platform/network-manager.py` (`rungic-plasma-network`).\n\nThe transport uses the independent hardware socket, selected by `RUNGIC_DEVICE_SOCKET`. An explicit `RUNGIC_PLATFORM_SOCKET` selects the legacy endpoint. Each direction sends one JSON object per line. Each connection carries one request. Errors use {\"error\": string}.\n\n`network-get` returns version 1. Each network entry requires the example's fields. Wi-Fi entries may also contain `ssid`, `bssid`, `mac`, `rssi`, `frequency`, `linkMbps` and `security`. Each route requires `destination` and `default`. A route with a gateway also requires `gateway`. In each list, the first example entry defines the fields required for every entry.\n\nThe Wi-Fi actions `saved` and `scan-results` return Android command output as text. The commands are `cmd wifi list-networks` and `cmd wifi list-scan-results`, respectively. The consumer parses each line with `SAVED_LINE` or `SCAN_LINE`. The examples use these formats.\n\n`network-wifi` and the Wi-Fi actions `scan`, `connect`, `activate`, `disconnect` and `forget` change Android state. These operations require authorization at the independent backend socket. They do not require a foreground Activity. The provider check never sends them. The service also reads mobile data state through the telephony contract.\n\n`tools/tests/test_contract_network.py` checks the real service against the substitute in `tools/contracts.py`. The test uses a D-Bus connection that records calls. Acceptance scenario `contract.network` checks the Rungic app on the phone. That check blanks names, addresses and list text on the phone.",
   "queries": [
     {
       "name": "network-get",
-      "request": {"op": "network-get"},
+      "request": {
+        "op": "network-get"
+      },
       "reply": {
         "version": 1,
         "wifiEnabled": true,
@@ -20,70 +22,144 @@
             "captive": false,
             "metered": false,
             "mtu": 1500,
-            "addresses": ["192.168.5.20/24", "fe80::1234/64"],
-            "dns": ["192.168.5.1"],
+            "addresses": [
+              "192.168.5.20/24",
+              "fe80::1234/64"
+            ],
+            "dns": [
+              "192.168.5.1"
+            ],
             "routes": [
-              {"destination": "192.168.5.0/24", "default": false},
-              {"destination": "0.0.0.0/0", "default": true, "gateway": "192.168.5.1"}
+              {
+                "destination": "192.168.5.0/24",
+                "default": false
+              },
+              {
+                "destination": "0.0.0.0/0",
+                "default": true,
+                "gateway": "192.168.5.1"
+              }
             ]
           }
         ]
       },
-      "private": ["networks"],
+      "private": [
+        "networks"
+      ],
       "read_only": true
     },
     {
       "name": "wifi-saved",
-      "request": {"op": "wifi", "action": "saved"},
-      "reply": {"text": "Network Id      SSID                         Security type\n0            Home Wifi                         wpa2-psk^\n"},
-      "private": ["text"],
+      "request": {
+        "op": "wifi",
+        "action": "saved"
+      },
+      "reply": {
+        "text": "Network Id      SSID                         Security type\n0            Home Wifi                         wpa2-psk^\n"
+      },
+      "private": [
+        "text"
+      ],
       "read_only": true
     },
     {
       "name": "wifi-scan-results",
-      "request": {"op": "wifi", "action": "scan-results"},
-      "reply": {"text": "    BSSID              Frequency      RSSI           Age(sec)     SSID                                 Flags\n  94:83:c4:12:34:56       5180        -58(0:-60/1:-61)  1.234      Home Wifi                            [RSN-PSK-CCMP][ESS]\n  94:83:c4:12:34:57       2437        -71            2.500      Cafe Guest                           [ESS]\n"},
-      "private": ["text"],
+      "request": {
+        "op": "wifi",
+        "action": "scan-results"
+      },
+      "reply": {
+        "text": "    BSSID              Frequency      RSSI           Age(sec)     SSID                                 Flags\n  94:83:c4:12:34:56       5180        -58(0:-60/1:-61)  1.234      Home Wifi                            [RSN-PSK-CCMP][ESS]\n  94:83:c4:12:34:57       2437        -71            2.500      Cafe Guest                           [ESS]\n"
+      },
+      "private": [
+        "text"
+      ],
       "read_only": true
     },
     {
       "name": "network-wifi",
-      "request": {"op": "network-wifi", "enabled": true},
-      "match": ["op"],
-      "reply": {"accepted": true},
+      "request": {
+        "op": "network-wifi",
+        "enabled": true
+      },
+      "match": [
+        "op"
+      ],
+      "reply": {
+        "accepted": true
+      },
       "read_only": false
     },
     {
       "name": "wifi-scan",
-      "request": {"op": "wifi", "action": "scan"},
-      "reply": {"accepted": true},
+      "request": {
+        "op": "wifi",
+        "action": "scan"
+      },
+      "reply": {
+        "accepted": true
+      },
       "read_only": false
     },
     {
       "name": "wifi-connect",
-      "request": {"op": "wifi", "action": "connect", "ssid": "Home Wifi", "security": "wpa2", "passphrase": "secret-pass"},
-      "match": ["op", "action"],
-      "reply": {"accepted": true},
+      "request": {
+        "op": "wifi",
+        "action": "connect",
+        "ssid": "Home Wifi",
+        "security": "wpa2",
+        "passphrase": "secret-pass"
+      },
+      "match": [
+        "op",
+        "action"
+      ],
+      "reply": {
+        "accepted": true
+      },
       "read_only": false
     },
     {
       "name": "wifi-activate",
-      "request": {"op": "wifi", "action": "activate", "id": 0},
-      "match": ["op", "action"],
-      "reply": {"accepted": true},
+      "request": {
+        "op": "wifi",
+        "action": "activate",
+        "id": 0
+      },
+      "match": [
+        "op",
+        "action"
+      ],
+      "reply": {
+        "accepted": true
+      },
       "read_only": false
     },
     {
       "name": "wifi-disconnect",
-      "request": {"op": "wifi", "action": "disconnect"},
-      "reply": {"accepted": true},
+      "request": {
+        "op": "wifi",
+        "action": "disconnect"
+      },
+      "reply": {
+        "accepted": true
+      },
       "read_only": false
     },
     {
       "name": "wifi-forget",
-      "request": {"op": "wifi", "action": "forget", "id": 0},
-      "match": ["op", "action"],
-      "reply": {"accepted": true},
+      "request": {
+        "op": "wifi",
+        "action": "forget",
+        "id": 0
+      },
+      "match": [
+        "op",
+        "action"
+      ],
+      "reply": {
+        "accepted": true
+      },
       "read_only": false
     }
   ]

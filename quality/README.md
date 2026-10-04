@@ -1,115 +1,192 @@
 # 功能清单与质量治理
 
-Rungic 的功能、它们必须做到的体验，以及背后的代码、文档和测试，都记在这里。生成的总览是 [docs/feature-inventory.md](../docs/feature-inventory.md)，不要手改它；改这里的数据，再运行 `python3 tools/feature_inventory.py render --write`。
+`quality/` 记录 Rungic 的功能、体验要求、已知问题，以及对应的代码、文档和检查。
+一条功能描述用户能感知的一件事。
 
-## 为什么这样做
+[docs/feature-inventory.md](../docs/feature-inventory.md) 是自动生成的总览。不要直接修改它。
+修改 `quality/` 数据后，运行：
 
-- **找得到**：每个功能的代码、测试、文档和已知问题都在一处。改动前先查 `feature_inventory.py feature ID`，查一个文件归谁用 `feature_inventory.py owner PATH`。
-- **测得全**：每条体验都要有检查。测试自己声明它检查哪一条，测试改名或删除时清单会发现。
-- **清得掉**：每个被跟踪的文件都要有功能认领，每篇文档都要分类。没人认领的、已退役功能留下的、已被取代的文档，都会出现在 `report` 里，作为删除或重构的依据。
+```sh
+python3 tools/feature_inventory.py render --write
+```
 
-做法参照 Android CDD/CTS（要求有编号，测试声明自己验证哪一条）、Linux `MAINTAINERS`（路径归属），以及按用户场景组织功能的故事地图。
+## 用途
 
-## 数据
+- **查找功能**：每条功能列出代码、文档、检查和已知问题。改动前用 `feature ID` 查看这些信息。用 `owner PATH` 查文件归属。
+- **检查体验**：每条体验要求都要有检查。测试声明自己检查的体验编号。清单检查会发现测试改名或删除造成的覆盖缺失。
+- **确定清理范围**：每个跟踪文件都要有功能认领。每篇文档都要分类。`report` 列出无主文件、退役功能的残留和被取代的文档，供删除或重构时参考。
+
+这套做法参考三种已有方法：
+
+- Android CDD/CTS：要求有编号，测试声明对应的要求。
+- Linux `MAINTAINERS`：记录路径归属。
+- 故事地图：按用户场景组织功能。
+
+## 数据文件
 
 | 文件 | 内容 |
 |---|---|
-| `features/<领域>.yaml` | 一个领域的用户场景和功能 |
-| `interfaces.yaml` | 系统功能用到安卓的接口（契约） |
-| `docs.yaml` | 每篇文档的类别 |
+| `features/<领域>.yaml` | 该领域的用户场景、功能和体验要求 |
+| `interfaces.yaml` | Linux 系统功能使用的 Android 接口 |
+| `contracts/` | 接口查询及使用方依赖的回复字段 |
+| `docs.yaml` | 文档分类 |
+| `baseline.json` | 现有测试欠账的基线 |
 
-### 功能
+### 功能记录
 
 ```yaml
-- id: desktop-mode.fullscreen        # 领域.名字，英文、稳定
-  title: 桌面模式全屏                 # 用户说得出的名字
-  scenario: desktop-mode.use         # 属于哪个用户场景
+- id: desktop-mode.fullscreen        # 稳定的英文编号：领域.名字
+  title: 桌面模式全屏                 # 用户能说出的功能名称
+  scenario: desktop-mode.use         # 所属用户场景
   status: live                       # live 在用 | experimental 实验 | retired 已退役
-  platform: linux                    # linux 系统功能，与安卓无关 | android 离不开安卓
-  interfaces: [platform-bridge]      # 经由哪些安卓接口（interfaces.yaml）
-  summary: 一句话：用户得到什么。
-  experience:                        # 必须做到的体验，一条一个可检查的要求
+  platform: linux                    # linux 与 Android 无关 | android 依赖 Android
+  interfaces: [platform-bridge]      # 使用的 Android 接口，定义在 interfaces.yaml
+  summary: 一句话说明用户得到什么。
+  experience:                        # 每条体验写一个可检查的要求
     - id: E1
-      text: 进出全屏没有空白帧，退出后浮窗回到原位。
-      evidence:                      # 人工验证：文档位置和日期（超过 90 天算过期）
+      text: 进出全屏没有空白帧。退出后浮窗回到原位。
+      evidence:                      # 人工验证的文档位置和日期，超过 90 天算过期
         - {doc: docs/research/97-headless-agent-work.md, date: 2026-10-03, note: §21.6}
-      gap: 只能人眼判断，等录屏比对工具       # 暂时无法检查的原因（可选，写明就不算“未检查”）
-      device: 帧率取决于手机的 GPU 与 Android 的刷新   # 只有手机能说明这条体验的原因（可选，见“分层”）
-  pitfalls:                          # 需要注意的问题：踩过的坑、限制、容易误判的地方
-    - text: 手机上全屏窗口第一帧要晚约 0.6 秒。
+      gap: 只能人眼判断，等待录屏比对工具   # 可选：说明暂时无法检查的原因
+      device: 帧率取决于手机 GPU 和 Android 刷新   # 可选：说明系统测试无法替代的原因
+  pitfalls:                          # 已知问题、限制和容易误判的情况
+    - text: 手机上全屏窗口的第一帧要晚约 0.6 秒。
       docs: [docs/research/97-headless-agent-work.md]
-  code: [agent/screen/qml/Main.qml, agent/screen/]   # 认领的文件；以 / 结尾表示整个目录，支持 ** 通配
-  docs: [docs/research/97-headless-agent-work.md]    # 讲它的文档
+  code: [agent/screen/qml/Main.qml, agent/screen/]   # 认领的路径，目录以 / 结尾，支持 ** 通配
+  docs: [docs/research/97-headless-agent-work.md]    # 说明该功能的文档
 ```
 
-写法：
+功能记录按以下规则编写：
 
-- **一条功能是用户能感知的一件事**，例如“桌面模式全屏”“授权框出现在桌面里”；不是一个模块、一个服务或一次重构。
-- **体验写用户看到的结果**，要能判断对错：“退出后浮窗回到原来的位置和大小”，而不是“全屏逻辑正确”。性能、恢复、失败时的表现都算体验。
-- 支撑性的工程能力（打包、发布、诊断、补丁队列）放在“交付与运维”领域，用户是开发者和 Agent。
-- 已退役的功能保留记录，`status: retired`；它的代码和文档应当删除，`report` 会列出还没删的。确实要留的（例如 AGENTS.md 要求保留给历史/恢复工作的整包工具），写 `keep: 保留的理由`，就不再算作待清理。
+- 一条功能描述一件用户能感知的事。例如“桌面模式全屏”或“授权框出现在桌面里”。不要用模块、服务或重构代替用户功能。
+- 体验描述用户看到的结果，并且必须能判断是否符合要求。例如“退出后浮窗回到原来的位置和大小”。不要只写“全屏逻辑正确”。性能、恢复和失败时的表现也属于体验。
+- 打包、发布、诊断和补丁队列等工程能力放在“交付与运维”领域。这些功能的用户是开发者和 Agent。
+- 保留退役功能的记录，并设置 `status: retired`。删除它的代码和文档。`report` 会列出尚未删除的内容。
+- 确实需要保留退役功能的文件时，写 `keep: 保留理由`。例如 AGENTS.md 要求保留的历史或恢复用整包工具。有 `keep` 的内容不计为待清理项。
 
-### 测试声明
+### 声明检查范围
 
-测试在被检查的地方写一行注释，任何语言都行（补丁里的测试也一样）：
+在测试实际检查体验的位置写 `covers` 注释。任何语言都可以使用，补丁里的测试也使用同一规则。
 
 ```python
-# covers: desktop-mode.fullscreen/E1            离线单元测试（默认）
-# covers[system]: desktop-mode.fullscreen/E2    无头 Linux 系统测试（KWin --virtual 等，不需要安卓）
-# covers[consumer]: iface:platform-bridge       接口契约：Linux 一侧对着替身
-# covers[provider]: iface:platform-bridge       接口契约：安卓一侧，在手机上
-// covers[device]: desktop-mode.tv/E2           在手机上跑的测试（不在 acceptance.json 里的）
+# covers: desktop-mode.fullscreen/E1            离线单元测试，默认层级
+# covers[system]: desktop-mode.fullscreen/E2    无头 Linux 系统测试，如 KWin --virtual
+# covers[consumer]: iface:platform-bridge       Linux 使用方，对着替身检查契约
+# covers[provider]: iface:platform-bridge       Android 提供方，在手机上检查契约
+// covers[device]: desktop-mode.tv/E2           未列入 acceptance.json 的手机测试
 ```
 
-实机验收（`release/acceptance.json`）在场景里写 `"covers": ["display.size/E1", "iface:kwin-android-host"]`。只在测试真的检查了那条体验时才声明。
+实机验收在 `release/acceptance.json` 的场景中声明：
 
-### 分层
+```json
+"covers": ["display.size/E1", "iface:kwin-android-host"]
+```
 
-多数功能是 Linux 系统的功能（`platform: linux`），底下是安卓还是 PC 都一样，应当不靠安卓就能测：
+只有检查确实验证了对应体验时，才声明覆盖它。
 
-| 层 | 在哪里跑 | 检查什么 |
+### 检查层级
+
+多数功能属于 Linux 系统，使用 `platform: linux`。
+这类功能应当能在没有 Android 的环境中测试，无论底层设备是 Android 手机还是 PC。
+
+| 层级 | 运行位置 | 检查范围 |
 |---|---|---|
-| 单元 | 本机离线（`tools/run-tests.sh`） | 逻辑、协议、解析 |
-| 系统 | 无头 Linux：Mac mini 的 arm64 容器里 `kwin_wayland --virtual`（`tools/system_test.py`） | 窗口、层级、D-Bus、多个程序协作 |
-| 契约 | 使用方离线对着替身，提供方在手机上 | 系统功能和安卓之间的每个接口 |
-| 实机 | 手机（`tools/rungic_acceptance.py`、人工） | 接上之后整体可用；性能、时序、功耗 |
+| 单元 | 本机离线，`tools/run-tests.sh` | 逻辑、协议和解析 |
+| 系统 | Mac mini 的 ARM64 容器，`tools/system_test.py` 运行无头 `kwin_wayland --virtual` | 窗口、层级、D-Bus 和多个程序协作 |
+| 契约 | Linux 使用方离线对着替身，Android 提供方在手机上 | Linux 功能与 Android 之间的每个接口 |
+| 实机 | 手机，`tools/rungic_acceptance.py` 或人工检查 | 整体可用性、性能、时序和功耗 |
 
-`report` 会指出只在手机上检查的 Linux 功能（`device-only`，应当补系统测试）和只测了一头的接口（`one-sided-contract`）。
+`report` 会列出以下欠账：
 
-接口的一头暂时测不了时，在 `interfaces.yaml` 里写 `gaps: {consumer: 原因}` 或 `{provider: 原因}`，与体验的 `gap` 一样，写明就不算欠账。
+- `device-only`：Linux 功能只有手机检查，需要补系统测试。
+- `one-sided-contract`：接口只检查了使用方或提供方，需要补另一方的检查。
 
-Linux 功能里也有只能在手机上看的体验：性能、帧率、时序、功耗、画质、音质，或者结果取决于 Android 和硬件本身（例如摄像头出画、120 Hz）。这类体验写 `device: 原因`，仍然要有实机验收或人工验证，但不算 `device-only` 欠账。原因要具体到为什么系统测试替代不了；能拆出 Linux 一侧逻辑的，那部分照样写单元或系统测试。
+某一方暂时无法检查时，在 `interfaces.yaml` 中写明原因：
 
-### 文档类别
+```yaml
+gaps: {consumer: 使用方暂时无法检查的原因}
+# 或 gaps: {provider: 提供方暂时无法检查的原因}
+```
 
-| kind | 含义 | 处理 |
+与体验的 `gap` 一样，写明原因后，这一项不计为欠账。
+
+Linux 功能也可能包含只有手机能验证的体验。
+例如性能、帧率、时序、功耗、画质、音质，以及依赖 Android 或硬件的结果，如相机出画和 120 Hz 刷新。
+在这类体验中写 `device: 原因`。原因必须说明系统测试为什么无法替代实机检查。
+这些体验仍需实机验收或人工验证，但不计为 `device-only` 欠账。
+能够独立检查的 Linux 逻辑仍需单元测试或系统测试。
+
+### 文档分类
+
+| `kind` | 含义 | 处理要求 |
 |---|---|---|
-| reference | 现在的样子，维护到最新 | 必须有功能引用 |
-| journal | 过程记录：调研、实现、实测的经过 | 必须有功能引用；结论应进入功能的体验和注意事项 |
-| research | 可复用的调研 | 必须有功能引用 |
-| history | 已结束的历史（旧设备、旧路线），保留作证据 | 不要求引用，不再更新 |
-| index | 索引、总览 | — |
-| superseded | 内容已被别的文档取代（`superseded_by`） | 确认独有的事实已迁移后删除 |
+| `reference` | 当前实现的说明 | 保持最新。必须有功能引用。 |
+| `journal` | 调研、实现和实测的过程记录 | 必须有功能引用。将结论写入功能的体验和注意事项。 |
+| `research` | 可复用的调研 | 必须有功能引用。 |
+| `history` | 已结束的设备或路线记录 | 保留作证据。不要求功能引用，不再更新。 |
+| `index` | 索引或总览 | 无额外处理要求。 |
+| `superseded` | 已由其他文档取代的内容 | 用 `superseded_by` 指定替代文档。确认独有事实已迁移后删除。 |
 
 ## 检查与清理
 
 ```sh
-python3 tools/feature_inventory.py check          # 引用断裂是错误；其余是警告
-python3 tools/feature_inventory.py check --strict # 警告也算错误（tools/test_feature_inventory.py 用它）
-python3 tools/feature_inventory.py report         # 警告全文：要补的测试、要清理的文件、要决定的事
+python3 tools/feature_inventory.py check
+python3 tools/feature_inventory.py check --strict
+python3 tools/feature_inventory.py report
 ```
 
-- `--strict`（`tools/test_feature_inventory.py`、`tools/run-tests.sh`）对两类警告的处理不同：
-  - **结构性问题必须清零**：无主文件、未分类或无人引用的文档、已被取代还没删的文档、留着代码的退役功能（没有 `keep`）、没有功能用的接口。新增文件就要有功能认领，新功能就要写体验。
-  - **测试欠账只许减少**：没有检查的体验（`untested`）、只在手机上检查的 Linux 功能（`device-only`）、只测了一头的接口（`one-sided-contract`）、过期的人工验证（`stale-evidence`）。现有的记在 `quality/baseline.json`，出现新的就失败。补上测试后运行 `check --update-baseline` 收紧基线；基线变大会出现在 diff 里，需要说明理由。
-- 人工验证超过 90 天（`stale-evidence`）只在 `report` 里提示，测试不因日历而失败；重新验证后更新 `evidence` 的日期。
-- `tools/run-tests.sh` 跑上述检查，另外核对 `release/acceptance.json` 的每个场景都有对应的检查函数（`tools/tests/test_acceptance_scenarios.py`），以及补丁头 `X-Rungic-Tests` 里写的 L3 场景存在（`tools/pq.py lint`；还没写的标 `(to write)`）。
-- 删除代码或文档前，先用 `owner` 确认归属，用 `git grep` 确认没有引用，再看构建（`packaging/*/package.json` 的 `paths`、配方的 `overlay`）。一项清理一个提交，写明依据。
+`check` 将断裂引用报为错误，将其余问题报为警告。
+`report` 列出完整警告，说明需要补的检查、需要清理的文件和需要决定的问题。
+`--strict` 按以下规则决定是否失败。
+`tools/test_feature_inventory.py` 和 `tools/run-tests.sh` 使用这些规则。
 
-## 在手机上验证提供方：只读
+**结构性警告必须清零。** 以下情况都会导致失败：
 
-契约的提供方检查和其他实机检查都在用户的日常机上跑。2026-10-03 `desktop-mode.workspace` 的第一版检查为验证开关而先关后开桌面模式，又把状态读成了空（输出格式与预期不同），于是关掉了用户正在用的桌面（工作区 0 被关、应用被要求退出）；当即用 `rungic-desktop-mode on` 恢复，浮窗进程没有受影响。现在的规则：
+- 文件没有功能认领。
+- 文档未分类，或需要功能引用却无人引用。
+- 已被取代的文档尚未删除。
+- 退役功能仍有代码，且没有 `keep` 理由。
+- 接口没有功能使用。
 
-- 检查以实际运行的部件判断状态，读不懂状态就报失败，不做任何切换。
-- 桌面模式正在使用时只做只读核对；开关的往返只在它本来就关着时做，结束时恢复原状。往返会在手机上短暂打开桌面模式的浮窗，所以它属于 `full` 级验收，不在部署后的冒烟验收里。
-- 新的实机检查先在只读模式下跑一遍，看清它读到的是什么，再加会改变状态的步骤。
+新增文件时必须写功能认领。新增功能时必须写体验要求。
+
+**测试欠账只许减少。** 欠账类型包括 `untested`、`device-only`、`one-sided-contract` 和 `stale-evidence`。
+现有欠账记在 `quality/baseline.json`。新增欠账会导致检查失败，但 `stale-evidence` 按下面的日历规则处理。
+补上测试后，运行以下命令收紧基线：
+
+```sh
+python3 tools/feature_inventory.py check --update-baseline
+```
+
+基线扩大时，diff 会显示新增项，必须说明理由。
+人工验证超过 90 天时，`report` 提示 `stale-evidence`。测试不会仅因日期变化而失败。
+重新验证后，更新 `evidence` 的日期。
+
+`tools/run-tests.sh` 还检查两类引用：
+
+- `tools/tests/test_acceptance_scenarios.py` 检查 `release/acceptance.json` 中每个场景是否有对应检查函数。
+- `tools/pq.py lint` 检查补丁头 `X-Rungic-Tests` 中的 L3 场景是否存在。尚未编写的场景标为 `(to write)`。
+
+删除代码或文档前，依次检查：
+
+1. 用 `owner PATH` 确认文件归属。
+2. 用 `git grep` 确认没有引用。
+3. 核对构建输入，包括 `packaging/*/package.json` 的 `paths` 和配方的 `overlay`。
+
+每项清理单独提交，并说明依据。
+
+## 手机检查与用户状态
+
+提供方契约检查和其他实机检查运行在用户的日常机上。检查必须保留用户正在使用的状态。
+
+2026-10-03，`desktop-mode.workspace` 的第一版检查为验证开关而先关闭、再打开桌面模式。
+输出格式与检查预期不同，检查将状态读成空值，关闭了用户正在使用的工作区 0，并要求应用退出。
+随后用 `rungic-desktop-mode on` 恢复。浮窗进程未受影响。
+
+手机检查遵守以下规则：
+
+- 根据实际运行的部件判断状态。无法理解状态时，报告失败，不执行切换。
+- 桌面模式正在使用时，只读取和核对状态。
+- 只有桌面模式原本关闭时，才允许检查开关往返。检查结束后恢复原状态。
+- 开关往返会短暂显示手机上的桌面浮窗，因此只属于 `full` 验收。部署后的冒烟验收不执行这个往返。
+- 新增实机检查时，先运行只读步骤。确认实际读到的状态后，再加入改变状态的步骤。

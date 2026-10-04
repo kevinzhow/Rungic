@@ -7,7 +7,7 @@ scenarios:
     summary: 进入桌面之后，Rungic 应用更新、宿主重启或升级发布时，会话自己恢复，用户的设置跟着迁移、不被覆盖。
   - id: desktop.operate
     title: 在手机上操作桌面和应用
-    summary: 主屏、应用抽屉、状态栏、导航栏和快捷设置；用手指直接点按、滑动、边缘返回，横竖屏切换。
+    summary: 主屏、应用抽屉、状态栏、导航栏和快捷设置。用手指直接点按、滑动、边缘返回，横竖屏切换。
   - id: desktop.type
     title: 输入文字
     summary: 用屏幕键盘打中文（Rime）或英文，用安卓输入法往桌面里打字，复制粘贴在安卓和 Linux 之间互通，并能找回剪贴板历史。
@@ -30,14 +30,14 @@ features:
     status: live
     platform: android
     interfaces: [kwin-android-host, host-controller]
-    summary: 安卓宿主（Rungic 应用）更新或重启时，KWin 等它回来再重启，客户端不崩；会话每次启动都从干净的环境开始，不被上一次的失败或旧会话拖累。
+    summary: Android 宿主（Rungic 应用）更新或重启时，KWin 等待宿主恢复，再重启，客户端不崩溃。每次会话从干净环境启动，避免之前的失败或旧会话干扰。
     experience:
       - id: E1
-        text: 应用更新或宿主进程重启时，KWin 记录“Host connection lost”、等宿主 socket 可连接后以 133 退出并被重启，不留核心转储；Qt 客户端不在重连空窗里段错误，桌面恢复。
+        text: 应用更新或宿主进程重启时，KWin 记录“Host connection lost”、等宿主 socket 可连接后以 133 退出并被重启，不留核心转储。Qt 客户端不在重连空窗里段错误，桌面恢复。
         evidence:
           - {doc: docs/57-zero-copy-explicit-sync.md, date: 2026-09-24, note: "第8、9项：两次 force-stop 后 0 个新核心转储、0 次段错误"}
       - id: E2
-        text: 一次 GPU 启动失败（宿主重启时 EGL 暂不可用）不会让 plasmashell 永久改用软件渲染；有 GPU 时每次会话都清掉 SceneGraphBackend=software，应用抽屉不会空白。
+        text: 一次 GPU 启动失败（宿主重启时 EGL 暂不可用）不会让 plasmashell 永久改用软件渲染。有 GPU 时每次会话都清掉 SceneGraphBackend=software，应用抽屉不会空白。
         evidence:
           - {doc: docs/73-reduce-upstream-changes.md, date: 2026-09-27, note: "发布20260927.9的部署验收：应用抽屉空白"}
       - id: E3
@@ -45,21 +45,21 @@ features:
         evidence:
           - {doc: docs/65-agent-screen.md, date: 2026-09-28, note: "会话修复（rungic-plasma-session 0.283）：连续两次重装 APK，plasmashell 都是移动版"}
       - id: E4
-        text: GPU 设置、登录 PATH 在任何会话单元启动前导入用户管理器；Qt 按 XDG_CURRENT_DESKTOP 选平台主题，旧会话强加的主题不残留到新会话。
+        text: GPU 设置、登录 PATH 在任何会话单元启动前导入用户管理器。Qt 按 XDG_CURRENT_DESKTOP 选平台主题，旧会话强加的主题不残留到新会话。
       - id: E5
         text: 桌面上没有 Linux 锁屏挡住（锁定交给安卓），kaccess 不在没有 X 显示的会话里反复崩溃。
     pitfalls:
       - text: 上一个会话的 startplasma-wayland 退出时会把用户管理器环境恢复成它启动前的样子，曾删掉 PLASMA_DEFAULT_SHELL，让 plasmashell 以桌面版 shell 启动。
         docs: [docs/96-desktop-recovery-after-apk-restart.md]
-      - text: KWin 嵌套后端在宿主断开时 qFatal（上游设计），wrapper 把非 0、非 133 的退出都算崩溃、超过 10 次就不再重启；Qt 的 QT_WAYLAND_RECONNECT 在没有全局对象时重建 surface 会段错误（QTBUG-150287，上游未修），只能靠消除“没有可用 KWin”的空窗来避开。
+      - text: KWin 嵌套后端在宿主断开时 qFatal（上游设计），wrapper 把非 0、非 133 的退出都算崩溃、超过 10 次就不再重启。Qt 的 QT_WAYLAND_RECONNECT 在没有全局对象时重建 surface 会段错误（QTBUG-150287，上游未修），只能靠消除“没有可用 KWin”的空窗来避开。
         docs: [docs/57-zero-copy-explicit-sync.md]
       - text: KWin 退出时 Qt 客户端（plasmashell）在 wl_display_read_events 中崩溃的问题还在，部署工具从新会话就绪时才统计新崩溃。
         docs: [docs/72-kwin-android-host-isolation.md]
       - text: 迁移程序在 KWin 启动前运行，不能继承会话的 Wayland 平台（X70 首次会话五个迁移程序崩溃），只对迁移命令局部用 offscreen。
         docs: [docs/research/30-feature-adaptation.md]
-      - text: 只看到进程或单元 active 不等于桌面可用；APK 升级后 kactivitymanagerd 曾激活失败，要以实际画面和就绪信号验收。
+      - text: 只看到进程或单元 active 不等于桌面可用。APK 升级后 kactivitymanagerd 曾激活失败，要以实际画面和就绪信号验收。
         docs: [docs/research/clipboard-background.md, docs/40-plasma-mobile-integration.md]
-      - text: 桌面程序要经 user-exec systemd-run --user 继承完整会话环境；直接 user-exec 的环境较小，“不崩溃”不能代替手机模式验证。
+      - text: 桌面程序要经 user-exec systemd-run --user 继承完整会话环境。直接 user-exec 的环境较小，“不崩溃”不能代替手机模式验证。
         docs: [docs/40-plasma-mobile-integration.md]
     code:
       - desktop/session
@@ -84,18 +84,18 @@ features:
     status: live
     platform: linux
     interfaces: []
-    summary: 本项目对每个用户的一次性迁移（快捷设置位置、录屏图块、旧程序路径）在 KWin 读配置前做完，只做一次，不覆盖用户自己的选择。改名迁移见 install.rebrand-migration。
+    summary: 每个用户的一次性配置迁移在 KWin 读取配置前完成。迁移调整快捷设置位置、录屏图块和旧程序路径，仅执行一次，不覆盖用户选择。改名迁移见 install.rebrand-migration。
     experience:
       - id: E1
-        text: 用户有自定义的快捷设置列表时，投屏图块放在蓝牙之后、助理屏在投屏之后；用默认列表时不改动。
+        text: 用户有自定义的快捷设置列表时，投屏图块放在蓝牙之后、助理屏在投屏之后。用默认列表时不改动。
       - id: E2
         text: 录屏图块换成本项目的录屏插件，用户原来禁用的录屏仍是禁用。
       - id: E3
-        text: 设置里指向旧 /usr/local 路径的输入法、门户覆盖、Codex 配置和 Firefox 启动器改到新路径；用户自己改过的值不动。
+        text: 设置里指向旧 /usr/local 路径的输入法、门户覆盖、Codex 配置和 Firefox 启动器改到新路径。用户自己改过的值不动。
       - id: E4
-        text: 迁移在 KWin 启动前运行，KWin 第一次就读到新的输入法路径；每个迁移只运行一次。旧的固定 3 倍显示迁移已退役，不凭 scale=3 猜测用户选择。
+        text: 迁移在 KWin 启动前运行，KWin 第一次就读到新的输入法路径。每个迁移只运行一次。旧的固定 3 倍显示迁移已退役，不凭 scale=3 猜测用户选择。
     pitfalls:
-      - text: 家目录不随 rootfs 快照回滚，失败部署期间写进 ~/.config 的内容会留下；排查部署后异常时要看部署时段改过的用户配置。
+      - text: 家目录不随 rootfs 快照回滚，失败部署期间写进 ~/.config 的内容会留下。排查部署后异常时要看部署时段改过的用户配置。
         docs: [docs/61-delivery-diagnostics-plan.md]
     code:
       - system/config/usr/share/kconf_update/
@@ -110,22 +110,22 @@ features:
     status: live
     platform: linux
     interfaces: []
-    summary: Ubuntu 26.04 上的 Plasma Mobile 6.6.5：主屏、应用抽屉、任务切换、导航栏和快捷设置，按控件名就能被辅助技术和自动化操作。
+    summary: Ubuntu 26.04 使用 Plasma Mobile 6.6.5，提供主屏、应用抽屉、任务切换、导航栏和快捷设置。辅助技术和自动化可以按控件名称操作这些界面。
     experience:
       - id: E1
-        text: 桌面、应用抽屉、触摸、回主屏和任务切换都可用；普通应用（Dolphin、Koko、QmlKonsole、Haruna 等）能从抽屉启动并显示。
+        text: 桌面、应用抽屉、触摸、回主屏和任务切换都可用。普通应用（Dolphin、Koko、QmlKonsole、Haruna 等）能从抽屉启动并显示。
         evidence:
           - {doc: docs/40-plasma-mobile-integration.md, date: 2026-09-23, note: "实机验收与边界表：桌面与应用"}
           - {doc: docs/42-plasma-runtime-acceptance.md, date: 2026-09-23, note: "普通应用逐个显示"}
       - id: E2
         text: 导航栏按钮有无障碍名称（任务切换、主屏、关闭应用），按名称能经启动器打开和关闭应用。
       - id: E3
-        text: 主屏静止时 plasmashell 几乎不占 CPU（约 0.6% 单核、每秒十几次唤醒）；关着的快捷设置面板里溢出的文字不再滚动。
+        text: 主屏静止时 plasmashell 几乎不占 CPU（约 0.6% 单核、每秒十几次唤醒）。关着的快捷设置面板里溢出的文字不再滚动。
         evidence:
           - {doc: docs/57-zero-copy-explicit-sync.md, date: 2026-09-24, note: "第6项：0.57–0.61% 单核"}
         device: 静止时 plasmashell 的单核占用和每秒唤醒次数取决于手机的 CPU 和宿主的帧节拍，只能在手机上量。关着的快捷设置不再滚动文字是 plasma-mobile 补丁（marquee-stop-when-hidden）的逻辑，系统测试镜像里只有 Ubuntu 原版 plasma-mobile，这一半还没有自动检查。
       - id: E4
-        text: 横屏时主屏边距按当前可用区域计算，小组件和收藏栏都在屏幕内；默认不再行列互换，小组件保持形状，图标隐藏名称。
+        text: 横屏时主屏边距按当前可用区域计算，小组件和收藏栏都在屏幕内。默认不再行列互换，小组件保持形状，图标隐藏名称。
         evidence:
           - {doc: docs/50-plasma-display-settings.md, date: 2026-10-01, note: "横屏时小组件的布局：实机验证"}
       - id: E5
@@ -133,13 +133,13 @@ features:
         evidence:
           - {doc: docs/59-voice-agent.md, date: 2026-09-25, note: "长按Home呼出"}
     pitfalls:
-      - text: 关着的快捷设置面板为了打开速度一直不设 visible=false，MarqueeLabel 跑马灯在关闭后仍以约 100 次/秒推进动画；上游 2026-09-18/19 才修复，已回移。
+      - text: 关着的快捷设置面板为了打开速度一直不设 visible=false，MarqueeLabel 跑马灯在关闭后仍以约 100 次/秒推进动画。上游 2026-09-18/19 才修复，已回移。
         docs: [docs/57-zero-copy-explicit-sync.md]
-      - text: HomeScreen.qml 在 Component.onCompleted 时根项还是 0×0，边距算成负值；容器 screen() 为 −1 时 libplasma 丢掉 availableScreenRectChanged，边距从此不更新（上游 master 一样）。
+      - text: HomeScreen.qml 在 Component.onCompleted 时根项还是 0×0，边距算成负值。容器 screen() 为 −1 时 libplasma 丢掉 availableScreenRectChanged，边距从此不更新（上游 master 一样）。
         docs: [docs/50-plasma-display-settings.md]
       - text: 横屏打开抽屉后搜索框拿到焦点，关抽屉转回竖屏时键盘会自己弹出，收起后还会出现 Paste 气泡（未修）。
         docs: [docs/50-plasma-display-settings.md]
-      - text: 抽屉会保留滚动位置，被滚到搜索框下方的图标仍报告有效坐标，自动点击会落到搜索框上；验收前先把列表拖回顶部。
+      - text: 抽屉会保留滚动位置，被滚到搜索框下方的图标仍报告有效坐标，自动点击会落到搜索框上。验收前先把列表拖回顶部。
         docs: [docs/57-zero-copy-explicit-sync.md]
       - text: 验收前先确认 dumpsys input 的 touchingPointers 为空：一次持续的实体触摸让注入的滑动变成多指手势，快捷设置拉不下来，主屏进了编辑模式。
         docs: [docs/73-reduce-upstream-changes.md]
@@ -155,30 +155,30 @@ features:
     status: live
     platform: linux
     interfaces: [kwin-android-host]
-    summary: 状态栏按安卓挖孔的中心线对齐，应用的工作区从状态栏下沿开始；状态栏和导航栏随前台应用的配色。
+    summary: 状态栏与 Android 挖孔的中心线对齐。应用工作区从状态栏下沿开始。状态栏和导航栏跟随前台应用的配色。
     experience:
       - id: E1
-        text: 状态栏中心线与安卓挖孔中心对齐；应用窗口顶端紧贴状态栏实际厚度（38 逻辑像素时应用 y=38），不被遮住。
+        text: 状态栏中心线与安卓挖孔中心对齐。应用窗口顶端紧贴状态栏实际厚度（38 逻辑像素时应用 y=38），不被遮住。
         evidence:
           - {doc: docs/43-plasma-panel-workarea.md, date: 2026-09-23, note: "验收表"}
       - id: E2
-        text: 全屏和自动隐藏时应用占满整屏（y=0），退出后恢复；横竖屏切换和重启 plasmashell 后工作区仍与面板一致。
+        text: 全屏和自动隐藏时应用占满整屏（y=0），退出后恢复。横竖屏切换和重启 plasmashell 后工作区仍与面板一致。
         evidence:
           - {doc: docs/43-plasma-panel-workarea.md, date: 2026-09-23, note: "全屏、自动隐藏、横屏、重启 plasmashell"}
       - id: E3
-        text: 前台应用声明了自己的配色时，状态栏和导航栏用它的背景色，深色背景上图标和文字变浅；没有声明配色的应用不受影响。
+        text: 前台应用声明了自己的配色时，状态栏和导航栏用它的背景色，深色背景上图标和文字变浅。没有声明配色的应用不受影响。
         evidence:
           - {doc: docs/59-voice-agent.md, date: 2026-09-25, note: "面板跟随应用配色：语音助手与 plasma-settings 对照"}
       - id: E4
-        text: 只有挖孔落在状态栏那一行时才用侧边安全区作为状态栏左右内边距；状态栏安全区只用到手机内屏，不套到外屏上。
+        text: 只有挖孔落在状态栏那一行时才用侧边安全区作为状态栏左右内边距。状态栏安全区只用到手机内屏，不套到外屏上。
     pitfalls:
-      - text: PanelView.setThickness 与更新 layer-shell exclusive zone 不是同一个动作；面板变厚后应用仍从旧位置开始，问题在面板预留区而不是每个应用。
+      - text: PanelView.setThickness 与更新 layer-shell exclusive zone 不是同一个动作。面板变厚后应用仍从旧位置开始，问题在面板预留区而不是每个应用。
         docs: [docs/43-plasma-panel-workarea.md]
-      - text: 多个短命 kwriteconfig --notify 进程退出时通知可能还在队列里，运行中的面板读到旧高度；改为一次长驻连接批量通知并 flush。
+      - text: 多个短命 kwriteconfig --notify 进程退出时通知可能还在队列里，运行中的面板读到旧高度。改为一次长驻连接批量通知并 flush。
         docs: [docs/43-plasma-panel-workarea.md]
       - text: Android 报告的是保守的挖孔矩形，不等于光学轮廓。
         docs: [docs/40-plasma-mobile-integration.md]
-      - text: KWin 声明式脚本共用一个 QML 引擎，重载 convergentwindows 仍用缓存的旧 main.qml，新脚本要等 KWin 下次启动才生效；不能把 loadDeclarativeScript 成功当作新代码已生效。
+      - text: KWin 声明式脚本共用一个 QML 引擎，重载 convergentwindows 仍用缓存的旧 main.qml，新脚本要等 KWin 下次启动才生效。不能把 loadDeclarativeScript 成功当作新代码已生效。
         docs: [docs/59-voice-agent.md, docs/47-plasma-input-window-flicker.md]
     code:
       - desktop/display.py
@@ -196,32 +196,32 @@ features:
     status: live
     platform: linux
     interfaces: [host-input]
-    summary: 安卓的触摸点按原样送进 KWin，横竖屏坐标都对得上；触屏模式下不画鼠标指针。
+    summary: Android 将触摸点原样送入 KWin。横屏和竖屏的坐标都与画面对应。触屏模式不显示鼠标指针。
     experience:
       - id: E1
         text: 横屏、竖屏和缩放下点哪里就点中哪里，多指触点各自保留 ID 和按下/移动/抬起。
         evidence:
           - {doc: docs/42-plasma-runtime-acceptance.md, date: 2026-09-23, note: "横屏→竖屏、键盘菜单与触摸通过"}
-        device: 触点是安卓的 MotionEvent，横竖屏与缩放下的坐标换算在 Rungic 应用的原生宿主（packages/android-host）里做，再经 KWin 的 Android 后端（android-backend.patch）进入 KWin；宿主只能在安卓上运行（它的单元测试也在手机上跑，android/test-native-core.sh），无头 KWin（--virtual）没有 Android 后端，系统测试走不到这条输入通路。
+        device: 触点是安卓的 MotionEvent，横竖屏与缩放下的坐标换算在 Rungic 应用的原生宿主（packages/android-host）里做，再经 KWin 的 Android 后端（android-backend.patch）进入 KWin。宿主只能在安卓上运行（它的单元测试也在手机上跑，android/test-native-core.sh），无头 KWin（--virtual）没有 Android 后端，系统测试走不到这条输入通路。
       - id: E2
         text: 宿主暂停渲染时，还没抬起的触点先收到取消，KWin 里不会留下一直按着的手指。
         evidence:
           - {doc: docs/49-plasma-performance.md, date: 2026-09-28, note: "同时修复：宿主暂停渲染时的触摸取消"}
-        device: 取消由安卓宿主在暂停渲染（Activity 进入后台、熄屏）时发出（packages/android-host 的 smithay 补丁），要安卓的生命周期才会发生；宿主只能在安卓上运行（它的单元测试也在手机上跑，android/test-native-core.sh），无头 KWin（--virtual）没有 Android 后端，系统测试走不到这条输入通路。
+        device: 取消由安卓宿主在暂停渲染（Activity 进入后台、熄屏）时发出（packages/android-host 的 smithay 补丁），要安卓的生命周期才会发生。宿主只能在安卓上运行（它的单元测试也在手机上跑，android/test-native-core.sh），无头 KWin（--virtual）没有 Android 后端，系统测试走不到这条输入通路。
       - id: E3
         text: 触屏模式下屏幕上没有鼠标指针（开机左上角不再有黑框光标），切到鼠标或触控板模式才出现指针。
         evidence:
           - {doc: docs/57-zero-copy-explicit-sync.md, date: 2026-09-24, note: "其他修复：开机左上角黑框光标"}
-        device: 有没有指针取决于宿主报告的输入设备（触摸屏，或安卓连着的鼠标、触控板），由 KWin 的 Android 后端（android-backend.patch，只在 --android-host 下工作）处理；宿主只能在安卓上运行（它的单元测试也在手机上跑，android/test-native-core.sh），无头 KWin（--virtual）没有 Android 后端，系统测试走不到这条输入通路。
+        device: 有没有指针取决于宿主报告的输入设备（触摸屏，或安卓连着的鼠标、触控板），由 KWin 的 Android 后端（android-backend.patch，只在 --android-host 下工作）处理。宿主只能在安卓上运行（它的单元测试也在手机上跑，android/test-native-core.sh），无头 KWin（--virtual）没有 Android 后端，系统测试走不到这条输入通路。
       - id: E4
         text: 每次按下不会让 KWin 重新应用输出配置（宿主只在状态变化时发 configure），点按不引起卡顿。
         evidence:
           - {doc: docs/57-zero-copy-explicit-sync.md, date: 2026-09-24, note: "第7项：applyConfigure 不再出现"}
-        device: configure 由安卓宿主发出（它只在尺寸、方向等状态变化时发），点按会不会让 KWin 重新应用输出配置要在宿主与 KWin 的 Android 后端之间看；宿主只能在安卓上运行（它的单元测试也在手机上跑，android/test-native-core.sh），无头 KWin（--virtual）没有 Android 后端，系统测试走不到这条输入通路。
+        device: configure 由安卓宿主发出（它只在尺寸、方向等状态变化时发），点按会不会让 KWin 重新应用输出配置要在宿主与 KWin 的 Android 后端之间看。宿主只能在安卓上运行（它的单元测试也在手机上跑，android/test-native-core.sh），无头 KWin（--virtual）没有 Android 后端，系统测试走不到这条输入通路。
     pitfalls:
       - text: 蓝牙鼠标模式的指针能力增删尚未实机验证。
         docs: [docs/57-zero-copy-explicit-sync.md]
-      - text: adb input 做不出多指手势；需要真实多点触控时用 rungic_touch.py 以 root 写触摸屏 evdev，且先确认没有真实手指按着。
+      - text: adb input 做不出多指手势。需要真实多点触控时用 rungic_touch.py 以 root 写触摸屏 evdev，且先确认没有真实手指按着。
         docs: [docs/66-pointer-gestures.md]
     code:
       - tools/rungic_touch.py
@@ -234,14 +234,14 @@ features:
     status: live
     platform: android
     interfaces: [host-input, host-controller]
-    summary: 安卓的边缘返回手势在桌面里有意义：右边缘先收键盘、再让当前应用返回上一页；左边缘打开 Rungic 菜单。
+    summary: Android 的右边缘返回手势先收起键盘，再请求当前应用返回上一页。左边缘手势打开 Rungic 菜单。
     experience:
       - id: E1
-        text: 从右边缘滑入时，键盘显示则先收起键盘，否则向当前 Linux 窗口发 Alt+Left；应用有上一页时返回（Dolphin 子目录返回上级），不会关闭应用。
+        text: 从右边缘滑入时，键盘显示则先收起键盘，否则向当前 Linux 窗口发 Alt+Left。应用有上一页时返回（Dolphin 子目录返回上级），不会关闭应用。
         evidence:
           - {doc: docs/46-plasma-recording-and-edge-back.md, date: 2026-09-23, note: "左侧菜单与右侧收键盘已实测；verified-right-back.png"}
       - id: E2
-        text: 从左边缘滑入打开 Rungic 容器菜单；手势中途取消不产生任何操作。
+        text: 从左边缘滑入打开 Rungic 容器菜单。手势中途取消不产生任何操作。
         evidence:
           - {doc: docs/46-plasma-recording-and-edge-back.md, date: 2026-09-23}
       - id: E3
@@ -251,7 +251,7 @@ features:
     pitfalls:
       - text: 沉浸状态下第一次边缘手势可能只调出安卓系统栏，下一次才分派给容器。
         docs: [docs/46-plasma-recording-and-edge-back.md]
-      - text: native keymap 没有映射 KEYCODE_BACK，不能直接发它冒充返回；不要另造触摸边缘拦截区，会抢 Linux 应用内的侧栏。
+      - text: native keymap 没有映射 KEYCODE_BACK，不能直接发它冒充返回。不要另造触摸边缘拦截区，会抢 Linux 应用内的侧栏。
         docs: [docs/46-plasma-recording-and-edge-back.md]
       - text: 导航栏右侧按钮是上游设计（键盘可见时收键盘，否则关闭活动应用），按用户要求不改成逐层返回。
         docs: [docs/46-plasma-recording-and-edge-back.md]
@@ -266,10 +266,10 @@ features:
     status: live
     platform: android
     interfaces: [platform-bridge, kwin-android-host]
-    summary: 旋转由安卓执行，Linux 只跟随；在显示设置里转屏也是请安卓转，画面铺满，不会半屏黑。
+    summary: Android 执行旋转，Linux 跟随方向变化。在 Linux 显示设置中转屏时，也由 Android 执行。画面铺满屏幕，不出现半屏黑。
     experience:
       - id: E1
-        text: 在显示设置（或 kscreen-doctor）把手机屏转成横屏时，安卓真的转成横屏，KWin 输出不旋转、画面铺满；会话重启也不会重放旋转导致错位。
+        text: 在显示设置（或 kscreen-doctor）把手机屏转成横屏时，安卓真的转成横屏，KWin 输出不旋转、画面铺满。会话重启也不会重放旋转导致错位。
         evidence:
           - {doc: docs/50-plasma-display-settings.md, date: 2026-10-01, note: "kscreen-doctor rotation.right 实机验证"}
       - id: E2
@@ -284,9 +284,9 @@ features:
         text: 旋转后应用窗口、工作区、键盘和触摸都跟着新方向，转回竖屏后布局复原。
         gap: 设置界面直接点旋转、多次往返、键盘与应用窗口、会话重启后都还没验证（docs/50 未验证清单）
     pitfalls:
-      - text: KWin 内部旋转会把旋转后的画面画进横向缓冲区，而安卓窗口仍是竖屏（只占上方 45%），变换还被写进 kwinoutputconfig.json 重放；手机屏在 KWin 内不接受任何变换。
+      - text: KWin 内部旋转会把旋转后的画面画进横向缓冲区，而安卓窗口仍是竖屏（只占上方 45%），变换还被写进 kwinoutputconfig.json 重放。手机屏在 KWin 内不接受任何变换。
         docs: [docs/50-plasma-display-settings.md]
-      - text: 零拷贝层是 SurfaceView 子层，按父层最后一帧缓冲的尺寸裁剪；旋转后要先走 GLES 两帧。尺寸必须在绘制前用 eglQuerySurface 读，swap 后读会误判。
+      - text: 零拷贝层是 SurfaceView 子层，按父层最后一帧缓冲的尺寸裁剪。旋转后要先走 GLES 两帧。尺寸必须在绘制前用 eglQuerySurface 读，swap 后读会误判。
         docs: [docs/57-zero-copy-explicit-sync.md]
       - text: 恢复时指定 @120 会把宿主变成固定 120Hz，恢复后要切回“自动”。
         docs: [docs/50-plasma-display-settings.md]
@@ -302,7 +302,7 @@ features:
     status: live
     platform: linux
     interfaces: []
-    summary: 为 PC 写的应用在手机竖屏上也不会因为窗口尺寸冲突被断开，缩放下的窗口重绘不越界。
+    summary: PC 应用在手机竖屏上不会因窗口尺寸冲突而断开连接。缩放后的窗口重绘不超出边界。
     experience:
       - id: E1
         text: 应用给出的最小尺寸大于最大尺寸（静态 Qt 的微信按手机主屏算最大值）时，KWin 丢弃冲突的最大值并记警告，应用不被断开。
@@ -310,11 +310,11 @@ features:
           - {doc: docs/42-plasma-runtime-acceptance.md, date: 2026-09-25, note: "minmax-probe 在 moto16 下保持连接"}
       - id: E2
         text: 缩放与缓冲不一致时为采样加宽的损伤区不超出窗口自身，不会把邻近内容重画坏。
-        gap: 要带本项目 KWin 补丁（clip-scaled-damage-to-surface）的测试：两块缩放不同、边挨边的输出，一侧窗口出帧时另一侧不重画；系统测试镜像里只有 Ubuntu 原版 kwin-wayland，KWin 的 L1 测试构建（docs/71）也还没有这一项。2026-09-28 在手机上量过（docs/65：助理屏上 60 fps 动画时手机每秒重画 0 次）。
+        gap: 要带本项目 KWin 补丁（clip-scaled-damage-to-surface）的测试：两块缩放不同、边挨边的输出，一侧窗口出帧时另一侧不重画。系统测试镜像里只有 Ubuntu 原版 kwin-wayland，KWin 的 L1 测试构建（docs/71）也还没有这一项。2026-09-28 在手机上量过（docs/65：助理屏上 60 fps 动画时手机每秒重画 0 次）。
     pitfalls:
-      - text: 放宽“最小大于最大必须报错”不符合 xdg-shell 协议，是本机为兼容这类客户端做的；微信登录后主窗口的真实尺寸还待抓取。
+      - text: 放宽“最小大于最大必须报错”不符合 xdg-shell 协议，是本机为兼容这类客户端做的。微信登录后主窗口的真实尺寸还待抓取。
         docs: [docs/42-plasma-runtime-acceptance.md]
-      - text: 手机宽度下 PC 应用仍可能需要横屏；该修复面向遵守 Wayland 尺寸的应用，不保证第三方应用的最小尺寸适合手机。
+      - text: 手机宽度下 PC 应用仍可能需要横屏。该修复面向遵守 Wayland 尺寸的应用，不保证第三方应用的最小尺寸适合手机。
         docs: [docs/40-plasma-mobile-integration.md, docs/43-plasma-panel-workarea.md]
     code:
       - packages/kwin/debian/patches/rungic/xdg-min-above-max.patch
@@ -328,41 +328,41 @@ features:
     status: live
     platform: linux
     interfaces: []
-    summary: Plasma 屏幕键盘接 Rime 朙月简体拼音，中文候选在前，可切英文；两个键盘进程共用一份用户词库，只在打字时占用。
+    summary: Plasma 屏幕键盘使用 Rime 朙月简体拼音。中文候选优先，用户可以切换英文。两个键盘进程共用用户词库，只在打字时占用资源。
     experience:
       - id: E1
-        text: 输入 nihao 首候选是“你好”，候选按 Rime 顺序、中文在前，拼音只在预编辑区；300 次快速组合、选词和提交都正确。
+        text: 输入 nihao 首候选是“你好”，候选按 Rime 顺序、中文在前，拼音只在预编辑区。300 次快速组合、选词和提交都正确。
         evidence:
           - {doc: docs/41-plasma-rime-input.md, date: 2026-09-23, note: "实际触屏连续输入；整机重启后再验"}
       - id: E2
-        text: 连续输入、四次收起再打开、切到 English 输入 hello 再切回中文都正常，键盘进程不崩溃不重启；整机重启后默认就是简体中文。
+        text: 连续输入、四次收起再打开、切到 English 输入 hello 再切回中文都正常，键盘进程不崩溃不重启。整机重启后默认就是简体中文。
         evidence:
           - {doc: docs/41-plasma-rime-input.md, date: 2026-09-23, note: "同一 PID 持续存活；rime-after-reboot-nihao.png"}
       - id: E3
-        text: 中文键盘的字母页和符号页都用 Rime：数字框先出符号页时 `,` 打出 `，`；上游布局变化时构建报错，不会静默退回 Qt 默认输入法。
+        text: 中文键盘的字母页和符号页都用 Rime：数字框先出符号页时 `,` 打出 `，`。上游布局变化时构建报错，不会静默退回 Qt 默认输入法。
       - id: E4
-        text: 用户词库只在打字时打开：键盘收起、失焦或显示时 5 秒不按键就关闭会话并释放词库，组合中不关闭；另一个进程正持有词库时本边仍能打中文（不学习），对方释放后转为共享，学到的词两边都排第一，词库不被修复程序改写。
+        text: 用户词库只在打字时打开：键盘收起、失焦或显示时 5 秒不按键就关闭会话并释放词库，组合中不关闭。另一个进程正持有词库时本边仍能打中文（不学习），对方释放后转为共享，学到的词两边都排第一，词库不被修复程序改写。
         evidence:
           - {doc: docs/41-plasma-rime-input.md, date: 2026-10-03, note: "实机容器内 rungic-rime-check 全部通过"}
       - id: E5
         text: 建会话加第一个键在实机上远低于 50 ms，不需要预建会话。
         evidence:
           - {doc: docs/41-plasma-rime-input.md, date: 2026-10-03, note: "首次 24.6 ms、重开中位数 13.5 ms"}
-        device: 耗时取决于手机的 CPU 和存储（LevelDB 每次打开都写 MANIFEST 并 fsync）；离线在 tmpfs 与 NVMe 上就相差十倍，只有手机上量的数字能说明。
+        device: 耗时取决于手机的 CPU 和存储（LevelDB 每次打开都写 MANIFEST 并 fsync）。离线在 tmpfs 与 NVMe 上就相差十倍，只有手机上量的数字能说明。
       - id: E6
-        text: 密码字段不交给 Rime，敏感字段不学习词频；用户词频和定制在 ~/.local/share/plasma-rime（0700），default.custom.yaml 只首次创建。
+        text: 密码字段不交给 Rime，敏感字段不学习词频。用户词频和定制在 ~/.local/share/plasma-rime（0700），default.custom.yaml 只首次创建。
     pitfalls:
-      - text: librime 打开词库失败会安排 userdb_recovery_task，LevelDB RepairDB 不取 LOCK，会改写另一进程正在用的词库；所以在确认能独占词库之前，任何会话都不能尝试打开它。
+      - text: librime 打开词库失败会安排 userdb_recovery_task，LevelDB RepairDB 不取 LOCK，会改写另一进程正在用的词库。所以在确认能独占词库之前，任何会话都不能尝试打开它。
         docs: [docs/41-plasma-rime-input.md]
       - text: Ubuntu 的 Qt VKB 没有 Pinyin 插件，旧 symbols.qml 报 PinyinInputMethod is not a type 后改用 Hunspell，标点变半角。
         docs: [docs/41-plasma-rime-input.md]
-      - text: 访客会话依赖 librime 方案配置缓存共享的实现细节；升级 librime 后要重新核对 UserDictionary::Load 的恢复逻辑和配置缓存。
+      - text: 访客会话依赖 librime 方案配置缓存共享的实现细节。升级 librime 后要重新核对 UserDictionary::Load 的恢复逻辑和配置缓存。
         docs: [docs/41-plasma-rime-input.md]
-      - text: 部署后旧的 plasma-keyboard 进程会一直持有词库，新进程只能用访客会话；要确认键盘进程是部署后启动的。rime-data 升级后两进程同时启动可能并发写 build/。
+      - text: 部署后旧的 plasma-keyboard 进程会一直持有词库，新进程只能用访客会话。要确认键盘进程是部署后启动的。rime-data 升级后两进程同时启动可能并发写 build/。
         docs: [docs/41-plasma-rime-input.md]
-      - text: 旧 Maliit 拼音插件反复处理旧请求、把拼音排在候选前，并会崩溃重启（键盘自己收起又弹出）；已换掉，不要恢复。
+      - text: 旧 Maliit 拼音插件反复处理旧请求、把拼音排在候选前，并会崩溃重启（键盘自己收起又弹出）。已换掉，不要恢复。
         docs: [docs/41-plasma-rime-input.md]
-      - text: 验收脚本用 pkill -x 清理探针时进程名只保留 15 个字符，从未匹配，残留窗口让 input.rime 偶发失败；按完整命令行匹配。
+      - text: 验收脚本用 pkill -x 清理探针时进程名只保留 15 个字符，从未匹配，残留窗口让 input.rime 偶发失败。按完整命令行匹配。
         docs: [docs/72-kwin-android-host-isolation.md]
     code:
       - desktop/rime/
@@ -377,23 +377,23 @@ features:
     status: live
     platform: linux
     interfaces: []
-    summary: 点文本框弹出 Plasma 键盘，窗口为键盘让位但不上下跳；键盘只在手机屏上出现，叠在其他浮层之上。
+    summary: 点击文本框时，Plasma 键盘出现。窗口为键盘让出空间，不上下跳动。键盘只出现在手机屏幕，并显示在其他浮层上方。
     experience:
       - id: E1
-        text: 反复点同一个正在输入的文本框，窗口不再上下跳动（Marknote 12 次、GTK4 20 次无几何变化）；两个字段交替切换时键盘不收起再弹出。
+        text: 反复点同一个正在输入的文本框，窗口不再上下跳动（Marknote 12 次、GTK4 20 次无几何变化）。两个字段交替切换时键盘不收起再弹出。
         evidence:
           - {doc: docs/47-plasma-input-window-flicker.md, date: 2026-09-23, note: "验收记录"}
       - id: E2
-        text: 切换语言后旋转屏幕，语言菜单不访问已销毁的按键，没有报错；键盘尺寸变化时菜单关闭。
+        text: 切换语言后旋转屏幕，语言菜单不访问已销毁的按键，没有报错。键盘尺寸变化时菜单关闭。
         evidence:
           - {doc: docs/41-plasma-rime-input.md, date: 2026-09-23, note: "键盘前端的语言菜单与旋转修复"}
       - id: E3
         text: 屏幕键盘只出现在手机内屏，不出现在电视等外屏。
-        gap: 要一个带本项目 KWin 补丁（inputmethod-host-text 的内屏规则）和 plasma-keyboard 的无头系统测试：一块内屏、一块外屏，聚焦外屏上的文本框；系统测试镜像里只有 Ubuntu 原版 kwin-wayland。2026-09-24 在电视上实机看过（docs/58 第3步），但那时还没有实机场景记录它。
+        gap: 要一个带本项目 KWin 补丁（inputmethod-host-text 的内屏规则）和 plasma-keyboard 的无头系统测试：一块内屏、一块外屏，聚焦外屏上的文本框。系统测试镜像里只有 Ubuntu 原版 kwin-wayland。2026-09-24 在电视上实机看过（docs/58 第3步），但那时还没有实机场景记录它。
       - id: E4
         text: 聚焦一个 Qt 文本框时键盘弹出。
     pitfalls:
-      - text: 上游 convergentwindows 每次运行都把 frameGeometry 设成 MaximizeArea（不含键盘避让），随后 KWin 输入法再缩小窗口，形成抖动；只在窗口边框确实要取消时保留直接设置。
+      - text: 上游 convergentwindows 每次运行都把 frameGeometry 设成 MaximizeArea（不含键盘避让），随后 KWin 输入法再缩小窗口，形成抖动。只在窗口边框确实要取消时保留直接设置。
         docs: [docs/47-plasma-input-window-flicker.md]
       - text: GTK 两字段切换是另一条独立路径（旧上下文失活即隐藏键盘、销毁 surface），单字段测试不能代替它。
         docs: [docs/47-plasma-input-window-flicker.md]
@@ -413,12 +413,12 @@ features:
       - id: E1
         text: 用安卓输入法打的文字到达 Linux 里获得焦点的输入框（例如应用抽屉的搜索框，结果按输入过滤）。
       - id: E2
-        text: 安卓输入法提交的中文经宿主 text-input 交给 KWin，直接进入焦点应用；键盘布局数据由 APK 安装，缺失时明确报错。
-        gap: 中文经安卓输入法提交只在 2026-09-24 投屏时实机试过（docs/58 第3步，进入电视上的 KRunner）；手机屏上的提交和布局数据缺失时的报错（KeyboardAssets.java）还没有检查。要一个实机场景：input.text 用 adb input text 直接发 ASCII 按键，不经输入法的提交通路。
+        text: 安卓输入法提交的中文经宿主 text-input 交给 KWin，直接进入焦点应用。键盘布局数据由 APK 安装，缺失时明确报错。
+        gap: 中文经安卓输入法提交只在 2026-09-24 投屏时实机试过（docs/58 第3步，进入电视上的 KRunner）。手机屏上的提交和布局数据缺失时的报错（KeyboardAssets.java）还没有检查。要一个实机场景：input.text 用 adb input text 直接发 ASCII 按键，不经输入法的提交通路。
     pitfalls:
-      - text: 容器刚启动后的第一次安卓文字输入偶尔大小写错乱（Calcul 到达为 CaICUL），原因未确认；验收的读回不区分大小写并重试一次。
+      - text: 容器刚启动后的第一次安卓文字输入偶尔大小写错乱（Calcul 到达为 CaICUL），原因未确认。验收的读回不区分大小写并重试一次。
         docs: [docs/61-delivery-diagnostics-plan.md]
-      - text: adb input text 是直接按键，绕过输入法；真实打字时安卓输入法是否弹出要另外验证。
+      - text: adb input text 是直接按键，绕过输入法。真实打字时安卓输入法是否弹出要另外验证。
         docs: [docs/research/97-headless-agent-work.md]
     code:
       - android/app/src/com/rungic/plasma/KeyboardAssets.java
@@ -434,10 +434,10 @@ features:
     status: live
     platform: linux
     interfaces: [clipboard]
-    summary: 纯文本在安卓与 Linux 之间自动双向同步，不要求 Rungic 在前台；敏感内容不跨系统。
+    summary: 纯文本在安卓与 Linux 之间自动双向同步，不要求 Rungic 在前台。敏感内容不跨系统。
     experience:
       - id: E1
-        text: 在安卓里复制的中文、emoji、换行约 200 ms 内出现在 Linux 剪贴板；在 Linux 里复制的文字能在安卓应用里粘贴。
+        text: 在安卓里复制的中文、emoji、换行约 200 ms 内出现在 Linux 剪贴板。在 Linux 里复制的文字能在安卓应用里粘贴。
         evidence:
           - {doc: docs/research/clipboard-background.md, date: 2026-09-29, note: "android-copy.json、android-paste.json"}
           - {doc: docs/49-plasma-performance.md, date: 2026-09-28, note: "约 200 ms 同步到 Linux"}
@@ -445,9 +445,9 @@ features:
         text: Rungic 不在前台、处于自己的全屏或 APK 重建时同步照常进行。
         evidence:
           - {doc: docs/research/clipboard-background.md, date: 2026-09-29, note: "fullscreen-final.json、compat-watch.json"}
-        device: 不在前台、全屏或 APK 重建时照常同步，靠的是安卓侧以 Shell 身份（UID 2000）独立于 APK 窗口运行的剪贴板后端（ClipboardDaemon、system/android-clipboard）；后台读剪贴板的权限和 APK 的重建只有手机上才有。Linux 一侧的同步与重连由离线测试检查。
+        device: 不在前台、全屏或 APK 重建时照常同步，靠的是安卓侧以 Shell 身份（UID 2000）独立于 APK 窗口运行的剪贴板后端（ClipboardDaemon、system/android-clipboard）。后台读剪贴板的权限和 APK 的重建只有手机上才有。Linux 一侧的同步与重连由离线测试检查。
       - id: E3
-        text: 安卓标记为敏感的内容、非文本内容不同步，Linux 原内容保留；超长或格式错误的请求被拒绝；重启 Linux 桥时不把旧 Linux 文本写回安卓。
+        text: 安卓标记为敏感的内容、非文本内容不同步，Linux 原内容保留。超长或格式错误的请求被拒绝。重启 Linux 桥时不把旧 Linux 文本写回安卓。
         evidence:
           - {doc: docs/research/clipboard-background.md, date: 2026-09-29, note: "filter-tests.json、sensitive-restart.json"}
       - id: E4
@@ -455,14 +455,14 @@ features:
         evidence:
           - {doc: docs/research/clipboard-background.md, date: 2026-09-29, note: "recovery.json"}
       - id: E5
-        text: 设备锁定或非主用户时不交换剪贴板内容；日志里从不记录正文。
+        text: 设备锁定或非主用户时不交换剪贴板内容。日志里从不记录正文。
         gap: 锁屏与多用户只在实现上拒绝，未在实机锁屏或建用户实测（clipboard-background）
     pitfalls:
-      - text: 桥只交换当前值；安卓连续复制 A/B/C 后才切回 Linux 只能得到 C，断线期间的每一次复制不补回，也不导入输入法自己的历史。
+      - text: 桥只交换当前值。安卓连续复制 A/B/C 后才切回 Linux 只能得到 C，断线期间的每一次复制不补回，也不导入输入法自己的历史。
         docs: [docs/research/clipboard-history.md, docs/research/clipboard-background.md]
-      - text: 后台读取剪贴板只有 Shell UID 2000 经 framework ClipboardManager 可行；普通 APK 后台服务拿不到权限，root 身份返回空不代表成功，只 createPackageContext 会触发包/UID 不匹配。
+      - text: 后台读取剪贴板只有 Shell UID 2000 经 framework ClipboardManager 可行。普通 APK 后台服务拿不到权限，root 身份返回空不代表成功，只 createPackageContext 会触发包/UID 不匹配。
         docs: [docs/research/clipboard-background.md]
-      - text: Klipper 默认 NoEmptyClipboard=true 会主动恢复上一条，安卓清空后 Linux 又被写回；验证清空要临时关闭它。
+      - text: Klipper 默认 NoEmptyClipboard=true 会主动恢复上一条，安卓清空后 Linux 又被写回。验证清空要临时关闭它。
         docs: [docs/research/clipboard-background.md]
       - text: 不能用 cp 覆盖正在解释执行的 shell 脚本（曾出现残缺命令），部署要整文件 rename 原子替换。
         docs: [docs/research/clipboard-background.md]
@@ -486,10 +486,10 @@ features:
     status: live
     platform: linux
     interfaces: [clipboard]
-    summary: 手机会话里常驻 KDE Klipper，记录 Linux 复制和从安卓同步来的内容；外屏桌面右下角托盘直接打开历史。
+    summary: 手机会话常驻 KDE Klipper，记录 Linux 复制内容和从 Android 同步的内容。用户可以在外屏桌面右下角托盘打开历史。
     experience:
       - id: E1
-        text: 没有打开任何历史窗口或外屏时，复制的内容也进入历史；重启 plasmashell 后历史还在，只有一个历史实例。
+        text: 没有打开任何历史窗口或外屏时，复制的内容也进入历史。重启 plasmashell 后历史还在，只有一个历史实例。
         evidence:
           - {doc: docs/research/clipboard-history.md, date: 2026-09-29, note: "常驻与持久化"}
       - id: E2
@@ -497,14 +497,14 @@ features:
         evidence:
           - {doc: docs/research/clipboard-history.md, date: 2026-09-29, note: "虚拟外屏 tray-landscape.png；未连物理电视"}
       - id: E3
-        text: 从历史里选一项，Linux 和安卓的当前剪贴板都变成它，可在应用里粘贴；相同内容不重复记录。
+        text: 从历史里选一项，Linux 和安卓的当前剪贴板都变成它，可在应用里粘贴。相同内容不重复记录。
         evidence:
           - {doc: docs/research/clipboard-history.md, date: 2026-09-29, note: "历史选择、重复项"}
       - id: E4
         text: 手机竖屏上有合适的触屏入口打开历史，弹窗不越界。
-        gap: 手机专用触屏入口尚未实现；直接 D-Bus 调 Klipper 弹窗在竖屏越界
+        gap: 手机专用触屏入口尚未实现。直接 D-Bus 调 Klipper 弹窗在竖屏越界
     pitfalls:
-      - text: 独立 plasmawindowed 会在另一个进程里再建一个 Klipper，不能与托盘并存；taskpanel 与外屏托盘共用 plasmashell 内的同一个 Klipper。
+      - text: 独立 plasmawindowed 会在另一个进程里再建一个 Klipper，不能与托盘并存。taskpanel 与外屏托盘共用 plasmashell 内的同一个 Klipper。
         docs: [docs/research/clipboard-history.md]
       - text: 只检查桥接服务不能说明历史在记录：G100 曾没有 org.kde.klipper。
         docs: [docs/research/clipboard-history.md]
@@ -521,14 +521,14 @@ features:
     status: live
     platform: android
     interfaces: [kwin-android-host, gpu-device, host-controller]
-    summary: KWin 作为安卓宿主里的嵌套合成器，输出缓冲直接交给 SurfaceFlinger（零拷贝、显式同步、按需 vsync），滑动跟手、静止省电。
+    summary: KWin 作为 Android 宿主中的嵌套合成器，直接将输出缓冲交给 SurfaceFlinger。呈现使用零拷贝、显式同步和按需 vsync，使滑动跟手、静止时省电。
     experience:
       - id: E1
-        text: 零拷贝时宿主不再每帧用 GLES 重画，SurfaceFlinger 以硬件合成（DEVICE）显示 KWin 的输出缓冲；强制 GPU 合成（CLIENT）时颜色仍正确，SurfaceFlinger 和 system_server 不崩溃。
+        text: 零拷贝时宿主不再每帧用 GLES 重画，SurfaceFlinger 以硬件合成（DEVICE）显示 KWin 的输出缓冲。强制 GPU 合成（CLIENT）时颜色仍正确，SurfaceFlinger 和 system_server 不崩溃。
         evidence:
           - {doc: docs/57-zero-copy-explicit-sync.md, date: 2026-09-24, note: "零拷贝；BGRA 事故修复后的 CLIENT 验证"}
       - id: E2
-        text: KWin 不在 glFinish 上等 GPU，用 fence 交出缓冲；抽屉滚动时 KWin 绘制 p95 约 4 ms，SurfaceFlinger 帧间隔 p95 约 16.8 ms。
+        text: KWin 不在 glFinish 上等 GPU，用 fence 交出缓冲。抽屉滚动时 KWin 绘制 p95 约 4 ms，SurfaceFlinger 帧间隔 p95 约 16.8 ms。
         evidence:
           - {doc: docs/57-zero-copy-explicit-sync.md, date: 2026-09-24, note: "结论表：零拷贝 + fence"}
           - {doc: docs/72-kwin-android-host-isolation.md, date: 2026-09-26, note: "perf.compositor：paint p95 3.74 ms、呈现间隔 p95 16.72 ms"}
@@ -537,29 +537,29 @@ features:
         evidence:
           - {doc: docs/57-zero-copy-explicit-sync.md, date: 2026-09-26, note: "宿主帧节拍与 vsync 预测对照"}
       - id: E4
-        text: 桌面静止时宿主不再每个 vsync 唤醒，APK 合计约 2–5% 单核；有输入、提交或回调时立即恢复节拍，点击静止后的桌面能正常启动应用。
+        text: 桌面静止时宿主不再每个 vsync 唤醒，APK 合计约 2–5% 单核。有输入、提交或回调时立即恢复节拍，点击静止后的桌面能正常启动应用。
         evidence:
           - {doc: docs/57-zero-copy-explicit-sync.md, date: 2026-09-24, note: "按需vsync（第3项）"}
       - id: E5
-        text: Plasma 在前台时桌面会话提升到大核（uclamp.min 50%），回到安卓桌面后恢复；滑动掉帧比例约减半，后台不常驻大核。
+        text: Plasma 在前台时桌面会话提升到大核（uclamp.min 50%），回到安卓桌面后恢复。滑动掉帧比例约减半，后台不常驻大核。
         evidence:
           - {doc: docs/49-plasma-performance.md, date: 2026-09-28, note: "大核调度与空闲开销"}
     pitfalls:
-      - text: 零拷贝缓冲必须同时通过 HWC 与 GPU（CLIENT）两条合成路径的验收；只用安卓公开的 AHB 格式（RGBA），BGRA 曾让 SurfaceFlinger abort、安卓用户空间重启并断掉无线调试。
+      - text: 零拷贝缓冲必须同时通过 HWC 与 GPU（CLIENT）两条合成路径的验收。只用安卓公开的 AHB 格式（RGBA），BGRA 曾让 SurfaceFlinger abort、安卓用户空间重启并断掉无线调试。
         docs: [docs/57-zero-copy-explicit-sync.md]
-      - text: 零拷贝和 fence 必须同时开；只开 fence 时宿主要在 CPU 上等 fence 再做 GLES，帧间隔 p95 劣化到 25 ms。
+      - text: 零拷贝和 fence 必须同时开。只开 fence 时宿主要在 CPU 上等 fence 再做 GLES，帧间隔 p95 劣化到 25 ms。
         docs: [docs/57-zero-copy-explicit-sync.md]
-      - text: 报真实呈现时间会形成正反馈（KWin 安全余量增大、帧数从 370 降到 106），帧时间线和 3 帧在途实测更差，都已撤回；默认提交后立即报告。
+      - text: 报真实呈现时间会形成正反馈（KWin 安全余量增大、帧数从 370 降到 106），帧时间线和 3 帧在途实测更差，都已撤回。默认提交后立即报告。
         docs: [docs/57-zero-copy-explicit-sync.md]
-      - text: 同一 App 的 SurfaceControl 事务 FIFO 排队，未 signal 的 acquire fence 会阻塞后续事务；容器 GPU 挂死时显示一起停住。
+      - text: 同一 App 的 SurfaceControl 事务 FIFO 排队，未 signal 的 acquire fence 会阻塞后续事务。容器 GPU 挂死时显示一起停住。
         docs: [docs/57-zero-copy-explicit-sync.md]
-      - text: 对照测试不能每轮重开 App（后台恢复 Codex 线程的负载叠在一起，结论能相反）；在同一实例里交替切换运行时开关。
+      - text: 对照测试不能每轮重开 App（后台恢复 Codex 线程的负载叠在一起，结论能相反）。在同一实例里交替切换运行时开关。
         docs: [docs/57-zero-copy-explicit-sync.md]
-      - text: 容器应用的 GPU 内存失控会让 lmkd 杀掉前台宿主连带整个会话（Elisa 封面纹理 13824² 被 DPR 乘了三次）；共享层防护尚未实施。
+      - text: 容器应用的 GPU 内存失控会让 lmkd 杀掉前台宿主连带整个会话（Elisa 封面纹理 13824² 被 DPR 乘了三次）。共享层防护尚未实施。
         docs: [docs/57-zero-copy-explicit-sync.md]
-      - text: dpkg-buildpackage -nc 可能因 build stamp 完全跳过编译，包版本变了库还是旧的；要用库内符号和运行行为核对。
+      - text: dpkg-buildpackage -nc 可能因 build stamp 完全跳过编译，包版本变了库还是旧的。要用库内符号和运行行为核对。
         docs: [docs/42-plasma-runtime-acceptance.md]
-      - text: KWin 的 Android 专用代码都在 src/backends/android；上游文件只留钩子，升级时在钩子签名处编译失败而不是文本冲突。不要再往 Wayland 后端各处加 Android 判断或环境变量。
+      - text: KWin 的 Android 专用代码都在 src/backends/android。上游文件只留钩子，升级时在钩子签名处编译失败而不是文本冲突。不要再往 Wayland 后端各处加 Android 判断或环境变量。
         docs: [docs/72-kwin-android-host-isolation.md]
     code:
       - packages/kwin/
@@ -580,14 +580,14 @@ features:
     status: live
     platform: android
     interfaces: [kwin-android-host, platform-bridge]
-    summary: 桌面按手机原生分辨率渲染；KDE 显示设置里可选固定 30/60/90/120Hz 或“自动”，都真正交给安卓执行。
+    summary: 桌面按手机原生分辨率渲染。KDE 显示设置提供固定 30/60/90/120Hz 和“自动”刷新率。Android 实际执行这些设置。
     experience:
       - id: E1
         text: 桌面以原生分辨率渲染（G100 S 1080×2400），KScreen 的手机输出与安卓显示尺寸一致，显示页列出物理分辨率与渲染分辨率。
         evidence:
           - {doc: docs/50-plasma-display-settings.md, date: 2026-09-23, note: "19:03 实机进展"}
       - id: E2
-        text: 选固定 30/60/90/120Hz 时安卓的物理模式随之改变；选“自动”时请求交还安卓（refreshPolicy=0），触摸时升到 120Hz、静止后由安卓降下来。
+        text: 选固定 30/60/90/120Hz 时安卓的物理模式随之改变。选“自动”时请求交还安卓（refreshPolicy=0），触摸时升到 120Hz、静止后由安卓降下来。
         evidence:
           - {doc: docs/50-plasma-display-settings.md, date: 2026-09-23, note: "rate-validation.json、auto-validation.json"}
           - {doc: docs/85-phone-display-size-policy.md, date: 2026-09-28, note: "host-refresh-test.json：每步 vrrPolicy=2 且宿主 refreshPolicy=0"}
@@ -596,7 +596,7 @@ features:
         evidence:
           - {doc: docs/85-phone-display-size-policy.md, date: 2026-09-28, note: "rungic7/kscreen4 修复后重测"}
       - id: E4
-        text: Rungic 离开前台时撤销 Surface/Window 的刷新率请求，回来后恢复；默认“流畅优先”，可在左边缘菜单切换“自动”。
+        text: Rungic 离开前台时撤销 Surface/Window 的刷新率请求，回来后恢复。默认“流畅优先”，可在左边缘菜单切换“自动”。
         evidence:
           - {doc: docs/49-plasma-performance.md, date: 2026-09-23, note: "最终版本生命周期复核"}
       - id: E5
@@ -604,13 +604,13 @@ features:
         evidence:
           - {doc: docs/73-reduce-upstream-changes.md, date: 2026-09-27, note: "kwayland Output::addMode 失效迭代器"}
     pitfalls:
-      - text: hasArrSupport=false，“自动”是安卓的刷新率调度，不是 KScreen 的 VRR；请求不保证被满足（相机启动时见过请求 120 实际 60），也不绕过温控。
+      - text: hasArrSupport=false，“自动”是安卓的刷新率调度，不是 KScreen 的 VRR。请求不保证被满足（相机启动时见过请求 120 实际 60），也不绕过温控。
         docs: [docs/50-plasma-display-settings.md, docs/49-plasma-performance.md]
-      - text: KScreen 的 VRR 枚举是 automatic 不代表宿主策略是自动（曾保留 90）；验收要同时读宿主 refreshPolicy。
+      - text: KScreen 的 VRR 枚举是 automatic 不代表宿主策略是自动（曾保留 90）。验收要同时读宿主 refreshPolicy。
         docs: [docs/85-phone-display-size-policy.md]
       - text: 后台的 android-refresh.ini 保留最后一次前台样本，要看 sampled-uptime-ms，不能当作后台仍在申请 120Hz。
         docs: [docs/49-plasma-performance.md]
-      - text: 每个 display changed 事件都重发刷新率、原生层无条件重发 mode 会造成切换掉帧；两级都按实际值去重。
+      - text: 每个 display changed 事件都重发刷新率、原生层无条件重发 mode 会造成切换掉帧。两级都按实际值去重。
         docs: [docs/49-plasma-performance.md]
       - text: 720×1600 时代的性能数据不能用于原生分辨率的判断。
         docs: [docs/49-plasma-performance.md]
@@ -629,18 +629,18 @@ features:
     status: live
     platform: linux
     interfaces: [kwin-android-host]
-    summary: 首次默认的界面大小按安卓密度算出（X70 350%、G100 300%）；设置里五档大小，切换渲染分辨率时界面大小不变。
+    summary: 首次默认界面大小根据 Android 密度计算，X70 为 350%，G100 为 300%。设置提供五档大小。切换渲染分辨率时，界面大小保持不变。
     experience:
       - id: E1
-        text: 没有显示配置时，KWin 按安卓 density 和原生短边算出默认倍率（不少于 360 逻辑像素短边）；已有用户选择（包括 300%）不被重算，安卓 density 改变也不改已有选择。
+        text: 没有显示配置时，KWin 按安卓 density 和原生短边算出默认倍率（不少于 360 逻辑像素短边）。已有用户选择（包括 300%）不被重算，安卓 density 改变也不改已有选择。
         evidence:
           - {doc: docs/85-phone-display-size-policy.md, date: 2026-09-28, note: "第二轮：480 → 3.5、320 → 2.5，已有 3.5 保留"}
       - id: E2
-        text: 显示页给手机内屏五档大小，“标准”是推荐值；范围外的旧值显示为“自定义”，打开设置不会悄悄改掉；高级里能看真实倍率（50–500%）。
+        text: 显示页给手机内屏五档大小，“标准”是推荐值。范围外的旧值显示为“自定义”，打开设置不会悄悄改掉。高级里能看真实倍率（50–500%）。
         evidence:
           - {doc: docs/85-phone-display-size-policy.md, date: 2026-09-28, note: "GUI 点选“标准”得到 350%"}
       - id: E3
-        text: 应用新大小后 15 秒不确认就回到原值，点“保留”后保留；会话重启后仍是用户的选择。
+        text: 应用新大小后 15 秒不确认就回到原值，点“保留”后保留。会话重启后仍是用户的选择。
         evidence:
           - {doc: docs/85-phone-display-size-policy.md, date: 2026-09-28, note: "display-gui-timeout-trace.json；20260928.6 补测"}
       - id: E4
@@ -648,21 +648,21 @@ features:
         evidence:
           - {doc: docs/85-phone-display-size-policy.md, date: 2026-09-28, note: "原生↔720 三轮 3.5↔1.9917"}
       - id: E5
-        text: 外屏（电视、助理屏）的缩放各自独立，调手机大小不改外屏；外屏设为主屏时状态栏安全区仍只用于手机。
+        text: 外屏（电视、助理屏）的缩放各自独立，调手机大小不改外屏。外屏设为主屏时状态栏安全区仍只用于手机。
         evidence:
           - {doc: docs/85-phone-display-size-policy.md, date: 2026-09-28, note: "display-external-test.json（宿主第二输出，非物理电视）"}
       - id: E6
-        text: 非法倍率（例如 6 倍、NaN、0）被拒绝，不写入配置；宿主拒绝或超时时恢复旧模式和刷新策略并返回失败。
+        text: 非法倍率（例如 6 倍、NaN、0）被拒绝，不写入配置。宿主拒绝或超时时恢复旧模式和刷新策略并返回失败。
         evidence:
           - {doc: docs/85-phone-display-size-policy.md, date: 2026-09-28, note: "非法 6 倍请求未写入"}
     pitfalls:
-      - text: 安卓 density 是逻辑 dp 倍率，不是面板 PPI；480/160=3 不能保证 Plasma 控件与安卓控件等大。默认的 1.25 系数是待跨设备校准的产品参数。
+      - text: 安卓 density 是逻辑 dp 倍率，不是面板 PPI。480/160=3 不能保证 Plasma 控件与安卓控件等大。默认的 1.25 系数是待跨设备校准的产品参数。
         docs: [docs/85-phone-display-size-policy.md, docs/50-plasma-display-settings.md]
-      - text: 测试时要等旧 KWin 进程完全退出再移开 kwinoutputconfig.json，否则读到旧值；短时间多次重启还会触发 StartLimit。
+      - text: 测试时要等旧 KWin 进程完全退出再移开 kwinoutputconfig.json，否则读到旧值。短时间多次重启还会触发 StartLimit。
         docs: [docs/85-phone-display-size-policy.md]
-      - text: 外屏旧位置与手机之间的空隙会让 KScreen 整套配置校验失败，表现为缩放应用不了；用标准接口把外屏贴到内屏右边界。
+      - text: 外屏旧位置与手机之间的空隙会让 KScreen 整套配置校验失败，表现为缩放应用不了。用标准接口把外屏贴到内屏右边界。
         docs: [docs/85-phone-display-size-policy.md]
-      - text: 新账户、整包清数据首装、第二台设备和 API 30–33 回退路径还没有实机验收；当前账户移开配置的测试不等于首装。
+      - text: 新账户、整包清数据首装、第二台设备和 API 30–33 回退路径还没有实机验收。当前账户移开配置的测试不等于首装。
         docs: [docs/85-phone-display-size-policy.md]
     code:
       - shared/display-policy/
@@ -678,14 +678,14 @@ features:
     status: live
     platform: linux
     interfaces: [platform-bridge]
-    summary: Plasma 的亮度滑条调的是 Rungic 窗口在安卓上的亮度；可以恢复跟随安卓。
+    summary: Plasma 的亮度滑条调的是 Rungic 窗口在安卓上的亮度。可以恢复跟随安卓。
     experience:
       - id: E1
-        text: Plasma 亮度设为 45 时安卓窗口亮度跟着变，读回 45；恢复跟随后回到安卓的亮度设置。
+        text: Plasma 亮度设为 45 时安卓窗口亮度跟着变，读回 45。恢复跟随后回到安卓的亮度设置。
         evidence:
           - {doc: docs/40-plasma-mobile-integration.md, date: 2026-09-23, note: "电池 / 亮度"}
       - id: E2
-        text: 不申请整机写设置权限、不写宿主 sysfs；安卓的自动亮度开关不被改动。
+        text: 不申请整机写设置权限、不写宿主 sysfs。安卓的自动亮度开关不被改动。
     pitfalls:
       - text: 跟随时显示的是安卓用户设定值，不是实时自动亮度或 nits。
         docs: [docs/research/30-feature-adaptation.md]
@@ -703,13 +703,13 @@ features:
     summary: 桌面、门户对话框和本项目的程序都跟随桌面语言显示简体中文。
     experience:
       - id: E1
-        text: Ubuntu 最小镜像删掉的中文翻译被恢复，KDE 门户等系统对话框显示中文；恢复的文件属 root，不改 /、/usr 的属主和权限。
+        text: Ubuntu 最小镜像删掉的中文翻译被恢复，KDE 门户等系统对话框显示中文。恢复的文件属 root，不改 /、/usr 的属主和权限。
         evidence:
           - {doc: docs/55-agent-native-debugging.md, date: 2026-09-24, note: "翻译文件属主修正"}
       - id: E2
         text: 本项目的设备页、电源策略、录屏、服务页等程序跟随桌面语言显示中文。
     pitfalls:
-      - text: 曾把带构建者 UID 和目录模式的暂存树解包到 /，让桌面用户拥有 /usr（等同 root），systemd-tmpfiles 也因 unsafe path transition 拒绝执行；归档只能含 root 所有的普通文件。
+      - text: 曾把带构建者 UID 和目录模式的暂存树解包到 /，让桌面用户拥有 /usr（等同 root），systemd-tmpfiles 也因 unsafe path transition 拒绝执行。归档只能含 root 所有的普通文件。
         docs: [docs/55-agent-native-debugging.md]
     code:
       - desktop/restore-chinese-translations.py
@@ -726,14 +726,14 @@ features:
     status: live
     platform: linux
     interfaces: [network]
-    summary: 安卓的网络经 NetworkManager D-Bus 接口给桌面用：状态栏、快捷设置和 Wi-Fi 设置页显示真实连接，能扫描、连接和忘记网络。
+    summary: Android 网络通过 NetworkManager D-Bus 接口接入桌面。状态栏、快捷设置和 Wi-Fi 页面显示实际连接。用户可以扫描、连接和忘记网络。
     experience:
       - id: E1
         text: 状态栏、设置和其他 NetworkManager 客户端显示安卓真实的 SSID、IP、DNS 与联网状态（Connectivity=4）。
         evidence:
           - {doc: docs/40-plasma-mobile-integration.md, date: 2026-09-23, note: "网络"}
       - id: E2
-        text: Wi-Fi 设置页列出已保存的当前网络和附近网络，能扫描、激活已保存网络、删除网络；点未保存的加密网络弹出 KDE 密码框。
+        text: Wi-Fi 设置页列出已保存的当前网络和附近网络，能扫描、激活已保存网络、删除网络。点未保存的加密网络弹出 KDE 密码框。
         evidence:
           - {doc: docs/73-reduce-upstream-changes.md, date: 2026-09-27, note: "第四阶段与设置页验收：16 个接入点"}
       - id: E3
@@ -743,9 +743,9 @@ features:
         evidence:
           - {doc: docs/49-plasma-performance.md, date: 2026-09-28, note: "平台桥 watch 验收"}
       - id: E5
-        text: 安卓接口异常或超时时状态变为未知，不继续显示过期的“已连接”；不支持的操作明确返回 NotSupported，不伪造成功。
+        text: 安卓接口异常或超时时状态变为未知，不继续显示过期的“已连接”。不支持的操作明确返回 NotSupported，不伪造成功。
       - id: E6
-        text: Linux 程序的域名解析跟随安卓当前默认网络（开 VPN 时用 VPN 的 DNS）：/etc/resolv.conf 随网络变化原子更新，断网时不保留已失效的服务器；安卓侧连不上时保持原样。
+        text: Linux 程序的域名解析跟随安卓当前默认网络（开 VPN 时用 VPN 的 DNS）：/etc/resolv.conf 随网络变化原子更新，断网时不保留已失效的服务器。安卓侧连不上时保持原样。
       - id: E7
         text: 用户手工写的 /etc/resolv.conf（没有 Rungic 标记行）或符号链接不被覆盖。
       - id: E8
@@ -753,9 +753,9 @@ features:
     pitfalls:
       - text: 镜像只带一行占位注释的 /etc/resolv.conf，原先没有任何机制写入 DNS，新装设备的 Linux 程序解析不了域名（issue #7）。容器与安卓共用网络命名空间（lxc.net.0.type = none），可以直接用安卓默认网络的 DNS。严格模式的私人 DNS（DoT）不在此列：容器仍按普通 53 端口查询。
         docs: [docs/research/32-network-integration.md]
-      - text: 没有 Linux NetworkManager 守护进程、wpa_supplicant 或 DHCP；安卓独占网卡、路由、DNS 与凭据。在服务页打开 NetworkManager 等服务可能抢走网卡、断开无线调试。
+      - text: 没有 Linux NetworkManager 守护进程、wpa_supplicant 或 DHCP。安卓独占网卡、路由、DNS 与凭据。在服务页打开 NetworkManager 等服务可能抢走网卡、断开无线调试。
         docs: [docs/research/32-network-integration.md, docs/83-service-policy.md]
-      - text: 普通安卓 API 会脱敏 SSID/BSSID，靠白名单 root cmd wifi 补齐；固定安卓 16 的输出格式，换 ROM 要重验。
+      - text: 普通安卓 API 会脱敏 SSID/BSSID，靠白名单 root cmd wifi 补齐。固定安卓 16 的输出格式，换 ROM 要重验。
         docs: [docs/research/32-network-integration.md]
       - text: ModemManagerQt 等客户端只在服务已存在时订阅 InterfacesAdded，桥接服务要先发布对象再占用总线名。
         docs: [docs/73-reduce-upstream-changes.md]
@@ -799,9 +799,9 @@ features:
         text: 配对时安卓弹窗请用户确认，确认后设备在 Linux 里显示为已配对并可连接。
         gap: 还没有用实际蓝牙设备配对验证
     pitfalls:
-      - text: 容器没有 /dev/rfkill，安卓的 bt_power rfkill 也不跟随其蓝牙开关；BluezQt 因此把状态记为 Unknown，bluedevil 判为没有硬件。
+      - text: 容器没有 /dev/rfkill，安卓的 bt_power rfkill 也不跟随其蓝牙开关。BluezQt 因此把状态记为 Unknown，bluedevil 判为没有硬件。
         docs: [docs/73-reduce-upstream-changes.md]
-      - text: 蓝牙服务曾每次轮询都启动一个 root app_process；只让 root 做特权操作与定期校准。
+      - text: 蓝牙服务曾每次轮询都启动一个 root app_process。只让 root 做特权操作与定期校准。
         docs: [docs/73-reduce-upstream-changes.md]
     code:
       - shared/platform/bluez.py
@@ -821,7 +821,7 @@ features:
     summary: 安卓的数据卡经 ModemManager 接口给 Plasma 用：信号、运营商、SIM 状态和移动数据开关。
     experience:
       - id: E1
-        text: 状态栏信号图标和蜂窝设置页显示真实状态；无 SIM 时显示“尚未插入 SIM 卡”，调制解调器详情给出型号和原因。
+        text: 状态栏信号图标和蜂窝设置页显示真实状态。无 SIM 时显示“尚未插入 SIM 卡”，调制解调器详情给出型号和原因。
         evidence:
           - {doc: docs/73-reduce-upstream-changes.md, date: 2026-09-27, note: "设置页验收：移动网络（无 SIM）"}
       - id: E2
@@ -846,18 +846,18 @@ features:
     status: experimental
     platform: android
     interfaces: [telephony, device-backend]
-    summary: Linux 与 Agent 经安卓短信接口发出用户授权的内容，并按号码与时间读取回复；安卓保管消息，原短信应用保持不变。
+    summary: Linux 与 Agent 经安卓短信接口发出用户授权的内容，并按号码与时间读取回复。安卓保管消息，原短信应用保持不变。
     experience:
       - id: E1
-        text: 发送的号码与内容经过校验；使用明确的活动短信卡，长短信分段，只有全部无线电回报成功才记为已发出。
+        text: 发送的号码与内容经过校验。使用明确的活动短信卡，长短信分段，只有全部无线电回报成功才记为已发出。
       - id: E2
-        text: 发出与送达分开；重复回调、失败分段、未知或失败回执和超时不被误记为成功，也不自动重发。
+        text: 发出与送达分开。重复回调、失败分段、未知或失败回执和超时不被误记为成功，也不自动重发。
       - id: E3
-        text: 按号码与发送时间读回复，短号精确匹配，不漏掉发送调用结束前到达的回复；读取不修改未读状态，无回复超时明确返回。
+        text: 按号码与发送时间读回复，短号精确匹配，不漏掉发送调用结束前到达的回复。读取不修改未读状态，无回复超时明确返回。
       - id: E4
-        text: 显示 APK 不在时仍可连接短信后端；结果回调属于后台进程，连接中断不会自动重发。
+        text: 显示 APK 不在时仍可连接短信后端。结果回调属于后台进程，连接中断不会自动重发。
     pitfalls:
-      - text: 短号受系统或运营商限制；接口受理、无线电发出、送达回执与客服回复是不同证据。
+      - text: 短号受系统或运营商限制。接口受理、无线电发出、送达回执与客服回复是不同证据。
         docs: [docs/107-android-sms.md]
     code:
       - android/app/src/com/rungic/plasma/SmsCallbacks.java
@@ -880,22 +880,22 @@ features:
     status: live
     platform: linux
     interfaces: [platform-bridge, device-backend]
-    summary: 网络、蓝牙、蜂窝、剪贴板、相机等服务经对应后台的长轮询 watch 等安卓自己的回调，不再各自轮询。
+    summary: 网络、蓝牙、蜂窝、剪贴板和相机等服务通过对应后台的长轮询 watch 等待 Android 回调，避免各服务独立轮询。
     experience:
       - id: E1
-        text: 安卓状态变化时，watch 在版本号变化时立即返回，服务取完整状态；没有变化时最长 60 秒兜底一次。
+        text: 安卓状态变化时，watch 在版本号变化时立即返回，服务取完整状态。没有变化时最长 60 秒兜底一次。
         evidence:
           - {doc: docs/49-plasma-performance.md, date: 2026-09-28, note: "平台桥新增 watch"}
       - id: E2
         text: 遇到不支持 watch 的旧 APK，服务退回原来的轮询间隔继续工作。
       - id: E3
-        text: 各后端每次启动换 epoch，看到旧 epoch 的服务会重新取状态；平台 socket 只接受 UID 0/1000 的请求。
+        text: 各后端每次启动换 epoch，看到旧 epoch 的服务会重新取状态。平台 socket 只接受 UID 0/1000 的请求。
       - id: E4
-        text: 网络、蓝牙、SIM 和短信经独立硬件端点；显示、触摸和相机等界面能力经显示宿主端点。
+        text: 网络、蓝牙、SIM 和短信经独立硬件端点。显示、触摸和相机等界面能力经显示宿主端点。
       - id: E5
-        text: 独立后端退出后有限恢复，退出记录有界落盘；不能重启健康的容器或重放短信。
+        text: 独立后端退出后有限恢复，退出记录有界落盘。不能重启健康的容器或重放短信。
     pitfalls:
-      - text: 平台桥只在 APK 私有目录，校验对端 UID；剪贴板后端走抽象 Unix socket，依赖 LXC 与安卓共享网络命名空间，仍须校验对端 UID。
+      - text: 平台桥只在 APK 私有目录，校验对端 UID。剪贴板后端走抽象 Unix socket，依赖 LXC 与安卓共享网络命名空间，仍须校验对端 UID。
         docs: [docs/research/31-backend-integration.md, docs/research/clipboard-background.md]
     code:
       - android/app/src/com/rungic/plasma/DeviceDaemon.java
@@ -925,39 +925,39 @@ features:
     status: live
     platform: linux
     interfaces: [platform-bridge, kwin-android-host]
-    summary: 播放视频等请求保持亮屏时手机屏幕不灭；Plasma 的息屏时间就是安卓的息屏时间；电池来自真实 UPower，锁屏和休眠交给安卓。
+    summary: 视频播放等操作请求保持亮屏时，手机屏幕不熄灭。Plasma 的息屏时间对应 Android 的息屏时间。UPower 提供实际电池数据。Android 负责锁屏和休眠。
     experience:
       - id: E1
-        text: 视频播放时（PowerDevil/ScreenSaver 请求）安卓窗口保持亮屏，暂停后租约释放；请求方退出或断开时租约自动回收，别的客户端不能替它释放。
+        text: 视频播放时（PowerDevil/ScreenSaver 请求）安卓窗口保持亮屏，暂停后租约释放。请求方退出或断开时租约自动回收，别的客户端不能替它释放。
         evidence:
           - {doc: docs/42-plasma-runtime-acceptance.md, date: 2026-09-23, note: "power-showtime-final.log"}
       - id: E2
         text: 显示出来的 Wayland 窗口请求空闲抑制时，经 KWin 到宿主保持亮屏，释放后恢复正常息屏。
         evidence:
           - {doc: docs/72-kwin-android-host-isolation.md, date: 2026-09-26, note: "idle.inhibit 通过"}
-        device: Wayland 窗口的空闲抑制由 KWin 的 Android 后端在宿主的输出面上建抑制器，经 Rungic 应用的原生宿主（idle_inhibit.rs，单元测试只能在手机上跑：android/test-native-core.sh）设置 FLAG_KEEP_SCREEN_ON；无头 KWin 没有 Android 后端，系统测试走不到这条路。
+        device: Wayland 窗口的空闲抑制由 KWin 的 Android 后端在宿主的输出面上建抑制器，经 Rungic 应用的原生宿主（idle_inhibit.rs，单元测试只能在手机上跑：android/test-native-core.sh）设置 FLAG_KEEP_SCREEN_ON。无头 KWin 没有 Android 后端，系统测试走不到这条路。
       - id: E3
-        text: Plasma 移动电源页的“关闭屏幕”时间与安卓 screen_off_timeout 双向同步；页面只显示真能发生的动作（不显示调暗和挂起）。
+        text: Plasma 移动电源页的“关闭屏幕”时间与安卓 screen_off_timeout 双向同步。页面只显示真能发生的动作（不显示调暗和挂起）。
         evidence:
           - {doc: docs/73-reduce-upstream-changes.md, date: 2026-09-27, note: "第四阶段：电源"}
       - id: E4
-        text: Rungic 离开前台后不强制亮屏，不创建 CPU 唤醒锁；Linux 桥意外退出后亮屏租约 12 秒内过期。
+        text: Rungic 离开前台后不强制亮屏，不创建 CPU 唤醒锁。Linux 桥意外退出后亮屏租约 12 秒内过期。
       - id: E5
-        text: ScreenSaver.Lock 让安卓息屏，D-Bus 调用先返回成功；没有 Linux 锁屏密码，唤醒后回到桌面。
+        text: ScreenSaver.Lock 让安卓息屏，D-Bus 调用先返回成功。没有 Linux 锁屏密码，唤醒后回到桌面。
         evidence:
           - {doc: docs/42-plasma-runtime-acceptance.md, date: 2026-09-23, note: "电源行为：设备进入 Dozing，再唤醒回桌面"}
       - id: E6
-        text: 电池电量、温度和充电状态来自真实 UPower；低电量的危急动作不会关机或休眠容器。
+        text: 电池电量、温度和充电状态来自真实 UPower。低电量的危急动作不会关机或休眠容器。
         evidence:
           - {doc: docs/40-plasma-mobile-integration.md, date: 2026-09-23, note: "电池 / 亮度"}
     pitfalls:
-      - text: KWin 只对显示出的窗口计算空闲抑制；探针只在裸 wl_surface 上建抑制器时直连宿主有效、经 KWin 无效。
+      - text: KWin 只对显示出的窗口计算空闲抑制。探针只在裸 wl_surface 上建抑制器时直连宿主有效、经 KWin 无效。
         docs: [docs/72-kwin-android-host-isolation.md]
-      - text: 不承诺息屏听歌、后台视频或相机持续运行，安卓仍可冻结后台 APK；也不保证所有第三方播放器都发抑制请求。
+      - text: 不承诺息屏听歌、后台视频或相机持续运行，安卓仍可冻结后台 APK。也不保证所有第三方播放器都发抑制请求。
         docs: [docs/42-plasma-runtime-acceptance.md]
       - text: ScreenSaver.Lock 要异步延迟约 300 ms 执行，否则屏幕关闭后 APK 冻结造成 IPC 假超时。
         docs: [docs/42-plasma-runtime-acceptance.md]
-      - text: powerdevil 的屏蔽原因没有记录；不要按服务清单的旧默认随意改动电源相关服务。
+      - text: powerdevil 的屏蔽原因没有记录。不要按服务清单的旧默认随意改动电源相关服务。
         docs: [docs/83-service-policy.md]
     code:
       - desktop/power-policy.py
@@ -988,7 +988,7 @@ features:
     pitfalls:
       - text: 从命令行启动设置要带会话的 PLASMA_PLATFORM=phone:handset，否则只适用于手机的模块被当作桌面过滤掉。
         docs: [docs/73-reduce-upstream-changes.md]
-      - text: 不要通过禁用 ASLR 隐藏 ModulesModel 的未定义行为；回移上游修复。
+      - text: 不要通过禁用 ASLR 隐藏 ModulesModel 的未定义行为。回移上游修复。
         docs: [docs/42-plasma-runtime-acceptance.md]
       - text: 系统设置最小化后曾空转（每秒约 112 次定时器唤醒），无法复现，没有针对它修改。
         docs: [docs/49-plasma-performance.md]
@@ -1002,18 +1002,18 @@ features:
     status: live
     platform: android
     interfaces: [platform-bridge]
-    summary: “Android 设备”应用显示手机型号、网络、刷新率、电池和 Linux 内存，可设屏幕方向、亮度跟随、内存上限，并打开安卓的系统设置页。
+    summary: “Android 设备”应用显示手机型号、网络、刷新率、电池和 Linux 内存。用户可以设置方向、亮度跟随和内存上限，也可以打开 Android 系统设置。
     experience:
       - id: E1
         text: 设备页显示真实 SSID、IP/DNS、刷新率与提交帧率、电量与温度、充电状态和 Linux 内存用量（及其构成，见 install.memory-limit/E4）。
         evidence:
           - {doc: docs/42-plasma-runtime-acceptance.md, date: 2026-09-23, note: "设备面板真实 SSID 展示"}
       - id: E2
-        text: 声音、蓝牙、日期、定位、网络和安卓显示设置按钮打开安卓对应的系统页面；测试振动能让手机振动。
+        text: 声音、蓝牙、日期、定位、网络和安卓显示设置按钮打开安卓对应的系统页面。测试振动能让手机振动。
       - id: E3
         text: 屏幕方向可选跟随安卓、竖屏、横屏，选择立即生效。内存上限的档位见 install.memory-limit。
       - id: E4
-        text: 安卓侧太旧或连不上时显示明确提示，不显示过期数据；响应过大时报错。
+        text: 安卓侧太旧或连不上时显示明确提示，不显示过期数据。响应过大时报错。
     pitfalls:
       - text: 网络等入口只是打开安卓页面，不能当作硬件控制已逐项验收。
         docs: [docs/research/30-feature-adaptation.md]
@@ -1032,15 +1032,15 @@ features:
     summary: 设置 → 系统管理 → 系统服务列出容器默认关闭的服务、原因和风险，可以重新打开或关闭，SSH 也在这里管理。
     experience:
       - id: E1
-        text: 服务页按分组列出被屏蔽的服务、原因、依据和风险；Ubuntu 自带的 /usr/lib 屏蔽只显示不能改。
+        text: 服务页按分组列出被屏蔽的服务、原因、依据和风险。Ubuntu 自带的 /usr/lib 屏蔽只显示不能改。
         evidence:
           - {doc: docs/83-service-policy.md, date: 2026-09-28, note: "实机验收：页面"}
       - id: E2
-        text: 打开有风险的服务先确认一次，再弹 polkit 密码框；在确认框或密码框取消时开关回到原状态，系统不变；输入密码晚于 25 秒也能完成。
+        text: 打开有风险的服务先确认一次，再弹 polkit 密码框。在确认框或密码框取消时开关回到原状态，系统不变。输入密码晚于 25 秒也能完成。
         evidence:
           - {doc: docs/83-service-policy.md, date: 2026-09-28, note: "取消路径；KAuth 超时改为 10 分钟"}
       - id: E3
-        text: 服务页的 SSH 一项显示运行状态，以及手机各个地址的连接命令和 ED25519 主机密钥指纹（与 ssh-keyscan 一致）；在这里关闭或重新打开 SSH。SSH 自动开启本身见 install.ssh-access。
+        text: 服务页的 SSH 一项显示运行状态，以及手机各个地址的连接命令和 ED25519 主机密钥指纹（与 ssh-keyscan 一致）。在这里关闭或重新打开 SSH。SSH 自动开启本身见 install.ssh-access。
         evidence:
           - {doc: docs/83-service-policy.md, date: 2026-09-28, note: "页面显示“运行中”与 wlan0、tun0、Docker 网桥三个地址"}
       - id: E4
@@ -1048,13 +1048,13 @@ features:
         evidence:
           - {doc: docs/83-service-policy.md, date: 2026-09-28, note: "迁移：service-defaults 记录 31 个单元"}
     pitfalls:
-      - text: 用户明确要求 SSH 自动开启；docs/83 的“默认关闭”、policy.json 的 ssh 组 default=disabled 和 sshd 配置注释都是旧设计，不能据此关闭 SSH 或增加关闭策略。自动开启目前靠首启脚本 enable ssh.socket。
+      - text: 用户明确要求 SSH 自动开启。docs/83 的“默认关闭”、policy.json 的 ssh 组 default=disabled 和 sshd 配置注释都是旧设计，不能据此关闭 SSH 或增加关闭策略。自动开启目前靠首启脚本 enable ssh.socket。
         docs: [docs/83-service-policy.md, docs/research/g100-system-update-20260929.md]
       - text: 容器与安卓共用网络，SSH 监听手机自己的地址，没有独立局域网 IP。
         docs: [docs/83-service-policy.md, docs/research/g100-ssh-connectivity-20260929.md]
-      - text: 无障碍 Press 只翻转 FormSwitchDelegate 的外观、不触发处理函数，自动化测试要用 ui_tap；确认框要放在窗口 overlay 上而不是滚动页面里。
+      - text: 无障碍 Press 只翻转 FormSwitchDelegate 的外观、不触发处理函数，自动化测试要用 ui_tap。确认框要放在窗口 overlay 上而不是滚动页面里。
         docs: [docs/83-service-policy.md]
-      - text: 打开 NetworkManager、wpa_supplicant、networkd 等可能抢走安卓网卡、断开无线调试；界面警告但不阻止。
+      - text: 打开 NetworkManager、wpa_supplicant、networkd 等可能抢走安卓网卡、断开无线调试。界面警告但不阻止。
         docs: [docs/83-service-policy.md]
       - text: 输入真实账户密码让 KAuth 辅助程序完整执行 SSH 开关、用账户密码 SSH 登录、从同一局域网另一台设备连接都还没验证。
         docs: [docs/83-service-policy.md]
@@ -1073,14 +1073,14 @@ features:
     status: live
     platform: linux
     interfaces: [codec, audio, shared-storage]
-    summary: 快捷设置一点开始录屏，用手机硬件 H.264 编码，带系统声音或麦克风；接着电视时每块屏各录一个文件。
+    summary: 用户点击快捷设置开始录屏。手机使用硬件 H.264 编码，可录入系统声音或麦克风。连接电视时，每块屏幕分别生成一个文件。
     experience:
       - id: E1
         text: 录屏快捷设置写出可播放的 MP4，含 H.264 视频和 AAC 音频两轨，保存在 ~/Videos。
         evidence:
           - {doc: docs/73-reduce-upstream-changes.md, date: 2026-09-27, note: "recording.quicksetting 连续 6 次通过"}
       - id: E2
-        text: 停止录屏后很快收尾（约 0.3 秒），不会超时只留下 .partial.mp4；编码跟不上时丢帧而不积压。
+        text: 停止录屏后很快收尾（约 0.3 秒），不会超时只留下 .partial.mp4。编码跟不上时丢帧而不积压。
         evidence:
           - {doc: docs/48-plasma-media-pipelines.md, date: 2026-09-27, note: "录屏收尾超时的原因与修复"}
       - id: E3
@@ -1088,23 +1088,23 @@ features:
         evidence:
           - {doc: docs/46-plasma-recording-and-edge-back.md, date: 2026-09-23, note: "moto3-frame.png"}
           - {doc: docs/48-plasma-media-pipelines.md, date: 2026-09-23, note: "moto4 方向正常"}
-        device: 画面是手机上 KWin 的录屏流在 Adreno GPU 上回读的像素（screencast-gles-readback），方向随安卓；像素对不对只有手机的 GPU 和驱动能说明。不黑屏的另一半（录屏不排除 plasmashell，screencast-mobile-shell）是 KWin 补丁的逻辑，系统测试镜像里是 Ubuntu 原版 KWin，这一半还没有自动检查。
+        device: 画面是手机上 KWin 的录屏流在 Adreno GPU 上回读的像素（screencast-gles-readback），方向随安卓。像素对不对只有手机的 GPU 和驱动能说明。不黑屏的另一半（录屏不排除 plasmashell，screencast-mobile-shell）是 KWin 补丁的逻辑，系统测试镜像里是 Ubuntu 原版 KWin，这一半还没有自动检查。
       - id: E4
         text: 接着电视时手机和电视同时录、各存一个文件（电视上带光标），录制中断开电视两个文件都保存。
         evidence:
           - {doc: docs/48-plasma-media-pipelines.md, date: 2026-09-24, note: "多屏同时录屏"}
       - id: E5
-        text: 设置里可选声音来源（无、系统声音、麦克风、两者）和画质档位；只用硬件编码器，拿不到时报错而不改用软件编码。
+        text: 设置里可选声音来源（无、系统声音、麦克风、两者）和画质档位。只用硬件编码器，拿不到时报错而不改用软件编码。
       - id: E6
         text: 录屏结束时弹出“录屏已保存或失败”的通知。
     pitfalls:
       - text: KWin 默认把请求进程的窗口从录屏中排除，而 Plasma Mobile 的桌面、面板和录屏按钮都在 plasmashell 里，整个桌面因此黑屏。
         docs: [docs/46-plasma-recording-and-edge-back.md]
-      - text: pulsesrc 首个缓冲区可能被对齐到 2³²−1 段之后（gstaudiobasesrc 用无符号差值），混音器积压、停止时 EOS 永远等不到；属共享层问题，已在 gst-plugins-base 修复，不要在录屏程序里绕开。
+      - text: pulsesrc 首个缓冲区可能被对齐到 2³²−1 段之后（gstaudiobasesrc 用无符号差值），混音器积压、停止时 EOS 永远等不到。属共享层问题，已在 gst-plugins-base 修复，不要在录屏程序里绕开。
         docs: [docs/73-reduce-upstream-changes.md]
-      - text: 硬件编码器经宿主桥接的吞吐约 50fps，60fps 档实际约 50fps；1080×2400@60 单路和两路大尺寸同时编码会被拒绝，多屏或 60fps 时缩到长边 ≤1920。
+      - text: 硬件编码器经宿主桥接的吞吐约 50fps，60fps 档实际约 50fps。1080×2400@60 单路和两路大尺寸同时编码会被拒绝，多屏或 60fps 时缩到长边 ≤1920。
         docs: [docs/48-plasma-media-pipelines.md]
-      - text: ScreencastingRequest 固定以 pointer_hidden 申请，Screencasting 类未导出；外屏光标靠插件自带的 ScreenStreamRequest。
+      - text: ScreencastingRequest 固定以 pointer_hidden 申请，Screencasting 类未导出。外屏光标靠插件自带的 ScreenStreamRequest。
         docs: [docs/48-plasma-media-pipelines.md]
       - text: 共享存储挂载未就绪时 xdg-user-dirs-update 曾把 Videos 等改成 $HOME，录屏落到主目录。
         docs: [docs/48-plasma-media-pipelines.md]
@@ -1128,16 +1128,16 @@ features:
     status: live
     platform: linux
     interfaces: []
-    summary: 首次设置之后（见 install.account-setup），在“用户与密码”（kcm_users 与 AccountsService）里改 Linux 账户的密码；软件管理和系统设置的授权随之使用新密码。
+    summary: 首次账户设置完成后，用户可以在“用户与密码”中修改 Linux 密码。该页面使用 kcm_users 和 AccountsService。软件管理和系统设置随后使用新密码授权。首次设置见 install.account-setup。
     experience:
       - id: E1
         text: 在“用户与密码”里输入旧密码和新密码后修改成功，之后 polkit 授权（软件管理、系统服务页）要的是新密码。
         gap: kcm_users 改密码与 Discover 内的密码认证都还没有实机验证（docs/44）
       - id: E2
         text: 改 Linux 密码不会重新启用 Linux 锁屏，手机锁定仍由安卓管理。
-        gap: 要在无头会话里经 kcm_users 与 AccountsService 真的改一次密码，再核对 Linux 锁屏仍关着；系统测试镜像没有 accountsservice，也没有可用的系统总线。锁屏设置以 [$i] 固定、用户配置改不动，由系统测试 session_restart 检查。
+        gap: 要在无头会话里经 kcm_users 与 AccountsService 真的改一次密码，再核对 Linux 锁屏仍关着。系统测试镜像没有 accountsservice，也没有可用的系统总线。锁屏设置以 [$i] 固定、用户配置改不动，由系统测试 session_restart 检查。
     pitfalls:
-      - text: 设置 Linux 管理密码不重新启用第二层 Linux 锁屏；试验中的 PackageKit 免密码授权规则已移除，不设固定默认密码。
+      - text: 设置 Linux 管理密码不重新启用第二层 Linux 锁屏。试验中的 PackageKit 免密码授权规则已移除，不设固定默认密码。
         docs: [docs/44-plasma-user-account.md]
     code: []
     docs: [docs/44-plasma-user-account.md]
@@ -1148,7 +1148,7 @@ features:
     status: live
     platform: linux
     interfaces: []
-    summary: 设计系统 com.rungic.design：深浅色跟随系统，控件按状态有明确反馈，底部选择面板和页面横滑返回。
+    summary: com.rungic.design 提供统一设计系统。深浅色跟随系统，各控件明确显示状态反馈。设计系统提供底部选择面板和页面横滑返回。
     experience:
       - id: E1
         text: 应用和 Home 浮层的深浅色跟随系统配色变化，也可在应用里固定为浅色或深色，重启后保留。
@@ -1159,11 +1159,11 @@ features:
         evidence:
           - {doc: docs/102-design-system-choices-and-swipe-back.md, date: 2026-10-01, note: "用户实测"}
       - id: E3
-        text: 底部选择面板点一项后先显示选中再收起；点遮罩、下拖或返回键关闭且不做选择。
+        text: 底部选择面板点一项后先显示选中再收起。点遮罩、下拖或返回键关闭且不做选择。
         evidence:
           - {doc: docs/102-design-system-choices-and-swipe-back.md, date: 2026-10-01, note: "用户实测"}
       - id: E4
-        text: 在页面任意位置向右横滑返回上一页，跟手、按松手方向判断；纵向滚动不受影响，手指下的控件不会被当成一次点击。
+        text: 在页面任意位置向右横滑返回上一页，跟手、按松手方向判断。纵向滚动不受影响，手指下的控件不会被当成一次点击。
         evidence:
           - {doc: docs/102-design-system-choices-and-swipe-back.md, date: 2026-10-01, note: "用户实测"}
       - id: E5
@@ -1171,7 +1171,7 @@ features:
         evidence:
           - {doc: docs/87-agent-app-redesign.md, date: 2026-09-30, note: "设计系统状态总览浅色、深色全部核对"}
     pitfalls:
-      - text: ListRow 只在设了 accessory 时才算可交互，11 个可点击行曾没有按下反馈；在设计系统里改，不在页面打补丁。
+      - text: ListRow 只在设了 accessory 时才算可交互，11 个可点击行曾没有按下反馈。在设计系统里改，不在页面打补丁。
         docs: [docs/102-design-system-choices-and-swipe-back.md]
       - text: ListRow 是 AbstractButton，checked 是 FINAL，不能重新声明。
         docs: [docs/102-design-system-choices-and-swipe-back.md]
@@ -1193,9 +1193,9 @@ features:
     keep: qt-video-duration.patch 是 AGENTS.md 点名的未验收实验，未进入 Qt 补丁队列。
     platform: linux
     interfaces: []
-    summary: 迁入 packages/<组件>/debian/patches/rungic 补丁队列之前直接维护的补丁，以及已被 KWin Android 后端和 kscreen 补丁队列取代的旧显示设置通路；构建不再使用。
+    summary: 这些旧补丁曾直接维护，后迁入 packages/<组件>/debian/patches/rungic 队列。旧显示设置通路也已由 KWin Android 后端和 kscreen 补丁队列取代。构建不再使用这些旧实现。
     pitfalls:
-      - text: kscreen 曾回到 Ubuntu 原包，后来因五档显示大小重新建立 packages/kscreen 补丁队列；不要恢复旧的 Android 私有显示控制补丁（kscreen-android-policy、kwin-display-settings）。
+      - text: kscreen 曾回到 Ubuntu 原包，后来因五档显示大小重新建立 packages/kscreen 补丁队列。不要恢复旧的 Android 私有显示控制补丁（kscreen-android-policy、kwin-display-settings）。
         docs: [docs/85-phone-display-size-policy.md, docs/73-reduce-upstream-changes.md]
       - text: desktop/patches/qt-video-duration.patch 是未验收实验，从未进入 Qt 补丁队列。
         docs: [docs/48-plasma-media-pipelines.md]
