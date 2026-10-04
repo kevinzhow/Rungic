@@ -1,1 +1,18 @@
-[]
+[
+ {
+  "time": "2026-10-05T01:32:03+09:00",
+  "version": "20261005.1",
+  "commit": "b60de64c5553f1fc4c8c44ffb3f072bd5fd86570",
+  "channel": "dev",
+  "serial": "ZY32MVJS25",
+  "result": "verify-failed, rolled back to the snapshot"
+ },
+ {
+  "time": "2026-10-05T02:02:58+09:00",
+  "version": "20261005.1",
+  "commit": "b60de64c5553f1fc4c8c44ffb3f072bd5fd86570",
+  "channel": "dev",
+  "serial": "ZY32MVJS25",
+  "result": "verify-failed, rolled back to the snapshot"
+ }
+]

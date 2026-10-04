@@ -1,3 +1,11 @@
+ffmpeg (7:8.0.1-3ubuntu2+rungic2) resolute; urgency=medium
+
+  * Codec client from shared/media: GL texture input for the encoders' picture
+    buffers (rungic_codec_picture), and an old app closing the channel during
+    configuration falls back to channel version 1 (docs/108).
+
+ -- Rungic <noreply@rungic.invalid>  Mon, 05 Oct 2026 04:30:00 +0000
+
 ffmpeg (7:8.0.1-3ubuntu2+rungic1) resolute; urgency=medium
 
   * This project's hardware decoders (Qualcomm msm_vidc V4L2, else the Android
