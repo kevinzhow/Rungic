@@ -4,7 +4,7 @@
 
 以产品功能和用户场景为骨架：每条功能是用户能感知的一件事；“体验”是它必须做到的，每条都标明由什么检查（自动测试、实机验收、人工验证或已登记的缺口）。数据在 `quality/`，规则见 [quality/README.md](../quality/README.md)。
 
-共 160 条功能、673 条体验，其中 629 条有检查。
+共 161 条功能、681 条体验，其中 637 条有检查。
 
 ## Agent 能力
 
@@ -133,7 +133,7 @@
 - **E1** Agent 的回合开始、结束不会影响电话会话；协调器意外退出后，下一次使用时自动恢复，不需要用户重开应用。（单元测试）
 - **E2** 只读任务不能调用任何可能改动外部的 MCP 工具；可写任务独占自己的工具进程。（单元测试）
 - **E3** 用户开口就停止播报，已有任务继续；只有明确的停止请求或任务卡片的停止按钮才取消任务，取消显示“正在停止”，直到 Codex 真的停下才显示已停止。（单元测试、人工）
-- **E4** 挂断、Plasma 被遮住、音频或网络断开时关闭话音连接，任务继续执行；返回后不自动恢复，要再点电话模式。（单元测试、人工）
+- **E4** 挂断、Plasma 被遮住、音频或网络断开时关闭话音连接，任务继续执行；返回后不自动恢复，要再点“和 Agent 通话”。（单元测试、人工）
 - **E5** 只按完整的最终转写开始任务：同一句话最多开始一个任务，句中停顿不提前执行，连接就绪前说了一半的话要求重说；执行器拿到的是转写原文，不是模型改写的话。（单元测试、人工）
 - **E6** 任务需要用户回答时，问题出现在任务卡上，必须由用户回答，不自动选默认；答案只能回到提问的那个任务，已停止的任务不会被迟到的问题复活。（单元测试）
 - **E7** 任务和它的历史留在发起它的对话里；一句更正只送到一个任务，目标不明确时先问。（单元测试）
@@ -142,6 +142,9 @@
 - **E10** 停止任务或撤销它的工具租约时，只结束这个任务的工具进程组（包括忽略 SIGTERM 的后代和工具进程意外退出后留下的），用户自己运行的应用不受影响；没有租约的工具调用被拒绝。（单元测试）
 - **E11** 按用户实际说的语言识别和回答，不强制用桌面界面的语言。（单元测试）
 - **E12** 服务重启后不重放排队中或做到一半的任务，按后端的实际状态恢复显示（标为已中断）。（单元测试）
+- **E13** 对话顶栏的电话按钮在当前对话里开始通话，对话列表的“和 Agent 通话”新开一段对话再开始；不能开始时（Agent 正在替你打电话、另一段对话在通话）按钮显示为不可用，点一下说明原因。（单元测试）
+- **E14** 通话中顶栏下方的通话条按“正在连接、等你回答、正在回答、正在听、正在处理、麦克风已关、通话中”显示当前状态和通话时长，可静音、挂断，点开是通话面板（打断、这次通话的任务及其状态、去回答）；通话在别的对话时显示“前往”；重新打开应用后按会话快照恢复。（单元测试）
+- **E15** 通话结束在对话里留下摘要：时长、这次通话发起和完成的任务数，有任务在等回答时可直接去回答，也可以再打给它。（单元测试）
 
 注意：
 - 发给协调器的每条指令都必须带 id，否则回复不带 id，曾让读取线程退出并杀掉协调器。 [docs/101-full-duplex-phone-mode.md](../docs/101-full-duplex-phone-mode.md)
@@ -149,6 +152,7 @@
 - semantic VAD 可能延迟很久，改为等本地静默和完整最终转写，2 秒仍未提交时手动 commit。 [docs/101-full-duplex-phone-mode.md](../docs/101-full-duplex-phone-mode.md)
 - 播放游标读取不等于“用户听到了什么”，截断位置仍有边界误差，必须声学实测。 [docs/101-full-duplex-phone-mode.md](../docs/101-full-duplex-phone-mode.md)
 - G100 的 Home 键返回同一个入口，不能用它测试“隐藏”；2026-10-03 的协调器修复尚未部署。 [docs/101-full-duplex-phone-mode.md](../docs/101-full-duplex-phone-mode.md)
+- 断线直接结束通话（不重连），所以通话条的“正在重新连接”状态目前不会出现；对话列表也还没有通话中的标记。 [docs/101-full-duplex-phone-mode.md](../docs/101-full-duplex-phone-mode.md)
 
 文档：[docs/101-full-duplex-phone-mode.md](../docs/101-full-duplex-phone-mode.md)
 
@@ -2335,8 +2339,11 @@ Agent 不靠点界面就能拿到合并日志、崩溃回溯、追踪、截图�
 - **E3** 在 Linux 里打开或关闭 Wi-Fi，安卓的 Wi-Fi 跟着变，显示状态以安卓随后读数为准。（单元测试）
 - **E4** 安卓网络变化后很快反映到 Linux，而且不靠高频轮询（SSID 与信号正常，空闲时无持续开销）。（单元测试、人工）
 - **E5** 安卓接口异常或超时时状态变为未知，不继续显示过期的“已连接”；不支持的操作明确返回 NotSupported，不伪造成功。（单元测试）
+- **E6** Linux 程序的域名解析跟随安卓当前默认网络（开 VPN 时用 VPN 的 DNS）：/etc/resolv.conf 随网络变化原子更新，断网时不保留已失效的服务器；安卓侧连不上时保持原样。（单元测试）
+- **E7** 用户手工写的 /etc/resolv.conf（没有 Rungic 标记行）或符号链接不被覆盖。（单元测试）
 
 注意：
+- 镜像只带一行占位注释的 /etc/resolv.conf，原先没有任何机制写入 DNS，新装设备的 Linux 程序解析不了域名（issue [docs/research/32-network-integration.md](../docs/research/32-network-integration.md)
 - 没有 Linux NetworkManager 守护进程、wpa_supplicant 或 DHCP；安卓独占网卡、路由、DNS 与凭据。在服务页打开 NetworkManager 等服务可能抢走网卡、断开无线调试。 [docs/research/32-network-integration.md](../docs/research/32-network-integration.md) [docs/83-service-policy.md](../docs/83-service-policy.md)
 - 普通安卓 API 会脱敏 SSID/BSSID，靠白名单 root cmd wifi 补齐；固定安卓 16 的输出格式，换 ROM 要重验。 [docs/research/32-network-integration.md](../docs/research/32-network-integration.md)
 - ModemManagerQt 等客户端只在服务已存在时订阅 InterfacesAdded，桥接服务要先发布对象再占用总线名。 [docs/73-reduce-upstream-changes.md](../docs/73-reduce-upstream-changes.md)
@@ -2376,6 +2383,21 @@ Agent 不靠点界面就能拿到合并日志、崩溃回溯、追踪、截图�
 - 模拟服务要先发布对象再占用总线名，否则 ModemManagerQt 只枚举一次、之后看不到调制解调器。 [docs/73-reduce-upstream-changes.md](../docs/73-reduce-upstream-changes.md)
 
 文档：[docs/73-reduce-upstream-changes.md](../docs/73-reduce-upstream-changes.md)
+
+#### 通过安卓 SIM 收发短信（实验）
+
+`desktop.sms` · 依赖安卓 — Linux 与 Agent 经安卓短信接口发出用户授权的内容，并按号码与时间读取回复；安卓保管消息，原短信应用保持不变。
+
+经由接口：`telephony`
+
+- **E1** 发送的号码与内容经过校验；使用明确的活动短信卡，长短信分段，只有全部无线电回报成功才记为已发出。（单元测试）
+- **E2** 发出与送达分开；重复回调、失败分段、未知或失败回执和超时不被误记为成功，也不自动重发。（单元测试）
+- **E3** 按号码与发送时间读回复，短号精确匹配，不漏掉发送调用结束前到达的回复；读取不修改未读状态，无回复超时明确返回。（单元测试）
+
+注意：
+- 短号受系统或运营商限制；接口受理、无线电发出、送达回执与客服回复是不同证据。 [docs/107-android-sms.md](../docs/107-android-sms.md)
+
+文档：[docs/107-android-sms.md](../docs/107-android-sms.md)
 
 #### 安卓状态及时到达 Linux
 
@@ -2976,7 +2998,7 @@ Agent 不靠点界面就能拿到合并日志、崩溃回溯、追踪、截图�
 | `clipboard` 剪贴板 | 安卓 ClipboardDaemon 与 Wayland 剪贴板双向同步。 | `desktop-mode.clipboard`、`desktop.clipboard`、`desktop.clipboard-history` | 3 | 1 |
 | `network` 网络 | 安卓的 Wi-Fi 与网络状态，经 Linux 一侧的 NetworkManager D-Bus 接口给桌面用。 | `desktop.network` | 3 | 1 |
 | `bluetooth` 蓝牙 | 安卓蓝牙经 Linux 一侧的 BlueZ D-Bus 接口给桌面用。 | `desktop.bluetooth` | 3 | 1 |
-| `telephony` 蜂窝与通话 | 蜂窝网络状态（ModemManager 接口）、来电去电与通话控制。 | `agent.cellular-call`、`desktop.cellular` | 4 | 1 |
+| `telephony` 蜂窝与通话 | 蜂窝网络状态（ModemManager 接口）、来电去电与通话控制。 | `agent.cellular-call`、`desktop.cellular`、`desktop.sms` | 9 | 1 |
 | `ocr` 文字识别 | 手机 GPU 上的 OCR（PP-OCR），给目标式电脑操作用。 | `agent.plan-two` | 2 | 1 |
 | `wifi-display` 无线投屏 | 经安卓（高通）Wi-Fi Display 栈把输出投到电视：扫描、连接、断开、重连。 | `desktop-mode.cast-connect`、`desktop-mode.tv-shows-linux`、`desktop-mode.cast-video-modes`、`desktop-mode.cast-install`、`desktop-mode.tv-director` | 4 | 1 |
 | `shared-storage` 共享存储 | 安卓的共享存储（/storage/emulated/0/Plasma，MediaProvider FUSE）挂到容器的 /mnt/android-shared，用户目录和 ~/Shared 都在上面。 | `desktop.screen-recording` | 3 | 1 |

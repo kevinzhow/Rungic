@@ -76,3 +76,12 @@ Android 管理共享命名空间的实际网络。没有运行 Linux NetworkMana
 实施前比较和源代码核验见 `.work/refs/phosh-network-20260923/research.md`，包含官方NM/GNOME/Android源码、TermuxAPI、ConnMan nmcompat、Droidian和dbusmock的适用边界；源码URL和哈希见upstream/sources.json。上游GNOME补丁遵从GPL-2.0-or-later，Android源码参考Apache-2.0。
 
 仅回退GNOME界面：将上述upstream备份复制回`/usr/bin/gnome-control-center`，关闭并重开设置。停用兼容服务需同时移除inittab对应respawn行再重载init、终止服务；这会恢复原来GNOME找不到NetworkManager的状态，但不会断开Android实际网络。APK 2.3保留在原构建目录，可用ADB降级回退；不要覆盖2.3的原证据哈希。
+
+## Linux 解析器跟随安卓默认网络（2026-10-04，issue #7）
+
+- **问题**：镜像里的 `/etc/resolv.conf` 只有占位注释 `# Set from Android network on first boot`（`tools/ci/build_rootfs_image.py`），首次启动脚本并没有写入 DNS。新装设备的 Linux 程序解析不了任何域名，Codex 安装入口下载失败。issue 中的设备（G100 `portov_cn`，Clash 全局模式）实测容器流量已进 VPN，直接查询 VPN DNS `172.19.0.2:53` 成功。G100 S 能用，是因为 2026-09-23 被手工写成了 `223.5.5.5`、`1.1.1.1`（不在 git 历史里），它不跟随网络变化，开 VPN 时也不走 VPN 的 DNS。
+- **修改**（`shared/platform/network-manager.py`）：每份安卓网络快照到来时，取 `default: true` 的网络（开 VPN 时就是 VPN）的 `dns`，写 `/etc/resolv.conf`：首行为标记 `# Managed by Rungic from the Android default network`，最多 3 个 nameserver（glibc 上限），地址先校验，IPv6 链路本地地址保留 `%接口`（容器与安卓共用网络命名空间，`lxc.net.0.type = none`）。先写同目录的临时文件再 rename，内容不变就不写。没有默认网络时只写标记和一行说明，不保留已失效的服务器；安卓侧连不上（没有快照）时保持原样。
+- **不覆盖用户的文件**：只有文件不存在、为空、是镜像占位注释或带标记时才会改写；手工写的文件（没有标记）和符号链接保持不动，并记一条日志。G100 S 上的手写文件因此不受影响，迁移要删掉它或改成占位注释。
+- **未覆盖**：安卓严格模式的私人 DNS（DoT）时，快照给的仍是普通 DNS 服务器，容器走普通 53 端口；搜索域（LinkProperties 的 domains）尚未传递。
+- **离线验证**：`tools/tests/test_resolv_conf.py`（平台桥替身：Wi-Fi、VPN 接管与关闭、断网、地址校验与数量上限、手工文件与符号链接、服务只在有快照时写）。实机待验收：Wi-Fi、移动网络、VPN 开启、关闭与重连后普通用户的解析与 HTTPS，以及完整的 Codex 下载安装。
+- **实机（G100 S `ZY32MVJS25`，2026-10-04，开发覆盖 `rungic-plasma-bridges 0.510+dev20261003t174916.8653cfa`，`--restart never`，只重启 `rungic-plasma-network.service`）**：原手写文件已备份，改回占位注释后，服务 0.2 秒内写入 `nameserver 198.18.0.1`。这正是当时的默认网络 SwiftWire VPN（tun0）；Wi-Fi（`192.168.5.1`、`114.114.114.114`）不是默认网络，未写入。普通用户 `getent` 解析 github.com、chatgpt.com、www.baidu.com、releases.openai.com 都成功（65–209 ms），`https://www.baidu.com` 返回 200。chatgpt.com 被污染（31.13.x.x、`face:b00c`）：198.18.0.1、223.5.5.5、1.1.1.1 三个服务器给的都是污染结果，原因是容器流量在 SwiftWire 中按默认直连处理（容器 UID 1000 在 Android 上是 system UID），与 resolv.conf 无关。VPN 开关、切换移动网络时的更新尚未实机验证。

@@ -111,6 +111,17 @@ When the user asks you to send a voice message (发语音, 用语音告诉…):
    **API mode:** when `desktop_voice_message` is listed, it runs the existing Luna/OCR recording workflow. Use it with the authorized text and verified chat open.
 4. Report that it was sent (the tool returns the length) and to whom.
 
+## SMS through Android: `rungic-sms`
+
+Use the recipient and text the user authorized. Ask for either when missing or ambiguous; do not ask again when both are already established. Never add recipients, promotional text, or subscription commands. An explicitly requested test may use a simple inquiry, never a purchase or subscription.
+
+- `rungic-sms send NUMBER "TEXT"` uses the active default SMS SIM. `--subscription ID` selects an explicitly requested active SIM; with no default, the only active SIM is used, and multiple active SIMs require a choice.
+- `status: sent` means all parts were sent by the radio. It does not mean delivery: only `delivery: delivered` with `delivered: true` confirms all receipts. `unconfirmed` can mean the carrier does not provide delivery receipts.
+- `failed` may still have `sentParts > 0`; `pending`, socket timeouts and lost responses leave the outcome uncertain. Inspect the existing sent messages and tell the user; never resend automatically.
+- `rungic-sms list --from NUMBER --box inbox --after TIMESTAMP_MS --wait 60` waits for a reply at or after the send result's `submittedAt`, including a reply arriving before the send call returned. `--since 120` means the preceding 120 seconds. A wait with no reply exits 1 with `timedOut: true`; it is not successful receipt.
+- Query only the relevant number/time range. Reading preserves unread flags and the Android messaging app; do not mark, delete or change the default SMS app. `truncated: true` means the bounded scan did not cover all messages; narrow the time range before concluding none exist.
+- These commands require the Rungic Android app's SMS permissions and a live platform bridge (APK 2.31+). Errors are explicit; do not silently use another SIM or messaging app.
+
 ## Calls on the user's behalf (通话代理)
 
 Choose the transport from the user's request: **“打电话” means a SIM/telephone call; “打微信电话” means a WeChat voice call.** An explicitly named other app stays that app. Check capabilities to see whether that choice can work; never switch transports because another one is available, was used last time, or worked on an earlier device. If the requested contact/number is ambiguous, resolve that detail; do not ask the user to choose again when they already specified it.

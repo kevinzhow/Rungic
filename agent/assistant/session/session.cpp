@@ -44,7 +44,19 @@ Session::Session(QObject *parent):QObject(parent),audio(this){
     };
 }
 void Session::event(QJsonObject o,bool keep){if(!o.contains("conversation"))o["conversation"]=conversation;o["time"]=double(QDateTime::currentMSecsSinceEpoch())/1000;if(output)output({{"type","event"},{"event",o},{"keep",keep}});}
-void Session::state(){event({{"type","phone-state"},{"sessionId",id},{"phase",phase},{"microphone",configured&&audio.opened&&!muted},{"muted",muted},{"speaking",!playback.pending.isEmpty()||responseActive},{"listening",localSpeech},{"focusedTask",tasks.focused},{"tasks",tasks.snapshot()}},false);}
+// Said, the reply not begun: the words are being taken in (spoken, not yet submitted) or a reply was
+// asked for and has not started. The app's call bar shows it as "Thinking".
+bool Session::thinking() const{
+    if(id.isEmpty()||localSpeech||serverSpeech||responseActive||!playback.pending.isEmpty())return false;
+    return (!submitted&&!utterance.isEmpty())||!expected.isEmpty();
+}
+// What the app's call bar and panel show, as the live event and as the snapshot (the app reopened).
+QJsonObject Session::fields() const{
+    return {{"sessionId",id},{"conversation",conversation},{"phase",phase},{"microphone",configured&&audio.opened&&!muted},{"muted",muted},
+            {"speaking",!playback.pending.isEmpty()||responseActive},{"listening",localSpeech},{"thinking",thinking()},
+            {"startedAt",double(started)},{"focusedTask",tasks.focused},{"tasks",tasks.snapshot()}};
+}
+void Session::state(){auto o=fields();o["type"]="phone-state";event(o,false);}
 void Session::receive(QJsonObject o){
     const auto type=o["type"].toString();
     if(type=="rpc-result") {auto f=callbacks.take(o["id"].toInt());if(f)f(o);}
@@ -77,7 +89,7 @@ void Session::command(QString method,QJsonObject args,std::function<void(QJsonOb
     } else if(method=="AnswerTask"){done(answer(args["taskId"].toString(),args["answers"].toObject()));
     } else if(method=="FocusTask"){
         auto *t=tasks.find(args["taskId"].toString());if(!t){done({{"error","Unknown task"}});return;}tasks.focused=t->id;state();done({{"ok",true}});
-    } else if(method=="PhoneSnapshot"){done({{"sessionId",id},{"conversation",conversation},{"phase",phase},{"muted",muted},{"focusedTask",tasks.focused},{"tasks",tasks.snapshot()}});}
+    } else if(method=="PhoneSnapshot"){done(fields());}
     else if(method=="Foreground") {if(!args["visible"].toBool()&&!id.isEmpty())stop("Voice paused while Plasma is hidden");done({{"ok",true}});}
     else if(method=="ExternalBusy"){externalBusy=args["busy"].toBool();if(!externalBusy)runQueue();done({{"ok",true}});}
     else if(method=="SendPhoneText"){
@@ -118,11 +130,18 @@ void Session::start(QString target,QString lang){
     if(!proxy.isEmpty()){QUrl u(proxy);auto type=u.scheme().startsWith("socks")?QNetworkProxy::Socks5Proxy:QNetworkProxy::HttpProxy;ws.setProxy(QNetworkProxy(type,u.host(),u.port(type==QNetworkProxy::Socks5Proxy?1080:8080),u.userName(),u.password()));}
     else ws.setProxy(QNetworkProxy::NoProxy);
     QNetworkRequest req(QUrl("wss://api.openai.com/v1/realtime?model=gpt-realtime-2.1-mini"));req.setRawHeader("Authorization","Bearer "+key);key.fill(0);
-    ws.open(req);audio.start(id);lastUser=clock.elapsed();state();
+    started=QDateTime::currentSecsSinceEpoch();ws.open(req);audio.start(id);lastUser=clock.elapsed();state();
     const auto current=id;QTimer::singleShot(25000,this,[this,current]{if(id==current&&(!configured||!audio.opened))stop("Voice connection timed out; tap to retry");});
 }
 void Session::stop(QString reason){
-    const auto old=id;if(old.isEmpty())return;id.clear();configured=connected=false;phase="closed";playback.clear();localSpeech=serverSpeech=false;submitted=true;++generation;
+    const auto old=id;if(old.isEmpty())return;
+    // The call's summary, kept in its conversation: how long it was and what was started in it
+    // (the tasks of this conversation created since it began), as the app shows it after the call.
+    if(started>0){
+        QJsonArray work;for(const auto &t:tasks.rows)if(t.conversation==conversation&&t.created>=started)work.append(QJsonObject{{"taskId",t.id},{"text",t.text},{"status",t.status}});
+        event({{"type","phone-ended"},{"sessionId",old},{"startedAt",double(started)},{"seconds",double(std::max<qint64>(0,QDateTime::currentSecsSinceEpoch()-started))},{"tasks",work},{"reason",reason}});
+    }
+    started=0;id.clear();configured=connected=false;phase="closed";playback.clear();localSpeech=serverSpeech=false;submitted=true;++generation;
     ws.abort();audio.close();responses.clear();expected.clear();deferred.clear();inputItems.clear();transcripts.clear();truncateItem.clear();utterance.clear();
     if(!reason.isEmpty())event({{"type","phone-notice"},{"text",reason}});state();save();
 }
@@ -244,7 +263,7 @@ void Session::tick(){
 void Session::requestReply(ResponseContext context,QString instruction){
     if(!configured||context.generation!=generation)return;
     if(responseActive||!expected.isEmpty()||(context.progress&&(!playback.pending.isEmpty()||clock.elapsed()-lastPlaybackPush<300))){context.instruction=instruction;deferred.append(context);if(deferred.size()>8)deferred.removeFirst();return;}
-    expected.append(context);
+    expected.append(context);state();
     QJsonObject response;
     if(context.progress){response["tool_choice"]="none";response["instructions"]=instruction+"\nVerified updates:\n"+context.text;}
     send({{"type","response.create"},{"response",response}});

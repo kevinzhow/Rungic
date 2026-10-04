@@ -130,4 +130,6 @@
 - {path: docs/research/proactive-system-care.md, kind: journal, note: 主动式系统关怀：设计依据与验收}
 - {path: docs/105-test-debt-2026-10-03.md, kind: journal, note: 测试欠账清理：结果、修复的缺陷、未修的问题与剩下的 device-only}
 - {path: docs/106-codex-desktop-operation.md, kind: journal, note: 默认 Codex 桌面操作与 API 备选的实现和验收}
+
+- {path: docs/107-android-sms.md, kind: journal, note: 安卓 SIM 短信接口与 USB G100 验收}
 - {path: docs/108-codec-bridge-buffers.md, kind: journal, note: 视频硬解改走 msm_vidc V4L2 直通（CPU 降到约 1/5）；MediaCodec 桥 v2（DMA-BUF、10bit）作回退；Iris 驱动调研}

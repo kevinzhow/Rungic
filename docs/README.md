@@ -239,4 +239,5 @@ Every feature, the experience it must give and the code, tests and documents beh
 | [mac-offline-desktop-link.md](research/mac-offline-desktop-link.md) | A MacBook reaching the phone's desktop without a network: opendrop-rs assessed |
 | [miracast-video-modes.md](research/miracast-video-modes.md) | Miracast video modes: real capabilities, exact selection and acceptance |
 | [106-codex-desktop-operation.md](106-codex-desktop-operation.md) | Codex desktop operation by default, with optional API execution (2026-10-03) |
+| [107-android-sms.md](107-android-sms.md) | Android SIM text messages, send status and filtered replies (2026-10-04) |
 | [108-codec-bridge-buffers.md](108-codec-bridge-buffers.md) | Hardware video decoding straight through msm_vidc V4L2 (5x less CPU), the MediaCodec bridge with DMA-BUFs and 10-bit as fallback; the Iris driver (2026-10-04) |

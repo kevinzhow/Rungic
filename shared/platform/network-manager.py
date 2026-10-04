@@ -14,6 +14,7 @@ import re
 import signal
 import socket
 import struct
+import tempfile
 import threading
 import time
 import uuid
@@ -33,6 +34,13 @@ SOCKET = os.environ.get('RUNGIC_PLATFORM_SOCKET', '/mnt/android-wayland/platform
 LOG = logging.getLogger('android-network')
 V = GLib.Variant
 WIFI_REFRESH = 10
+# The container shares Android's network namespace (lxc.net.0.type = none), so the Linux resolver can
+# use the DNS servers of Android's default network directly, the VPN's when one is up (issue #7).
+RESOLV_CONF = '/etc/resolv.conf'
+RESOLV_MARKER = '# Managed by Rungic from the Android default network'
+# What the rootfs image ships (tools/ci/build_rootfs_image.py): also ours to replace.
+RESOLV_PLACEHOLDER = '# Set from Android network on first boot'
+RESOLV_MAX_SERVERS = 3  # glibc reads at most three nameservers
 
 
 def host_request(timeout=3.5, **request):
@@ -50,6 +58,83 @@ def host_request(timeout=3.5, **request):
         if 'error' in result:
             raise OSError(result['error'])
         return result
+
+
+def resolv_conf_text(snapshot):
+    """/etc/resolv.conf for the default network of an Android snapshot: its DNS servers (at most
+    three, IPv6 link-local ones with their interface), or none when Android has no default network,
+    so that a stale VPN server is never kept."""
+    servers = []
+    for row in snapshot.get('networks', []):
+        if not row.get('default'):
+            continue
+        for value in row.get('dns', []):
+            address, _, scope = str(value).partition('%')
+            try:
+                ip = ipaddress.ip_address(address)
+            except ValueError:
+                continue
+            if scope and not re.fullmatch(r'[A-Za-z0-9_.:-]{1,15}', scope):
+                continue
+            entry = f'{ip}%{scope}' if scope and ip.version == 6 and ip.is_link_local else str(ip)
+            if entry not in servers:
+                servers.append(entry)
+        break
+    lines = [RESOLV_MARKER] + [f'nameserver {server}' for server in servers[:RESOLV_MAX_SERVERS]]
+    if not servers:
+        lines.append('# No default network on Android now')
+    return '\n'.join(lines) + '\n'
+
+
+def resolv_conf_is_ours(path):
+    """Ours to rewrite: missing, empty, the image's placeholder or written by us. A file someone
+    edited by hand (without the marker) is left alone."""
+    try:
+        with open(path, encoding='utf-8', errors='replace') as stream:
+            first = stream.readline().strip()
+            rest = stream.read().strip()
+    except FileNotFoundError:
+        return True
+    except OSError:
+        return False
+    if first == RESOLV_MARKER:
+        return True
+    return first in ('', RESOLV_PLACEHOLDER) and not rest
+
+
+def sync_resolv_conf(snapshot, path=None):
+    """Write the default network's resolver configuration, atomically and only when it changes.
+    -> 'written', 'unchanged' or 'kept' (a hand-made file), or 'failed'."""
+    path = path or RESOLV_CONF
+    if os.path.islink(path) or not resolv_conf_is_ours(path):
+        return 'kept'
+    text = resolv_conf_text(snapshot)
+    try:
+        with open(path, encoding='utf-8') as stream:
+            if stream.read() == text:
+                return 'unchanged'
+    except OSError:
+        pass
+    folder = os.path.dirname(path) or '.'
+    temporary = None
+    try:
+        # A new, exclusively created file of a random name beside the target: a concurrent start or
+        # a leftover file or link of a fixed name cannot be written through.
+        descriptor, temporary = tempfile.mkstemp(prefix='.resolv.conf.', dir=folder)
+        with os.fdopen(descriptor, 'w', encoding='utf-8') as stream:
+            stream.write(text)
+            stream.flush()
+            os.fchmod(stream.fileno(), 0o644)
+            os.fsync(stream.fileno())
+        os.replace(temporary, path)
+    except OSError:
+        if temporary:
+            try:
+                os.unlink(temporary)
+            except OSError:
+                pass
+        return 'failed'
+    return 'written'
 
 
 def props(**kwargs):
@@ -457,6 +542,7 @@ class Bridge:
         self.polling = False
         self.alive = True
         self.online = None
+        self.resolv_result = None
         self.agents = set()
         # Wi-Fi scan results and saved networks: refreshed every WIFI_REFRESH seconds, and at once after a
         # scan, connect or forget (refresh_wifi).
@@ -475,6 +561,16 @@ class Bridge:
             LOG.warning('Invalid Android network snapshot')
             graph, settings = make_graph(None)
             snapshot = None
+        # Only a snapshot says what Android's network is: an unreachable Android side changes nothing.
+        if snapshot is not None:
+            result = sync_resolv_conf(snapshot)
+            if result == 'written':
+                LOG.info('%s set from the Android default network', RESOLV_CONF)
+            elif result != self.resolv_result and result == 'kept':
+                LOG.info('%s was edited by hand (no "%s" line): not managing it', RESOLV_CONF, RESOLV_MARKER)
+            elif result != self.resolv_result and result == 'failed':
+                LOG.warning('Cannot write %s', RESOLV_CONF)
+            self.resolv_result = result
         old, old_settings = self.graph, self.settings
         self.graph, self.settings = graph, settings
         online = snapshot is not None

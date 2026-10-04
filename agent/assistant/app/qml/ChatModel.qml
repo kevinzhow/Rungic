@@ -138,6 +138,11 @@ QtObject {
         }
         case "phone-notice":
             entries.append(entry({kind: "marker", text: e.text || ""})); return
+        // The call with the Agent ended (docs/101): its summary stays in the conversation.
+        case "phone-ended":
+            entries.append(entry({kind: "call-ended", itemId: e.sessionId || "", started: e.startedAt || 0,
+                                  output: JSON.stringify({seconds: e.seconds || 0, tasks: e.tasks || []})}))
+            return
         case "phone-task-detail": return
 
         // Transcripts stream per segment (e.id): the user's transcription often ends

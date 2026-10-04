@@ -41,6 +41,9 @@ QtObject {
     readonly property color negative: dark ? "#ec7480" : "#bf3445"
     readonly property color negativeInk: dark ? "#141618" : "#ffffff"   // on a negative fill
     readonly property color positive: dark ? "#3ec57a" : "#1b7743"
+    readonly property color attention: dark ? "#f0b84a" : "#9a5b00"     // waiting for the user (an answer the Agent needs)
+    readonly property color attentionFill: dark ? Qt.rgba(0.94, 0.72, 0.29, 0.10) : Qt.rgba(0.60, 0.36, 0, 0.08)
+    readonly property color attentionLine: dark ? Qt.rgba(0.94, 0.72, 0.29, 0.35) : Qt.rgba(0.60, 0.36, 0, 0.35)
     readonly property color scrim: dark ? Qt.rgba(0, 0, 0, 0.55) : Qt.rgba(0, 0, 0, 0.32)
 
     // ---- Type (px) ----

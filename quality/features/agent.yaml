@@ -321,7 +321,7 @@ features:
         evidence:
           - {doc: docs/101-full-duplex-phone-mode.md, date: 2026-10-02, note: "等待任务从 stopping 到后端确认 stopped"}
       - id: E4
-        text: 挂断、Plasma 被遮住、音频或网络断开时关闭话音连接，任务继续执行；返回后不自动恢复，要再点电话模式。
+        text: 挂断、Plasma 被遮住、音频或网络断开时关闭话音连接，任务继续执行；返回后不自动恢复，要再点“和 Agent 通话”。
         evidence:
           - {doc: docs/101-full-duplex-phone-mode.md, date: 2026-10-02, note: "Android 设置遮住 Plasma；挂断后 137×29 仍完成"}
       - id: E5
@@ -345,6 +345,13 @@ features:
         text: 按用户实际说的语言识别和回答，不强制用桌面界面的语言。
       - id: E12
         text: 服务重启后不重放排队中或做到一半的任务，按后端的实际状态恢复显示（标为已中断）。
+      - id: E13
+        text: 对话顶栏的电话按钮在当前对话里开始通话，对话列表的“和 Agent 通话”新开一段对话再开始；不能开始时（Agent 正在替你打电话、另一段对话在通话）按钮显示为不可用，点一下说明原因。
+      - id: E14
+        text: 通话中顶栏下方的通话条按“正在连接、等你回答、正在回答、正在听、正在处理、麦克风已关、通话中”显示当前状态和通话时长，可静音、挂断，点开是通话面板（打断、这次通话的任务及其状态、去回答）；通话在别的对话时显示“前往”；重新打开应用后按会话快照恢复。
+        gap: 只有离线 QML 测试和截图；未在手机上做真人通话下的状态切换验收。
+      - id: E15
+        text: 通话结束在对话里留下摘要：时长、这次通话发起和完成的任务数，有任务在等回答时可直接去回答，也可以再打给它。
     pitfalls:
       - text: 发给协调器的每条指令都必须带 id，否则回复不带 id，曾让读取线程退出并杀掉协调器。
         docs: [docs/101-full-duplex-phone-mode.md]
@@ -356,6 +363,8 @@ features:
         docs: [docs/101-full-duplex-phone-mode.md]
       - text: G100 的 Home 键返回同一个入口，不能用它测试“隐藏”；2026-10-03 的协调器修复尚未部署。
         docs: [docs/101-full-duplex-phone-mode.md]
+      - text: 断线直接结束通话（不重连），所以通话条的“正在重新连接”状态目前不会出现；对话列表也还没有通话中的标记。
+        docs: [docs/101-full-duplex-phone-mode.md]
     code:
       - agent/assistant/phone_session.py
       - agent/assistant/session/
@@ -363,6 +372,11 @@ features:
       - tools/tests/test_phone_session.py
       - tools/tests/native_task_tools_probe.py
       - tools/system/tests/phone_session_units.py
+      - agent/assistant/app/qml/call.js
+      - agent/assistant/app/qml/CallSheet.qml
+      - desktop/design/qml/CallBar.qml
+      - desktop/design/qml/CallPanel.qml
+      - tools/tests/test_agent_call.py
     docs: [docs/101-full-duplex-phone-mode.md]
 
   # ---- 安装、设置和接入 ---------------------------------------------------------------------------
