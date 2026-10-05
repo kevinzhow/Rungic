@@ -4,6 +4,25 @@
 
 <p align="center">A budget-friendly Android phone, a full Linux desktop computer, and an assistant that does the work for you.</p>
 
+## Contents
+
+- [Working together](#working-together)
+- [Just say it](#just-say-it)
+- [The assistant has its own screen](#the-assistant-has-its-own-screen)
+- [A team of agents](#a-team-of-agents)
+- [Proactive intelligence: useful suggestions, at your pace](#proactive-intelligence-useful-suggestions-at-your-pace)
+- [You stay in control](#you-stay-in-control)
+- [A real computer in your pocket](#a-real-computer-in-your-pocket)
+- [Still your Android phone](#still-your-android-phone)
+- [How it works](#how-it-works)
+- [Performance](#performance)
+- [What makes it Agent Ready](#what-makes-it-agent-ready)
+- [Integrations](#integrations)
+- [Status](#status)
+- [Supported devices](#supported-devices)
+- [Skills](#skills)
+- [Learn more](#learn-more)
+
 <p align="center">
   <img src="docs/images/readme/demo.gif" width="300" alt="The assistant plans a rocket model. It builds and renders the model in Blender on its own screen, then delivers the picture and file.">
 </p>
