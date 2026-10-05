@@ -1,66 +1,146 @@
-# 新机型与新固件接入
+# Onboard a new device or firmware
 
-适用：未验证机型、同机型固件变化、内核/分区/root 提供者变更。以新基线重新核对；销售名称相同不等于相同设备。
+Use for unverified devices, firmware changes, or changes to kernel, partitions, or root provider.
+Check each new baseline independently.
+The same sales name does not establish the same device identity.
 
-## 1. 建立事实清单
+## 1. Establish the facts
 
-先读项目 [兼容契约](../../../../docs/75-image-build-separation.md)，再对照 [G100 实施复盘](../../../../docs/80-g100-image-installation-retrospective.md)。后者仅证明特定设备组合；前者部分接口仍是设计。
+Read the [compatibility contract](../../../../docs/75-image-build-separation.md), then compare the [G100 implementation review](../../../../docs/80-g100-image-installation-retrospective.md).
+The G100 review establishes only its specific combination.
+Some contract interfaces remain designs.
 
-| 类别 | 接入时需要的事实 |
-| --- | --- |
-| 身份 | 厂商、代号、SKU/渠道、完整 fingerprint、bootloader、Android/API、CPU 架构 |
-| 原厂输入 | 来源、固件版本、原包及各分区摘要、恢复方法、AVB 链与回退版本限制 |
-| 启动/分区 | A/B 或非 A/B、boot/init_boot/vendor_boot/recovery 实际布局、header/DTB、动态分区几何与文件系统、刷写模式 |
-| 内核 | ACK/Kleaf 固定版本、构建编号/工具链、页大小、KMI、OEM 模块版本符号/签名、最小功能增量 |
-| 宿主与后端 | root 提供者、SELinux、容器/存储机制、APK/桥协议、显示/GPU/触摸及所选共享后端 |
-| 容量 | 独立载荷暂存、展开 rootfs、旧版本恢复副本和 /data 余量、本机/远端构建峰值；旧整包另查只读种子空间 |
-| 预装选择 | RungicOS 包集合与排除项；Android 纯净化仅在明确选择底座修改时核验，不附带于 Rungic 安装 |
-| 验收 | 启动必需项、用户要求项、可选能力；每项的观测方法、预期与证据路径 |
+| Category | Required facts |
+|---|---|
+| Identity | Vendor, codename, SKU/channel, complete fingerprint, bootloader, Android/API, CPU architecture. |
+| Stock inputs | Source, firmware, archive and partition digests, recovery method, AVB chain, rollback-version restrictions. |
+| Boot and partitions | A/B status, actual boot/init_boot/vendor_boot/recovery layout, header/DTB, dynamic partition geometry/filesystems, flashing mode. |
+| Kernel | Pinned ACK/Kleaf, build number/toolchain, page size, KMI, OEM module version symbols/signatures, minimum capability changes. |
+| Host and backends | Root provider, SELinux, container/storage mechanisms, APK/bridge protocol, display/GPU/touch, selected shared backends. |
+| Capacity | Payload staging, expanded rootfs, old-version recovery copy, /data headroom, local/remote build peaks. Check read-only seed space for old bundles. |
+| Preinstallation | RungicOS packages and exclusions. Android cleanup applies only to an explicitly selected base modification. |
+| Acceptance | Boot requirements, user requirements, optional capabilities, observation methods, expectations, evidence paths. |
 
-原机缺少 Magisk/LXC 不等于无法适配；先区分 CI1 的 root/内核底座准备与 CI3 的 Rungic 运行时安装。已有这些组件也不能替代独立首装验证。底座准备是否清数据由具体操作决定，CI3 不默认恢复 Android 出厂设置。
+Missing Magisk/LXC does not establish that adaptation is impossible.
+Distinguish CI1 root/kernel preparation from CI3 Rungic runtime installation.
+Existing components do not replace independent first-installation checks.
+The actual base operation determines whether data removal is necessary.
+CI3 does not normally reset Android.
 
-## 2. 形成 spec 与运行实例
+## 2. Create the spec and run record
 
-跟踪路径：`profiles/devices/<vendor>/<codename>/<firmware>.json`。现有 schema v1 示例是 `profiles/devices/motorola/portov_cn/W1VT36H.1-51-8.json`，根字段如下：
+Track the spec at `profiles/devices/<vendor>/<codename>/<firmware>.json`.
+The current schema v1 example is `profiles/devices/motorola/portov_cn/W1VT36H.1-51-8.json`.
+Its root fields are:
 
-- `schema_version`、`id`：配置版本和唯一设备/固件标识。
-- `identity`：`product/device/sku/fingerprint/bootloader`。
-- `stock`：OEM archive、boot/init_boot/vbmeta/vbmeta_system/super/product 摘要，product 容量与 AVB 公钥摘要。
-- `kernel`：manifest/common 仓库与提交、stock_release、page_size、module_trust_certificate_sha256。
-- `release_requirements`：架构、API、电量和空间门槛。
-- `deployment`：当前实现中的手机代理配置。
-- `purity`：`remove_preinstall/remove_files/disable_packages`。
+- `schema_version`, `id`: schema version and unique device/firmware identifier.
+- `identity`: `product/device/sku/fingerprint/bootloader`.
+- `stock`: OEM archive and boot/init_boot/vbmeta/vbmeta_system/super/product digests, product capacity, and AVB public-key digest.
+- `kernel`: manifest/common repositories and commits, stock_release, page_size, and module_trust_certificate_sha256.
+- `release_requirements`: architecture, API, battery, and space thresholds.
+- `deployment`: phone proxy configuration in the current implementation.
+- `purity`: `remove_preinstall/remove_files/disable_packages`.
 
-这不是覆盖所有手机的完整 schema。当前 v1 未完整表达 flash plan、非 init_boot root 入口、后端变体等。遇到新需求，扩展数据契约及读写工具并维护已支持设备回归；不要添加无人读取的字段后宣称已适配，也不要填虚假分区/哈希来通过旧工具。
+This schema does not describe every phone.
+Version 1 does not fully express flash plans, root entry points outside init_boot, or backend variants.
+For new requirements, extend the data contract and its producers/consumers.
+Preserve regression coverage for supported devices.
+Do not add unused fields and claim adaptation.
+Do not fabricate partitions or hashes to satisfy old tools.
 
-运行实例另记序列号、ADB 端口、当前槽位、runner/代理、run-id、产物路径和本次授权范围。已有 v1 将代理放在 `deployment`；新设备核实实际环境，不复制旧私网地址。活动槽和具体连接不作为型号能力。
+Record runtime details separately:
 
-已交付 spec 的 SHA 被 fastboot adapter 和发行包绑定。新增知识优先放同目录 `<firmware>-knowledge.md`，注明适用固件、spec SHA、证据与验收边界，不为补充笔记改写已绑定 spec。真正的执行参数变更则同步更新消费者、adapter 绑定及新包，旧包保持可审计。
+- Serial number and ADB port.
+- Current slot, runner, and proxy.
+- Run-id and artifact paths.
+- Current authorization scope.
 
-原厂提取身份可存成 `<firmware>-stock-identity.json`，供 `prepare_g100_stock.py --identity` 实际消费；必须来自独立核对的实机/固件身份，不能从待验 ZIP 自举信任。X70 已保存此输入。`verify_g100_stock.py --logical-partitions` 的列表须覆盖实际 liblp/AVB 集合；info 文本的 A/B 字样不能推翻真实分区表。名称中含 G100 的工具已有部分显式参数化，使用前查当前 CLI，既不能照抄默认值，也不必重写整套工具。
+Version 1 stores proxy settings in `deployment`.
+Check the new device's actual environment instead of copying old private-network addresses.
+Active slots and individual connections are not model capabilities.
 
-## 3. 适配工具，避免复制整套流水线
+Fastboot adapters and release bundles bind the delivered spec SHA.
+Add knowledge in adjacent `<firmware>-knowledge.md` files where possible.
+State firmware, spec SHA, evidence, and acceptance limits.
+Do not change a bound spec merely to add notes.
 
-读 [工具地图](tool-map.md)，列出当前实现与目标的差异。选择成本最低的正确复用边界：
+For real execution-parameter changes, update consumers, adapter bindings, and new bundles together.
+Keep old bundles auditable.
 
-- 输入格式相同、仅数值不同：放进 spec 并验证取值与实际设备一致。
-- OEM 容器、分区/刷写协议、root 引导或图形接口不同：增加范围明确的适配器，复用哈希、报告、生命周期及首启契约。
-- 非 GKI 设备、无法获得匹配基线、未能满足硬要求：如实记录不适用或阻塞原因；不得以同 SoC 镜像替代。完成可独立推进的研究和用户空间工作。
+Store stock extraction identity in `<firmware>-stock-identity.json` for actual use by `prepare_g100_stock.py --identity`.
+Derive it from independently checked device/firmware identity.
+Do not establish trust from the ZIP under review.
+X70 already has this input.
 
-适配器更改要有目标场景的离线计划/失败检查，并回归既有设备计划；静态检查未通过前不发送写入命令。跨组件协议更改同步到宿主、rootfs、首启和验收入口。
+`verify_g100_stock.py --logical-partitions` must cover the actual liblp/AVB set.
+A/B labels in info text do not override the real partition table.
+Some tools named G100 already expose explicit parameters.
+Check their current CLI before copying defaults or replacing the complete toolchain.
 
-Android property 与 fastboot 的 bootloader 字符串可能不同；记录两端精确值和 spec SHA 绑定的 adapter，不用模糊匹配解锁状态或放宽所有机型规则。模式探针分别验证两个方向；一次 ADB→fastbootd 成功不证明 bootloader→fastbootd 或反向 USB 枚举可靠。失联时还须区分主机 USB/沙箱权限与设备状态。
+## 3. Adapt tools instead of copying the pipeline
 
-中断续刷不是无条件重跑：先保留已完成阶段的返回值、原包 manifest 和日志摘要，再核验当前身份/槽位/模式，才制定只覆盖剩余阶段的方案。X70 有经专用脚本核验的阶段 7/8 续刷记录；通用安装器没有因此自动获得任意断点恢复能力。
+Read the [tool map](tool-map.md).
+List differences between current implementation and target.
+Choose the smallest correct reuse boundary:
 
-## 4. 能力与结果记录
+- Same format, different values: put values in the spec and check them against the actual device.
+- Different OEM container, flashing protocol, root startup, or graphics interface: add a scoped adapter.
+  Reuse hashing, reports, lifecycle, and first-boot contracts.
+- Non-GKI device, unavailable matching baseline, or unmet hard requirements: record unsupported or blocked scope honestly.
+  Do not substitute another device's image because the SoC matches.
+  Continue independent research and userspace work.
 
-每项结论至少带：spec/release、实际产物摘要、原机还是候选、方法/版本、预期值、观测值、结果（通过/失败/未知/跳过）、时间及证据路径。跳过附原因；未知硬要求不能提升为通过。
+Add offline plans and failure checks for the target adapter.
+Regress existing device plans.
+Do not send write commands before static checks pass.
+Synchronize protocol changes across host, rootfs, first boot, and acceptance entry points.
 
-只保存已有工具真实输出，不虚构一个已存在的统一 `capability-report.json` 生成器。需要统一格式时，先定义并实现生产者/消费者，再以现有报告合成；ABI 可比较范围必须保留。
+Android properties and fastboot can report different bootloader strings.
+Record exact values from both interfaces and the adapter bound to the spec SHA.
+Do not use fuzzy matching for unlock state or relax every device's rules.
 
-## 5. 从候选到发行
+Check mode transitions in both directions.
+One successful ADB-to-fastbootd transition does not establish bootloader-to-fastbootd or reverse USB reliability.
+For lost connections, distinguish host USB/sandbox permissions from device state.
 
-先离线核验，再分别验证授权的候选底座启动、独立 Rungic 首装和升级。最终验收绑定实际使用的底座/OS/宿主版本与摘要，记录首次 loading、账户配置和实际桌面；升级另查数据保留与恢复。只有明确选择旧整包时才执行其清数据验收。新 GPU 后端须验证 KWin 桌面，单独渲染探针不够；共享能力按任务范围验收。
+An interrupted flash does not justify unconditional repetition.
+Preserve completed-stage results, the stock manifest, and log digests first.
+Then recheck current identity, slot, and mode before planning only the remaining stages.
+A dedicated X70 script verified stage 7/8 continuation.
+This does not give the general installer arbitrary resume support.
 
-root 修补产物应注明设备范围；G100 当前包绑定测试序列号。没有跨机证据，不能去掉绑定后直接宣称同型号通用。发行包支持的主机操作系统/架构也需要单独验证。
+## 4. Record capabilities and results
+
+Each conclusion must identify:
+
+- Spec/release and actual artifact digests.
+- Stock device or candidate.
+- Method/version, expected value, and observed value.
+- Result: pass, fail, unknown, or skipped.
+- Time and evidence path.
+
+Explain skipped checks.
+Do not mark unknown hard requirements as passed.
+
+Save actual outputs from existing tools.
+Do not invent an existing unified `capability-report.json` generator.
+If the task requires a shared format, implement its producers and consumers before combining current reports.
+Preserve ABI comparison limits.
+
+## 5. Promote a candidate to release
+
+Check offline first.
+Then separately check the authorized candidate-base boot, independent Rungic installation, and upgrade.
+Bind final acceptance to actual base/OS/host versions and digests.
+Record first-use progress, account setup, and the real desktop.
+Check upgrade data retention and recovery separately.
+
+Perform old full-bundle data-removal acceptance only when that workflow is explicitly selected.
+Check the KWin desktop for a new GPU backend.
+A rendering probe alone is insufficient.
+Check shared capabilities within the requested task scope.
+
+Describe root-patched artifact device scope.
+Current G100 bundles bind a tested serial number.
+Without cross-device evidence, do not remove the binding and claim support for every device of that model.
+Check release-bundle host OS and architecture support separately.

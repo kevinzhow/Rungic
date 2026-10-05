@@ -1,29 +1,91 @@
-# Plan two: accessibility tree + OCR + JEV
+# Plan two: accessibility, OCR, and JEV
 
-Not the default. The `rungic-desktop` tools below are listed only after `rungic-cua plan atspi` (and a
-restart of the voice assistant); `rungic-cua plan luna` goes back to plan one (screenshots, GPT-6 Luna).
-Plan two reads the accessibility tree (AT-SPI) and OCR; a fast executor (JEV) chooses the step. It
-needs apps that expose their controls; it does not see apps that do not (some Electron/Flatpak apps,
-games).
+Plan two is not the default.
+Its `rungic-desktop` tools appear only after `rungic-cua plan atspi` and a voice-assistant restart.
+`rungic-cua plan luna` restores plan one, with screenshots and GPT-6 Luna.
 
-**Whole tasks: `desktop_goal` (preferred for anything that takes several steps).** Give the goal as the user said it, with every literal value in it, and the app: `{"goal": "在文件传输助手里发一条消息：今晚七点见", "app": "微信"}`. JEV then decides every click, scroll and key from the screen; a writer model types text. Results: `outcome`, `achieved`, `answer` (what the screen shows about the goal), `steps`. Outcome `question`: ask the user `question`, then call again with the same goal and `replies: [{"question": ..., "answer": ...}]`. Ask the user before a goal that sends, pays, deletes or changes an account. Use the step tools below for a single known action or when `desktop_goal` reports it could not finish.
+Plan two reads the accessibility tree, AT-SPI, and OCR.
+The JEV executor selects each step.
+Apps must expose their controls.
+Some Electron/Flatpak apps and games do not expose them and remain invisible to this path.
 
+## Whole tasks: `desktop_goal`
 
-1. `desktop_windows` - open windows, which is active, on which screen (`WL-0` phone, `CAST-1` TV).
-2. `desktop_launch {"app": "系统设置" | "org.kde.dolphin" | "Firefox"}` to start an app (on the assistant's screen while it is on: run `rungic-agent-screen on` first if needed; `"screen": "phone"` to override). An app already open is brought forward on that screen instead of starting twice, or `desktop_activate {"window_id": ...}` to bring one to the front. The UI tools work on the ACTIVE window.
-   - Closing, minimizing, maximizing, restoring or moving a window to the phone/TV: `desktop_window {"window_id": ..., "action": "close"}`. Do not try this through `desktop_run`: the title bar and its buttons belong to the window manager and are not in the app's controls. If `still_open` stays true after close, the app is asking something; observe it.
-3. `desktop_observe` (optional) - the active window's controls (role, name, value, state) to plan the step.
-4. `desktop_run` - one bounded UI subtask executed by a fast model (JEV):
-   `{"goal": "Search System Settings for the query", "verification": ["The search field contains the query", "Results are listed"], "inputs": {"query": "声音"}, "max_actions": 8}`
-   - Put every literal text in `inputs`; the executor never invents text.
-   - `verification` must be observable in the UI. Split long tasks into several subtasks.
-   - Status `SUBTASK_COMPLETE` = done; `NEEDS_AGENT` = look at `final_window` (or a screenshot) and decide the next subtask; `BLOCKED` = no way forward.
-   - Before a step that deletes, sends, publishes, pays or changes an account, ask the user to confirm first; never make that the goal of a subtask without their explicit OK.
-5. Never start GUI apps from the shell (`firefox &`, `xdg-open`, `kstart`): the window opens on whichever screen is active, usually the phone showing this assistant. Use `desktop_launch`; if it reports no window, check `desktop_windows` once and tell the user instead of retrying other ways. Also prefer these tools over `kill` or similar for apps on screen.
-6. Apps without accessibility (some Electron/Flatpak apps, games) show few controls; take a screenshot and tell the user what you see.
+Prefer `desktop_goal` for tasks with several steps.
+Give the user's goal, every literal value, and the app.
+For example: `{"goal": "在文件传输助手里发一条消息：今晚七点见", "app": "微信"}`.
+JEV selects clicks, scrolling, and keys from the screen.
+A writer model supplies text.
 
-## WeChat under plan two
+Results include `outcome`, `achieved`, `answer`, and `steps`.
+`answer` describes visible evidence for the goal.
+For outcome `question`, ask the returned question.
+Then repeat the same goal with `replies: [{"question": ..., "answer": ...}]`.
 
-- Names the user SAID are unreliable: speech recognition picks characters of the same sound (周凯文 for 周楷雯). Never search by the recognized characters. Call `desktop_find_name {"name": "<as heard>"}` for `search_text` (the pinyin, e.g. `zhoukaiwen`; WeChat searches pinyin), type that into `Search`, then call `desktop_find_name` again and take the match with `section` `Contacts` (score 1.0 = same sound, 0.9 = accent-type difference). Ignore `Internet search results`. If two different people score 0.9 or more, or none does, ask the user (say the names you found).
+Require user authorization for goals that send, pay, remove data, or change accounts.
+Do not ask again when existing explicit authorization covers the action.
+Use step tools for one known action or after `desktop_goal` cannot complete the task.
 
-Voice message: `desktop_voice_message {"text": ..., "start": "Send Voice", "finish": "Send voice message", "cancel": "Cancel"}` (WeChat). The tool switches only this app's microphone to the Linux microphone for the recording and back afterwards; the user's real microphone is never sent. For apps where you hold a button to talk, pass `"hold": true` and only `start`.
+## Step tools
+
+1. `desktop_windows` lists windows, the active window, and screens: `WL-0` phone and `CAST-1` TV.
+2. Start apps with `desktop_launch {"app": "系统设置" | "org.kde.dolphin" | "Firefox"}`.
+   While the assistant's screen is active, apps open there.
+   Run `rungic-agent-screen on` first if necessary.
+   `"screen": "phone"` overrides this selection.
+   An existing app comes to the foreground on that screen.
+   Alternatively, select it with `desktop_activate {"window_id": ...}`.
+
+   UI tools act on the active window.
+3. Use optional `desktop_observe` to inspect active-window controls: role, name, value, and state.
+4. Use `desktop_run` for one bounded UI subtask with JEV.
+5. Use screenshots and report visible limits when apps expose few controls.
+
+For window close/minimize/maximize/restore or movement to phone/TV, use `desktop_window {"window_id": ..., "action": "close"}` with the appropriate action.
+Do not use `desktop_run` for title-bar buttons.
+They belong to the window manager rather than app controls.
+If `still_open` remains true, inspect the app's question.
+
+A bounded subtask example:
+
+```json
+{"goal": "Search System Settings for the query", "verification": ["The search field contains the query", "Results are listed"], "inputs": {"query": "声音"}, "max_actions": 8}
+```
+
+Put every literal text value in `inputs`.
+The executor does not invent text.
+Make `verification` observable in the UI.
+Divide long tasks into bounded subtasks.
+
+- `SUBTASK_COMPLETE`: the subtask finished.
+- `NEEDS_AGENT`: inspect `final_window` or a screenshot before choosing the next subtask.
+- `BLOCKED`: there is no available continuation.
+
+Require explicit user authorization before a subtask removes data, sends, publishes, pays, or changes an account.
+Do not add an unauthorized action to the goal.
+
+Do not start GUI apps through shell commands such as `firefox &`, `xdg-open`, or `kstart`.
+Those windows open on the active screen, usually the phone showing the assistant.
+Use `desktop_launch`.
+If it reports no window, check `desktop_windows` once and report the result instead of retrying another method.
+Prefer desktop tools over `kill` for visible apps.
+
+## WeChat
+
+Speech recognition can substitute same-sounding names, such as 周凯文 for 周楷雯.
+Do not search recognized characters directly.
+
+1. Call `desktop_find_name {"name": "<as heard>"}`.
+2. Type returned `search_text` into `Search`.
+   It contains pinyin, for example `zhoukaiwen`, which WeChat can search.
+3. Call `desktop_find_name` again on the results.
+4. Select a matching entry with `section` equal to `Contacts`.
+   Score 1.0 indicates the same sound.
+   Score 0.9 allows accent differences.
+   Ignore `Internet search results`.
+5. If two different people score at least 0.9, or none matches, ask the user with the found names.
+
+For voice messages, use `desktop_voice_message {"text": ..., "start": "Send Voice", "finish": "Send voice message", "cancel": "Cancel"}`.
+The tool switches only this app's microphone to the Linux microphone for recording, then restores it.
+It never sends the user's real microphone.
+For hold-to-record apps, pass `"hold": true` and only `start`.

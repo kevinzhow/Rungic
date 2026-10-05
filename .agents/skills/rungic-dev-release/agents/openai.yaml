@@ -1,4 +1,7 @@
 interface:
-  display_name: "Rungic 开发覆盖与正式发布"
-  short_description: "改动先以开发覆盖装到手机核对，确认后提交并出正式发布"
-  default_prompt: "使用 $rungic-dev-release 判断走开发覆盖还是正式发布，核对本机、构建机和手机后执行，并汇报 apt、完整性和验收结果。"
+  display_name: "Rungic Development Overlays and Releases"
+  short_description: "Test changes as phone overlays, then create accepted releases"
+  default_prompt: >-
+    Use $rungic-dev-release to choose development overlays, dev releases, or formal releases.
+    Check the local machine, build machine, and phone before execution.
+    Report APT, integrity, and acceptance results.

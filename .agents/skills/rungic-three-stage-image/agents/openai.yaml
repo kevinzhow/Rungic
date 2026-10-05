@@ -1,4 +1,7 @@
 interface:
-  display_name: "Rungic 三段式构建与独立安装"
-  short_description: "按机型准备 GKI 底座、构建独立 OS 镜像，并单独安装升级 Rungic"
-  default_prompt: "使用 $rungic-three-stage-image 核验指定机型的底座，构建独立 RungicOS 镜像，并按请求的范围准备安装或升级；注明已有工具与待实现部分。"
+  display_name: "Rungic Three-Stage Builds and Installation"
+  short_description: "Prepare a device base, build RungicOS, and install or upgrade"
+  default_prompt: >-
+    Use $rungic-three-stage-image to check the specified device base and build an independent RungicOS image.
+    Prepare installation or upgrade within the requested scope.
+    State which tools exist and which parts still need implementation.

@@ -1,53 +1,88 @@
-# 工具地图与当前实现边界
+# Tool map and implementation limits
 
-2026-09-30 按独立安装目标核对。默认流程是底座/GKI、独立 OS 镜像、Rungic 单独安装/升级；下表区分已实现工具与旧整包路径，不是所有手机可直接执行的固定命令链。所有路径相对仓库根目录。
+The independent-installation review dates from 2026-09-30.
+The default stages are device base/GKI, independent OS image, and separate Rungic installation/upgrade.
+This map distinguishes current tools from old full-bundle paths.
+It is not a universal command sequence for every phone.
+All paths are relative to the repository root.
 
-## 源码与工具入口
+## Source and tool entry points
 
-| 阶段 | 当前入口 | 使用边界 |
-| --- | --- | --- |
-| 原厂提取/验证 | `tools/prepare_g100_stock.py`、`tools/verify_g100_stock.py` | 默认 portov；新设备用已审核 `--identity`、`--expected-fingerprint`、`--logical-partitions`，仍须核对格式 |
-| 设备/输入预检 | `tools/ci/preflight.py` | v1 spec、已核验 OEM manifest/verification；要求已授权 ADB 和匹配的原机状态，不是纯 bootloader 安装前提 |
-| 组件指纹与缓存 | `tools/build_artifact.py` | 输入指纹与产物摘要双重检查；新独立包必须带 build plan，范围与二进制基线边界见 94 篇 |
-| 上游配方 | `packages/*/recipe.json`、`tools/pq.py` | prepare/export 补丁队列；遵循当前 CLI |
-| GKI 构建依据 | `packages/gki-android15-6.6/recipe.json`、`packages/gki-android16-6.12/recipe.json`、`kernel/targets/gki/`、`kernel/README.md` | 按目标选固定来源、manifest、fragment 与符号表；不能跨内核代际直接复用补丁结论 |
-| ABI | `tools/ci/module_abi.py` | 支持 legacy/extended modversions；比较 symvers 与 OEM 模块，保留未覆盖引用的范围 |
-| 模块信任 | `tools/ci/restore_module_trust.py` | 核验基线与证书、输出报告；证书恢复方法不对任意 Image 自动成立 |
-| ARM64 包 | `tools/build_on_device.py`、`tools/rungic_release.py` | 固定配方构建、collect 和版本化包集合；仓库快照成熟度见 77 篇 |
-| ARM64 rootfs 安装环境 | `tools/ci/arm64_chroot.py`、`tools/ci/rootfs.Dockerfile` | QEMU/真 chroot、宿主 Python 环境隔离；检查 runner 的 namespaces、binfmt 和容量 |
-| rootfs 镜像 | `tools/ci/build_rootfs_image.py` | 接收已准备的 root 树和 release，生成 ext4/压缩种子、包锁及报告；检查 `system/ubuntu-excluded-packages.txt` 和 Emoji Selector 排除规则，自身不是完整包下载器 |
-| APK | `android/build-apk.sh`、`tools/ci/apk-builder.Dockerfile` | Android 入口构建；保持指定开发签名身份，不混入其他凭据 |
-| 宿主种子 | `tools/ci/build_host_seed.py` | 输入 runtime、rootfs-tree、repo、lxc/plasma enter 二进制与 `--cast-jar`（`shared/android/rungic-cast/build.sh` 产物）；投屏组件为可选能力，首启安装失败只记日志 |
-| 独立首装 | `tools/ci/standalone.py pack/verify/install/status` | USB/ADB 开发入口，要求精确 serial/端口、可信 manifest SHA 和匹配的 boot；拒绝覆盖已有 runtime，仅重试同一载荷。X70 复用及重刷底座范围见 91、92 篇 |
-| 旧整包：纯净 product | `tools/ci/clean_product.py` | EROFS + product/preinstall 的命名、xattr 和 SKU 策略假设 |
-| 旧整包：完整 product | `tools/ci/assemble_product.py` | 加入 APK/JNI、种子、首启及权限；输入必须与 spec/容量匹配 |
-| 旧整包：Magisk 引导 | `tools/ci/inject_magisk_seed.py` | 在已正确修补的 init_boot 中注入 bootstrap，不负责通用 root 修补 |
-| 旧整包：整包组合 | `tools/ci/assemble_release.py` | 报告交叉核验、打包安装器/fastboot、生成 manifest；现有布局仍专属于已验证方案 |
-| 旧整包：刷写 | 生成包中的 `flash.sh` / `flash.py` | 源文件 `tools/ci/flash_release.py` 依赖同目录 manifest；不要直接在源码目录执行刷写 |
-| 旧整包：安装检查 | `tools/ci/accept_release.py` | 指定 release/serial/ADB 端口，检查当前实现约定；不替代用户首次配置及实际桌面证据 |
+| Stage | Current entry point | Scope |
+|---|---|---|
+| Stock extraction/checks | `tools/prepare_g100_stock.py`, `tools/verify_g100_stock.py` | Default portov. For new devices, use reviewed `--identity`, `--expected-fingerprint`, and `--logical-partitions`. Check the actual format. |
+| Device/input preflight | `tools/ci/preflight.py` | v1 spec and checked OEM manifest/verification. Requires authorized ADB and matching stock state. This is not a bootloader-only prerequisite. |
+| Component fingerprints/cache | `tools/build_artifact.py` | Check input fingerprints and output digests. New independent bundles require a build plan. See docs/94 for binary-baseline limits. |
+| Upstream recipes | `packages/*/recipe.json`, `tools/pq.py` | Use prepare/export patch queues and the current CLI. |
+| GKI build inputs | `packages/gki-android15-6.6/recipe.json`, `packages/gki-android16-6.12/recipe.json`, `kernel/targets/gki/`, `kernel/README.md` | Select pinned source, manifest, fragments, and symbol tables for the target. Do not transfer patch conclusions across kernel generations. |
+| ABI | `tools/ci/module_abi.py` | Supports legacy/extended modversions. Compare symvers with OEM modules. Retain limits for uncovered references. |
+| Module trust | `tools/ci/restore_module_trust.py` | Checks baseline/certificates and produces reports. Its restoration method does not automatically apply to arbitrary Images. |
+| ARM64 packages | `tools/build_on_device.py`, `tools/rungic_release.py` | Pinned recipe builds, collect, and versioned package sets. See docs/77 for repository-snapshot maturity. |
+| ARM64 rootfs installation | `tools/ci/arm64_chroot.py`, `tools/ci/rootfs.Dockerfile` | QEMU/real chroot with host Python isolation. Check runner namespaces, binfmt, and capacity. |
+| Rootfs image | `tools/ci/build_rootfs_image.py` | Packages a prepared root tree/release into ext4, compressed seeds, package locks, and reports. Check `system/ubuntu-excluded-packages.txt` and Emoji Selector exclusion. This is not a complete package downloader. |
+| APK | `android/build-apk.sh`, `tools/ci/apk-builder.Dockerfile` | Builds the Android entry point. Preserve the specified development signing identity. Exclude other credentials. |
+| Host seed | `tools/ci/build_host_seed.py` | Inputs: runtime, rootfs-tree, repo, lxc/plasma enter binaries, `--cast-jar` from `shared/android/rungic-cast/build.sh`. Casting is optional. First-boot casting installation failure produces a log only. |
+| Independent first installation | `tools/ci/standalone.py pack/verify/install/status` | Developer USB/ADB entry. Requires exact serial/port, trusted manifest SHA, and matching boot. Rejects existing runtime replacement. Retries only the same payload. See docs/91 and docs/92. |
+| Old bundle: clean product | `tools/ci/clean_product.py` | Assumes EROFS and product/preinstall naming, xattrs, and SKU policy. |
+| Old bundle: complete product | `tools/ci/assemble_product.py` | Adds APK/JNI, seeds, first boot, and permissions. Inputs must match spec/capacity. |
+| Old bundle: Magisk startup | `tools/ci/inject_magisk_seed.py` | Inserts bootstrap into a correctly patched init_boot. Does not perform general root patching. |
+| Old bundle: assembly | `tools/ci/assemble_release.py` | Cross-checks reports, packages installer/fastboot, and creates manifest. Layout remains specific to verified implementations. |
+| Old bundle: flashing | Generated `flash.sh` / `flash.py` | Source `tools/ci/flash_release.py` requires the adjacent manifest. Do not flash directly from the source directory. |
+| Old bundle: installation checks | `tools/ci/accept_release.py` | Checks current conventions for specified release/serial/ADB port. Does not replace first-account setup or actual desktop evidence. |
 
-## 独立安装入口的当前缺口
+## Current independent-installation gaps
 
-`rungic_release.py deploy/rollback` 服务于既有 Rungic 的版本化 APT 更新；`standalone.py` 服务于兼容底座上的独立首装。后者在 X70 复用了已存在的 Termux/prefix 和 product 基础 APK，验证普通 ADB 更新安装、空白 runtime/账户及重启接管。随后实际重刷 Android、清数据后，在没有旧 product 应用的纯底座安装普通 Rungic/Termux、全新 prefix 和 runtime，见 [92 篇](../../../../docs/92-x70-android-base-end-to-end.md)。用户自助入口、Magisk 离线就绪、完整 rootfs 升级与通用回滚仍待验。工具没有自动迁移既有用户数据，不能绕过已有 runtime 的拒绝检查。详细参数和备份边界见 [91 篇](../../../../docs/91-x70-independent-install.md)。
+`rungic_release.py deploy/rollback` provides versioned APT updates for existing Rungic installations.
+`standalone.py` provides independent first installation on compatible bases.
+The X70 test reused existing Termux/prefix and product APKs.
+It checked ordinary ADB update installation, blank runtime/accounts, and reboot takeover.
 
-## 历史整包：必须重新核对的 G100 假设
+A later test reflashed Android and removed data.
+It installed ordinary Rungic/Termux with a new prefix/runtime on a base without old product apps.
+See [docs/92](../../../../docs/92-x70-android-base-end-to-end.md).
 
-当前 `assemble_release.py` / `flash_release.py` 仍假定：
+User self-installation, offline Magisk readiness, full rootfs upgrade, and general rollback remain unverified.
+The tool does not automatically migrate existing user data.
+Do not bypass rejection of an existing runtime.
+See [docs/91](../../../../docs/91-x70-independent-install.md) for parameters and backup limits.
 
-- `super.img_sparsechunk.*` 命名与 OEM manifest 结构；固定需要 vendor_boot/dtbo/recovery/pvmfw 等文件。
-- 槽 a、`product_a`、`boot_a`、`init_boot_a`、特定 vbmeta 分区；先恢复 super 再写 product。
-- Motorola `oem fb_mode_clear` 和 bootloader 版本表示；fastbootd 切换路径及设备返回值。
-- 从原厂 vbmeta 派生 flags=3 的具体方案；这不是其他设备默认应采用的 AVB 配置，更不意味着可以重新锁定 bootloader。
-- bootloader 电压阈值为代码常量 3700 mV，独立于 preflight 中按 spec 核对的电量百分比。
-- Linux x86_64 主机、Python 3、随包 fastboot；Magisk 修补 init_boot 及现有首启机制。
+## Historical full bundles: recheck G100 assumptions
 
-新设备在上述任一项不适用时，先扩展配置/适配器与校验；不能仅修改 JSON 身份后运行旧刷写器。32 个分片是 G100 输入事实，X70 是 41 个；显式 identity 负责提取器的预期数量，组包器从已验证输入枚举。`--fastboot-adapter` 已支持精确 bootloader/securestate 差异及已验证模式，但当前安装器仍执行槽 a，不能把该接口称为任意刷写计划引擎。
+Current `assemble_release.py` / `flash_release.py` assume:
 
-## 参数化使用示例
+- `super.img_sparsechunk.*` names and OEM manifest structure.
+  They require vendor_boot/dtbo/recovery/pvmfw and related inputs.
+- Slot a, `product_a`, `boot_a`, `init_boot_a`, and specific vbmeta partitions.
+  They restore super before writing product.
+- Motorola `oem fb_mode_clear`, bootloader version representation, fastbootd transitions, and device responses.
+- A specific flags=3 derivation from stock vbmeta.
+  It is not a default AVB policy for other devices and does not authorize bootloader relocking.
+- A code-constant bootloader voltage threshold of 3700 mV.
+  This is separate from spec-based preflight battery percentage.
+- Linux x86_64, Python 3, bundled fastboot, Magisk-patched init_boot, and the existing first-boot mechanism.
 
-以下变量须先绑定到本次核验过的输入，不提供旧设备序列号或固件默认值。先从仓库根目录 `source tools/work-env.sh`，让开发缓存留在 `.work/`。可用各工具 `--help` 查看当前参数。
+If any assumption fails for a new device, extend configuration/adapters and checks first.
+Do not merely change JSON identity and run the old flasher.
+G100 input has 32 chunks.
+X70 input has 41.
+Explicit identity supplies the extractor's expected count.
+The assembler enumerates checked inputs.
 
-复用旧 root 树时，先在构建 chroot 中移除 `system/ubuntu-excluded-packages.txt` 所列包并安装本次 release 的 `rungic-plasma-config`，再制作镜像；不要只更新正向安装清单。2026-09-30 的预装调整及验证范围见 [75 篇](../../../../docs/75-image-build-separation.md#2026-09-30预装应用调整)。
+`--fastboot-adapter` supports exact bootloader/securestate differences and checked modes.
+The installer still operates on slot a.
+It is not an arbitrary flash-plan engine.
+
+## Parameterized examples
+
+Bind variables to checked inputs for this task first.
+Do not use old device serials or firmware as defaults.
+From the repository root, run `source tools/work-env.sh` to keep caches in `.work/`.
+Read each tool's `--help` for current parameters.
+
+Before reusing an old root tree, remove packages listed in `system/ubuntu-excluded-packages.txt` inside the build chroot.
+Install the current release's `rungic-plasma-config` before creating the image.
+Updating only the positive installation list is insufficient.
+See [preinstallation changes and checked scope](../../../../docs/75-image-build-separation.md#2026-09-30预装应用调整).
 
 ```bash
 python3 tools/ci/preflight.py "$device_spec" "$stock_dir" \
@@ -61,19 +96,37 @@ python3 tools/ci/build_rootfs_image.py --root "$rootfs_tree" \
   --size-gib "$rootfs_size_gib" --firefox-version "$firefox_version"
 ```
 
-只有明确选择历史整包/恢复任务时，才使用以下组合器及刷写入口。旧组合器所需路径参数：`--spec`、`--stock`、`--product-image`、`--product-report`、`--boot`、`--init-boot`、`--init-boot-report`、`--rootfs-report`、`--host-report`、`--kernel-abi-report`、`--package-lock`、`--img2simg`、`--fastboot`、`--output`；另需实际 `--serial`、`--fastboot-bootloader-value`、`--release-id`。当前用硬链接收集部分载荷，输入与输出须位于支持该操作的文件系统；跨盘归档后重新核验完整性。
+Use old assemblers and flash entry points only for explicitly selected historical/recovery tasks.
+Required assembler paths are:
 
-组合器已做多项摘要核对，但 ABI 报告没有自动证明与最终 boot 的全部来源关系。执行者仍需串联内核输出、封装过程、信任报告与最终摘要；不得以组合器退出 0 替代缺失的来源证据。
+- `--spec`, `--stock`, `--product-image`, `--product-report`.
+- `--boot`, `--init-boot`, `--init-boot-report`.
+- `--rootfs-report`, `--host-report`, `--kernel-abi-report`, `--package-lock`.
+- `--img2simg`, `--fastboot`, `--output`.
 
-离线校验只运行生成包：
+Also provide the actual `--serial`, `--fastboot-bootloader-value`, and `--release-id`.
+The assembler collects some payloads through hardlinks.
+Inputs and outputs must share a filesystem that supports them.
+Recheck integrity after cross-filesystem archiving.
+
+The assembler checks multiple digests.
+Its ABI report does not automatically establish all source relationships to the final boot image.
+Connect kernel outputs, packaging, trust reports, and final digests explicitly.
+An assembler exit code of 0 does not replace missing provenance.
+
+Run offline checks only through the generated bundle:
 
 ```bash
 bash "$release_dir/flash.sh" --verify-only
 ```
 
-实际刷写只在已授权且通过目标核验后执行包内入口。`--yes-wipe` 是实际清数据开关，不能用于探测或当成无副作用 dry-run。`--verify-only` 不访问设备，也不证明设备匹配。
+Run actual flashing through the bundle entry only after authorization and target checks.
+`--yes-wipe` actually removes data.
+Do not use it as a probe or harmless dry run.
+`--verify-only` does not access the device or establish its identity.
 
-刷后诊断入口（需要正常 Android ADB/root，不能成为用户首次安装必须手工完成的步骤）：
+Post-flash diagnosis requires normal Android ADB/root.
+It must not become a mandatory manual step for a user's first installation:
 
 ```bash
 python3 tools/ci/accept_release.py "$release_dir" \
@@ -81,13 +134,20 @@ python3 tools/ci/accept_release.py "$release_dir" \
   --output "$run_dir/install-acceptance.json"
 ```
 
-## 按修改范围选择检查
+## Choose checks by changed scope
 
-- 引导变更：`tools/ci/test_magisk_bootstrap.py`，加对应 shell 语法检查。
-- 宿主种子/首启投屏安装变更：`tools/ci/test_firstboot_cast.py`。
-- 刷写器变更：`tools/ci/test_flash_progress.py` 的隔离假设备检查；新布局还需自己的计划与失败场景验证。
-- APK/首启状态变更：检查 `FirstBootState.java` 与实际共享控制入口，验证缺失/旧 release/失败不放行、ready 后准备账户。
-- 镜像产物：对应文件系统校验、包检查、manifest 回读和用户范围内的清数据实机流程。
-- 构建环境/模板：`tools/ci/test_rootfs_isolation.py`、rootfs/host 构建器的 home 和未配置账户检查；目录准备使用 `tools/test_user_dirs.py`。检查入口详见 [构建隔离](build-isolation.md)。
+- Startup: `tools/ci/test_magisk_bootstrap.py` and applicable shell syntax checks.
+- Host seed/first-boot casting installation: `tools/ci/test_firstboot_cast.py`.
+- Flasher: isolated fake-device checks in `tools/ci/test_flash_progress.py`.
+  New layouts also need plan and failure scenarios.
+- APK/first-boot state: check `FirstBootState.java` and the actual shared controller entry.
+  Missing, old-release, or failed state must prevent entry.
+  Ready state must precede account preparation.
+- Images: filesystem checks, package checks, manifest readback, and authorized device acceptance after data removal.
+- Build environment/templates: `tools/ci/test_rootfs_isolation.py` and rootfs/host home/unconfigured-account checks.
+  Directory preparation uses `tools/test_user_dirs.py`.
+  See [build isolation](build-isolation.md) for entry points.
 
-隔离测试和受控 UI 状态都不能替代相应首装证据；独立首装、升级与旧整包清数据验收分别记录。不要为了文档或 skill 变更执行手机测试或重刷。
+Isolated tests and controlled UI state do not replace the applicable first-installation evidence.
+Record independent installation, upgrade, and old full-bundle data-removal acceptance separately.
+Do not run phone tests or reflash devices for documentation or skill changes.

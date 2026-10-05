@@ -1,44 +1,129 @@
-# 构建隔离、首次默认与产物保留
+# Build isolation, first-use defaults, and artifact retention
 
-适用：CI2/rootfs、宿主种子、首次账户或显示默认验收、构建收尾。证据见 [83 篇](../../../../docs/83-x70-air-pro-onboarding.md) 和 [85 篇](../../../../docs/85-phone-display-size-policy.md)。这些方法可复用，设备倍率、目录容量、端口和用户名称不是通用默认。
+Use for CI2/rootfs, host seeds, first-account/display-default acceptance, and build cleanup.
+See [docs/83](../../../../docs/83-x70-air-pro-onboarding.md) and [docs/85](../../../../docs/85-phone-display-size-policy.md).
+Reuse the methods, not device scale factors, directory capacities, ports, or user names.
 
-## 宿主环境不能进入模板
+## Keep host state out of templates
 
-`tools/work-env.sh` 将 Python 缓存指向宿主绝对路径。直接继承到 chroot 会在镜像内创建开发者同名 home，导致首装合法用户名冲突。`tools/ci/arm64_chroot.py` 已隔离宿主 `PYTHON*`；客体确需设置时显式传入客体路径，不能把宿主开发环境整体透传。
+`tools/work-env.sh` sets Python caches to absolute host paths.
+Passing them into a chroot creates a developer-named home inside the image.
+That can prevent a legitimate first-installation user name.
+`tools/ci/arm64_chroot.py` isolates host `PYTHON*` variables.
+Pass explicit guest paths when necessary.
+Do not forward the entire host development environment.
 
-rootfs 与 host seed 都包含账户环境，须分别检查，不能只修其中一份。当前构建器检查单个 UID1000 模板、锁定密码、允许的 home 布局、无账户完成标记及列出的常见凭据路径；最终树清空 machine-id。此检查不等于全面秘密扫描。不要从已配置实机的 home 反向生成发行模板。
+Check account state in both rootfs and host seeds.
+The current builders check one UID1000 template, locked passwords, permitted home layouts, absent account-completion markers, and listed common credential paths.
+The final tree has an empty machine-id.
+These checks are not a complete secret scan.
+Do not generate a release template from a configured device's home.
 
-`system/user-dirs` 在真实 Android Shared 挂载后准备标准目录，由公共账户准备和会话入口复用。验收应覆盖已有文件不被覆盖、空白首次进入和 Qt/GLib 等标准目录查询；单个照片 App 暂时打开不够。
+`system/user-dirs` prepares standard directories after the real Android Shared mount becomes available.
+Common account preparation and session entry reuse it.
+Check preservation of existing files, blank first entry, and standard Qt/GLib directory queries.
+One photo app opening temporarily does not establish acceptance.
 
-## 包与 APK 输入保持可追溯
+## Preserve package and APK provenance
 
-固定来源＋补丁队列之外，还要锁定最终软件包集合和外部耦合依赖。二进制变化使用新版本，不能覆盖同版本仓库对象。构建成功、dpkg audit、文件系统检查及打包 lint 各自记录；缺 `.dsc` 导致 lintian 未完成不能写为通过。
+Pin the final package set and external coupled dependencies in addition to upstream sources and patch queues.
+Use a new version for changed binaries.
+Do not replace repository objects under the same version.
+Record build results, dpkg audit, filesystem checks, and package lint separately.
+If a missing `.dsc` prevents lintian from completing, do not report lint success.
 
-复用其他机型产物时只复用已核验的架构无关/共享 ARM64 载荷，不沿用其内核和分区镜像。未改 native 源码而复用 APK 中 JNI 时记录原 APK 与每个库的 SHA，保持签名身份。只读 product/app 必须实际包含适用的 `lib/arm64`，不能以临时 `pm install -r` 代替预装检查。
+Reuse only checked architecture-independent or shared ARM64 payloads from other devices.
+Do not reuse their kernels or partition images.
+For unchanged native source with reused APK JNI, record the original APK SHA and each library's SHA.
+Preserve signing identity.
 
-## 首次显示默认的有效测试
+Read-only `product/app` must include the applicable `lib/arm64` files.
+Temporary `pm install -r` does not replace preinstallation checks.
 
-- 默认策略只在无保存偏好时生效；已有选择、显式选择“标准”和持续跟随 Android 是不同语义。Android density 是逻辑密度，参考宽度来自同一显示指标快照，不能用低分辨率 Surface 再作一次 density 参考，也不乘字体 fontScale。
-- 当前策略共享于 KWin/KScreen；公式、360 默认宽度保护和待跨设备校准的系数见 85 篇。使用原生/低分辨率、有效/缺失元数据、已有/无显示配置分别验证；不把单机参数变成所有设备的物理定律。
-- 临时移开显示配置前，等待实际 KWin 进程退出并完成最终写入；外层 systemd service 停止不一定代表 logind scope 已退出。快速测试触发 StartLimit 时记录并恢复服务，不用固定延时改产品默认策略。
-- 自动刷新可能增删当前显示模式，客户端不能跨配置缓存 mode ID。每次按实时尺寸/刷新率解析，检查配置请求返回文字及最终状态，而非只看命令退出码。
-- 同时核对 KScreen 枚举和 Android 宿主的真实刷新策略；只看到 automatic 标签不能证明宿主自动。结束时恢复原 Android density override、渲染模式、用户倍率和测试辅助状态。
+## Test first-use display defaults
 
-## 清理不能破坏下一次构建
+- Defaults apply only when no saved preference exists.
+  A saved choice, explicit “standard,” and continuous Android following have different meanings.
+- Android density is logical density.
+  Obtain reference width from the same display-metrics snapshot.
+  Do not use a low-resolution Surface as another density reference.
+  Do not multiply by fontScale.
+- KWin and KScreen share the current policy.
+  See docs/85 for the formula, default width protection at 360, and coefficients that need cross-device calibration.
+  Check native/low resolution, valid/missing metadata, and saved/absent display configuration separately.
+  One device's parameters are not universal physical rules.
+- Before temporarily moving display configuration, wait for the actual KWin process to exit and finish writing.
+  Stopping the outer systemd service does not necessarily stop the logind scope.
+  If rapid tests trigger StartLimit, record the result and restore the service.
+  Do not use a fixed delay to change product defaults.
+- Automatic refresh can add or remove current display modes.
+  Do not cache mode IDs across configurations.
+  Resolve modes from current dimensions and refresh rates each time.
+  Check configuration response text and final state, not only the exit code.
+- Check both KScreen enumeration and the Android host's actual refresh policy.
+  An automatic label alone does not establish automatic host behavior.
+  Restore the original Android density override, render mode, user scale, and test-helper state afterward.
 
-1. 区分正式包/恢复输入、精确依赖、报告/日志、可重建展开树和过时候选。跨 run 从旧 `assembled-vN/root` 取 Termux 或稀疏写入器等是隐藏依赖；先迁入独立 `.work/deps/` 快照、对照原报告核验哈希、更新实际调用者，再删旧树。
-2. 清理前核对进行中的构建与挂载、保留包的产物摘要及链接关系；小型报告/seed 配置/元数据归档后，可按明确路径删除已授权的旧暂存和候选。保留旧发行包或清除它们是不同范围，不执行全局 prune。
-3. Btrfs reflink、压缩、稀疏文件和硬链接使 `du` 目录大小不能等同于可释放空间。删除一个构建镜像路径可能仅减少硬链接数；以清理前后文件系统实际可用量记录收益，保留目录不能相加估算。
-4. 记录删除路径、依赖新位置、保留镜像哈希与清理结果。解包树或重组 super 删除后，注明从哪些保留 OEM 输入重建；不要让下次工具继续依赖已消失的暂存。
+## Preserve the next build during cleanup
 
-已有账户升级、配置隔离测试和离线包检查都不替代同一产物的全新 Rungic 首装；新路径不要求清空 Android 数据。独立首装与升级分别验收；旧整包若使用 `clean_install_accepted` 字段，仍按其原有清数据含义记录，不挪作新流程证据。需要人工修复才能进入桌面的包如实记录，修订后未重新执行相应安装路径就不能提升验收状态。
+1. Separate release/recovery inputs, exact dependencies, reports/logs, reproducible expanded trees, and obsolete candidates.
+   Cross-run access to Termux or sparse writers in old `assembled-vN/root` trees is a hidden dependency.
+   Move those inputs into independent `.work/deps/` snapshots first.
+   Check hashes against original reports before updating consumers and removing the old tree.
+2. Check active builds, mounts, retained artifact digests, and links before cleanup.
+   Archive small reports, seed configuration, and metadata.
+   Remove only explicit, authorized temporary paths and old candidates.
+   Keeping old release bundles and removing them are different scopes.
+   Do not perform global pruning.
+3. Btrfs reflinks, compression, sparse files, and hardlinks make `du` size different from reclaimable space.
+   Removing one image path can merely decrease its hardlink count.
+   Measure actual filesystem free space before and after cleanup.
+   Do not sum retained directory sizes to estimate recovered space.
+4. Record removed paths, new dependency locations, retained image hashes, and cleanup results.
+   After removing expanded trees or reconstructed super images, identify the retained OEM inputs needed to rebuild them.
+   Do not leave tools dependent on missing temporary trees.
 
+Existing-account upgrades, configuration-isolation tests, and offline package checks do not replace fresh Rungic installation with the same artifact.
+The new path does not require Android data removal.
+Check independent installation and upgrade separately.
 
-## 投屏 JAR 与桌面接口同步
+For old full bundles, `clean_install_accepted` retains its original Android data-removal meaning.
+Do not reuse it as evidence for the new flow.
+Record packages that require manual correction to reach the desktop.
+After revision, repeat the applicable installation before increasing acceptance status.
 
-X70 `.7` 曾误复用旧 host-v2 JAR，Android 搜到电视但新版界面缺 `receivers` 而显示空列表（docs/86、93）。构建必须使用 `shared/android/rungic-cast/build.sh` 生成 JAR 和同目录 `rungic-cast.build.json`；部署、host seed、CI3 pack 按当前源码与 JAR 摘要检查来源。缺少侧文件或输入过期须重建，不能手写证明或绕过校验。桌面包同步更新，运行时检查 `protocol_version: 1` 与 `receivers`。基础 smoke 不含投屏，另从手机快捷设置验证真实接收器列表；电视画面和声音分别验收。
+## Keep the casting JAR and desktop interface together
 
+X70 `.7` incorrectly reused an old host-v2 JAR.
+Android found the TV, but the new interface lacked `receivers` and the list was empty.
+See docs/86 and docs/93.
 
-## 按输入指纹复用组件
+Build the JAR and `rungic-cast.build.json` with `shared/android/rungic-cast/build.sh`.
+Deployment, host seeds, and CI3 packing check current source and JAR digests.
+Rebuild if the sidecar is missing or inputs are stale.
+Do not fabricate provenance or bypass checks.
 
-用户于 2026-09-30 明确要求按版本/输入哈希决定复用，不按组件类别一刀切。通用入口 `tools/build_artifact.py`：当前源码、补丁、依赖产物及其输入指纹、工具链、目标、参数和命令共同形成缓存键；同键仍逐个核对输出 SHA。缺记录、输入不匹配、构建期间变化或产物损坏不能当作缓存命中。新 `standalone.py pack` 必须传 `--build-plan`，输出 schema 2 的组件构建清单；旧包的摘要验证不等于新来源验证。二进制基线可明确锁定，但不能补造其原始源码证明。工具、配方字段、8 阶段实测与尚未迁移的直接构建入口见 [94 篇](../../../../docs/94-build-fingerprints.md)。
+Update desktop packages together.
+At runtime, check `protocol_version: 1` and `receivers`.
+Basic smoke tests do not cover casting.
+Check the real receiver list through phone quick settings.
+Accept TV picture and audio separately.
+
+## Reuse components by input fingerprint
+
+On 2026-09-30, the user required reuse decisions based on versions/input hashes rather than component categories.
+`tools/build_artifact.py` constructs the cache key from:
+
+- Current source and patches.
+- Dependency artifacts and their input fingerprints.
+- Toolchain and target.
+- Parameters and command.
+
+Check every output SHA even when the key matches.
+Missing records, mismatched inputs, changes during a build, or damaged outputs are not cache hits.
+New `standalone.py pack` requires `--build-plan` and produces a schema 2 component manifest.
+Digest checks for old bundles do not establish the new provenance requirements.
+
+A binary baseline can be explicitly pinned.
+Do not fabricate its original source provenance.
+See [docs/94](../../../../docs/94-build-fingerprints.md) for tools, recipe fields, 8 measured stages, and direct builders not yet migrated.

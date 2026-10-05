@@ -1,85 +1,205 @@
 ---
 name: rungic-agent-team
-description: "Lead a team of sub-agents (spawn_agent) on one larger piece of work whose parts need different skills or apps and can be made at the same time: a game (code, art, sound), a video (edit, music, titles), a report (data, charts, writing), a website (pages, backend, content). The lead writes a brief, the members review and challenge it before anyone starts, the lead decides, then they work in parallel, and the lead integrates, reviews against the brief and hands the result over. Use when the user asks for a team or such a task is clearly large enough."
+description: >-
+  Lead sub-agents with spawn_agent on a large task with independent parts that need different skills or apps.
+  Examples include games, videos, reports, and websites.
+  Write a brief, collect member reviews, decide, coordinate parallel work, and check the integrated result.
+  Use when the user requests a team or the task clearly justifies one.
 ---
 
-# Leading a team of sub-agents
+# Lead a team of sub-agents
 
-You are the lead: you own the brief, the decisions, the integration and what the user gets. Members are sub-agents (`spawn_agent`), each owning one part. Most failures of agent teams come from an unclear brief, members working against different assumptions, and nobody checking the whole: this process is built against those three.
+The lead owns the brief, decisions, integration, and final delivery.
+Each member created with `spawn_agent` owns one part.
+This process addresses unclear briefs, conflicting assumptions, and missing checks of the complete result.
 
 ## When to form a team
 
-- The parts are independent enough to be made at the same time, each needs its own specialty or app for a while, and the result is worth several times the tokens of one agent. For anything smaller, work alone.
-- Two to four members. More members cost more coordination than they save.
-- On this phone, members using desktop apps each take a workspace of their own (see "On this phone" below).
+Use a team when parts can proceed independently and each needs its own specialty or app.
+The result must justify several times a single agent's token cost.
+For smaller tasks, work alone.
+Use two to four members.
+Additional members usually increase coordination cost.
 
-## Saying it as you go: `team_post`
+On this phone, members with desktop apps each need a separate workspace.
+See the phone-specific instructions below.
 
-The user watches the team live: on the director's screens (phone and TV) each member's tile shows its role, its state and its latest words, and every post is kept in `<folder>/.team/journal.jsonl`. Agents' messages to each other are not visible to anyone, so whatever the user should see is said with the desktop tool `team_post` {role, kind, text, project}: one short sentence in the user's language, at most 80 characters.
+## Visible updates: `team_post`
 
-- The lead: `brief` when BRIEF.md is written (what is made, the direction in a few words); `decision` after the review (e.g. "Accepted 5 of 6 points: pixel art, 34×24 bird, 3 frames"); `done` when the result is handed over.
-- A member: `review` with its main point and how many points it has (e.g. "3 points; blocker: no style named, propose pixel art"); `progress` at real steps (a part finished, a check passed), not more than every half minute; `blocked` or `question` at once, with what is needed; `done` with what was made.
-- Not for every command, not raw logs, no paths or personal details: it is shown on a TV in the room.
+The user sees member roles, states, and latest words in tiles on the director's phone and TV screens.
+Posts also remain in `<folder>/.team/journal.jsonl`.
+Agent messages do not replace these visible updates.
+Use desktop tool `team_post` with `role`, `kind`, `text`, and `project`.
+Write one short sentence in the user's language, at most 80 characters.
 
-## 1. Draft the brief
+The lead posts:
 
-Make a project folder (`~/Projects/<name>/`) and write `BRIEF.md`, the members' one shared truth:
+- `brief` after writing BRIEF.md: the product and direction.
+- `decision` after review, for example “Accepted 5 of 6 points: pixel art, 34×24 bird, 3 frames”.
+- `done` at final delivery.
 
-1. **Goal**: what is made, for whom, and what "good" means to the user, in their words.
-2. **Direction**: the decisions that make the parts fit together and that the user will judge first. For anything visual or audible: style, references, palette, tone, level of detail, size or length (e.g. "pixel art like the original Flappy Bird: hard pixels, dark outlines, 3-frame wing flap, 34×24 bird"). For text: audience, tone, length, structure. Name a reference whenever the user named one; make original work in its recognizable style, not copies of its files.
-3. **Parts and owners**: one part per member, each with its own directory; a member writes only its own directory and its status file.
-4. **Deliverables**: exact files, names, formats, sizes or lengths and limits, and how each is checked.
-5. **Interfaces**: what each part expects from the others (paths, names, data formats, timing), and placeholders so that dependent parts can start at once.
-6. **Constraints**: tools to use, time, memory, what not to do.
-7. **Open questions**: what you could not decide yet.
-8. **Status**: `.team/<role>.md`, first line `STATUS: reviewing | working | done | blocked`, then what was made, how it was checked, open problems.
+Members post:
 
-## 2. Review round: members challenge the brief
+- `review`: main point and point count, for example “3 points, blocker: missing style, propose pixel art”.
+- `progress`: completed parts or passed checks, no more frequently than once per half minute.
+- `blocked` or `question`: immediately, with the required input.
+- `done`: the completed deliverable.
 
-Start every member now, before any work, with a review task only:
+Do not post every command or raw logs.
+Exclude paths and personal details because the TV can show posts to people in the room.
+
+## 1. Write the brief
+
+Create `~/Projects/<name>/` and write `BRIEF.md` as the shared specification.
+Include these sections:
+
+1. Goal: product, audience, and the user's definition of success.
+2. Direction: decisions that make parts compatible and determine the user's first judgment.
+3. Parts and owners: one part and directory per member.
+4. Deliverables: exact files, names, formats, sizes/lengths, limits, and checks.
+5. Interfaces: required paths, names, data formats, timing, and placeholders for parallel work.
+6. Constraints: tools, time, memory, and prohibited actions.
+7. Open questions: undecided details.
+8. Status: `.team/<role>.md`, beginning with `STATUS: reviewing | working | done | blocked`.
+
+For images or audio, Direction identifies style, references, palette, tone, detail, and size/length.
+For example: original Flappy Bird style, hard pixels, dark outlines, three-frame wing movement, 34×24 bird.
+For text, specify audience, tone, length, and structure.
+Use a reference whenever the user names one.
+Create original work in its recognizable style instead of copying reference files.
+
+Members write only their own directories and status files.
+Each status file records completed work, checks, and remaining problems.
+
+## 2. Review the brief before work
+
+Start each member with review only:
 
 ```text
-You are the <role> member of a team making <product> in <folder>. Read BRIEF.md.
-Do not start the work yet. Review the brief for your part and for how it fits the others:
-what is unclear, missing or contradictory; what you would need to decide on your own (that is
-a gap); risks; whether the deliverables and checks can be met with the tools here (look, but
-make nothing). Reply with at most 8 points, each: [blocker|should|could] the problem -> your
-proposal. Say "no objections" if there are none. Write the same into .team/<role>.md with
-STATUS: reviewing, and say your main point with team_post (role <role>, kind review, project
-<folder>). You will get the final brief and the go-ahead from the lead.
+You own the <role> part of <product> in <folder>.
+Read BRIEF.md. Do not start implementation.
+Review your part and its interfaces with the other parts.
+Identify missing, unclear, or contradictory requirements.
+Identify decisions you would otherwise make alone, risks, and unavailable tools.
+Inspect the available tools, but create no deliverables.
+Reply with at most 8 points.
+Format each point as [blocker|should|could] problem -> proposal.
+Say "no objections" if there are none.
+Write the same review into .team/<role>.md with STATUS: reviewing.
+Post your main point with team_post: role <role>, kind review, project <folder>.
+Wait for the final brief and the lead's authorization to start.
 ```
 
-`wait_agent` for all of them. The review is one message each, not a conversation; it takes minutes, and it is how direction gaps are caught before they become wrong work (a team once delivered soft cartoon art because the brief named no style; the user wanted pixel art).
+Use `wait_agent` for every member.
+Each member submits one review message rather than a discussion.
+This can take minutes.
+The review catches direction gaps before implementation, such as cartoon art when the user expects pixel art.
 
 ## 3. Decide
 
-- Go through every point: accept and change the brief, or reject with a one-line reason. Do not leave a point unanswered.
-- Questions only the user can answer (taste, scope, priorities, anything they would judge the result by): ask the user once, all together, short, each with your recommended default. Where the user said not to be asked, or cannot be reached, take the defaults and list them as assumptions.
-- Write the result into `BRIEF.md`: a `## Decisions` section (point, decision, reason) and the updated sections. It is final now; later changes go through you and are announced to every member they affect.
-- One round only: there is no second review. A member who disagrees with a decision notes it in its status file and works to the brief. Only a blocker with new information (something found while working) comes back to you, once; decide it and move on. Members talk only to you, not to each other.
-- Tell the user the plan in one or two sentences (members, what each makes, the direction) and keep it in `update_plan`.
+Address every point.
+Accept it and update the brief, or reject it with a one-line reason.
+Do not leave points unanswered.
 
-## 4. Work
+Bundle questions that only the user can answer into one short request.
+Examples are taste, scope, priorities, or criteria the user will judge.
+Give a recommended default for each question.
+If the user prohibits questions or cannot be reached, use defaults and record assumptions.
 
-- Give each member the go-ahead with `send_input`: "BRIEF.md is final (see Decisions). Start: make your deliverables, check them against the brief, keep .team/<role>.md current, say real steps with team_post (kind progress), set STATUS: done, post kind done and report what you made and how you checked it. If you cannot meet the brief, set STATUS: blocked, post kind blocked with the reason and report instead of working around it."
-- `wait_agent` for them. Answer questions and blocked members with `send_input`. Do not do their work or touch their directories.
+Add `## Decisions` to `BRIEF.md` with each point, decision, and reason.
+Update affected sections.
+Later changes go through the lead and reach every affected member.
 
-## 5. Integrate and review
+Use one review round only.
+A member who disagrees records that in its status file and follows the final brief.
+Only a blocker with new information returns to the lead, once.
+Decide that blocker before continuing.
+Members communicate with the lead, not each other.
 
-When every member is done:
+Explain the members, deliverables, and direction to the user in one or two sentences.
+Keep the plan in `update_plan`.
 
-1. Check each deliverable against the brief: the mechanical checks (names, sizes, formats; keep a small check script in the project) and the direction: look at images, listen to or measure sound, read text, against the Direction section and its references. Send anything off-direction back to its owner with what is wrong.
-2. Bring the parts together, yourself or through the member that owns the target.
-3. Test the whole as the user will use it, and keep the evidence (screenshots, logs, test output) in the project.
-4. `close_agent` every member when the work is accepted.
+## 4. Execute
 
-## 6. Hand it over
+Authorize each member with `send_input`:
 
-Tell the user what was made, where, how it was checked and what is open, and show it to them (see below for this phone). Feedback goes to the member that owns the part (a new sub-agent with the brief if it was closed); check and hand over again.
+```text
+BRIEF.md is final. Read Decisions and start your deliverables.
+Check them against the brief.
+Keep .team/<role>.md current.
+Post actual progress with team_post, kind progress.
+When finished, set STATUS: done and post kind done.
+Report what you produced and how you checked it.
+If you cannot meet the brief, set STATUS: blocked.
+Post kind blocked with the reason and report the problem instead of bypassing it.
+```
 
-## On this phone (Rungic)
+Use `wait_agent` for members.
+Answer questions and blockers with `send_input`.
+Do not perform a member's work or edit its directory.
 
-- **Workspaces**: a member's first desktop tool call gives it a workspace of its own (the phone has four; one is yours, so at most three members with desktops). Its shell is not in that workspace: programs with windows run as `rungic-workspace-env N <command>` (N from `desktop_where`), apps open with `desktop_launch`. Tell members this, to save and close their apps, and to call `desktop_close_workspace` when done; the user sees each workspace in a floating window of its own while it is in use. The `rungic-phone-desktop` skill has the details.
-- **Memory**: check `free -m` before starting. Krita or Godot take about 0.5 GB each, Blender far more; with less than about 1.5 GB available, run the heavy part alone first.
-- **In an app**: when the brief says a part is made in an app (Krita, Ardour, Godot), the member makes and saves it there; the app's own scripting (Krita's Scripter, say) counts. The brief says what the result must be, not which buttons to press.
-- **Showing the result**: on the user's own screen only after they agree (ask, e.g. "做好了，现在在你的桌面打开给你试玩吗？"). Give it a launcher, `~/.local/share/applications/<id>.desktop` (`Type=Application`, `Name`, `Exec`, `Icon`, `Categories`; a Godot game: `Exec=<the Godot binary> --path <project dir>`, binary from the `Exec` of `godot*.desktop` in `/usr/share/applications` or `~/.local/share/applications`). Open it with `rungic-user kstart --application <id> </dev/null >/dev/null 2>&1`: it opens on the phone's own screen, with the user's touch. Then `rungic-agent-screen off` so that your floating window does not cover it, and confirm only that it runs (`pgrep -af <its command>`). Your desktop tools cannot see the phone's own screen: do not turn desktop mode on, move the window or work on the user's desktop to look at it, which takes it off the user's screen. The user tells you what they see.
+## 5. Integrate and check
+
+After every member finishes:
+
+1. Check each deliverable against the brief.
+   Check names, sizes, and formats with a small project script.
+   Inspect images, listen to or measure audio, and read text against Direction and its references.
+   Return unsuitable work to its owner with the required correction.
+2. Integrate the parts yourself or through the member who owns the target.
+3. Test the complete result as the user will use it.
+   Save screenshots, logs, and test output in the project.
+4. Use `close_agent` for each member after acceptance.
+
+## 6. Deliver
+
+Show the result and state what exists, where it is, checks performed, and remaining problems.
+Follow the phone-specific presentation instructions below.
+Send feedback to the member who owns the part.
+If that member closed, start another sub-agent with the brief.
+Check revised work before delivering it again.
+
+## On this phone: Rungic
+
+### Workspaces
+
+A member's first desktop tool call allocates its own workspace.
+The phone has four workspaces.
+One belongs to the lead, leaving at most three desktop members.
+A member's shell remains in the parent's workspace.
+Get its workspace number N from `desktop_where`.
+Run windowed programs with `rungic-workspace-env N <command>` and open apps with `desktop_launch`.
+
+Tell members to save their work and close their apps.
+They must call `desktop_close_workspace` when finished.
+The user sees each active workspace in its own floating window.
+See `rungic-phone-desktop` for details.
+
+### Memory and apps
+
+Check `free -m` before starting.
+Krita and Godot each need about 0.5 GB.
+Blender needs much more.
+With less than about 1.5 GB available, run the heavy part alone first.
+
+If the brief requires an app such as Krita, Ardour, or Godot, make and save the part there.
+The app's scripting interface, such as Krita's Scripter, counts.
+The brief defines results rather than individual button presses.
+
+### Show the result on the user's screen
+
+Show it on the user's own screen only after agreement.
+For example, ask “做好了，现在在你的桌面打开给你试玩吗？”.
+Create `~/.local/share/applications/<id>.desktop` with Type=Application, Name, Exec, Icon, and Categories.
+For Godot, use `Exec=<the Godot binary> --path <project dir>`.
+Find the binary in the Exec entry of godot*.desktop under `/usr/share/applications` or `~/.local/share/applications`.
+
+Open the launcher with `rungic-user kstart --application <id> </dev/null >/dev/null 2>&1`.
+It opens on the phone's own screen with user touch input.
+Then run `rungic-agent-screen off` so the floating workspace does not cover it.
+Check only that the process runs, with `pgrep -af <its command>`.
+
+Your desktop tools cannot see the phone's own screen.
+Do not enable desktop mode, move the window, or work on the user's desktop merely to inspect it.
+That moves the result away from the user's screen.
+The user reports what they see.
