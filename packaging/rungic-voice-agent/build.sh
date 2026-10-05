@@ -25,6 +25,12 @@ for f in "$V"/skills/*/*.md; do
     skill=$(basename "$(dirname "$f")")
     install -Dm644 "$f" "$DESTDIR/usr/share/rungic-voice-agent/skills/$skill/$(basename "$f")"
 done
+# A skill's scripts (rungic-krita-pixel-art): used from the package's path, not copied for the user.
+for f in "$V"/skills/*/*.py; do
+    [ -e "$f" ] || continue
+    skill=$(basename "$(dirname "$f")")
+    install -Dm755 "$f" "$DESTDIR/usr/share/rungic-voice-agent/skills/$skill/$(basename "$f")"
+done
 install -Dm644 "$V/rungic-voice-agent.service" "$DESTDIR/usr/lib/systemd/user/rungic-voice-agent.service"
 install -Dm644 "$V/rungic-voice-overlay.service" "$DESTDIR/usr/lib/systemd/user/rungic-voice-overlay.service"
 install -Dm644 "$V/com.rungic.VoiceAgent.service" "$DESTDIR/usr/share/dbus-1/services/com.rungic.VoiceAgent.service"

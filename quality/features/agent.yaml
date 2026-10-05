@@ -592,6 +592,8 @@ features:
       - agent/assistant/prompts/voice-common.md
       - agent/assistant/skills/rungic-phone-desktop/SKILL.md
       - agent/assistant/skills/rungic-messages-calls/SKILL.md
+      - agent/assistant/skills/rungic-krita-pixel-art/
+      - tools/tests/test_krita_pixel_art.py
       - agent/assistant/skills/rungic-screens/SKILL.md
       - agent/assistant/skills/rungic-phone-settings/SKILL.md
       - agent/assistant/kconf_update/

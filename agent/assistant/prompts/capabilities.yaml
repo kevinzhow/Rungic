@@ -73,6 +73,11 @@ capabilities:
     how: skill `rungic-messages-calls` (WeChat on the screen, `desktop_voice_recording`, `--start-call` with backend `app`)
     external: Sending or calling
 
+  - name: Pixel art (像素画)
+    can: Draw pixel art in Krita, pixel by pixel, while the user watches. Save it sharp and enlarged.
+    when: '"画一幅像素画", "像素风的…", "make a 32x32 sprite", "pixel art tiles for my game", or art for a pixel game'
+    how: skill `rungic-krita-pixel-art` (`pixel.py` in Krita's Scripter)
+
   - name: Code, research and making things
     can: Write and run code. Search the web. Make documents, pictures and 3D renders.
     when: '"查一下…", "写个脚本", "画一张…", "render a …", or a question that needs a search'
