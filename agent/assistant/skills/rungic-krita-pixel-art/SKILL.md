@@ -22,9 +22,6 @@ Krita's defaults.
 
 ## Files
 
-- `/usr/share/rungic-voice-agent/skills/rungic-krita-pixel-art/setup.py`: run it in the shell
-  before Krita starts. It turns on Krita's Scripter plugin. It prints JSON. If Krita runs, close
-  Krita first.
 - `/usr/share/rungic-voice-agent/skills/rungic-krita-pixel-art/pixel.py`: functions that draw
   exact pixels into the document open in Krita. Its first lines list the functions.
 
@@ -35,9 +32,10 @@ Krita's defaults.
    - A scene: 64 to 160 pixels wide. A portrait scene (竖屏): 90x160 or 108x192.
    - A palette of 6 to 16 colours, with 2 or 3 shades of each main colour.
    Write the plan as steps (`update_plan`): background, far shapes, near shapes, details, save.
-2. Run `setup.py`. Then open Krita with `desktop_launch` on the screen where you work.
-3. Open the Scripter: menu Tools > Scripts > Scripter. In its editor, type this line and run it
-   (the Run button, or Ctrl+R):
+2. Open Krita with `desktop_launch` on the screen where you work.
+3. Open the Scripter: menu Tools > Scripts > Scripter (Krita 6 has it on). If the menu does not show
+   it: Settings > Configure Krita > Python Plugin Manager, select Scripter, restart Krita. In the
+   Scripter's editor, type this line and run it (the Run button, or Ctrl+R):
    `exec(open('/usr/share/rungic-voice-agent/skills/rungic-krita-pixel-art/pixel.py').read())`
 4. Draw with short scripts, one step at a time. Run each script. The canvas shows the result at
    once, so the user sees the picture grow. Example:

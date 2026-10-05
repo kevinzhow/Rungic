@@ -1,11 +1,8 @@
 # SPDX-License-Identifier: MIT
 """The rungic-krita-pixel-art skill (2026-10-05): pixel.py draws exact pixels through Krita's API
-(here a stand-in of it; the real Krita 6.0.1 was checked on the G100 S with kritarunner), and
-setup.py turns on the Scripter plugin in kritarc only while Krita does not run."""
+(here a stand-in of it; the real Krita 6.0.1 was checked on the G100 S with kritarunner and in a
+call, where the agent drew a 64x64 scene with it in about nine minutes)."""
 import importlib.util
-import json
-import os
-import subprocess
 import sys
 import types
 from pathlib import Path
@@ -102,36 +99,3 @@ def test_pixel_draws_exact_pixels_in_the_open_document(tmp_path):
     paths = p.save(tmp_path / 'tea.kra', scale=8)
     assert paths == [str(tmp_path / 'tea.kra'), str(tmp_path / 'tea.png'), str(tmp_path / 'tea-8x.png')]
     assert ('scaled', 64, 48, 'NearestNeighbor') in doc.saved, 'enlarged by nearest neighbour: sharp'
-
-
-def run_setup(tmp_path, rc_text=None, krita_running=False):
-    (tmp_path / 'bin').mkdir(exist_ok=True)
-    pgrep = tmp_path / 'bin/pgrep'
-    pgrep.write_text(f'#!/bin/sh\nexit {0 if krita_running else 1}\n')
-    pgrep.chmod(0o755)
-    rc = tmp_path / 'config/kritarc'
-    rc.parent.mkdir(exist_ok=True)
-    if rc_text is not None:
-        rc.write_text(rc_text)
-    done = subprocess.run([sys.executable, str(SKILL / 'setup.py')], capture_output=True, text=True,
-                          env={**os.environ, 'XDG_CONFIG_HOME': str(tmp_path / 'config'),
-                               'PATH': f'{tmp_path / "bin"}:{os.environ["PATH"]}'})
-    return json.loads(done.stdout), rc
-
-
-# covers: agent.instructions/E5
-def test_setup_turns_on_the_scripter_and_keeps_the_rest_of_kritarc(tmp_path):
-    result, rc = run_setup(tmp_path, '[General]\ntheme=Dark\n\n[python]\nenable_mutator=true\n')
-    assert result == {'scripter': True, 'changed': True}
-    text = rc.read_text()
-    assert '[General]\ntheme=Dark' in text and 'enable_mutator=true' in text and 'enable_scripter=true' in text
-    assert run_setup(tmp_path)[0] == {'scripter': True, 'changed': False}, 'once on, nothing to do'
-
-
-def test_setup_without_a_kritarc_and_with_krita_running(tmp_path):
-    result, rc = run_setup(tmp_path)
-    assert result['changed'] and rc.read_text() == '[python]\nenable_scripter=true\n'
-    other = tmp_path / 'other'
-    other.mkdir()
-    result, rc = run_setup(other, '[General]\n', krita_running=True)
-    assert 'error' in result and rc.read_text() == '[General]\n', 'Krita running: kritarc left as it is'

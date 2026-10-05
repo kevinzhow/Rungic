@@ -476,10 +476,11 @@
   4. 用 `save()` 存 .kra、原尺寸 .png 和放大 8 倍的 .png。
   技能里也收了那篇文章里各工具的设置（填充、选区、形状、变换、文字、网格、缩放，都关掉抗锯齿、用最近邻），供手动画时用。
 - `pixel.py`：在 Krita 窗口里打开的文档上精确写像素（Python API 的 `setPixelData`，BGRA）。提供 `canvas`（透明画布，放大显示，打开网格）、`palette`、`rect`、`rows`、`line`（Bresenham）、`ellipse`、`dither`、`layer`、`brush`（“u) Pixel Art”预设、1 像素）、`save`（最近邻放大，不产生新颜色）。每一步都会刷新画布，用户看得到画面一步步出来。
-- `setup.py`：在 Krita 启动前，把 kritarc 里的 `[python] enable_scripter=true` 打开；Krita 正在运行时不改。
+- Krita 6 默认已启用 Scripter，所以不需要预先设置。原先写过一个 `setup.py` 来改 kritarc，但在手机上读不了 kritarc：KConfig 文件开头有不属于任何组的键，configparser 解析失败。因此删掉了它，技能里改为说明，菜单里没有 Scripter 时去 Python 插件管理器里打开。
+- **第一次真实任务**（同日，通话里一句话交代“用 Krita 画一幅 64×64 的信阳茶山像素画”）：执行端按技能先定 16 色调色板，分阶段写脚本，在 Scripter 里运行，约 9 分钟画完。画面有天空、远山、茶垄、茶舍和采茶小径，存成 .kra、原尺寸 PNG 和 8 倍 PNG。
 - 能力清单加了“像素画”一项，三份提示词都已重新生成。打包时技能目录里的 `*.py` 装到包的路径下，不复制给用户编辑。
 
 **验证**：
 - 在 G100 S 上用 `kritarunner` 无界面运行：Krita 6.0.1 的 Python API 可用；画布、图层、逐像素写入、导出 .kra 和 .png 都正常；最近邻放大 4 倍后颜色数不变（5 色）。像素预设是 “u) Pixel Art”“u) Pixel Art Dithering”“u) Pixel Art Fill”。
-- `test_krita_pixel_art`：用模拟的 Krita 检查逐像素写入、裁剪、存盘和最近邻放大；`setup.py` 只加这一行、保留其余设置，Krita 运行时不改。
+- `test_krita_pixel_art`：用模拟的 Krita 检查逐像素写入、裁剪、存盘和最近邻放大。
 
