@@ -98,7 +98,7 @@ ZY32MVJS25  XT2537_4  20260930.10+dev20261004t044524  release  723d23d015be  195
 
 `publish 版本`（或 `dev --publish`）：
 
-- 说明由 git 生成：上一个 dev 发布（本机的 dev 发布记录或 `dev-*` tag）以来 main 上的 first-parent 提交，以 `(#N)` 结尾的列为合并的 PR，其余列为其他提交；与上一个 dev 发布相比的包版本变化；APK；部署命令。
+- 说明由 git 生成：从上一个**已发布**的 dev 版本（origin 上最新的 `dev-*` tag，即 GitHub 上的预发布）算起 main 上的 first-parent 提交，以 `(#N)` 结尾的列为合并的 PR，其余列为其他提交；与那个版本相比的包版本变化；APK；部署命令。只部署过、没发布的 dev 版本不算起点（用户 2026-10-05 要求：dev-20261005.5 的说明原先只从未发布的 .4 算起，漏掉了 .3、.4 的改动）。
 - 命令：`gh release create dev-<版本> --repo kevinzhow/Rungic --prerelease --target <提交> --title "Rungic dev <版本>" --notes-file <说明> <发布包> <APK>`。
 - 不加 `--yes` 只返回这条命令和说明文件的位置，不访问 GitHub。发布会创建 tag、对外可见，必须先给 Kevin 看，得到确认后再执行 `publish 版本 --yes`。只有 `channel` 为 `dev` 的发布能这样发。
 - 这次实现没有对 GitHub 实际执行过，没有建 tag，也没有推送 tag。

@@ -434,7 +434,10 @@ class PublishTests(Workspace):
         super().setUp()
         releases = self.root / 'one/.work/apt/releases'
         releases.mkdir(parents=True)
+        # 20261003.3 was deployed but never published: the notes count from 20261003.2, the last one on
+        # GitHub (the user, 2026-10-05).
         for version, commit, packages, channel in (('20261003.2', 'aaa111', {'kwin-wayland': '1', 'rungic-design': '0.5'}, 'dev'),
+                                                   ('20261003.3', 'zzz999', {'kwin-wayland': '9'}, 'dev'),
                                                    ('20261004.1', 'bbb222', {'kwin-wayland': '2', 'rungic-cua': '0.6'}, 'dev'),
                                                    ('20261004.2', 'ccc333', {}, 'release')):
             (releases / f'{version}.json').write_text(json.dumps({'version': version, 'commit': commit, 'channel': channel,
@@ -447,8 +450,10 @@ class PublishTests(Workspace):
         self.stub(gh=lambda argv: self.ran.append(argv) or Result('https://github.com/kevinzhow/Rungic/releases/tag/dev-20261004.1\n'))
 
         def git(*args, check=True):
+            if args[0] == 'ls-remote':
+                return 'aaa111\trefs/tags/dev-20261003.2\n'
             if args[0] == 'log':
-                self.assertIn('aaa111..bbb222', args)          # since the previous dev release
+                self.assertIn('aaa111..bbb222', args)          # since the previous published dev release
                 return ('1a2b3c4\tAdd Android SMS sending and filtered inbox access (#11)\n'
                         '5d6e7f8\tAgent 应用：给 Agent 打电话的入口与通话状态 (#10)\n9a8b7c6\tFix a typo in docs\n')
             return ''

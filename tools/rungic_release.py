@@ -1601,22 +1601,30 @@ def status_all():
 
 
 def previous_dev(info):
-    """The dev release before `info`: the newest dev tag or dev release of this pool older than it.
-    -> {'version', 'commit', 'packages' (None for a tag only)} or None"""
+    """The published dev release before `info`: the newest dev-* tag on origin older than it (a
+    pre-release on GitHub). Dev releases that were only deployed, never published, do not count: the
+    notes of a published release cover everything since the last one people could download.
+    -> {'version', 'commit', 'packages' (None when this pool has no record of it)} or None"""
     key = lambda v: [int(x) for x in v.split('.')]
-    candidates = {line[len(DEV_TAG):]: None for line in git('tag', '-l', f'{DEV_TAG}*', check=False).splitlines()
-                  if re.fullmatch(r'\d{8}\.\d+', line[len(DEV_TAG):])}
-    candidates.update({r['version']: r for r in releases() if r.get('channel') == 'dev'})
-    older = sorted((v for v in candidates if key(v) < key(info['version'])), key=key)
+    tags = {}
+    for line in git('ls-remote', '--tags', 'origin', f'refs/tags/{DEV_TAG}*', check=False).splitlines():
+        sha, _, ref = line.partition('\t')
+        name = ref.removeprefix(f'refs/tags/{DEV_TAG}')
+        peeled = name.endswith('^{}')
+        name = name.removesuffix('^{}')
+        if re.fullmatch(r'\d{8}\.\d+', name) and (peeled or name not in tags):
+            tags[name] = sha
+    older = sorted((v for v in tags if key(v) < key(info['version'])), key=key)
     if not older:
         return None
-    found = candidates[older[-1]]
-    return {'version': older[-1], 'commit': found['commit'] if found else git('rev-list', '-n1', f'{DEV_TAG}{older[-1]}',
-            check=False), 'packages': found.get('packages') if found else None}
+    version = older[-1]
+    record = next((r for r in releases() if r['version'] == version), None)
+    return {'version': version, 'commit': record['commit'] if record else tags[version],
+            'packages': record.get('packages') if record else None}
 
 
 def release_notes(version):
-    """Notes of a dev release: the pull requests merged since the previous dev release (squash merges
+    """Notes of a dev release: the pull requests merged since the previous published dev release (squash merges
     on main end with "(#N)"), other commits, the package versions that changed, the APK, how to deploy."""
     info = release_info(version)
     previous = previous_dev(info)
