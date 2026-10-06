@@ -605,3 +605,46 @@ def test_successful_screenshot_adds_evidence_after_failure_is_already_saved(runn
     details = report['scenarios'][0]['details']
     assert Path(details['screenshot']).exists() and 'screenshot_error' not in details
     assert json.loads(Path(report['path']).read_text())['scenarios'][0]['details'] == details
+
+# covers: delivery.acceptance/E6
+def test_renderer_keeps_plan_execution_and_pass_counts_separate(runner, catalog):
+    plan = acc.load()
+    # The selected check only touches an interface; the full-only check has the user scenario.
+    plan['scenarios'][0]['covers'] = ['iface:host-input']
+    report = acc.run_scenarios([runner.scenario('one')], out_dir=runner.path, scope='smoke', skips={'one': 'excluded'})
+    rendered = acc.render_report(report['path']).read_text()
+    assert '本次计划直接关联 0 个用户场景（共 2 个）' in rendered
+    assert '完整验收另关联 1 个，本次没有运行' in rendered
+    assert '其余 1 个没有本验收计划的自动检查直接关联' in rendered
+    assert '实际执行直接关联 0 个，全部关联检查通过 0 个' in rendered
+    assert '冒烟只说明系统起来了、接口通了，不说明任何用户功能可用' in rendered
+    assert '首次安装进入桌面' in rendered
+
+# covers: delivery.acceptance/E6
+@pytest.mark.parametrize('ref', ['unknown/E1', 'typing.android/E999', 'iface:unknown'])
+def test_renderer_refuses_unknown_coverage_before_writing(runner, catalog, ref):
+    report = acc.run_scenarios([runner.scenario('one')], out_dir=runner.path)
+    acc.load()['scenarios'][1]['covers'] = [ref]
+    with pytest.raises(ValueError, match='coverage'):
+        acc.render_report(report['path'])
+    assert not (runner.path / 'report.md').exists()
+
+# covers: delivery.acceptance/E6
+def test_skipped_user_check_is_planned_but_never_executed_or_passed(runner, catalog):
+    report = acc.run_scenarios([runner.scenario('one')], out_dir=runner.path, skips={'one': 'excluded'})
+    rendered = acc.render_report(report['path']).read_text()
+    assert '本次计划直接关联 1 个用户场景（共 2 个）' in rendered
+    assert '实际执行直接关联 0 个，全部关联检查通过 0 个' in rendered
+
+# covers: delivery.acceptance/E6
+def test_mixed_checks_for_one_user_scenario_do_not_claim_all_passed(runner, catalog):
+    report = acc.run_scenarios([runner.scenario('one'), runner.scenario('other', 'bad')], out_dir=runner.path)
+    rendered = acc.render_report(report['path']).read_text()
+    assert '实际执行直接关联 1 个，全部关联检查通过 0 个' in rendered
+
+# covers: delivery.acceptance/E6
+def test_duplicate_plan_id_is_rejected_before_rendering(runner, catalog):
+    report = acc.run_scenarios([runner.scenario('one')], out_dir=runner.path)
+    acc.load()['scenarios'][1]['id'] = 'one'
+    with pytest.raises(ValueError, match='duplicate.*coverage'):
+        acc.render_report(report['path'])

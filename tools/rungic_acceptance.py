@@ -1412,9 +1412,22 @@ def render_report(path):
     missing = sum(counts[s] for s in ('skipped', 'unimplemented', 'not-run'))
     failed = counts['fail'] + human_failed
     conclusion = conclusion_text(combined)
+    for definition in plan['scenarios']:
+        for ref in definition.get('covers', []):
+            if ref.startswith('iface:'):
+                valid = ref[6:] in catalog.interfaces
+            else:
+                fid, _, eid = ref.partition('/')
+                feature = catalog.features.get(fid)
+                valid = feature is not None and (not eid or eid in {e['id'] for e in feature.get('experience', [])})
+                valid = valid and feature.get('scenario') in catalog.scenarios
+            if not valid:
+                raise ValueError(f'invalid acceptance coverage: {definition["id"]}: {ref}')
+    if len(definitions) != len(plan['scenarios']):
+        raise ValueError('duplicate acceptance coverage check ID')
     def features_for(id):
         ids = dict.fromkeys(ref.split('/')[0] for ref in definitions.get(id, {}).get('covers', [])
-                            if '/' in ref and ref.split('/')[0] in catalog.features)
+                            if not ref.startswith('iface:'))
         return [catalog.features[fid] for fid in ids]
     def label(id, separator='／'):
         features = features_for(id)
@@ -1425,7 +1438,16 @@ def render_report(path):
     live_scenarios = {f['scenario'] for f in catalog.features.values() if f.get('status') != 'retired'}
     defined_coverage = {f['scenario'] for id in definitions for f in features_for(id)} & live_scenarios
     run_coverage = {f['scenario'] for id in observed for f in features_for(id)} & live_scenarios
+    full_only = defined_coverage - run_coverage
     uncovered = live_scenarios - defined_coverage
+    groups = (run_coverage, full_only, uncovered)
+    if any(groups[i] & groups[j] for i in range(3) for j in range(i + 1, 3)) or set.union(*groups) != live_scenarios or sum(map(len, groups)) != len(live_scenarios):
+        raise ValueError('acceptance coverage groups do not partition the live user scenarios')
+    executed_ids = {id for id, row in observed.items() if scenario_status(row) in ('pass', 'fail')}
+    executed_coverage = {f['scenario'] for id in executed_ids for f in features_for(id)} & live_scenarios
+    passed_coverage = {scenario for scenario in run_coverage if all(
+        scenario_status(observed[id]) == 'pass' for id in observed
+        if any(f['scenario'] == scenario for f in features_for(id)))}
     observation_text = '。'.join(f'{attempt_name(i)}：报告缺失，计划未知' if r.get('missing') else
         (f'人工补录 {i}：{counts_text(r)}' if r.get('kind') == 'manual' else f'{attempt_name(i)}（计划 {len(r.get("scenarios", []))} 项）：{counts_text(r)}')
         for i, (_, r) in enumerate(attempts))
@@ -1436,7 +1458,9 @@ def render_report(path):
     lines += ['', '| 你想知道的 | 回答 |', '| --- | --- |',
               f'| 测的是什么 | {tested_identity} |',
               f'| 结果如何 | {observation_text} |',
-              f'| 没测到什么 | 本次计划涉及 {len(run_coverage)}/{len(live_scenarios)} 个用户场景。验收计划没有直接检查的场景 {len(uncovered)} 个。{pending if scope == "full" else len(first.get("manual", []))} 项人工检查未执行 |', '']
+              f'| 没测到什么 | 本次计划直接关联 {len(run_coverage)} 个用户场景（共 {len(live_scenarios)} 个）。完整验收另关联 {len(full_only)} 个，本次没有运行。其余 {len(uncovered)} 个没有本验收计划的自动检查直接关联。实际执行直接关联 {len(executed_coverage)} 个，全部关联检查通过 {len(passed_coverage)} 个。{pending if scope == "full" else len(first.get("manual", []))} 项人工检查未执行 |', '']
+    if scope == 'smoke' and not run_coverage:
+        lines += ['冒烟只说明系统起来了、接口通了，不说明任何用户功能可用。冒烟自身是否通过仍以本次结果为准。', '']
     if combined['identity_errors']:
         next_step = f'在首次那台手机（{md(first.get("device", {}).get("serial"))}）、同一份安装上重新运行重试，并确认报告记录了完整的手机和安装身份。'
     elif failed and combined['screen_warning']:
@@ -1514,13 +1538,14 @@ def render_report(path):
         lines += ['', f'**安卓与 Linux 之间的连接（{len(interface_ids)} 项，接口检查）**', '']
         for id in interface_ids:
             ref = next((r.removeprefix('iface:') for r in definitions[id].get('covers', []) if r.startswith('iface:')), definitions[id].get('params', {}).get('interface', '未知'))
-            consumers = [f['title'] for f in catalog.features.values() if f.get('status') != 'retired' and ref in f.get('interfaces', [])]
+            consumers = sorted({f['scenario'] for f in catalog.features.values() if f.get('status') != 'retired' and ref in f.get('interfaces', [])})
+            titles = [catalog.scenarios[scenario]['title'] for scenario in consumers]
             values = [f'{column_name(i)}：' + ('缺失' if report.get('missing') else attempt_status(row, report) or '未检查')
                       for i, (_, report) in enumerate(attempts)
                       for row in [next((r for r in report.get('scenarios', []) if r['id'] == id), None)]
                       if row is not None or report.get('missing')]
             lines.append('- ' + '，'.join(values) + '。' + md(definitions[id].get('title', id)).rstrip('。') +
-                         f'。依赖它的功能：{len(consumers)} 项' + (('，例如' if len(consumers) > 3 else '：') + md('、'.join(consumers[:3])) + '。' if consumers else '。'))
+                         f'。依赖这个接口的场景：{len(consumers)} 个（只表示依赖，不表示已测）' + (('，例如' if len(consumers) > 3 else '：') + md('、'.join(titles[:3])) + '。' if consumers else '。'))
     lines += ['', '## 3. 失败与重试', '']
     problems = [id for id in observed if any(scenario_status(r) != 'pass' for _, report in attempts
                 for r in report.get('scenarios', []) if r['id'] == id)]
@@ -1553,6 +1578,13 @@ def render_report(path):
     if not problems and not human_failed:
         lines += ['没有记录到失败或缺失的自动结果。', '']
     lines += ['## 4. 本次没有覆盖的内容', '', '以下内容不能由本报告证明正常。', '']
+    for heading, scenario_ids in (('本次计划直接关联的用户场景', run_coverage),
+                                  ('完整验收关联、本次未运行的用户场景', full_only),
+                                  ('本验收计划没有自动检查直接关联的用户场景', uncovered)):
+        lines += [f'**{heading}（{len(scenario_ids)} 个）：**', '']
+        lines += ['- ' + md(catalog.scenarios[id]['title']) for id in sorted(scenario_ids)] or ['无。']
+        lines += ['']
+    lines += ['这三档只描述本验收计划的直接关联；其他测试层的声明不计入本次执行或通过。', '']
     selected_ids = set(observed)
     omitted = [s for s in plan['scenarios'] if s['id'] not in selected_ids]
     omitted_title = '完整检查才运行的自动检查' if scope == 'smoke' else '验收计划中本次未选择的自动检查'
