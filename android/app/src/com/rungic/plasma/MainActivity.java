@@ -329,6 +329,25 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
         worker.execute(() -> {
             try {
                 if (isDestroyed() || generation!=surfaceGeneration || !holder.getSurface().isValid()) return;
+                // The controller can already be gone during an interrupted removal.
+                // Read the root marker without depending on that controller or its runtime.
+                final boolean removalPending;
+                try { removalPending=RemovalState.isPending(control("removal-status")); }
+                catch(Exception failure) {
+                    Log.w("RungicWayland", "Removal state could not be read", failure);
+                    runOnUiThread(() -> {
+                        if(!isDestroyed() && generation==surfaceGeneration)
+                            showProblem(getString(R.string.removal_status_unknown), getString(R.string.removal_status_unknown_details), true);
+                    });
+                    return;
+                }
+                if(removalPending) {
+                    runOnUiThread(() -> {
+                        if(!isDestroyed() && generation==surfaceGeneration)
+                            showProblem(getString(R.string.removal_incomplete), getString(R.string.removal_incomplete_details), false);
+                    });
+                    return;
+                }
                 File installSource=new File(getFilesDir(),"rungic-install-source.properties");
                 File installStatus=new File(getFilesDir(),"rungic-install.properties");
                 if(!installRepublishAsked && !installSource.exists() && !installStatus.exists()) {
@@ -758,7 +777,8 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
     }
 
     private static String control(String action, String payload) throws Exception {
-        ProcessBuilder b = new ProcessBuilder("/product/bin/su", "--mount-master", "-c", "/data/adb/rungic-plasma/rungic-plasma " + action);
+        String command=action.equals("removal-status")?RemovalState.ROOT_COMMAND:"/data/adb/rungic-plasma/rungic-plasma " + action;
+        ProcessBuilder b = new ProcessBuilder("/product/bin/su", "--mount-master", "-c", command);
         b.environment().put("PATH", "/product/bin:/system/bin:/system/xbin:/vendor/bin");
         b.environment().remove("LD_PRELOAD"); b.environment().remove("LD_LIBRARY_PATH");
         Process p = b.redirectErrorStream(true).start();
@@ -769,7 +789,7 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
         Thread reader = new Thread(() -> { try (InputStream in = p.getInputStream()) {
             byte[] data = new byte[4096]; int n; while ((n = in.read(data)) != -1) if (out.size() < 16384) out.write(data,0,n);
         } catch (IOException ignored) {} }); reader.start();
-        if (!p.waitFor(action.equals("account-prepare")?240:90, TimeUnit.SECONDS)) {
+        if (!p.waitFor(action.equals("removal-status")?10:(action.equals("account-prepare")?240:90), TimeUnit.SECONDS)) {
             p.destroy(); throw new IOException(controlTimeout); }
         reader.join(2000);
         if (p.exitValue() != 0) throw new ControlException(action, p.exitValue(), out.toString("UTF-8"));

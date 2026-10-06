@@ -167,6 +167,30 @@ features:
       - text: 当前仅有离线文件沙箱与替身边界证据，真实 USB G100 的卸载、重启阻止旧首启、完整重装和手动恢复尚未验收。
         docs: [docs/118-standalone-uninstall.md]
 
+  - id: install.removal-app-status
+    title: 卸载中断后说明如何继续
+    scenario: install.first-install
+    status: experimental
+    platform: android
+    interfaces: []
+    summary: App 直接读取 runtime 外的卸载标记；控制器已删除也能说明卸载未完成。读取失败时停下并提供重试提示，不推断为可以继续安装。
+    experience:
+      - id: E1
+        text: 空或非空卸载标记存在时，App 在发布安装状态和启动前停下，提示在电脑上重跑卸载。控制器不存在也可识别，中英文提示一致；正常无标记时继续原流程。
+      - id: E2
+        text: root 查询失败、权限拒绝、超时或未知输出时不进入安装及运行，显示无法确认及重试提示，不报告标记不存在。
+      - id: E3
+        text: 在真机卸载中断现场打开 App，确认提示可见，重跑卸载完成后恢复普通安装入口。
+        gap: 尚未执行真机 Activity 与权限流程；本地 shell 与 Java 检查不证明实际手机恢复体验。
+    code:
+      - android/app/src/com/rungic/plasma/RemovalState.java
+      - android/app/tests/RemovalStateTest.java
+      - tools/ci/test_app_removal.py
+    docs: [docs/119-app-removal-status.md]
+    issues:
+      - text: 尚未完成当前候选 APK 的真机界面、超级用户授权及卸载后恢复验证。
+        docs: [docs/119-app-removal-status.md]
+
   - id: install.first-run-progress
     title: 首次打开显示真实的准备进度
     scenario: install.first-install

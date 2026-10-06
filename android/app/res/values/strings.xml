@@ -192,4 +192,8 @@
     <string name="tag_question">Question</string>
     <string name="tag_done">Done</string>
     <string name="tag_failed">Failed</string>
+    <string name="removal_incomplete">Rungic removal is incomplete</string>
+    <string name="removal_incomplete_details">Run the removal command again on the connected computer. Opening Rungic cannot finish removal.</string>
+    <string name="removal_status_unknown">Cannot read the Rungic removal status</string>
+    <string name="removal_status_unknown_details">Check Rungic superuser permission and try again. If removal stopped before completion, run it again on the connected computer.</string>
 </resources>

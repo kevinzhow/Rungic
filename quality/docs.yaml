@@ -141,3 +141,5 @@
 - {path: docs/117-media-backend.md, kind: journal, note: 麦克风、相机和手机外放移出 App 进程，进独立 root 媒体后端；App 只管权限、前台与系统通话登记}
 
 - {path: docs/118-standalone-uninstall.md, kind: reference, note: 独立卸载的路径范围、家目录原地保留、失败恢复和未验收边界}
+
+- {path: docs/119-app-removal-status.md, kind: journal, note: App 在控制器缺失时独立读取未完成卸载标记，包含失败与重试边界}

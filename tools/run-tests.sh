@@ -28,9 +28,10 @@ java_out=$root/.work/build/tests-java
 rm -rf "$java_out"
 mkdir -p "$java_out/tmp"
 if javac -encoding UTF-8 -d "$java_out" android/app/src/com/rungic/plasma/FirstBootState.java \
-        android/app/src/com/rungic/plasma/ControlException.java android/app/tests/*.java; then
+        android/app/src/com/rungic/plasma/ControlException.java android/app/src/com/rungic/plasma/RemovalState.java android/app/tests/*.java; then
     java -cp "$java_out" com.rungic.plasma.FirstBootStateTest "$java_out/tmp" || failed="$failed FirstBootStateTest"
     java -cp "$java_out" com.rungic.plasma.ControlExceptionTest system/account/setup.py || failed="$failed ControlExceptionTest"
+    java -cp "$java_out" com.rungic.plasma.RemovalStateTest || failed="$failed RemovalStateTest"
 else
     failed="$failed javac"
 fi

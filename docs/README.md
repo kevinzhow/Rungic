@@ -249,3 +249,4 @@ Every feature, the experience it must give and the code, tests and documents beh
 | [117-media-backend.md](117-media-backend.md) | The microphone, cameras and phone speaker in an independent root media backend, out of the app's process: a call's audio outlives the app; the app keeps permissions, being in front and Android's call (2026-10-06) |
 
 - [118：独立卸载 Rungic](118-standalone-uninstall.md)：只读预览、默认保留家目录、purge 范围及失败报告。
+| [119-app-removal-status.md](119-app-removal-status.md) | 卸载中断后 App 提示与独立标记读取，真机体验待验 |
