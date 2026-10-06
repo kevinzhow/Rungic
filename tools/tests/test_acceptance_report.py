@@ -761,3 +761,23 @@ def test_desktop_manual_result_rejects_missing_reviewer_or_timezone(runner, iden
     with pytest.raises(ValueError, match='reviewer|observation time'):
         acc.manual_report(report['path'], {'manual.session.ready.1': {'status': 'pass', 'note': 'Saw desktop', **identity}}, directory)
     assert not directory.exists()
+
+
+# covers: delivery.acceptance/E6
+@pytest.mark.parametrize('check', ['good', 'bad', 'interface_contract'])
+def test_renderer_preserves_recorded_check_description_when_current_plan_changes(runner, catalog, monkeypatch, check):
+    if check == 'interface_contract':
+        monkeypatch.setitem(acc.CHECKS, check, lambda ctx: acc.result(True))
+    scenario = {**runner.scenario('one', check), 'title': 'Original recorded check'}
+    report = acc.run_scenarios([scenario], out_dir=runner.path)
+    original = Path(report['path']).read_bytes()
+    definition = acc.load()['scenarios'][0]
+    definition['title'] = 'New stronger check never performed'
+    definition['check'] = check
+    if check == 'interface_contract':
+        definition['covers'] = ['iface:host-input']
+    rendered = acc.render_report(report['path']).read_text()
+    assert 'Original recorded check' in rendered
+    assert 'New stronger check never performed' not in rendered
+    assert '检查内容已在之后修改，本结果按当时的标准判定。' in rendered
+    assert Path(report['path']).read_bytes() == original

@@ -1549,13 +1549,20 @@ def render_report(path):
               '- 人工：需要人看、听或亲手操作。', '',
               '| 本次实际检查 | 关联的用户能力 | 方式 | ' + ' | '.join(column_name(i) for i in range(len(attempts))) + ' |',
               '| --- | --- | --- | ' + ' | '.join('---' for _ in attempts) + ' |']
+    def recorded_title(id):
+        saved = observed[id].get('title')
+        current = definitions.get(id, {}).get('title')
+        title = md(saved or current or id)
+        if saved and current and saved != current:
+            title += '（检查内容已在之后修改，本结果按当时的标准判定。）'
+        return title
     interface_ids = []
     for id in observed:
         if definitions.get(id, {}).get('check') == 'interface_contract':
             interface_ids.append(id)
             continue
         values = ['缺失' if report.get('missing') else attempt_status(next((r for r in report.get('scenarios', []) if r['id'] == id), None), report) for _, report in attempts]
-        lines.append(f'| {md(definitions.get(id, {}).get("title", observed[id].get("title", id)))} | {label(id, '<br>')} | 真机实测 | ' + ' | '.join(values) + ' |')
+        lines.append(f'| {recorded_title(id)} | {label(id, '<br>')} | 真机实测 | ' + ' | '.join(values) + ' |')
     if interface_ids:
         lines += ['', f'**安卓与 Linux 之间的连接（{len(interface_ids)} 项，接口检查）**', '']
         for id in interface_ids:
@@ -1566,7 +1573,7 @@ def render_report(path):
                       for i, (_, report) in enumerate(attempts)
                       for row in [next((r for r in report.get('scenarios', []) if r['id'] == id), None)]
                       if row is not None or report.get('missing')]
-            lines.append('- ' + '，'.join(values) + '。' + md(definitions[id].get('title', id)).rstrip('。') +
+            lines.append('- ' + '，'.join(values) + '。' + recorded_title(id).rstrip('。') +
                          f'。依赖这个接口的场景：{len(consumers)} 个（只表示依赖，不表示已测）' + (('，例如' if len(consumers) > 3 else '：') + md(''.join(f'「{t}」' for t in titles[:3])) + '。' if consumers else '。'))
     lines += ['', '## 3. 失败与重试', '']
     problems = [id for id in observed if any(scenario_status(r) != 'pass' for _, report in attempts
@@ -1576,7 +1583,7 @@ def render_report(path):
         lines += ['']
     for id in problems:
         prefix = '各次结果' if not combined['mergeable'] else '⚠ 重试通过（不稳定）' if id in flaky else status(observed[id])
-        lines += [f'### {prefix}：{md(definitions.get(id, {}).get("title", observed[id].get("title", id)))}', '', '- 关联的用户能力：' + label(id)]
+        lines += [f'### {prefix}：{recorded_title(id)}', '', '- 关联的用户能力：' + label(id)]
         for ref in definitions.get(id, {}).get('covers', []):
             fid, _, eid = ref.partition('/')
             for requirement in catalog.features.get(fid, {}).get('experience', []):
