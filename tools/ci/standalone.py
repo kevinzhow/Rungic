@@ -514,14 +514,14 @@ wfd_binding() {
     else echo 'Cannot inspect init mount namespace.' >&2; return 2; fi
     case "$state" in
         absent|rungic) printf '%s\n' "$state";;
-        *) echo '投屏配置挂载来源不属于 Rungic，或存在重叠挂载。不会卸载此挂载。' >&2; return 1;;
+        *) echo '投屏配置挂载来源不属于 Rungic，或存在重叠挂载。不会撤销此挂载。没有删除任何内容。' >&2; return 1;;
     esac
 }
 check_wfd_config() {
     state=$(wfd_binding) || return $?
     if [ "$state" = rungic ]; then
         echo '执行时会撤销投屏配置的挂载（/vendor/etc/wfdconfig.xml）。只撤销来源是 Rungic 的那一条，不动厂商原有挂载。'
-    else echo '没有 Rungic 投屏配置 bind 需要卸载。'; fi
+    else echo '没有需要撤销的 Rungic 投屏配置挂载。'; fi
 }
 remove_wfd_config() {
     state=$(wfd_binding) || return $?
