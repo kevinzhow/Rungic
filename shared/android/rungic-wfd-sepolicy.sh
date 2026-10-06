@@ -6,4 +6,7 @@ case "$(/data/adb/rungic-wfd/rungic-cast adapter)" in
     *'"legacy_qualcomm":true'*) ;;
     *) exit 0 ;;
 esac
-[ -f "$RULES" ] && magiskpolicy --live --apply "$RULES" && echo "$(date) applied $RULES" > /data/adb/rungic-wfd/applied.log
+# Loads through whichever root provider is present; Magisk's magiskpolicy is not the only
+# live policy loader.
+. /data/adb/rungic-plasma/root-provider
+[ -f "$RULES" ] && rungic_sepolicy_apply "$RULES" && echo "$(date) applied $RULES" > /data/adb/rungic-wfd/applied.log

@@ -713,6 +713,8 @@ class MaintenanceLock(unittest.TestCase):
             # No handset: execute the exact lease command against local lock files.
             adb.write_text("#!/usr/bin/python3\nimport os,sys\n"
                            "first=sys.stdin.buffer.readline()\ncommand=sys.stdin.buffer.readline().decode()\n"
+                           "command=command.replace('bb=/data/adb/magisk/busybox; [ -x \"$bb\" ] || bb=/data/adb/ksu/bin/busybox; ','')\n"
+                           "command=command.replace('\"$bb\" flock','/usr/bin/flock')\n"
                            "command=command.replace('/data/adb/magisk/busybox flock','/usr/bin/flock').replace('/system/bin/sh','/bin/sh').replace('/data/adb/',sys.argv[1]+'/')\n"
                            "os.execl('/bin/sh','sh','-c',command)\n")
             adb.chmod(0o755)

@@ -17,7 +17,7 @@ final class WfdCapture implements AutoCloseable {
     WfdCapture() {
         try {
             DIR.mkdirs();
-            process=new ProcessBuilder("/data/adb/magisk/busybox","timeout","-s","INT","150",
+            process=new ProcessBuilder(RootProvider.busybox(),"timeout","-s","INT","150",
                     "/system/bin/tcpdump","-i","any","-s","4096","-U","-w",capture.toString(),"tcp port 7236")
                     .redirectErrorStream(true).redirectOutput(new File(DIR,"capture.log")).start();
         }catch(Exception ignored){}

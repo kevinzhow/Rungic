@@ -1,0 +1,19 @@
+#!/system/bin/sh
+# Root provider resolution shared by the Android-side helpers. Magisk and KernelSU ship their
+# tools at different paths and load a live sepolicy rule with different binaries, so scripts
+# that need a BusyBox or a live policy load come here instead of hardcoding Magisk.
+# Sourced, not executed: it only defines variables and functions.
+RUNGIC_BUSYBOX=/data/adb/ksu/bin/busybox
+RUNGIC_MAGISK=
+if [ -x /data/adb/magisk/busybox ]; then
+    RUNGIC_BUSYBOX=/data/adb/magisk/busybox
+    RUNGIC_MAGISK=/debug_ramdisk/magisk
+    [ -x "$RUNGIC_MAGISK" ] || RUNGIC_MAGISK=/data/adb/magisk/magisk
+fi
+rungic_sepolicy_apply() {
+    if [ -n "$RUNGIC_MAGISK" ]; then
+        "$RUNGIC_MAGISK" --live --apply "$1"
+    else
+        /data/adb/ksud sepolicy apply "$1"
+    fi
+}

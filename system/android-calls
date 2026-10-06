@@ -3,7 +3,8 @@
 set -eu
 BASE=/data/adb/rungic-plasma
 STATE=/data/adb/rungic-lxc/runtime/var/lib/lxc/plasma/state/host/calls
-BB=/data/adb/magisk/busybox
+. "$BASE/root-provider"
+BB=$RUNGIC_BUSYBOX
 CLASS=com.rungic.telephony.CallDaemon
 [ "$(id -u)" = 0 ] || exit 1
 mkdir -p "$STATE"

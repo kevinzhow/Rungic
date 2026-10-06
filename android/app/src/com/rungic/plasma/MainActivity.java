@@ -785,8 +785,8 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
 
     private static synchronized String control(String action, String payload) throws Exception {
         String command=action.equals("removal-status")?RemovalState.ROOT_COMMAND:"/data/adb/rungic-plasma/rungic-plasma " + action;
-        ProcessBuilder b = new ProcessBuilder("/product/bin/su", "--mount-master", "-c", command);
-        b.environment().put("PATH", "/product/bin:/system/bin:/system/xbin:/vendor/bin");
+        ProcessBuilder b = new ProcessBuilder(RootShell.su(), "--mount-master", "-c", command);
+        b.environment().put("PATH", RootShell.PATH);
         b.environment().remove("LD_PRELOAD"); b.environment().remove("LD_LIBRARY_PATH");
         Process p = b.redirectErrorStream(true).start();
         try (OutputStream input=p.getOutputStream()) {

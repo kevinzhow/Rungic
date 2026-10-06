@@ -138,6 +138,8 @@ def supervisor(tmp_path, group='0::/\n', rc=1, name='android-device'):
     text = text.replace('/data/adb/rungic-plasma', str(base)).replace(
         '/data/adb/rungic-lxc/runtime/var/lib/lxc/plasma/state/host/', str(states) + '/')
     text = text.replace('/proc/', str(proc) + '/')
+    # The production script resolves the root provider from its own directory (system/root-provider).
+    (base / 'root-provider').write_text('RUNGIC_BUSYBOX=/data/adb/magisk/busybox\nRUNGIC_MAGISK=\n')
     for mount in ('/sys/fs/cgroup', '/dev/memcg', '/dev/cpuctl', '/dev/stune'):
         path = tmp_path / mount.lstrip('/'); path.mkdir(parents=True)
         (path / 'cgroup.procs').touch()

@@ -27,6 +27,7 @@
 #   merging   snapshot-merge: the snapshot's contents are visible at once and copied back into
 #             the image in the background; when done, the next attach is linear again
 set -eu
+. /data/adb/rungic-plasma/root-provider
 LXC=/data/adb/rungic-lxc/runtime/var/lib/lxc/plasma
 IMAGES=/data/adb/rungic-lxc/images
 IMG=$IMAGES/rootfs.img
@@ -53,7 +54,7 @@ loop_of() {   # the loop device attached to $1, attaching it if needed
     dev=$(losetup -j "$1" 2>/dev/null | head -n1 | cut -d: -f1)
     if [ -z "$dev" ]; then
         # The kernel's loop worker may read only files of this type (rootfs.sepolicy.rule).
-        /data/adb/magisk/magiskpolicy --live --apply "$POLICY" >/dev/null 2>&1 || die "cannot load $POLICY"
+        rungic_sepolicy_apply "$POLICY" >/dev/null 2>&1 || die "cannot load $POLICY"
         chcon "$LABEL" "$1"
         dev=$(losetup -sf "$1")
     fi

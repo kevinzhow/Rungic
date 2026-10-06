@@ -20,8 +20,6 @@ final class CastResolution {
     private static final File BASE = new File(DIR, "wfdconfig-default.xml");
     private static final File PREFS = new File(DIR, "resolution-preferences.json");
     private static final File APPLIED = new File(DIR, "run/resolution-applied");
-    private static final String NS = "/data/adb/magisk/busybox";
-
     static String preference(String address) throws Exception {
         if (!PREFS.exists() || address == null) return "auto";
         return new JSONObject(new String(new AtomicFile(PREFS).readFully(), StandardCharsets.UTF_8))
@@ -189,7 +187,7 @@ final class CastResolution {
     }
     private static String ns(String... args) throws Exception {
         String[] command = new String[args.length+6];
-        String[] prefix = {NS,"nsenter","-t","1","-m","--"};
+        String[] prefix = {RootProvider.busybox(),"nsenter","-t","1","-m","--"};
         System.arraycopy(prefix,0,command,0,6); System.arraycopy(args,0,command,6,args.length);
         // All commands produce small output (stat only); the files are copied by nsenter.
         Process p = new ProcessBuilder(command).redirectErrorStream(true).start();

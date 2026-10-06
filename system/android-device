@@ -4,7 +4,8 @@
 # backend, MediaDaemon, docs/117): the same supervision, chosen by the name it runs as.
 set -eu
 BASE=/data/adb/rungic-plasma
-BB=/data/adb/magisk/busybox
+. "$BASE/root-provider"
+BB=$RUNGIC_BUSYBOX
 NAME=${0##*/}
 case "$NAME" in
   android-media) NAME=media; CLASS=com.rungic.plasma.MediaDaemon

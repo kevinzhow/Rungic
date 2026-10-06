@@ -1,11 +1,23 @@
 #!/system/bin/sh
-# Magisk service.d invokes this after Android boot completion.
+# The root provider's service.d invokes this after Android boot completion.
 # Sources are either a verified root-owned independent payload or legacy product.
 set -eu
 set -o pipefail
 [ ! -e /data/adb/rungic-uninstalling ] || { echo 'Rungic 卸载未完成，请重新运行卸载。' >&2; exit 1; }
 umask 077
-export PATH=/data/adb/magisk:/system/bin:/system/xbin
+# Magisk and KernelSU both supply a BusyBox and watch /data/adb/service.d; detect which one
+# provides root here: the Magisk-only steps below are skipped under KernelSU, which keeps its
+# own root allowlist (the user grants the app root in its manager instead of a SQLite row).
+if [ -x /data/adb/magisk/busybox ]; then
+    RUNGIC_BUSYBOX=/data/adb/magisk/busybox
+    RUNGIC_MAGISK=/debug_ramdisk/magisk
+    [ -x "$RUNGIC_MAGISK" ] || RUNGIC_MAGISK=/data/adb/magisk/magisk
+else
+    RUNGIC_BUSYBOX=/data/adb/ksu/bin/busybox
+    RUNGIC_MAGISK=
+fi
+export RUNGIC_BUSYBOX RUNGIC_MAGISK
+export PATH=/data/adb/magisk:/data/adb/ksu/bin:/system/bin:/system/xbin
 seed=${1:-/product/etc/rungic}
 # A managed standalone installation owns the runtime. Never replay an old ROM seed.
 if [ "$seed" = /product/etc/rungic ] && [ -f /data/adb/rungic-install/active.env ]; then
@@ -14,10 +26,10 @@ fi
 . "$seed/seed.env"
 mkdir -p /data/adb
 # Android's shell closes high-numbered descriptors when executing toybox flock.
-# Magisk's BusyBox accepts a lock path and keeps the descriptor in its child.
+# The provider's BusyBox accepts a lock path and keeps the descriptor in its child.
 if [ "${RUNGIC_FIRSTBOOT_LOCKED:-}" != 1 ]; then
     export RUNGIC_FIRSTBOOT_LOCKED=1
-    exec /data/adb/magisk/busybox flock -n /data/adb/rungic-firstboot.lock /system/bin/sh "$0" "$seed"
+    exec "$RUNGIC_BUSYBOX" flock -n /data/adb/rungic-firstboot.lock /system/bin/sh "$0" "$seed"
 fi
 exec >>/data/adb/rungic-firstboot.log 2>&1
 echo "$(date -Iseconds) starting Rungic seed $RELEASE_ID"
@@ -159,7 +171,7 @@ install_cast() {
     # policy may lack them, which leaves the rest of casting in place.
     /system/bin/sh /data/adb/service.d/rungic-wfd-sepolicy.sh || echo 'WFD policy not applied'
     # Close the install lock (BusyBox flock's descriptor) in the long-lived watcher.
-    /data/adb/magisk/busybox setsid /system/bin/sh -c \
+    "$RUNGIC_BUSYBOX" setsid /system/bin/sh -c \
         'exec 3>&- 4>&- 5>&- 6>&- 7>&- 8>&- 9>&-; exec /system/bin/sh /data/adb/service.d/rungic-cast-watch.sh' \
         </dev/null >/dev/null 2>&1 &
 }
@@ -250,13 +262,19 @@ install_runtime_boot
 # root context (docs/79), so the shell identity is the fallback, and the app asks again
 # itself when a TV appears. Optional (docs/75): a refusal does not stop the install.
 overlay='appops set com.rungic.plasma SYSTEM_ALERT_WINDOW allow'
-if sh -c "$overlay" || /debug_ramdisk/magisk su 2000 -c "$overlay"; then
+if sh -c "$overlay" || { [ -n "$RUNGIC_MAGISK" ] && "$RUNGIC_MAGISK" su 2000 -c "$overlay"; }; then
     echo 'overlay allowed'
 else
     echo 'overlay not allowed; the app asks when casting (optional)'
 fi
-# Fixed Magisk 31.0 schema; INSERT returns no SQL NULL (docs/39, docs/70).
-/debug_ramdisk/magisk --sqlite "INSERT OR REPLACE INTO policies (uid,policy,until,logging,notification) VALUES($rungic_uid,2,0,1,1)" || die 'Magisk policy'
+if [ -n "$RUNGIC_MAGISK" ]; then
+    # Fixed Magisk 31.0 schema; INSERT returns no SQL NULL (docs/39, docs/70).
+    "$RUNGIC_MAGISK" --sqlite "INSERT OR REPLACE INTO policies (uid,policy,until,logging,notification) VALUES($rungic_uid,2,0,1,1)" || die 'Magisk policy'
+else
+    # KernelSU keeps its own allowlist; there is no equivalent SQLite write. The install does
+    # not depend on it: the user grants com.rungic.plasma root in the KernelSU manager.
+    echo 'KernelSU root provider: grant com.rungic.plasma root in its manager'
+fi
 echo "$RELEASE_ID" > "$marker.tmp"
 mv "$marker.tmp" "$marker"
 sync
