@@ -44,6 +44,9 @@ case "$tool" in
     case "$*" in
       *'test -r /mnt/android-shared/.'*) [ ! -f $T/shared-stale ] ;;
       'stat -c %i /mnt/android-wayland') cat $T/bound ;;
+      # Container/storage tests provide an already healthy desktop session; detailed
+      # systemd recovery decisions execute the real shell in test_setup/test_session_recovery.
+      *'ActiveState rungic-plasma-session.service'*) echo wait ;;
       *is-failed*) exit 1 ;;
       *'systemctl restart rungic-plasma-session.service'*)
         echo session-restart >> $T/log

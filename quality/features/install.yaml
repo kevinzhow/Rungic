@@ -248,6 +248,9 @@ features:
         evidence:
           - {doc: docs/44-plasma-user-account.md, date: 2026-09-23, note: "用户首次设置后进入桌面"}
           - {doc: docs/93-x70-independent-image-revalidation.md, date: 2026-09-30, note: "原生表单创建临时账户，UID1000 会话"}
+      - id: E8
+        text: 账户助手停会话后，只有控制器负责恢复桌面、共享存储和用户服务。创建或回滚后进入桌面不需整机重启；启动中的会话继续等待，已停止或失败的会话恢复，active 后环境缺失超过 60 秒才重启，健康会话保持不变，恢复失败不报桌面就绪。
+        device: 离线连续回归使用真实账户助手和控制器，替代系统服务与容器。原生表单、手机桌面和新候选的首次进入仍需真机验收。
     pitfalls:
       - text: G100 首装时账户反复提交失败，实际是容器的前置条件（音频 socket 目录、共享存储绑定）没准备好，失败发生在调用账户助手之前，与密码无关。现在由公共 start_container 统一准备。
         docs: [docs/79-g100-ci-execution.md, docs/80-g100-image-installation-retrospective.md]

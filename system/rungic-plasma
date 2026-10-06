@@ -404,12 +404,52 @@ case "$action" in
     # APK sends start also when it was closed or killed and comes back: KWin keeps the session
     # meanwhile and reconnects by itself, so a running session is kept, and only a failed or
     # missing compositor or shell gets a session restart.
-    if [ "$action" = start ] && running &&
-       attach /usr/bin/rungic-plasma-user-exec sh -c 'systemctl --user is-failed --quiet plasma-plasmashell.service ||
-         systemctl --user is-failed --quiet plasma-kwin_wayland.service ||
-         [ "$(systemctl --user is-active plasma-kwin_wayland.service)" = inactive ]' 9>&-; then
-      echo 'The desktop session had failed; restarting it' >&2
-      action=restart-session
+    # The controller alone starts the session after account setup stops it.
+    # A starting system/user unit is not failed: let the readiness loop wait.
+    session_command=restart
+    session_reset_failed=no
+    if [ "$action" = start ] && running; then
+      recovery=$(attach /bin/sh -c '
+        state=$(systemctl show -P ActiveState rungic-plasma-session.service) || exit 1
+        case "$state" in
+          activating) echo wait ;;
+          active)
+            since=$(systemctl show -P ActiveEnterTimestampMonotonic rungic-plasma-session.service) || exit 1
+            case "$since" in ""|*[!0-9]*) exit 1 ;; esac
+            # /proc/uptime includes suspend; systemd uses CLOCK_MONOTONIC.
+            now=$(/usr/bin/python3 -c "import time; print(int(time.monotonic()*1000000))") || exit 1
+            recent=no
+            if [ "$now" -ge "$since" ] && [ $((now - since)) -lt 60000000 ]; then recent=yes; fi
+            if [ -f /run/user/1000/rungic-session.env ]; then
+              if ! systemctl is-active --quiet user@1000.service; then echo restart; exit 0; fi
+              states=$(/usr/bin/rungic-plasma-user-exec sh -c "k=\$(systemctl --user show -P ActiveState plasma-kwin_wayland.service) &&
+                p=\$(systemctl --user show -P ActiveState plasma-plasmashell.service) && printf \"%s %s\" \"\$k\" \"\$p\"") || { echo restart; exit 0; }
+              set -- $states
+              [ "$#" = 2 ] || { echo restart; exit 0; }
+              for unit_state in "$@"; do
+                case "$unit_state" in
+                  active|activating|inactive|deactivating|reloading|maintenance|refreshing) ;;
+                  *) echo restart; exit 0 ;;
+                esac
+              done
+              # Inactive may have a queued start job waiting on KWin. Only
+              # failed/unknown states bypass the normal startup grace period.
+              if [ "$recent" = yes ] || [ "$states" = "active active" ]; then echo wait
+              else echo restart; fi
+            elif [ "$recent" = yes ]; then echo wait
+            else echo restart; fi ;;
+          failed) echo reset-start ;;
+          *) echo start ;;
+        esac' 9>&-) || { echo 'Cannot determine the desktop session state; retry start' >&2; exit 1; }
+      case "$recovery" in
+        start|restart|reset-start)
+          session_command=$recovery
+          if [ "$recovery" = reset-start ]; then session_command=start; session_reset_failed=yes; fi
+          echo "The desktop session needs $recovery" >&2
+          action=restart-session ;;
+        wait) ;;
+        *) echo 'Unknown desktop session state; retry start' >&2; exit 1 ;;
+      esac
     fi
     # The session's own compositor and shell: the main processes of its two user units. Not pidof:
     # the workspaces (desktop mode's 0 among them) run a kwin_wayland and a plasmashell of their own
@@ -424,8 +464,9 @@ case "$action" in
     if [ "$action" = restart-session ] && running; then
       startup_phase=session-restart
       # The old compositor and shell take a moment to exit: readiness must see new ones.
-      old_pids=$(session_pids) || old_pids=
-      attach /bin/sh -c 'systemctl restart rungic-plasma-session.service' 9>&-
+      if [ "$session_command" = restart ]; then old_pids=$(session_pids) || old_pids=; fi
+      if [ "$session_reset_failed" = yes ]; then attach /bin/sh -c 'systemctl reset-failed rungic-plasma-session.service' 9>&-; fi
+      attach /bin/sh -c "systemctl $session_command rungic-plasma-session.service" 9>&-
     fi
     if ! running; then
       startup_phase=container-start

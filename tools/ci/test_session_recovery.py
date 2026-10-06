@@ -82,10 +82,22 @@ class FailedShellOnRetry(Sandbox):
         text = CONTROLLER.read_text()
         block = re.search(r"\n(    # A plasmashell that failed.*?\n    fi\n)", text, re.S)
         self.assertIsNotNone(block, "failed-plasmashell block not found in system/rungic-plasma")
+        env_file = self.root / 'session.env'
+        env_file.touch()
+        stub(self.bin, 'systemctl', """case "$*" in
+          *ActiveState*plasma-plasmashell.service*) echo """ + ('failed' if shell_failed else 'active') + """ ;;
+          *ActiveState*) echo active ;;
+          *ActiveEnterTimestampMonotonic*) echo 0 ;;
+          *is-active*user@1000.service*) exit 0 ;;
+          *) exit 2 ;;
+        esac""")
+        stub(self.bin, 'user-exec', 'exec "$@"')
+        query = block.group(1).replace('/run/user/1000/rungic-session.env', str(env_file)).replace(
+            '/usr/bin/rungic-plasma-user-exec', str(self.bin / 'user-exec'))
         script = (
             f'action={action}\nrunning() {{ return 0; }}\n'
-            f'attach() {{ echo "attach $*" >> "$TEST_LOG"; return {0 if shell_failed else 1}; }}\n'
-            + block.group(1) + 'echo "action=$action"\n')
+            'attach() { echo "attach $*" >> "$TEST_LOG"; "$@"; }\n'
+            + query + 'echo "action=$action"\n')
         return subprocess.run(["sh", "-c", "set -eu\n" + script], env=self.env,
                               capture_output=True, text=True, timeout=10)
 
@@ -94,7 +106,7 @@ class FailedShellOnRetry(Sandbox):
         result = self.run_block("start", shell_failed=True)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("action=restart-session", result.stdout)
-        self.assertIn("is-failed --quiet plasma-plasmashell.service", self.calls()[0])
+        self.assertIn("ActiveState plasma-plasmashell.service", "\n".join(self.calls()))
 
     # covers: install.app-restart-recovery/E3
     def test_running_shell_keeps_start(self):
