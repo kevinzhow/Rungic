@@ -242,14 +242,10 @@ def _home():
     import ui_launch_check as ui
     run(f'{rungic_device.PLASMA} hide-keyboard', 'root', check=False)
     for _ in range(2):
-        # Folio toggles the drawer if Home is pressed while already at page zero.
-        # The suggestions handle positively identifies the new home screen.
-        if rungic_agent.ui_find('plasmashell', role='button', name='^打开应用抽屉$'):
-            break
-        # Native Folio home has no custom handle. Home toggles its drawer, so do
-        # not press it when the desktop is already focused and search is closed.
+        # Home toggles Folio's drawer. Detect its editable field by semantics,
+        # so translated names cannot make an open drawer look like the home page.
         if any(w['active'] and w['resource_class'] == 'plasmashell' for w in rungic_agent.ui_windows()) \
-                and not rungic_agent.ui_find('plasmashell', role='text', name='Search'):
+                and not ui.drawer_search_fields():
             break
         ui.press('Home')
         time.sleep(0.8)
@@ -263,7 +259,7 @@ def _drawer_search():
     except RuntimeError:
         _home()
         ui.open_drawer()
-    fields = rungic_agent.ui_find('plasmashell', role='text', name='Search')
+    fields = ui.drawer_search_fields()
     if not fields:
         raise RuntimeError('drawer search field not showing')
     return fields[0]
@@ -295,6 +291,7 @@ def ocr_screen():
 def input_text(ctx, text='Calcul', expect='Calculator', absent='Clock'):
     """Android text input into the drawer search, read back from the screen by OCR: right after a
     session restart the results never reach the AT-SPI tree, and the search field exposes no text."""
+    import ui_launch_check as ui
     enabled = rungic_agent.a11y('state')['enabled']
     if not enabled:
         rungic_agent.ui_enable(True)
@@ -305,7 +302,7 @@ def input_text(ctx, text='Calcul', expect='Calculator', absent='Clock'):
         for taps in range(1, 4):
             rungic_agent.ui_tap('plasmashell', field['path'])
             focused = wait_for(lambda: any('focused' in f.get('states', []) for f in
-                                           rungic_agent.ui_find('plasmashell', role='text', name='Search')),
+                                           ui.drawer_search_fields()),
                                timeout=3, interval=0.3)
             if focused:
                 break

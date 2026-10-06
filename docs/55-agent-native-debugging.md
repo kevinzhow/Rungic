@@ -136,3 +136,9 @@ Claude Code原生支持MCP工具，Agent可以直接获得带参数模式的工�
 - Qt日志类别的运行时切换未验证。
 - `.mcp.json`为项目级MCP配置，Claude Code首次加载时需要用户批准；K8已实际用MCP客户端调用验证，本机（另一台开发机）尚未在其环境中运行。
 - 构建：`dpkg-genchanges`因缺少`.dsc`报错，但各`.deb`已生成；plasma-mobile两处插件以dpkg-divert替换，发行版升级plasma-mobile时需重新构建并核对。
+
+## 抽屉搜索的语言无关定位
+
+开发启动工具和验收输入检查共用 ui_launch_check.drawer_search_fields：查询 Plasma shell 的 text 节点，要求 showing、visible、enabled、editable 状态及屏幕内非零范围；不按翻译名称匹配。唯一候选才操作，多候选报歧义。若抽屉已打开，不再滑动；打开后要求节点路径和范围连续两次一致，之后再聚焦、输入并读屏验证。
+
+USB G100 的只读 AT-SPI 记录显示中文字段名为搜索，role=text，状态 showing/visible/enabled/editable，范围 [26,56,301,43]。开发回归重放同一语义、分别使用 Search／搜索名称，覆盖打开、聚焦、文字注入和 OCR 结果边界，以及隐藏、不可用和多候选拒绝。这里 OCR 和设备命令为替身，中文及英文手机真实输入流程仍须下一轮验收，不能把工具回归当成产品输入通过。

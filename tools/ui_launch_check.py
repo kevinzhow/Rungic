@@ -47,6 +47,23 @@ def press(name):
 SETTLE_TIMEOUT = 15
 
 
+def drawer_search_fields():
+    """Folio search is its sole visible editable field; its label is translated.
+
+    AT-SPI exposes role/states even when Kirigami has no EditableText interface.
+    Never pick an arbitrary field if the shell exposes more than one candidate.
+    """
+    fields = []
+    for field in rungic_agent.ui_find('plasmashell', role='text'):
+        extents = field.get('extents', [])
+        states = set(field.get('states', []))
+        if {'showing', 'visible', 'enabled', 'editable'} <= states and len(extents) == 4 and extents[0] >= 0 and extents[1] >= 0 and extents[2] > 0 and extents[3] > 0:
+            fields.append(field)
+    if len(fields) > 1:
+        raise RuntimeError('app drawer search is ambiguous: multiple visible editable fields')
+    return fields
+
+
 def open_drawer(timeout=SETTLE_TIMEOUT):
     """Swipe the drawer open and wait until its search field sits still on screen."""
     sizes = re.findall(r'(\d+)x(\d+)', run('wm size', 'shell').stdout)
@@ -55,19 +72,15 @@ def open_drawer(timeout=SETTLE_TIMEOUT):
     width, height = map(int, sizes[-1])
     # Start within the desktop. At some scales y=2000 is already in the
     # navigation panel and the shell never receives the drawer gesture.
-    handles = rungic_agent.ui_find('plasmashell', role='button', name='^打开应用抽屉$')
-    if handles:
-        rungic_agent.ui_tap('plasmashell', handles[0]['path'])
-    else:
-        # Older Folio releases use the whole home page for the drawer gesture.
+    if not drawer_search_fields():
         run(f'input swipe {width // 2} {int(height * .70)} '
             f'{width // 2} {int(height * .25)} 350', 'shell')
     previous, deadline = None, time.monotonic() + timeout
     while time.monotonic() < deadline:
         time.sleep(0.3)
-        fields = rungic_agent.ui_find('plasmashell', role='text', name='Search')
-        current = tuple(fields[0]['extents']) if fields else None
-        if current and current == previous and current[1] >= 0:
+        fields = drawer_search_fields()
+        current = (fields[0]['path'], tuple(fields[0]['extents'])) if fields else None
+        if current and current == previous:
             return
         previous = current
     raise RuntimeError('app drawer did not open')
@@ -91,7 +104,7 @@ def scroll_drawer_to_top(app, attempts=3):
     """The drawer keeps its scroll position (benchmarks swipe it). An entry scrolled
     under the search field still reports extents, and a tap there hits the field."""
     for _ in range(attempts):
-        fields = rungic_agent.ui_find('plasmashell', role='text', name='Search')
+        fields = drawer_search_fields()
         labels = [n for n in rungic_agent.ui_find('plasmashell', role='label', name=f'^{app}$')
                   if n.get('extents', [0, 0, 0, 0])[2] > 0]
         if not fields or not labels:
@@ -111,7 +124,7 @@ def launch(app, process, search):
         scroll_drawer_to_top(app)
     if search:
         # Kirigami's search field exposes no EditableText interface: focus it, type through Android input.
-        field = [f for f in rungic_agent.ui_find('plasmashell', role='text', name='Search')]
+        field = [f for f in drawer_search_fields()]
         if not field:
             raise RuntimeError('drawer search field not showing')
         rungic_agent.ui_press('plasmashell', field[0]['path'], 'SetFocus')
