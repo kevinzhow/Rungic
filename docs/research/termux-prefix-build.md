@@ -76,3 +76,12 @@ The independent comparison is recorded in QA thread message `9eb81171`.
 This confirms the APK/bootstrap input combination for that base; it does not
 prove prefix configuration, startup, playback or recording. The runtime matching
 check described above remains absent.
+
+The independent device report is
+`reports/g100-termux-compatibility-20261007-001/` in mibook's workspace
+(51 files; SHA256SUMS digest
+`5ac970f8311d1d157874e72c8e899f194120fb48fd4086d1743ec43355d06835`).
+It extracted the certificate and compared it with OpenSSL; it did not perform
+full APK signature verification, install the APK, or test firstboot. K8 separately
+ran SDK 36 `apksigner verify --print-certs` on the byte-identical reference APK.
+The phone's boot ID stayed unchanged during the read-only collection.
