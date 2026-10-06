@@ -82,6 +82,8 @@ def write_removal_report(path, result):
              f"设备：{result.get('serial', '未确认')}。ADB 端口：{result.get('adb_port', '未确认')}。",
              '默认保留当前 Linux 家目录。只有显式 --purge 才永久删除它。以前保留的家目录始终保留。', '',
              '本报告不证明首装、重启后的旧种子拦截或完整候选质量通过。', '']
+    if result.get('error') and any('verified' in entry for entry in result.get('steps', [])):
+        lines[4:4] = ['下一步：保持现场和未完成标记，先核对失败步骤的读回；修正后使用同样的 --purge 选择续跑。', '']
     lines += ['当前模式：' + ('--purge，永久删除当前 Linux 家目录，不能恢复。' if result.get('purge') else '保留当前 Linux 家目录。'),
               '开始时间：' + result.get('started_at', '未进入执行计划') + '。', '']
     before = result.get('before', {})
@@ -99,8 +101,6 @@ def write_removal_report(path, result):
                       '读回：`' + json.dumps(entry.get('readback'), ensure_ascii=False) + '`。',
                       '命令退出码：`' + str(entry.get('returncode')) + '`。原始输出：',
                       '```text', entry['output'], '```', '']
-        if not result.get('complete'):
-            lines += ['下一步：保持现场和未完成标记，先核对失败步骤的读回；修正后使用同样的 --purge 选择续跑。', '']
     if result.get('readback_error'):
         lines += ['最终读回失败，不能确认当前现场：' + result['readback_error'], '']
     if 'preserved_home' in result:
@@ -786,6 +786,22 @@ def installed_package_info(info):
     return {'flags': match.group(1).split(), 'versionCode': int(version.group(1))}
 
 
+def package_observation_text(name, observed):
+    if name == 'clear-app-data':
+        return '；'.join('用户 0 的' + label + ('已清空' if observed[kind] == 'EMPTY' else '里仍有文件或链接')
+                        for kind, label in (('CE', '加密存储'), ('DE', '设备存储'))) + '。'
+    if name == 'remove-apk-update':
+        remaining = []
+        if any(not path.startswith('package:/product/') for path in observed['paths']):
+            remaining.append('当前 APK 尚未回到底座的 product 目录')
+        if 'SYSTEM' not in observed['flags']:
+            remaining.append('当前包尚未确认是底座系统应用')
+        if 'UPDATED_SYSTEM_APP' in observed['flags']:
+            remaining.append('当前包仍标记为系统应用更新')
+        return '；'.join(remaining) + '。'
+    return '用户 0 仍安装着 ' + APP + '。'
+
+
 def package_readback(device, name, evidence=None):
     """Observe package state independently of the mutating pm command's response."""
     def observe(command, **kwargs):
@@ -824,7 +840,30 @@ done''', root=True)
         if len(rows) != 2 or any(row not in (kind + '\tEMPTY', kind + '\tNOT_EMPTY')
                                  for row, kind in zip(rows, ('CE', 'DE'))):
             raise ValueError('应用数据读回格式未知。')
-        return {'CE': rows[0].split('\t')[1], 'DE': rows[1].split('\t')[1]}, all(row.endswith('\tEMPTY') for row in rows)
+        observed = {'CE': rows[0].split('\t')[1], 'DE': rows[1].split('\t')[1]}
+        verified = all(row.endswith('\tEMPTY') for row in rows)
+        # Additional diagnostic only: it cannot change the state decision above.
+        if not verified:
+            observed['remaining_entries'] = {}
+            for kind, parent in (('CE', '/data/user/0'), ('DE', '/data/user_de/0')):
+                if observed[kind] != 'NOT_EMPTY':
+                    continue
+                try:
+                    names = observe(f'''# RUNGIC_APP_DATA_ENTRIES
+BB=/data/adb/magisk/busybox
+path={parent}/{APP}
+test -d {parent} && test ! -L {parent} && test -d "$path" && test ! -L "$path" || exit 1
+"$BB" find "$path" -mindepth 1 ! -type d -print0 | "$BB" sh -c '
+count=0
+while IFS= read -r -d "" item; do
+    printf "%s\\000" "$item"
+    count=$((count + 1))
+    [ "$count" -lt 20 ] || break
+done' ''', root=True)
+                    observed['remaining_entries'][kind] = [item for item in names.split('\0') if item][:20]
+                except subprocess.SubprocessError as error:
+                    observed.setdefault('entries_error', {})[kind] = str(error)
+        return observed, verified
     if name == 'remove-apk-update':
         paths = observe(f'pm path --user 0 {APP}').splitlines()
         info = observe(f'dumpsys package {APP}')
@@ -973,7 +1012,7 @@ def _uninstall(args):
                     finally:
                         write_removal_report(report_file, result)
                     if not entry['verified']:
-                        raise ValueError(label + '：读回状态未达到要求。' + json.dumps(entry['readback'], ensure_ascii=False))
+                        raise ValueError(label + '：读回状态未达到要求。' + package_observation_text(name, entry['readback']))
                 package('clear-app-data', '清空应用数据', f'pm clear --user 0 {APP}')
                 try:
                     info = installed_package_info(step('inspect-apk-update', lambda: device.shell(f'dumpsys package {APP}')))

@@ -83,7 +83,7 @@ class ActualReadbacks(unittest.TestCase):
     def test_clear_readback_executes_actual_shell_for_ce_de_and_links(self):
         # covers: install.standalone-uninstall/E7
         for shell in ('/bin/sh','/usr/bin/busybox'):
-            for mode in ('empty','empty_dirs','ce_file','de_file','link','missing_parent'):
+            for mode in ('empty','empty_dirs','ce_file','de_file','link','missing_parent','many_files','diagnostic_failure'):
                 with self.subTest(shell=shell,mode=mode),tempfile.TemporaryDirectory() as temp:
                     root=Path(temp)
                     for parent in ('data/user/0','data/user_de/0'):(root/parent).mkdir(parents=True)
@@ -92,11 +92,17 @@ class ActualReadbacks(unittest.TestCase):
                     if mode=='empty_dirs':(ce/'cache/nested').mkdir(parents=True)
                     if mode=='ce_file':(ce/'private').write_text('private data')
                     if mode=='de_file':(de/'private').write_text('private data')
+                    if mode=='many_files':
+                        (ce/'line\nbreak').write_text('private data')
+                        for i in range(25):(ce/f'private-{i}').write_text('private data')
+                    if mode=='diagnostic_failure':(ce/'private').write_text('private data')
                     if mode=='link':(ce/'link').symlink_to(root/'outside')
                     if mode=='missing_parent':de.rmdir();de.parent.rmdir()
                     device=mock.Mock()
                     def run(script,**kwargs):
                         self.assertTrue(kwargs['root'])
+                        if mode=='diagnostic_failure' and 'RUNGIC_APP_DATA_ENTRIES' in script:
+                            raise subprocess.CalledProcessError(1,'entry-readback',output='No entry listing')
                         script=script.replace('/data/adb/magisk/busybox','/usr/bin/busybox')
                         for source in ('/data/user/0','/data/user_de/0'):
                             script=script.replace(source,str(root/source.lstrip('/')))
@@ -111,6 +117,11 @@ class ActualReadbacks(unittest.TestCase):
                         observed,verified=standalone.package_readback(device,'clear-app-data')
                         self.assertEqual(verified,mode in ('empty','empty_dirs'))
                         if mode=='de_file':self.assertEqual(observed['DE'],'NOT_EMPTY')
+                        if mode=='many_files':
+                            entries=observed['remaining_entries']['CE'];self.assertEqual(len(entries),20)
+                            self.assertTrue(all(Path(entry).exists() for entry in entries))
+                        if mode=='ce_file':self.assertIn(str(ce/'private'),observed['remaining_entries']['CE'])
+                        if mode=='diagnostic_failure':self.assertIn('CE',observed['entries_error'])
 
     def test_update_readback_rejects_untrusted_or_unrelated_dump(self):
         # covers: install.standalone-uninstall/E7
