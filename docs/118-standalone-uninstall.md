@@ -142,3 +142,5 @@ Termux 安装路径保持一致，以及对应 APK 类型的用户卸载、数�
 开发验证为实际宿主卸载入口及 BusyBox ash 文件沙箱，Package Manager、协调锁和 SELinux 为替身。
 成功、标记未清除、清除后快照失败／标记再现和只读预览均有回归。
 异常读回 UNKNOWN、缺路径行、重复冲突值、实际目录再现、用户包再现及拦截记录消失均有回归。没有执行真机卸载或改动冻结候选。
+
+Termux 保留检查允许卸载前后都未安装。路径查询只容许 AOSP 的正常返回 0，以及表示未安装的返回 1／空输出；其他退出状态或非 package 路径诊断视为未知，不能用 `|| true` 掩盖。卸载前后读取均成功且一致才满足保持条件。参照 [AOSP PackageManagerShellCommand](https://android.googlesource.com/platform/frameworks/base/+/main/services/core/java/com/android/server/pm/PackageManagerShellCommand.java) 的 displayPackageFilePath。

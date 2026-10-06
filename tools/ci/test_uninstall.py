@@ -4,6 +4,7 @@ from contextlib import nullcontext
 import json
 import os
 import re
+import shlex
 from pathlib import Path
 import subprocess
 import tempfile
@@ -767,7 +768,7 @@ class HostFlow(unittest.TestCase):
                                      str(source.parents[1]), root], capture_output=True, text=True, timeout=60)
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
             cases = json.loads((Path(root) / 'results.json').read_text())
-            self.assertEqual(len(cases), 14)
+            self.assertEqual(len(cases), 16)
             for case in cases:
                 self.assertTrue(all(case['checks'].values()), case)
             failed = Path(root) / 'readback_failure'
@@ -832,3 +833,34 @@ Hidden system packages:
         # covers: install.standalone-uninstall/E1
         versions = standalone.removal_apk_versions(self.dump('SYSTEM').split('Hidden system packages:')[0])
         self.assertEqual(versions['system'], versions['active'])
+
+
+class TermuxPathReadback(unittest.TestCase):
+    def test_absence_is_known_but_diagnostics_are_not_paths(self):
+        # covers: install.standalone-uninstall/E7
+        device = mock.Mock()
+        for value in ('', 'package:/data/app/termux/base.apk'):
+            device.shell.return_value = value
+            self.assertEqual(standalone.termux_package_path(device), value)
+        device.shell.return_value = 'Remote exception: binder failed'
+        with self.assertRaisesRegex(ValueError, '未知'):
+            standalone.termux_package_path(device)
+        device.shell.side_effect = subprocess.CalledProcessError(255, 'pm-path')
+        with self.assertRaises(subprocess.CalledProcessError):
+            standalone.termux_package_path(device)
+
+    def test_real_shell_preserves_pm_status_and_error_output(self):
+        # covers: install.standalone-uninstall/E7
+        for output, code, success in [('', 1, True), ('package:/data/app/termux/base.apk', 0, True),
+                                       ('', 255, False), ('Remote exception', 1, False)]:
+            with self.subTest(output=output, code=code):
+                device = mock.Mock()
+                def shell(script):
+                    prefix = 'pm() { printf "%s" ' + shlex.quote(output) + '; return ' + str(code) + '; }; '
+                    return subprocess.check_output(['sh', '-c', 'set -eu; ' + prefix + script], text=True).strip()
+                device.shell.side_effect = shell
+                if success:
+                    self.assertEqual(standalone.termux_package_path(device), output)
+                else:
+                    with self.assertRaises((ValueError, subprocess.CalledProcessError)):
+                        standalone.termux_package_path(device)

@@ -8,7 +8,7 @@ from unittest import mock
 p=argparse.ArgumentParser();p.add_argument('repository',type=Path);p.add_argument('output',type=Path);a=p.parse_args()
 sys.path.insert(0,str(a.repository.resolve()/'tools/ci'));product=importlib.import_module('standalone')
 a.output.mkdir(parents=True,exist_ok=True);results=[]
-for mode in ['normal','package_failure','readback_failure','finish_readback_marker','final_snapshot_failure','final_snapshot_marker','final_snapshot_unknown','final_snapshot_missing','final_snapshot_duplicate','final_snapshot_runtime_reappears','final_snapshot_package_reappears','final_snapshot_retained_gone','preview_healthy','preview_mount']:
+for mode in ['normal','normal_no_termux','termux_readback_failure','package_failure','readback_failure','finish_readback_marker','final_snapshot_failure','final_snapshot_marker','final_snapshot_unknown','final_snapshot_missing','final_snapshot_duplicate','final_snapshot_runtime_reappears','final_snapshot_package_reappears','final_snapshot_retained_gone','preview_healthy','preview_mount']:
  case=a.output.resolve()/mode;root=case/'root';adb=root/'data/adb'
  home=adb/'rungic-lxc/runtime/var/lib/lxc/plasma/state/home';home.mkdir(parents=True);(home/'private').write_text('old home')
  appdata=root/'data/user/0'/product.APP;appdata.mkdir(parents=True);(appdata/'private').write_text('app private')
@@ -30,7 +30,9 @@ for mode in ['normal','package_failure','readback_failure','finish_readback_mark
    if script=='pm list users':return 'UserInfo{0:Owner:13}'
    if script=='id -u':return '0'
    if script.startswith('pm list packages'):return 'package:'+product.APP if self.installed else ''
-   if script.startswith('pm path com.termux'):return 'package:/data/app/termux/base.apk'
+   if script.startswith('pm path com.termux'):
+    if mode=='termux_readback_failure' and self.marker_cleared:raise subprocess.CalledProcessError(255,'pm-path',output='Remote exception')
+    return '' if mode=='normal_no_termux' else 'package:/data/app/termux/base.apk'
    if script.startswith('pm path '):return 'package:/product/app/Rungic/Rungic.apk'
    if script.startswith('dumpsys '):
     if 'grep' in script:return 'versionCode=26 versionName=2.6'
@@ -78,7 +80,8 @@ for mode in ['normal','package_failure','readback_failure','finish_readback_mark
  report=json.loads((args.report/'report.json').read_text());markdown=(args.report/'report.md').read_text()
  checks={'report_survives':(args.report/'report.md').is_file()}
  pending=(adb/'rungic-uninstalling').exists()
- if mode=='normal':checks.update(completed=report['complete'],marker_removed=not pending,runtime_removed=not (adb/'rungic-lxc').exists(),package_removed=not device.installed,final_snapshot_marker_absent=report.get('after',{}).get('paths',{}).get(product.PENDING) is False,final_snapshot_record_empty=report.get('after',{}).get('pending')=='',previous_snapshot_preserved=report.get('before_finish',{}).get('paths',{}).get(product.PENDING) is True)
+ if mode in ('normal','normal_no_termux'):checks.update(completed=report['complete'],marker_removed=not pending,runtime_removed=not (adb/'rungic-lxc').exists(),package_removed=not device.installed,final_snapshot_marker_absent=report.get('after',{}).get('paths',{}).get(product.PENDING) is False,final_snapshot_record_empty=report.get('after',{}).get('pending')=='',previous_snapshot_preserved=report.get('before_finish',{}).get('paths',{}).get(product.PENDING) is True)
+ elif mode=='termux_readback_failure':checks.update(rejected=error is not None,incomplete=not report['complete'],readback_unknown=bool(report.get('readback_error')))
  elif mode=='package_failure':checks.update(rejected=error is not None,incomplete=not report['complete'],marker_kept=pending,raw_failure_retained='Failure [busy]' in json.dumps(report))
  elif mode=='readback_failure':checks.update(rejected=error is not None,incomplete=not report['complete'],marker_kept=pending,readback_failure_recorded='readback_error' in report,no_false_verified_rows=not any(token in line for line in markdown.splitlines() if line.startswith('| `') for token in ('已删除并读回','已删除并确认','确认不存在')))
  elif mode=='final_snapshot_failure':checks.update(rejected=error is not None,incomplete=not report['complete'],failure_recorded=bool(report.get('readback_error')),prior_snapshot_kept=bool(report.get('before_finish')),marker_clear_evidence=report.get('marker_cleared') is True)

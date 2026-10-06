@@ -141,7 +141,7 @@ def write_removal_report(path, result):
         warning = '现在重启手机，系统自带的 Rungic 可能会恢复。' if result.get('package_kind') == 'system' else '请先不要重启手机。'
         lines += ['卸载结果是否已保存：' + ('已确认。' if persistence['verified'] else '未确认。' + warning) + '详细读回证据见 report.json。', '']
     if result.get('before_finish'):
-        lines += ['最终现场：清除卸载标记后重新读取。清除前快照保留在 report.json 的 before_finish。' if result.get('complete') else '已保留清除标记前快照；最终现场未确认，不能据旧快照判定完成。', '']
+        lines += ['最终现场：清除卸载标记后重新读取。清除前快照保留在 report.json 的 before_finish。' if result.get('complete') else '已保留清除标记前快照。最终现场未确认，不能据旧快照判定完成。', '']
     if result.get('readback_error'):
         lines += ['最终读回失败（程序报告），不能确认当前现场：' + readable_error(result['readback_error']), '']
     if 'preserved_home' in result:
@@ -188,7 +188,8 @@ def write_removal_report(path, result):
             if entry['operation'] == 'absent' and entry['readback'] == 'absent':
                 absent_rows += 1
                 continue
-            lines.append(f"| `{entry['path']}` | {operations[entry['operation']]} | {observations[entry['readback']]} |")
+            observed = ('现在存在（删除后重新出现）' if entry['readback'] == 'present' and entry['operation'] in ('absent', 'deleted') else observations[entry['readback']])
+            lines.append(f"| `{entry['path']}` | {operations[entry['operation']]} | {observed} |")
     if absent_rows:
         lines += ['', f'另有 {absent_rows} 项删除前就不存在，删除后确认不存在。完整列表见 report.json。']
     if not result.get('plan_only') and any(entry['operation'] == 'not_attempted' for entry in result['path_results']):
@@ -533,6 +534,15 @@ def removal_apk_versions(info):
     return {'active': active, 'system': system}
 
 
+def termux_package_path(device):
+    # AOSP displayPackageFilePath returns 1 without output for an absent package;
+    # errors (including RemoteException) have another status or diagnostic text.
+    value = device.shell('pm path com.termux || { code=$?; [ "$code" = 1 ]; }')
+    if value and any(not re.fullmatch(r'package:/[^\s]+', line) for line in value.splitlines()):
+        raise ValueError('Termux 安装路径读回未知：' + value)
+    return value
+
+
 def uninstall_state(device, extra_paths=()):
     """Read exact owned paths and report other Rungic names without deleting them."""
     owned = list(dict.fromkeys(list(PATHS.values()) + list(RETAINED) + [PENDING, HOME, f'/data/user/0/{APP}'] + list(extra_paths)))
@@ -543,8 +553,12 @@ def uninstall_state(device, extra_paths=()):
     paths = {}
     for line in output.splitlines():
         fields = line.split('\t')
-        if len(fields) != 2 or fields[0] not in owned or fields[1] not in ('0', '1') or fields[0] in paths:
-            raise ValueError('路径读回格式未知：' + line)
+        if len(fields) != 2 or fields[0] not in owned:
+            raise ValueError('路径读回格式未知：' + line.replace('\t', '，'))
+        if fields[0] in paths:
+            raise ValueError('路径读回有重复条目：' + fields[0])
+        if fields[1] not in ('0', '1'):
+            raise ValueError('路径读回状态未知：' + fields[0] + '，读到的值为 ' + fields[1])
         paths[fields[0]] = fields[1] == '1'
     if set(paths) != set(owned):
         raise ValueError('路径读回缺项：' + '、'.join(path for path in owned if path not in paths))
@@ -557,7 +571,7 @@ def uninstall_state(device, extra_paths=()):
             'other_paths': device.shell("find /data/adb -maxdepth 1 -name '*rungic*' -print", root=True).splitlines(),
             'user_packages': '\n'.join(line for line in packages['user_packages'] if line == f'package:{APP}'),
             'package_paths': device.shell(f'pm path {APP} || true'),
-            'termux_path': device.shell('pm path com.termux || true'),
+            'termux_path': termux_package_path(device),
             'base': device.shell('getprop ro.build.fingerprint; uname -r; getenforce', root=True).splitlines(),
             'apk_versions': [line.strip() for line in apk_info.splitlines() if re.search(r'\bversionCode=|\bversionName=', line)],
             'apk_sources': removal_apk_versions(apk_info),
@@ -576,7 +590,7 @@ def final_removal_problems(before, after, targets, retained, kind):
             problems.append({'path': path, 'reason': '最终读回未确认保留项存在。'})
     if paths.get(PENDING) is not False or after.get('pending') != '':
         problems.append({'path': PENDING, 'reason': '最终现场未确认卸载标记不存在。'})
-    if not before.get('termux_path') or after.get('termux_path') != before['termux_path']:
+    if not isinstance(before.get('termux_path'), str) or not isinstance(after.get('termux_path'), str) or after['termux_path'] != before['termux_path']:
         problems.append({'path': 'com.termux', 'reason': '最终读回未确认 Termux 安装路径保持一致。'})
     package = after.get('package_validation', {})
     if package.get('kind') != kind or package.get('user_absent') is not True or package.get('data_empty') is not True or package.get('persisted') is not True or (kind == 'system' and package.get('system_base') is not True):
@@ -1316,7 +1330,7 @@ def _uninstall(args):
             marker = step('finish-readback', lambda: device.shell(
                 f'if [ -e {PENDING} ] || [ -L {PENDING} ]; then echo PRESENT; else echo ABSENT; fi', root=True))
             if marker.strip() != 'ABSENT':
-                raise ValueError('Removal marker remains or its readback is unknown.')
+                raise ValueError('卸载标记仍在，或无法读回卸载标记的状态。')
             result['marker_cleared'] = True
             result['before_finish'] = result.pop('after')
             result['phase'] = 'finish-snapshot'
@@ -1344,7 +1358,7 @@ def _uninstall(args):
             problems = final_removal_problems(before, result['after'], targets, retained, kind)
             result['failed'].extend(problems)
             if problems:
-                raise ValueError('最终卸载现场未满足完成条件：' + '；'.join(item['path'] + '：' + item['reason'] for item in problems))
+                raise ValueError('最终卸载现场未满足完成条件：\n' + '\n'.join(item['path'] + '：' + item['reason'] for item in problems))
             result['complete'] = True
             result['phase'] = 'complete'
     except BaseException as error:
