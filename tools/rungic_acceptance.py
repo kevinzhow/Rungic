@@ -1246,7 +1246,8 @@ def combine(attempts, chain_warnings=()):
         if system.get('in_sync') is False:
             warnings.append(prefix + f'手机上的版本与 {str(system.get("against", "未知"))[:12]} 不同（{len(system.get("differs", []))} 处差异）。结论只适用于实际安装的内容。')
         if report.get('run_error') and not (i and report.get('state') == 'interrupted'):
-            warnings.append(prefix + '运行停止：' + report['run_error'])
+            stopped_rows = sum(1 for r in report.get('scenarios', []) if scenario_status(r) == 'not-run')
+            warnings.append(prefix + f'运行没有跑完，停止时还有 {stopped_rows} 项未执行。停止原因见附录（程序报告）。')
         for key, error in report.get('metadata_errors', {}).items():
             warnings.append(prefix + f'未能读取 {key}：{error}')
         if not device or not system or not system.get('release') or not device.get('serial'):
@@ -1308,9 +1309,11 @@ def conclusion_text(combined):
         text = f'**所选检查通过（{counts["pass"]}/{len(rows)}）。**'
     if combined['flaky']:
         text += f'另有 {len(combined["flaky"])} 项重试才通过（不稳定）。首次失败的记录已保留。'
-    gaps = [(counts['skipped'], '跳过'), (counts['unimplemented'], '检查未实现'), (counts['not-run'], '未执行'), (pending, '待人工')]
+    not_run = counts['unimplemented'] + counts['not-run']
+    not_run_term = '未执行' + (f'（其中 {counts["unimplemented"]} 项检查未实现）' if counts['unimplemented'] else '')
+    gaps = [(counts['skipped'], '跳过'), (not_run, not_run_term), (pending, '待人工')]
     if missing or pending:
-        text += '另有' + '、'.join(f'{n} 项{term}' for n, term in gaps if n) + '。'
+        text += '另有 ' + '、'.join(f'{n} 项{term}' for n, term in gaps if n) + '。'
     if scope == 'full':
         text += '不包含首次安装、整机重启、长时间待机等生命周期测试。'
     elif not first.get('missing'):
@@ -1335,14 +1338,14 @@ def status(row):
     if value == 'skipped':
         return '跳过：' + md(row.get('details', {}).get('skipped', '未记录原因'))
     return {'pass': '✓ 通过', 'fail': '✗ 失败', 'not-run': '未执行',
-            'unimplemented': '检查未实现'}.get(value, md(value))
+            'unimplemented': '未执行（检查未实现）'}.get(value, md(value))
 
 
 def counts_text(report):
     counts = result_counts(report.get('scenarios', []), report.get('manual_results', []))
     automatic = '、'.join(f'{counts[key]} 项{term}' for key, term in zip(
         ('pass', 'fail', 'skipped', 'unimplemented', 'not-run'),
-        ('通过', '失败', '跳过', '检查未实现', '未执行')) if counts[key])
+        ('通过', '失败', '跳过', '未执行（检查未实现）', '未执行')) if counts[key])
     human = '、'.join(f'{counts["manual-" + key]} 项人工{term}'
                      for key, term in (('pass', '通过'), ('fail', '失败'), ('not-run', '未执行')) if counts['manual-' + key])
     return '、'.join(part for part in (automatic, human) if part) or '没有执行结果'
@@ -1429,7 +1432,7 @@ def render_report(path):
     def label(id, separator='／'):
         features = features_for(id)
         if not features:
-            return '没有关联到任何用户功能'
+            return '没有声明直接关联的用户场景'
         return separator.join(md(f'{areas.get(f["area"], f["area"])} › '
                          f'{catalog.scenarios.get(f["scenario"], {}).get("title", f["scenario"])} › {f["title"]}') for f in features)
     live_scenarios = {f['scenario'] for f in catalog.features.values() if f.get('status') != 'retired'}
@@ -1455,9 +1458,9 @@ def render_report(path):
     lines += ['', '| 你想知道的 | 回答 |', '| --- | --- |',
               f'| 测的是什么 | {tested_identity} |',
               f'| 结果如何 | {observation_text} |',
-              f'| 没测到什么 | 本次计划直接关联 {len(run_coverage)} 个用户场景（共 {len(live_scenarios)} 个）。完整验收另关联 {len(full_only)} 个，本次没有运行。其余 {len(uncovered)} 个没有本验收计划的自动检查直接关联。实际执行直接关联 {len(executed_coverage)} 个，全部关联检查通过 {len(passed_coverage)} 个。{pending if scope == "full" else len(first.get("manual", []))} 项人工检查未执行 |', '']
-    if scope == 'smoke' and not run_coverage:
-        lines += ['冒烟只说明系统起来了、接口通了，不说明任何用户功能可用。冒烟自身是否通过仍以本次结果为准。', '']
+              f'| 没测到什么 | 本次计划直接关联 {len(run_coverage)} 个用户场景（共 {len(live_scenarios)} 个）。完整验收另关联 {len(full_only)} 个，本次没有运行。其余 {len(uncovered)} 个没有本验收计划的自动检查直接关联。' + (f'其中实际执行了 {len(executed_coverage)} 个，关联检查全部通过的 {len(passed_coverage)} 个。' if run_coverage else '') + f'{pending if scope == "full" else len(first.get("manual", []))} 项人工检查未执行。 |', '']
+    if scope == 'smoke' and decision == 'pass' and not run_coverage:
+        lines += ['冒烟只说明系统起来了、接口通了，不说明任何用户场景可用。', '']
     if combined['identity_errors']:
         next_step = f'在首次那台手机（{md(first.get("device", {}).get("serial"))}）、同一份安装上重新运行重试，并确认报告记录了完整的手机和安装身份。'
     elif failed and combined['screen_warning']:
@@ -1542,7 +1545,7 @@ def render_report(path):
                       for row in [next((r for r in report.get('scenarios', []) if r['id'] == id), None)]
                       if row is not None or report.get('missing')]
             lines.append('- ' + '，'.join(values) + '。' + md(definitions[id].get('title', id)).rstrip('。') +
-                         f'。依赖这个接口的场景：{len(consumers)} 个（只表示依赖，不表示已测）' + (('，例如' if len(consumers) > 3 else '：') + md('、'.join(titles[:3])) + '。' if consumers else '。'))
+                         f'。依赖这个接口的场景：{len(consumers)} 个（只表示依赖，不表示已测）' + (('，例如' if len(consumers) > 3 else '：') + md(''.join(f'「{t}」' for t in titles[:3])) + '。' if consumers else '。'))
     lines += ['', '## 3. 失败与重试', '']
     problems = [id for id in observed if any(scenario_status(r) != 'pass' for _, report in attempts
                 for r in report.get('scenarios', []) if r['id'] == id)]
@@ -1561,13 +1564,22 @@ def render_report(path):
             for row in report.get('scenarios', []):
                 if row['id'] == id:
                     lines.append(f'- {column_name(i)}：{attempt_status(row, report)}')
-                    if row.get('details'):
-                        lines.append('  - 原始观察（程序输出）：')
-                    for key, value in row.get('details', {}).items():
-                        lines.append(f'  - {"观察" if key == "error" else md(key)}：{md(value)}')
+                    details = row.get('details', {})
+                    if details.get('error'):
+                        lines.append('  - 程序报告：' + md(details['error']))
+                    if details.get('screenshot'):
+                        lines.append('  - 截图：' + md(details['screenshot']))
+                    elif details.get('screenshot_error'):
+                        lines.append('  - 截图：没有取得。')
+                    for key, value in details.items():
+                        if key not in ('error', 'trace', 'screenshot', 'screenshot_error', 'explicit_scope_exclusion'):
+                            lines.append(f'  - {"跳过原因" if key == "skipped" else md(key)}：{md(value)}')
+                    if details.get('trace'):
+                        lines.append('  - 完整的程序输出在原始文件里。')
                     if row.get('metrics'):
                         lines.append('  - 指标：' + md(row['metrics']))
-                    lines.append('  - 原始文件：' + md(source))
+                    if len({src for src, _ in attempts}) > 1:
+                        lines.append('  - 原始文件：' + md(source))
         lines += ['']
     for row in manual:
         if row['status'] == 'fail':
@@ -1579,7 +1591,7 @@ def render_report(path):
                                   ('完整验收关联、本次未运行的用户场景', full_only),
                                   ('本验收计划没有自动检查直接关联的用户场景', uncovered)):
         lines += [f'**{heading}（{len(scenario_ids)} 个）：**', '']
-        lines += ['- ' + md(catalog.scenarios[id]['title']) for id in sorted(scenario_ids)] or ['无。']
+        lines += [f'- {md(areas.get(catalog.scenarios[id].get("area")))} › {md(catalog.scenarios[id]["title"])}' for id in sorted(scenario_ids)] or ['无。']
         lines += ['']
     lines += ['这三档只描述本验收计划的直接关联；其他测试层的声明不计入本次执行或通过。', '']
     selected_ids = set(observed)
@@ -1593,12 +1605,6 @@ def render_report(path):
                   f'（{md(r["id"])}） · {md(r["note"])}' for r in manual] or ['无。']
     else:
         lines += ['- 本次不检查：' + md(title) for title in first.get('manual', [])] or ['无。']
-    lines += ['', f'**验收计划里没有任何检查直接对应的用户场景（{len(uncovered)}/{len(live_scenarios)}）：**', '']
-    for sid in sorted(uncovered):
-        scenario = catalog.scenarios.get(sid, {})
-        lines.append(f'- {md(areas.get(scenario.get("area")))} › {md(scenario.get("title", sid))}')
-    if not uncovered:
-        lines.append('没有发现完全未关联检查的场景。关联不表示所有体验要求都已验证。')
     lines += ['', '## 5. 指标变化', '']
     for source, report in attempts:
         for row in report.get('scenarios', []):
@@ -1616,16 +1622,28 @@ def render_report(path):
                 lines += ['- 参考现场未知，不能视为同条件的性能回归证据。']
     if not any(r.get('metric_changes') for _, r in attempts):
         lines.append('本次没有记录可比较的指标变化。')
-    lines += ['', '## 附录：检查明细', '', '| 原始文件 | 检查 ID | 状态 | 用时（秒） | 证据 |', '| --- | --- | --- | --- | --- |']
+    sources = list(dict.fromkeys(md(source) for source, _ in attempts))
+    single = len(sources) == 1
+    lines += ['', '## 附录：检查明细', '']
+    if single:
+        lines += [f'原始文件：{sources[0]}', '', '| 检查 ID | 状态 | 用时（秒） | 证据 |', '| --- | --- | --- | --- |']
+    else:
+        lines += ['| 原始文件 | 检查 ID | 状态 | 用时（秒） | 证据 |', '| --- | --- | --- | --- | --- |']
     for source, report in attempts:
         for row in report.get('scenarios', []):
-            lines.append(f'| {md(source)} | {md(row["id"])} | {status(row)} | {md(row.get("seconds"))} | {md(row.get("details", {}).get("screenshot")) if row.get("details", {}).get("screenshot") else "无"} |')
-    lines += ['', '| 原始文件 | 人工检查 ID | 状态 | 实际观察 |', '| --- | --- | --- | --- |']
-    for source, report in attempts:
-        for row in report.get('manual_results', []):
-            lines.append(f'| {md(source)} | {md(row["id"])} | {status(row)} | {md(row.get("note"))} |')
+            evidence = md(row.get("details", {}).get("screenshot")) if row.get("details", {}).get("screenshot") else "无"
+            lines.append(('' if single else f'| {md(source)} ') + f'| {md(row["id"])} | {status(row)} | {md(row.get("seconds"))} | {evidence} |')
+    manual_rows = [(source, row) for source, report in attempts for row in report.get('manual_results', [])]
+    if manual_rows:
+        lines += ['', '| 原始文件 | 人工检查 ID | 状态 | 实际观察 |', '| --- | --- | --- | --- |']
+        lines += [f'| {md(source)} | {md(row["id"])} | {status(row)} | {md(row.get("note"))} |' for source, row in manual_rows]
+    else:
+        lines += ['', '本次没有人工检查结果。']
     for i, (source, report) in enumerate(attempts):
-        lines += ['', f'{column_name(i)}报告自身（{md(source)}）：verdict={md(report.get("verdict"))}，state={md(report.get("state"))}。{counts_text(report)}。', '']
+        lines += ['', f'{column_name(i)}原始报告（{md(source)}）：verdict={md(report.get("verdict"))}，state={md(report.get("state"))}。{counts_text(report)}。']
+        if report.get('run_error'):
+            lines += ['', f'{column_name(i)}运行停止原因（程序报告）：{md(report["run_error"])}']
+    lines += ['']
     verdict_word = {'pass': '通过', 'fail': '未通过', 'incomplete': '未完成'}[decision]
     lines += [f'本页合并结论：{verdict_word}。功能说明来自当前仓库的 release/acceptance.json 与 quality/，不补写原始报告。', '']
     for source, report in attempts:

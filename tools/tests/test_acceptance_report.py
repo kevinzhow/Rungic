@@ -616,9 +616,19 @@ def test_renderer_keeps_plan_execution_and_pass_counts_separate(runner, catalog)
     assert '本次计划直接关联 0 个用户场景（共 2 个）' in rendered
     assert '完整验收另关联 1 个，本次没有运行' in rendered
     assert '其余 1 个没有本验收计划的自动检查直接关联' in rendered
-    assert '实际执行直接关联 0 个，全部关联检查通过 0 个' in rendered
-    assert '冒烟只说明系统起来了、接口通了，不说明任何用户功能可用' in rendered
+    # With no planned scenario there is nothing executed to report, and the smoke note
+    # only explains a passing smoke run, not this incomplete one.
+    assert '其中实际执行了' not in rendered
+    assert '冒烟只说明' not in rendered
     assert '首次安装进入桌面' in rendered
+
+# covers: delivery.acceptance/E6
+def test_passing_smoke_without_user_scenarios_says_it_proves_none(runner, catalog):
+    plan = acc.load()
+    plan['scenarios'][0]['covers'] = ['iface:host-input']
+    report = acc.run_scenarios([runner.scenario('one')], out_dir=runner.path, scope='smoke')
+    rendered = acc.render_report(report['path']).read_text()
+    assert '冒烟只说明系统起来了、接口通了，不说明任何用户场景可用。' in rendered
 
 # covers: delivery.acceptance/E6
 @pytest.mark.parametrize('ref', ['unknown/E1', 'typing.android/E999', 'iface:unknown'])
@@ -634,13 +644,13 @@ def test_skipped_user_check_is_planned_but_never_executed_or_passed(runner, cata
     report = acc.run_scenarios([runner.scenario('one')], out_dir=runner.path, skips={'one': 'excluded'})
     rendered = acc.render_report(report['path']).read_text()
     assert '本次计划直接关联 1 个用户场景（共 2 个）' in rendered
-    assert '实际执行直接关联 0 个，全部关联检查通过 0 个' in rendered
+    assert '其中实际执行了 0 个，关联检查全部通过的 0 个' in rendered
 
 # covers: delivery.acceptance/E6
 def test_mixed_checks_for_one_user_scenario_do_not_claim_all_passed(runner, catalog):
     report = acc.run_scenarios([runner.scenario('one'), runner.scenario('other', 'bad')], out_dir=runner.path)
     rendered = acc.render_report(report['path']).read_text()
-    assert '实际执行直接关联 1 个，全部关联检查通过 0 个' in rendered
+    assert '其中实际执行了 1 个，关联检查全部通过的 0 个' in rendered
 
 # covers: delivery.acceptance/E6
 def test_duplicate_plan_id_is_rejected_before_rendering(runner, catalog):
@@ -648,3 +658,44 @@ def test_duplicate_plan_id_is_rejected_before_rendering(runner, catalog):
     acc.load()['scenarios'][1]['id'] = 'one'
     with pytest.raises(ValueError, match='duplicate.*coverage'):
         acc.render_report(report['path'])
+
+
+# The readable page states program errors as program reports, keeps raw output in JSON,
+# and uses only the four result words for a single check.
+# covers: delivery.acceptance/E6
+def test_readable_page_labels_program_output_and_keeps_raw_details_in_json(runner, catalog, monkeypatch):
+    def crash(ctx):
+        raise RuntimeError('app drawer did not open')
+    def stop(ctx):
+        raise RuntimeError('Stop: first automatic criterion failed; remaining scenarios are not-run.')
+    monkeypatch.setitem(acc.CHECKS, 'crash', crash)
+    monkeypatch.setitem(acc.CHECKS, 'stop', stop)
+    report = acc.run_scenarios([runner.scenario('one', 'crash'), runner.scenario('other', 'not_implemented')],
+                               out_dir=runner.path)
+    rendered = acc.render_report(report['path']).read_text()
+    assert '程序报告：RuntimeError: app drawer did not open' in rendered
+    assert 'Traceback' not in rendered and 'screenshot_error' not in rendered and '原始观察' not in rendered
+    assert '截图：没有取得。' in rendered and '完整的程序输出在原始文件里。' in rendered
+    assert 'Traceback' in json.dumps(json.loads(Path(report['path']).read_text()))
+    assert '未执行（检查未实现）' in rendered and '| 检查未实现' not in rendered
+    assert '| 原始文件 | 检查 ID' not in rendered and '| 检查 ID | 状态 |' in rendered  # one source: stated once above the table
+    assert '本次没有人工检查结果。' in rendered and '原始报告（' in rendered
+    stopped_dir = runner.path.parent / 'stopped'
+    monkeypatch.setattr(acc, 'bring_to_front', lambda: (_ for _ in ()).throw(RuntimeError('Stop: device went away; retry later')))
+    with pytest.raises(RuntimeError):
+        acc.run_scenarios([runner.scenario('one')], out_dir=stopped_dir)
+    rendered = acc.render_report(stopped_dir / 'report.json').read_text()
+    warning = next(line for line in rendered.splitlines() if line.startswith('> ⚠') and '运行没有跑完' in line)
+    assert '停止时还有 1 项未执行' in warning and 'Stop:' not in warning
+    assert '运行停止原因（程序报告）：RuntimeError: Stop: device went away; retry later' in rendered
+
+
+# Scenario titles can contain 、 themselves, so lists quote each title.
+# covers: delivery.acceptance/E6
+def test_interface_dependents_quote_each_scenario_title(runner, catalog):
+    plan = acc.load()
+    plan['scenarios'][0].update(check='interface_contract', covers=['iface:host-input'])
+    acc.CHECKS.setdefault('interface_contract', lambda ctx, **kw: acc.result(True))
+    report = acc.run_scenarios([runner.scenario('one', 'good')], out_dir=runner.path)
+    rendered = acc.render_report(report['path']).read_text()
+    assert '依赖这个接口的场景：1 个（只表示依赖，不表示已测）：「输入文字」。' in rendered
