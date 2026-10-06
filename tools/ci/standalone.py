@@ -163,7 +163,7 @@ def write_removal_report(path, result):
                 diagnostics.append(reason)
                 reason = '相关进程仍在运行。执行时会先停止服务，再重新检查。'
             elif entry['name'] == 'home' and entry['state'] == 'PASS':
-                reason = '已确认家目录与保留目录处于同一挂载范围。' if not result.get('purge') else '已确认当前家目录未单独挂载；执行 purge 会永久删除它。'
+                reason = '已确认家目录与保留目录处于同一挂载范围。' if not result.get('purge') else '已确认当前家目录未单独挂载。执行 purge 会永久删除它。'
             lines.append(f"| {display.get(entry['name'], entry['name'])} | {display.get(entry['state'], entry['state'])} | {reason.replace('|', '&#124;').replace(chr(10), '<br>')} |")
         lines.append('')
         for diagnostic in diagnostics:
@@ -584,7 +584,7 @@ def final_removal_problems(before, after, targets, retained, kind):
     paths = after.get('paths', {})
     for path in targets:
         if paths.get(path) is not False:
-            problems.append({'path': path, 'reason': '最终读回仍存在。' if paths.get(path) is True else '最终路径状态未知或缺项。'})
+            problems.append({'path': path, 'reason': '最终读回存在。' if paths.get(path) is True else '最终路径状态未知或缺项。'})
     for path in retained:
         if paths.get(path) is not True:
             problems.append({'path': path, 'reason': '最终读回未确认保留项存在。'})
@@ -1358,7 +1358,7 @@ def _uninstall(args):
             problems = final_removal_problems(before, result['after'], targets, retained, kind)
             result['failed'].extend(problems)
             if problems:
-                raise ValueError('最终卸载现场未满足完成条件：\n' + '\n'.join(item['path'] + '：' + item['reason'] for item in problems))
+                raise ValueError('最终卸载现场未满足完成条件：\n\n' + '\n'.join('- ' + item['path'] + '：' + item['reason'] for item in problems))
             result['complete'] = True
             result['phase'] = 'complete'
     except BaseException as error:
