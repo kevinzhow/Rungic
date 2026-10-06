@@ -1480,7 +1480,7 @@ def render_report(path):
     lines += ['', '| 你想知道的 | 回答 |', '| --- | --- |',
               f'| 测的是什么 | {tested_identity} |',
               f'| 结果如何 | {observation_text} |',
-              f'| 没测到什么 | 本次计划直接关联 {len(run_coverage)} 个用户场景（共 {len(live_scenarios)} 个）。完整验收另关联 {len(full_only)} 个，本次没有运行。其余 {len(uncovered)} 个没有本验收计划的自动检查直接关联。' + (f'其中实际执行了 {len(executed_coverage)} 个，关联检查全部通过的 {len(passed_coverage)} 个。' if run_coverage else '') + f'{pending} 项本次计划内的人工检查未执行。 |', '']
+              f'| 没测到什么 | 用户场景清单共 {len(live_scenarios)} 个。本次计划的检查直接关联 {len(run_coverage)} 个' + (f'（其中实际执行 {len(executed_coverage)} 个，关联检查全部通过 {len(passed_coverage)} 个）' if run_coverage else '') + f'。完整真机验收另关联 {len(full_only)} 个，本次没有运行。其余 {len(uncovered)} 个不在真机验收计划里。其他层的测试声明不算本次执行。' + (f'{pending} 项本次计划内的人工检查未执行。' if pending else '') + ' |', '']
     if scope == 'smoke' and decision == 'pass' and not run_coverage:
         lines += ['冒烟只说明系统起来了、接口通了，不说明任何用户场景可用。', '']
     if combined['identity_errors']:
@@ -1616,13 +1616,13 @@ def render_report(path):
     if not problems and not human_failed:
         lines += ['没有记录到失败或缺失的自动结果。', '']
     lines += ['## 4. 本次没有覆盖的内容', '', '以下内容不能由本报告证明正常。', '']
-    for heading, scenario_ids in (('本次计划直接关联的用户场景', run_coverage),
-                                  ('完整验收关联、本次未运行的用户场景', full_only),
-                                  ('本验收计划没有自动检查直接关联的用户场景', uncovered)):
+    for heading, scenario_ids in (('本次计划的检查直接关联的用户场景', run_coverage),
+                                  ('完整真机验收关联、本次未运行的用户场景', full_only),
+                                  ('不在真机验收计划里的用户场景', uncovered)):
         lines += [f'**{heading}（{len(scenario_ids)} 个）：**', '']
         lines += [f'- {md(areas.get(catalog.scenarios[id].get("area")))} › {md(catalog.scenarios[id]["title"])}' for id in sorted(scenario_ids)] or ['无。']
         lines += ['']
-    lines += ['这三档只描述本验收计划的直接关联；其他测试层的声明不计入本次执行或通过。', '']
+    lines += ['这三档只描述真机验收计划的直接关联。其他层的测试声明不算本次执行或通过。', '']
     selected_ids = set(observed)
     omitted = [s for s in plan['scenarios'] if s['id'] not in selected_ids]
     omitted_title = '完整检查才运行的自动检查' if scope == 'smoke' else '验收计划中本次未选择的自动检查'

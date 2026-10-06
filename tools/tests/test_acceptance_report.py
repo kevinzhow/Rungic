@@ -613,12 +613,13 @@ def test_renderer_keeps_plan_execution_and_pass_counts_separate(runner, catalog)
     plan['scenarios'][0]['covers'] = ['iface:host-input']
     report = acc.run_scenarios([runner.scenario('one')], out_dir=runner.path, scope='smoke', skips={'one': 'excluded'})
     rendered = acc.render_report(report['path']).read_text()
-    assert '本次计划直接关联 0 个用户场景（共 2 个）' in rendered
-    assert '完整验收另关联 1 个，本次没有运行' in rendered
-    assert '其余 1 个没有本验收计划的自动检查直接关联' in rendered
+    assert '用户场景清单共 2 个。本次计划的检查直接关联 0 个。' in rendered
+    assert '完整真机验收另关联 1 个，本次没有运行' in rendered
+    assert '其余 1 个不在真机验收计划里。其他层的测试声明不算本次执行。' in rendered
+    assert '没有自动检查' not in rendered and '没有任何检查' not in rendered
     # With no planned scenario there is nothing executed to report, and the smoke note
     # only explains a passing smoke run, not this incomplete one.
-    assert '其中实际执行了' not in rendered
+    assert '其中实际执行' not in rendered
     assert '冒烟只说明' not in rendered
     assert '首次安装进入桌面' in rendered
 
@@ -643,14 +644,14 @@ def test_renderer_refuses_unknown_coverage_before_writing(runner, catalog, ref):
 def test_skipped_user_check_is_planned_but_never_executed_or_passed(runner, catalog):
     report = acc.run_scenarios([runner.scenario('one')], out_dir=runner.path, skips={'one': 'excluded'})
     rendered = acc.render_report(report['path']).read_text()
-    assert '本次计划直接关联 1 个用户场景（共 2 个）' in rendered
-    assert '其中实际执行了 0 个，关联检查全部通过的 0 个' in rendered
+    assert '用户场景清单共 2 个。本次计划的检查直接关联 1 个' in rendered
+    assert '（其中实际执行 0 个，关联检查全部通过 0 个）' in rendered
 
 # covers: delivery.acceptance/E6
 def test_mixed_checks_for_one_user_scenario_do_not_claim_all_passed(runner, catalog):
     report = acc.run_scenarios([runner.scenario('one'), runner.scenario('other', 'bad')], out_dir=runner.path)
     rendered = acc.render_report(report['path']).read_text()
-    assert '其中实际执行了 1 个，关联检查全部通过的 0 个' in rendered
+    assert '（其中实际执行 1 个，关联检查全部通过 0 个）' in rendered
 
 # covers: delivery.acceptance/E6
 def test_duplicate_plan_id_is_rejected_before_rendering(runner, catalog):
