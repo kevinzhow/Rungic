@@ -46,7 +46,12 @@ class PackageReadback(unittest.TestCase):
         device.shell.side_effect=shell
         before={'paths':{},'termux_path':'termux','user_packages':'' if already_removed else 'package:'+standalone.APP}
         if resume:before['pending']='resume-op:1:-:'+kind
-        def state(d):return before if len(calls)<4 else {'paths':{standalone.PENDING:marker},'pending':'op:1:-' if marker else '', 'termux_path':'termux','user_packages':'package:'+standalone.APP if present else ''}
+        def state(d, extra_paths=()):
+            if len(calls)<4:return before
+            paths={path:False for path in standalone.PATHS.values()}
+            paths.update({path:False for path in extra_paths})
+            paths.update({standalone.PENDING:marker,standalone.COMPAT:True,standalone.UNINSTALLED:True})
+            return {'paths':paths,'pending':'op:1:-' if marker else '', 'termux_path':'termux','user_packages':'package:'+standalone.APP if present else ''}
         with tempfile.TemporaryDirectory() as temp:
             args=argparse.Namespace(serial='USB',adb_port=5037,adb='adb',purge=True,yes_delete=True,report=Path(temp)/'report')
             with mock.patch.object(standalone,'Device',return_value=device),mock.patch.object(standalone,'uninstall_state',side_effect=state),mock.patch.object(standalone,'PACKAGE_PERSIST_TIMEOUT',0,create=True):

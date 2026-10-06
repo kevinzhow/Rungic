@@ -8,7 +8,7 @@ from unittest import mock
 p=argparse.ArgumentParser();p.add_argument('repository',type=Path);p.add_argument('output',type=Path);a=p.parse_args()
 sys.path.insert(0,str(a.repository.resolve()/'tools/ci'));product=importlib.import_module('standalone')
 a.output.mkdir(parents=True,exist_ok=True);results=[]
-for mode in ['normal','package_failure','readback_failure','finish_readback_marker','final_snapshot_failure','final_snapshot_marker','preview_healthy','preview_mount']:
+for mode in ['normal','package_failure','readback_failure','finish_readback_marker','final_snapshot_failure','final_snapshot_marker','final_snapshot_unknown','final_snapshot_missing','final_snapshot_duplicate','final_snapshot_runtime_reappears','final_snapshot_package_reappears','final_snapshot_retained_gone','preview_healthy','preview_mount']:
  case=a.output.resolve()/mode;root=case/'root';adb=root/'data/adb'
  home=adb/'rungic-lxc/runtime/var/lib/lxc/plasma/state/home';home.mkdir(parents=True);(home/'private').write_text('old home')
  appdata=root/'data/user/0'/product.APP;appdata.mkdir(parents=True);(appdata/'private').write_text('app private')
@@ -49,16 +49,27 @@ for mode in ['normal','package_failure','readback_failure','finish_readback_mark
     raise subprocess.CalledProcessError(1,'final-snapshot',output='Injected snapshot failure after marker clear\n')
    if root and self.marker_cleared and mode=='final_snapshot_marker' and 'printf' in script and 'if [ -e' in script:
     (adb/'rungic-uninstalling').write_text('unexpected-marker:1:-')
+   if root and self.marker_cleared and 'printf' in script and 'if [ -e' in script:
+    if mode=='final_snapshot_runtime_reappears':
+     (adb/'rungic-plasma').mkdir(exist_ok=True);(adb/'rungic-plasma/unexpected').write_text('reappeared')
+    if mode=='final_snapshot_package_reappears':self.installed=True
+    if mode=='final_snapshot_retained_gone':(adb/'rungic-uninstalled').unlink(missing_ok=True)
    if script.startswith('rm -f '+product.PENDING):self.marker_cleared=True
    text=script
    for prefix in ('/data/system','/data/adb','/data/data','/data/user_de','/data/user','/data/local/tmp','/proc','/sys/block','/product'):
     text=re.sub(r'(?<![\w/])'+re.escape(prefix)+r'\b',str(case/'root')+prefix,text)
-   text=text.replace(str(adb/'magisk/busybox'),'/usr/bin/busybox')
+   text=text.replace('BB='+str(adb/'magisk/busybox'),'BB=/usr/bin/busybox')
    run=subprocess.run(['/usr/bin/busybox','ash','-c','set -eu\nid() { echo 0; }\nchcon() { :; }\ngetprop() { echo fixture-base; }\nuname() { echo fixture-kernel; }\ngetenforce() { echo Enforcing; }\n'+text],capture_output=True,text=True,timeout=30)
    number=len(self.commands);(case/f'command-{number}.sh').write_text(text);(case/f'command-{number}.stdout').write_text(run.stdout);(case/f'command-{number}.stderr').write_text(run.stderr)
    if 'phase\truntime-removed' in run.stdout:self.root_removed=True
    if run.returncode:raise subprocess.CalledProcessError(run.returncode,'local-shell',output=(run.stdout+run.stderr).replace(str(case/'root'),''))
-   return run.stdout.replace(str(case/'root'),'').strip()
+   output=run.stdout.replace(str(case/'root'),'').strip()
+   if root and self.marker_cleared and 'printf' in script and 'if [ -e' in script:
+    if mode=='final_snapshot_unknown':output=output.replace(product.PENDING+'\t0',product.PENDING+'\tUNKNOWN')
+    if mode=='final_snapshot_missing':output='\n'.join(line for line in output.splitlines() if not line.startswith(product.PENDING+'\t'))
+    if mode=='final_snapshot_duplicate':output+='\n'+product.PENDING+'\t1'
+    if mode in ('final_snapshot_unknown','final_snapshot_missing','final_snapshot_duplicate'):(case/f'command-{number}.stdout-injected').write_text(output)
+   return output
  device=Device(None);args=argparse.Namespace(serial='USB',adb_port=5037,adb='unused',purge=True,yes_delete=not mode.startswith('preview'),report=case/'report')
  error=None
  try:
@@ -71,6 +82,8 @@ for mode in ['normal','package_failure','readback_failure','finish_readback_mark
  elif mode=='package_failure':checks.update(rejected=error is not None,incomplete=not report['complete'],marker_kept=pending,raw_failure_retained='Failure [busy]' in json.dumps(report))
  elif mode=='readback_failure':checks.update(rejected=error is not None,incomplete=not report['complete'],marker_kept=pending,readback_failure_recorded='readback_error' in report,no_false_verified_rows=not any(token in line for line in markdown.splitlines() if line.startswith('| `') for token in ('已删除并读回','已删除并确认','确认不存在')))
  elif mode=='final_snapshot_failure':checks.update(rejected=error is not None,incomplete=not report['complete'],failure_recorded=bool(report.get('readback_error')),prior_snapshot_kept=bool(report.get('before_finish')),marker_clear_evidence=report.get('marker_cleared') is True)
+ elif mode in ('final_snapshot_unknown','final_snapshot_missing','final_snapshot_duplicate','final_snapshot_runtime_reappears','final_snapshot_package_reappears','final_snapshot_retained_gone'):
+  checks.update(rejected=error is not None,incomplete=not report['complete'],no_false_completed_heading='范围内卸载完成' not in markdown)
  elif mode=='final_snapshot_marker':checks.update(rejected=error is not None,incomplete=not report['complete'],marker_present=pending,final_snapshot_preserved=report.get('after',{}).get('paths',{}).get(product.PENDING) is True,retained_marker=product.PENDING in report['expected_retained'])
  elif mode=='finish_readback_marker':checks.update(incomplete_if_marker_present=not pending or not report['complete'])
  else:

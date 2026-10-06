@@ -628,7 +628,7 @@ class Preview(unittest.TestCase):
             self.assertIn('readback_error', report)
             self.assertNotIn('finish', [step['name'] for step in report['steps']])
             markdown = (args.report / 'report.md').read_text()
-            self.assertIn('删除脚本报告已删除 | 读回未完成，未确认', markdown)
+            self.assertIn('已删除（脚本报告） | 读回未完成，未确认', markdown)
             self.assertNotIn('已删除并读回', markdown)
 
     def test_confirmation_without_report_never_contacts_device(self):
@@ -767,7 +767,7 @@ class HostFlow(unittest.TestCase):
                                      str(source.parents[1]), root], capture_output=True, text=True, timeout=60)
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
             cases = json.loads((Path(root) / 'results.json').read_text())
-            self.assertEqual(len(cases), 8)
+            self.assertEqual(len(cases), 14)
             for case in cases:
                 self.assertTrue(all(case['checks'].values()), case)
             failed = Path(root) / 'readback_failure'
@@ -777,7 +777,7 @@ class HostFlow(unittest.TestCase):
             self.assertEqual(entry, {'path': removed, 'operation': 'deleted', 'readback': 'unknown'})
             self.assertFalse((failed / 'root/data/adb/rungic-lxc').exists())
             self.assertTrue((failed / 'root/data/adb/rungic-uninstalling').is_file())
-            self.assertIn('删除脚本报告已删除 | 读回未完成，未确认', (failed / 'report/report.md').read_text())
+            self.assertIn('已删除（脚本报告） | 读回未完成，未确认', (failed / 'report/report.md').read_text())
             marker = Path(root) / 'finish_readback_marker'
             self.assertFalse(json.loads((marker / 'report/report.json').read_text())['complete'])
             self.assertTrue((marker / 'root/data/adb/rungic-uninstalling').is_file())
@@ -813,8 +813,8 @@ Hidden system packages:
             standalone.write_removal_report(report, {'plan_only': True, 'before': {
                 'apk_sources': versions, 'user_packages': 'package:' + standalone.APP}})
             text = report.with_suffix('.md').read_text()
-            self.assertIn('用户 0 更新包：2.39（代码 239）', text)
-            self.assertIn('系统分区 APK：2.6（代码 26）', text)
+            self.assertIn('用户 0 更新包：2.39（版本编号 239）', text)
+            self.assertIn('系统分区 APK：2.6（版本编号 26）', text)
 
     def test_ordinary_apk_does_not_invent_a_system_base(self):
         # covers: install.standalone-uninstall/E1
