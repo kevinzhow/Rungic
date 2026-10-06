@@ -64,6 +64,7 @@ QtObject {
     function watching(visible) {}
     function open(id) { Recorder.add("open") }
     function openAgent(usage) { Recorder.add(usage ? "app: usage page" : "app: agent conversation") }
+    function signIn() { Recorder.add("app: sign-in page") }
     function conversation(id) { Recorder.add("conversation " + id) }
 }
 '''
@@ -220,11 +221,29 @@ class SuggestionsWidgetTest(WidgetTest):
 
     # covers: agent.briefing/E8
     def test_long_press_is_left_to_folio_and_a_tap_opens_the_card(self):
-        self.show(HOME, CARDS)
+        self.show(HOME, CARDS, providers=[CODEX])
         self.tap(180, 200, hold=1.2)                       # press and hold: Folio's own editing
         self.assertEqual(self.calls(), [])
         self.tap(180, 200)
         self.assertEqual(self.calls(), ['opened card1', 'openCard card1'])
+
+    # covers: agent.briefing/E9
+    def test_unavailable_agent_hides_investigation_but_preserves_records(self):
+        self.show(HOME, CARDS, providers=[{**CODEX, 'status': 'signed-out'}])
+        widget = self.item('widget')
+        self.assertFalse(widget.property('canAskAgent'))
+        self.tap(180, 200)
+        self.assertNotIn('openCard card1', self.calls())
+        self.assertIn('open', self.calls(), 'card tap opens records without starting an Agent task')
+        for status, stale in [('offline', False), ('error', False), ('ready', True)]:
+            self.recorder.setProperty('providers', [{**CODEX, 'status': status, 'stale': stale}])
+            self.wait(0.05)
+            self.assertFalse(widget.property('canAskAgent'))
+        self.recorder.setProperty('providers', [CODEX])
+        self.wait(0.05)
+        self.assertTrue(widget.property('canAskAgent'))
+        self.tap(180, 200)
+        self.assertIn('openCard card1', self.calls(), 'recovery restores the normal task entry')
 
 
 USAGE_HOME = '''Window {
@@ -266,6 +285,60 @@ class UsageWidgetTest(WidgetTest):
         self.tap(260, 120)
         self.assertEqual(self.calls(), ['app: agent conversation'])
 
+    # covers: agent.usage-widget/E5 agent.usage-widget/E7
+    def test_signed_out_goes_to_login_and_first_connection_failure_is_visible(self):
+        self.show(USAGE_HOME, providers=[{'id': 'codex', 'name': 'Codex', 'status': 'signed-out'}])
+        self.assertEqual(self.item('usage').property('body'), 'signin')
+        self.tap(260, 120)
+        self.assertEqual(self.calls(), ['app: sign-in page'])
+        self.recorder.setProperty('providers', [{'id': 'codex', 'name': 'Codex', 'status': 'offline', 'updatedAt': 0}])
+        self.wait(0.05)
+        self.assertEqual(self.item('usage').property('body'), 'unreachable')
+        self.assertEqual(self.item('usage').property('statusText'), 'Connection failed')
+
 
 if __name__ == '__main__':
     unittest.main()
+
+class InvestigationCardTest(WidgetTest):
+    # covers: agent.briefing/E9
+    def test_connection_controls_new_investigation_but_keeps_later_and_details(self):
+        self.show('''Window { width: 360; height: 500
+            SuggestionCard { objectName: "card"; width: 340; x: 10; y: 10;
+                item: ({state: "attention", displayTitle: "A system component quit unexpectedly", evidence: {reports: 3, package: "xdg-desktop-portal"}})
+            }
+        }''')
+        card = self.item('card')
+        def buttons():
+            pending = [card]; result = {}
+            while pending:
+                item = pending.pop()
+                if item.metaObject().className().startswith('PillButton'):
+                    result[item.property('text')] = item.property('visible')
+                pending.extend(item.childItems())
+            return result
+        self.assertFalse(buttons()['Ask Agent to check'])
+        self.assertTrue(buttons()['Later'])
+        card.setProperty('canAskAgent', True); self.wait(0.1)
+        self.assertTrue(buttons()['Ask Agent to check'])
+        card.setProperty('canAskAgent', False); self.wait(0.1)
+        self.assertFalse(buttons()['Ask Agent to check'])
+        self.assertTrue(buttons()['Later'])
+
+
+class AgentAvailabilityCopyTest(WidgetTest):
+    # covers: agent.usage-widget/E5 agent.usage-widget/E7
+    def test_first_read_distinguishes_signed_out_and_connection_failure_in_visible_text(self):
+        self.show(USAGE_HOME, providers=[{**CODEX, 'status': 'signed-out', 'limits': []}])
+        def texts():
+            pending = [self.window.contentItem()]; values=[]
+            while pending:
+                item=pending.pop()
+                if item.property('visible') and item.property('text'): values.append(item.property('text'))
+                pending.extend(item.childItems())
+            return values
+        self.assertIn('Not signed in to Codex', texts())
+        self.recorder.setProperty('providers', [{**CODEX, 'status': 'offline', 'updatedAt': 0, 'limits': []}]); self.wait(.1)
+        self.assertIn('Cannot reach Codex right now', texts())
+        self.assertNotIn('Not signed in to Codex', texts())
+        self.assertNotIn('Last read', ' '.join(texts()))

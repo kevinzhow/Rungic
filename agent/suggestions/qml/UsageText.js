@@ -4,6 +4,7 @@
 function number(l10n, value) { return value === undefined || value === null ? l10n.i18n("no records yet") : Number(value).toLocaleString(Qt.locale(), "f", 0) }
 function mode(l10n, p) {
     const a = p.account || {}
+    if (p.status === "offline" || p.status === "error") return status(l10n, p)
     if (!p.id || p.status === "connecting") return l10n.i18n("Connecting")
     return ({"api-key": a.label || "API Key", subscription: a.label || l10n.i18n("Subscription"), none: l10n.i18n("Not signed in")})[a.kind] || l10n.i18n("Not signed in")
 }
@@ -57,3 +58,6 @@ function resetNote(l10n, w, now) {
     if (w.usedPercent >= 100) return countdown ? l10n.i18nc("@info usage limit: %1 a duration", "Back in %1", t) : l10n.i18nc("@info usage limit: %1 a weekday and time", "Back %1", t)
     return countdown ? l10n.i18nc("@info usage limit: %1 a duration", "Resets in %1", t) : l10n.i18nc("@info usage limit: %1 a weekday and time", "Resets %1", t)
 }
+
+// A previous ready reply cannot enable actions while the latest read is unknown.
+function canAsk(p) { return p && p.stale !== true && ["ready", "working"].includes(p.status) }

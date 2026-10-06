@@ -6,6 +6,7 @@ import QtQuick.Controls as QQC2
 import com.rungic.design
 import com.rungic.suggestions
 import org.kde.ki18n
+import "UsageText.js" as UsageText
 
 Rectangle {
     id: feed
@@ -23,6 +24,9 @@ Rectangle {
     color: Theme.side
     KI18nContext { id: l10n; translationDomain: "rungic-suggestions" }
     SuggestionsClient { id: client }
+    UsageClient { id: usage }
+    readonly property bool canAskAgent: UsageText.canAsk(usage.providers.find(p => p.id === "codex"))
+    Timer { interval: 60000; repeat: true; running: feed.activeView; onTriggered: usage.refresh() }
     PresentationTracker { view: list; suggestionsClient: client; active: feed.activeView && !snooze.visible && !applyDialog.visible; selectedId: feed.selectedId }
     readonly property var clientItems: [client.items, client.groups, client.historyGroups]
     onClientItemsChanged: {
@@ -165,6 +169,7 @@ Rectangle {
                 onClicked: { feed.selectedId = item.id; feed.beginning() }
             }
             SuggestionCard {
+                canAskAgent: feed.canAskAgent
             id: card
             visible: !parent.modelData.members
             item: parent.modelData

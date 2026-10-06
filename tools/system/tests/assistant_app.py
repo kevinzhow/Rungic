@@ -183,6 +183,13 @@ def test():
         s.check(True, 'the running window opens the conversation the second start was given')
         time.sleep(1)
         s.check(len([w for w in s.stack() if w['caption'] + w['cls'] not in before]) == 1, 'still one app window')
+        # covers[system]: agent.sign-in/E1
+        CALLS.write_text('')
+        entry = subprocess.run([str(program), '--sign-in'], env=env, timeout=20, capture_output=True)
+        s.check(entry.returncode == 0, 'sign-in entry hands over to the existing app and exits')
+        s.wait_for(lambda: ['Setup'] in calls('agent'), 10, 'account page requests the actual account state')
+        s.check(len([w for w in s.stack() if w['caption'] + w['cls'] not in before]) == 1,
+                'sign-in entry uses the existing window')
         return s.steps
 
 

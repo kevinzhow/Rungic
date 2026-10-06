@@ -511,6 +511,24 @@ class AppTest(unittest.TestCase):
         self.assertTrue(api.property('checked'))
         self.assertFalse(codex.property('checked'))
 
+    # covers: agent.sign-in/E1 agent.usage-widget/E5
+    def test_sign_in_entry_and_unknown_account_do_not_claim_signed_out(self):
+        q.js(self.engine, self.root, 'openAgentPage("sign-in")')
+        q.spin(0.3)
+        page = q.of_type(self.content, 'AccountPage')[0]
+        q.send(self.engine, 'replied', 'Setup', {'codex': {'installed': True}, 'accountStatus': 'offline', 'account': None})
+        q.spin(0.2)
+        self.assertEqual(page.property('visualState'), 'unreachable')
+        self.assertFalse(page.property('choicesShown'))
+        self.assertIn('Cannot confirm the sign-in right now', self.texts())
+        button = next(b for b in q.of_type(page, 'PillButton') if b.property('text') == 'Check again')
+        q.click(button)
+        self.assertIn(['request', 'Setup'], q.calls(self.engine))
+        q.send(self.engine, 'replied', 'Setup', {'codex': {'installed': True}, 'accountStatus': 'signed-out', 'account': None})
+        q.spin(0.2)
+        self.assertEqual(page.property('visualState'), 'signedOut')
+        self.assertTrue(page.property('choicesShown'))
+
 
 if __name__ == '__main__':
     unittest.main()

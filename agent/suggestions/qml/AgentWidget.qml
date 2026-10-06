@@ -45,6 +45,7 @@ Item {
     readonly property var tokens: provider.tokens || ({})
     readonly property string body: !provider.id ? "none"
         : provider.status === "signed-out" ? "signin"
+        : ["offline", "error"].includes(provider.status) && (!provider.updatedAt || !limits.length && tokens.device == null) ? "unreachable"
         : provider.status === "connecting" || (!provider.updatedAt && !limits.length && tokens.device == null) ? "skeleton"
         : limits.length ? "meters"
         : tokens.today != null || tokens.device != null ? "stats"
@@ -60,8 +61,8 @@ Item {
 
     readonly property string statusText: ({
         working: l10n.i18nc("@info agent status", "Working"), ready: l10n.i18nc("@info agent status", "Ready"),
-        offline: l10n.i18nc("@info agent status", "Offline"), connecting: l10n.i18nc("@info agent status", "Connecting…"),
-        "signed-out": l10n.i18nc("@info agent status", "Signed out"), error: l10n.i18nc("@info agent status", "Couldn’t update")
+        offline: l10n.i18nc("@info agent status", "Connection failed"), connecting: l10n.i18nc("@info agent status", "Connecting…"),
+        "signed-out": l10n.i18nc("@info agent status", "Not signed in"), error: l10n.i18nc("@info agent status", "Couldn’t update")
     })[provider.status] || ""
     readonly property string rightText: {
         if (!provider.id || compact || nextProvider) return ""
@@ -102,20 +103,22 @@ Item {
                     MouseArea {
                         anchors.fill: parent; anchors.margins: -10
                         enabled: widget.live
-                        onClicked: navigation.openAgent()
+                        onClicked: widget.body === "signin" ? navigation.signIn() : navigation.openAgent()
                         Accessible.role: Accessible.Button
                         Accessible.name: widget.provider.name || "Agent"
-                        Accessible.onPressAction: navigation.openAgent()
+                        Accessible.onPressAction: widget.body === "signin" ? navigation.signIn() : navigation.openAgent()
                     }
                 }
                 Text {
-                    text: widget.compact && widget.provider.name === "Claude Code" ? "Claude" : (widget.provider.name || "Agent")
+                    text: widget.provider.status === "signed-out" ? l10n.i18n("Not signed in to %1", widget.provider.name || "Codex")
+                        : ["offline", "error"].includes(widget.provider.status) ? l10n.i18n("Cannot reach %1 right now", widget.provider.name || "Codex")
+                        : widget.compact && widget.provider.name === "Claude Code" ? "Claude" : (widget.provider.name || "Agent")
                     font.family: Theme.fontFamily; font.pixelSize: 15; font.weight: Font.DemiBold
                     color: Theme.text
                 }
                 BusyRing { visible: widget.provider.status === "working" || widget.provider.status === "connecting"; implicitWidth: 12; implicitHeight: 12 }
                 Text {
-                    visible: !widget.compact && !widget.flat && widget.statusText !== ""
+                    visible: !widget.compact && !widget.flat && widget.statusText !== "" && !["signed-out", "offline", "error"].includes(widget.provider.status)
                     text: widget.statusText
                     font.family: Theme.fontFamily; font.pixelSize: 13
                     color: widget.provider.status === "working" ? Theme.text : Theme.dim
@@ -167,8 +170,8 @@ Item {
                     Layout.maximumWidth: card.width * 0.55
                     text: widget.body === "stats"
                           ? l10n.i18nc("@info tokens used: %1 a compact number", "Today %1", UsageText.compact(l10n, widget.tokens.today != null ? widget.tokens.today : widget.tokens.device))
-                          : ({ none: l10n.i18n("No agent is connected yet."), signin: l10n.i18n("Sign in to see usage and limits."),
-                               unreachable: l10n.i18nc("@info %1 an agent's name", "Can’t reach %1 right now.", widget.provider.name || ""),
+                          : ({ none: l10n.i18n("No agent is connected yet."), signin: l10n.i18n("Sign in so Agent can help with your tasks."),
+                               unreachable: l10n.i18n("Will retry automatically."),
                                norecords: l10n.i18n("No usage recorded yet.") })[widget.body] || ""
                     font.family: Theme.fontFamily; font.pixelSize: 13
                     color: Theme.dim
@@ -289,8 +292,8 @@ Item {
                     Layout.fillWidth: true
                     text: ({
                         none: l10n.i18n("No agent is connected yet."),
-                        signin: l10n.i18n("Sign in to see usage and limits."),
-                        unreachable: l10n.i18nc("@info %1 an agent's name", "Can’t reach %1 right now.", widget.provider.name || ""),
+                        signin: l10n.i18n("Sign in so Agent can help with your tasks."),
+                        unreachable: l10n.i18n("Will retry automatically."),
                         norecords: l10n.i18n("No usage recorded yet.")
                     })[widget.body] || ""
                     font.family: Theme.fontFamily; font.pixelSize: 13
@@ -327,7 +330,7 @@ Item {
             anchors.fill: parent
             z: -1
             enabled: widget.live
-            onClicked: widget.body === "none" || widget.body === "signin" ? navigation.openAgent() : navigation.openAgent(true)
+            onClicked: widget.body === "signin" ? navigation.signIn() : widget.body === "none" ? navigation.openAgent() : navigation.openAgent(true)
         }
     }
 }

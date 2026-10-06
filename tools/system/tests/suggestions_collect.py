@@ -47,10 +47,10 @@ def test():
     log = open('/tmp/suggestions-build.log', 'w')
     shutil.copytree('/src/agent/suggestions', SOURCE, dirs_exist_ok=True)
     for argv in (['cmake', '-S', SOURCE, '-B', BUILD, '-DCMAKE_BUILD_TYPE=RelWithDebInfo'],
-                 ['cmake', '--build', BUILD, '-j', str(os.cpu_count() or 4), '--target', 'rungic-suggestions', 'care-tests']):
+                 ['cmake', '--build', BUILD, '-j', str(os.cpu_count() or 4), '--target', 'rungic-suggestions', 'care-tests', 'rungicsuggestions', 'pofiles']):
         if subprocess.run(argv, stdout=log, stderr=subprocess.STDOUT).returncode:
             raise harness.Failed('build failed: ' + open('/tmp/suggestions-build.log').read()[-1500:])
-    steps.append('built rungic-suggestions and care-tests')
+    steps.append('built service, care-tests, native QML module and translations')
     entries = {json.loads(p.read_text())['id']: json.loads(p.read_text())
                for p in Path('/src/compatibility/entries').glob('*.json')}
     rule = entries['qt-pulseaudio-target-latency']

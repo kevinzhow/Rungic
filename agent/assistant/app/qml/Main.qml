@@ -51,6 +51,7 @@ QQC2.ApplicationWindow {
     function openAgentPage(page) {
         while (stack.depth > 1) stack.pop(null)
         if (page === "usage") stack.push(Qt.resolvedUrl("UsagePage.qml"))
+        else if (page === "sign-in") stack.push(Qt.resolvedUrl("AccountPage.qml"))
     }
     function openSuggestions(id) {
         while (stack.depth > 1) stack.pop(null)

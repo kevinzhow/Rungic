@@ -389,6 +389,7 @@ static QString curationError(const QString &raw) {
     // The voice agent starts its errors with a reason code (rungic_voice_agent.py, curate).
     const auto code = raw.section(':', 0, 0).trimmed();
     if (code == "unavailable") return i18n("Codex isn't installed or isn't running, so Agent didn't sort these suggestions.");
+    if (code == "connection-failed") return i18n("Cannot connect to Codex, so these suggestions have not been sorted.");
     if (code == "signed-out") return i18n("Agent isn't signed in, so it didn't sort these suggestions.");
     if (code == "limit") return i18n("Agent's usage limit is reached, so it didn't sort these suggestions.");
     if (code == "busy") return i18n("Agent was busy, so it didn't sort these suggestions.");

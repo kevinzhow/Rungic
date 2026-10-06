@@ -86,6 +86,7 @@ void SuggestionsClient::launch(const QStringList &arguments) {
 }
 void SuggestionsClient::open(const QString &id) { launch({"--suggestion", id}); }
 void SuggestionsClient::openAgent(bool usage) { launch({usage ? "--usage" : "--agent"}); }
+void SuggestionsClient::signIn() { launch({"--sign-in"}); }
 void SuggestionsClient::conversation(const QString &id) { if (!id.isEmpty()) launch({"--conversation", id}); }
 void SuggestionsClient::watching(bool visible) {
     m_watching = visible;

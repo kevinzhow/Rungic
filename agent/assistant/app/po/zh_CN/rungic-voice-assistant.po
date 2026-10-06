@@ -1657,3 +1657,15 @@ msgstr "通话中 · 直接说就行"
 msgctxt "@info the voice bar while the call with the Agent is in another conversation"
 msgid "On a call in another conversation"
 msgstr "通话在另一段对话中"
+
+msgctxt "@info"
+msgid "Cannot confirm the sign-in right now"
+msgstr "暂时连不上 Codex，无法确认登录状态"
+
+msgctxt "@info"
+msgid "Cannot connect to Codex. Your sign-in has not been changed."
+msgstr "暂时连不上 Codex。你的登录没有变化。"
+
+msgctxt "@action:button"
+msgid "Check again"
+msgstr "重新检查"

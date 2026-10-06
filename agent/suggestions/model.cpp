@@ -122,9 +122,11 @@ static QJsonObject projected(QJsonObject o) {
         && !o["verification"].toString().trimmed().isEmpty() && !o["rollback"].toString().trimmed().isEmpty();
     o["groupId"] = groupKey(o);
     const auto e = o["evidence"].toObject();
-    o["displayTitle"] = e["package"] == "plasma-workspace" ? i18n("A desktop component quit unexpectedly") : o["title"].toString();
+    o["displayTitle"] = o["source"] == "crashes" ? (e["package"] == "plasma-workspace" ? i18n("A desktop component quit unexpectedly") : i18n("A system component quit unexpectedly")) : o["title"].toString();
     auto summary = o["conclusion"].toString().trimmed();
     if (summary.isEmpty()) summary = plainSummary(o["result"].toString());
+    if (summary.isEmpty() && o["source"] == "crashes" && e["reports"].toInt() > 0)
+        summary = i18np("%1 crash report saved. The cause and impact still need checking.", "%1 crash reports saved. The cause and impact still need checking.", e["reports"].toInt());
     if (summary.isEmpty()) summary = o["body"].toString();
     o["summary"] = summary;
     o["notified"] = o["notifiedRevision"].toInteger() >= o["deliveryRevision"].toInteger();

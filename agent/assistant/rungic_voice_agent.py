@@ -2133,6 +2133,23 @@ class VoiceAgent:
                                'usedPercent': window['usedPercent'], 'resetsAt': window.get('resetsAt')})
         return limits
 
+    def codex_account(self):
+        """Read authentication from Codex; a failed read never means signed out."""
+        if not self.server:
+            return {'status': 'offline', 'account': None}
+        try:
+            reply = self.server.call('account/read', {'refreshToken': False}, timeout=5)
+            if not isinstance(reply, dict) or 'account' not in reply:
+                raise ValueError('account reply missing')
+            account = reply['account']
+            if account is None:
+                return {'status': 'signed-out', 'account': None}
+            if not isinstance(account, dict) or account.get('type') not in ('chatgpt', 'apiKey'):
+                raise ValueError('account reply unknown')
+            return {'status': 'ready', 'account': account}
+        except Exception:
+            return {'status': 'offline', 'account': None}
+
     def usage(self):
         """The Codex provider of the desktop's agent usage (com.rungic.Suggestions AgentUsage, schema 2).
 
@@ -2144,10 +2161,12 @@ class VoiceAgent:
         result = {'accountKey': identity, 'model': effective.get('name') or effective.get('model') or '', 'status': 'working' if self.agent_busy else 'ready',
                   'account': {'kind': 'none', 'label': '', 'plan': ''}}
         server = self.server
-        if not server:
+        authentication = self.codex_account()
+        if authentication['status'] == 'offline':
             result['status'] = 'offline'
+            result['error'] = _("Can't reach Codex right now")
             return result
-        account = server.call('account/read', {'refreshToken': False}, timeout=5).get('account') or {}
+        account = authentication['account'] or {}
         kind = {'chatgpt': 'subscription', 'apiKey': 'api-key'}.get(account.get('type'), 'none')
         result['account'] = {'kind': kind, 'label': {'subscription': 'ChatGPT', 'api-key': 'API Key'}.get(kind, ''),
                              'plan': account.get('planType') or ''}
@@ -2879,8 +2898,10 @@ class VoiceAgent:
         server = self.server
         if not server:
             raise RuntimeError('unavailable: Codex is not installed or not running')
-        account = (server.call('account/read', {'refreshToken': False}, timeout=10) or {}).get('account')
-        if not account and not openai_key():
+        authentication = self.codex_account()
+        if authentication['status'] == 'offline':
+            raise RuntimeError('connection-failed: account state could not be read')
+        if authentication['status'] == 'signed-out' and not openai_key():
             raise RuntimeError('signed-out: no account')
         if not self.curation_lock.acquire(blocking=False):
             raise RuntimeError('busy: already curating')
@@ -3089,12 +3110,8 @@ class VoiceAgent:
         if path:
             parts = self.codex_version()
             version, runs = codex_install.version_text(parts), bool(parts)
-        account = None
-        if self.server:
-            try:
-                account = self.server.call('account/read', {'refreshToken': False}, timeout=10).get('account')
-            except Exception as error:  # noqa: BLE001
-                log('account/read', error)
+        authentication = self.codex_account()
+        account = authentication['account']
         key = keys.read('openai-api-key')
         store = 'file'
         try:
@@ -3110,7 +3127,7 @@ class VoiceAgent:
             app_version = ''
         return {'codex': {'installed': bool(path), 'version': version, 'path': str(path or ''), 'runs': runs,
                           'running': self.server is not None, 'update': self.codex_update.check()},
-                'account': account, 'credentials': 'keyring' if store in ('keyring', 'auto') else 'file',
+                'account': account, 'accountStatus': authentication['status'], 'credentials': 'keyring' if store in ('keyring', 'auto') else 'file',
                 'key': {'set': bool(key), 'masked': (key[:3] + '…' + key[-4:]) if len(key) > 10 else (_('Set') if key else ''),
                         'store': keys.where('openai-api-key'), 'working': self.key_working},
                 'preferences': self.prefs, 'desktop': {'mode': mode.plan()},

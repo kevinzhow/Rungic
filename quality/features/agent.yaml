@@ -625,6 +625,7 @@ features:
       - tools/rungic_agent.py
       - tools/rungic_agent_mcp.py
       - tools/ui_launch_check.py
+      - tools/tests/test_drawer_locator.py
       - .mcp.json
       - tools/tests/test_rungic_agent_mcp.py
     docs: [docs/55-agent-native-debugging.md, docs/agent-ready-interfaces.md]
@@ -1282,6 +1283,8 @@ features:
         evidence:
           - {doc: docs/research/proactive-system-care.md, date: 2026-09-30, note: "RSS 约 12.6 MiB，单次 root 采集约 172 ms"}
         device: 常驻内存和单次采集的 CPU 时间取决于手机上真实的崩溃记录、软件包数量和 CPU，容器里量出的数不代表手机。采集器只调用 dpkg-query、dpkg --audit 和 systemctl --failed（collector.cpp）
+      - id: E9
+        text: 崩溃卡先说明可理解的组件名称与退出记录次数；未经调查不宣称具体功能已受影响。原包名、版本、签名和报告保留在详情中，不把技术术语当成调查结论。
     pitfalls:
       - text: 日志里的 error 只是线索。SIGKILL、无响应和没有 core 都不能单独推出崩溃原因。Blender 的 CPU 渲染是用户选的策略，不能提示“修复为 GPU”。
         docs: [docs/research/proactive-system-care.md]
@@ -1343,6 +1346,9 @@ features:
         text: 卡片内滑动不会打开应用抽屉。在壁纸处上滑仍打开抽屉。长按进入原生调整。
         evidence:
           - {doc: docs/research/proactive-system-care.md, date: 2026-09-30, note: "20260930.13 实际触摸注入"}
+      - id: E9
+        text: 当前未登录或连接状态未确认时，不显示依赖 Agent 的调查按钮；问题记录仍能查看和稍后处理。连接提醒集中在用量卡，不在建议卡上重复显示。状态恢复后调查入口恢复。
+        gap: 实际 QML 的宿主手势和状态测试使用 DBus 替身；首装未登录、真实断网与恢复需要下一轮真机验证。
     pitfalls:
       - text: 用户否定了全屏卡片主屏和逐记录卡片。建议放在原 Folio 上方的原生 widget 区域，由 Agent 决定展示哪几件事。
         docs: [docs/research/proactive-system-care.md, docs/research/96-agent-curated-briefing.md]

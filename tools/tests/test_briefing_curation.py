@@ -19,7 +19,7 @@ body = [n for n in tree.body if isinstance(n, ast.Assign) and any(getattr(t, 'id
 body += [n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == 'BackgroundTurn']
 agent_class = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == 'VoiceAgent')
 agent_class.body = [n for n in agent_class.body if isinstance(n, ast.FunctionDef)
-                    and n.name in {'curate', 'open_briefing_card', 'on_notification'}]
+                    and n.name in {'codex_account', 'curate', 'open_briefing_card', 'on_notification'}]
 body.append(agent_class)
 namespace = {'json': json, 're': re, 'threading': threading, 'time': time, 'Path': Path, '_': lambda text: text,
              'language_note': lambda: '\n\nlanguage: English', 'log': lambda *a: None,
@@ -140,6 +140,18 @@ class CurationTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, '^invalid:'): self.agent.curate('[]')
         with self.assertRaisesRegex(ValueError, '^invalid:'): self.agent.curate('{"items": []}' + ' ' * namespace['CURATE_INPUT_MAX'])
         self.assertNotIn('thread/start', [m for m, _ in server.calls])
+
+    # covers: agent.briefing/E4
+    def test_connection_failure_is_distinct_from_signed_out_and_recovers(self):
+        self.agent.server = Mock()
+        self.agent.server.call.side_effect = TimeoutError('private')
+        with self.assertRaisesRegex(RuntimeError, '^connection-failed:'):
+            self.agent.curate(self.input)
+        self.agent.server = FakeServer(self.agent, account={})
+        with self.assertRaisesRegex(RuntimeError, '^signed-out:'):
+            self.agent.curate(self.input)
+        self.agent.server = FakeServer(self.agent)
+        self.assertEqual(self.agent.curate(self.input), CARDS)
 
     # covers: agent.briefing/E4
     def test_usage_limit_and_invalid_answer(self):

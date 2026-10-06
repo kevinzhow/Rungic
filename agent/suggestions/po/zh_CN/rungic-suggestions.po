@@ -966,3 +966,36 @@ msgstr "尚未整理"
 msgctxt "@info tokens used: %1 a compact number"
 msgid "Today %1"
 msgstr "今天 %1"
+
+msgid "Not signed in to %1"
+msgstr "尚未登录 %1"
+
+msgid "Cannot reach %1 right now"
+msgstr "暂时连不上 %1"
+
+msgid "Sign in so Agent can help with your tasks."
+msgstr "登录后，Agent 才能帮你做事。"
+
+msgid "Will retry automatically."
+msgstr "会自动重试。"
+
+msgctxt "@info agent status"
+msgid "Connection failed"
+msgstr "暂时连不上"
+
+msgctxt "@info agent status"
+msgid "Not signed in"
+msgstr "尚未登录"
+
+msgid "A system component quit unexpectedly"
+msgstr "一个系统组件意外退出"
+
+msgid "Component: %1"
+msgstr "组件：%1"
+
+msgid "Cannot connect to Codex, so these suggestions have not been sorted."
+msgstr "暂时连不上 Codex，这些建议尚未整理。"
+
+msgid "%1 crash report saved. The cause and impact still need checking."
+msgid_plural "%1 crash reports saved. The cause and impact still need checking."
+msgstr[0] "最近保存了 %1 份退出记录。原因和实际影响仍需确认。"

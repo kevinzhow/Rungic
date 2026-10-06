@@ -9,7 +9,7 @@ root = Path(__file__).resolve().parents[2]
 source = root / 'agent/assistant/rungic_voice_agent.py'
 tree = ast.parse(source.read_text())
 node = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == 'VoiceAgent')
-node.body = [n for n in node.body if isinstance(n, ast.FunctionDef) and n.name in {'usage', 'usage_limits', 'on_notification'}]
+node.body = [n for n in node.body if isinstance(n, ast.FunctionDef) and n.name in {'codex_account', 'usage', 'usage_limits', 'on_notification'}]
 namespace = {'_': lambda text: text, 'json': json, 'threading': types.SimpleNamespace(Thread=Mock()), 'log': Mock()}
 exec(compile(ast.Module(body=[node], type_ignores=[]), str(source), 'exec'), namespace)
 # Keys every provider object may carry (the rest is dropped by the service anyway).
@@ -86,6 +86,23 @@ class UsageBridgeTests(unittest.TestCase):
         self.agent.server = Mock()
         self.agent.server.call.return_value = {'account': {'type': 'apiKey'}}
         self.assertEqual(self.agent.usage()['status'], 'working')
+
+    # covers: agent.usage-widget/E5
+    def test_account_read_failures_and_malformed_replies_are_not_signed_out(self):
+        for reply in ({}, {'account': {}}, {'account': {'type': 'future'}}, ['bad']):
+            with self.subTest(reply=reply):
+                self.agent.server.call.return_value = reply
+                data = self.agent.usage()
+                self.assertEqual(data['status'], 'offline')
+                self.assertNotIn('limits', data)
+                self.assertNotIn('tokenEvents', data)
+        self.agent.server.call.side_effect = RuntimeError('private diagnostic')
+        self.assertEqual(self.agent.usage()['status'], 'offline')
+        self.agent.server.call.side_effect = None
+        self.agent.server.call.return_value = {'account': None}
+        self.assertEqual(self.agent.usage()['status'], 'signed-out')
+        self.agent.server.call.return_value = {'account': {'type': 'apiKey'}}
+        self.assertEqual(self.agent.usage()['status'], 'ready')
 
     # covers: agent.usage-widget/E5
     def test_account_change_during_read_discards_response(self):

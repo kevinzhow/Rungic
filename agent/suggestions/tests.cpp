@@ -59,6 +59,18 @@ private Q_SLOTS:
         QCOMPARE(m.groups(true).size(), 1); QCOMPARE(m.groups().size(), 2);
         QCOMPARE(m.list().size(), 3);
     }
+    // covers: agent.care-ledger/E9
+    void crashCopyPreservesEvidenceWithoutClaimingImpact() {
+        Care::Model m(""); auto o = item();
+        o["evidence"] = QJsonObject{{"package", "xdg-desktop-portal-kde"}, {"reports", 3}, {"version", "6.6"}};
+        o["body"] = "Reports with the same signature kept recently";
+        m.observe(o, 100);
+        const auto shown = m.get(o["id"].toString());
+        QVERIFY(!shown["displayTitle"].toString().contains("xdg-desktop"));
+        QVERIFY(!shown["summary"].toString().contains("signature"));
+        QCOMPARE(shown["evidence"].toObject()["package"].toString(), QString("xdg-desktop-portal-kde"));
+        QCOMPARE(shown["body"].toString(), o["body"].toString());
+    }
     // covers: agent.suggestion-tasks/E2
     void structuredSummaryDoesNotMakeAPlanExecutable() {
         Care::Model m(""); const auto o = item(); const auto id = o["id"].toString(); m.observe(o, 100);

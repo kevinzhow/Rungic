@@ -8,6 +8,7 @@ import org.kde.ki18n
 Rectangle {
     id: card
     required property var item
+    property bool canAskAgent: false
     property bool expanded: false
     signal action(string name, var args)
     readonly property var evidence: item.evidence || ({})
@@ -56,13 +57,14 @@ Rectangle {
         Text {
             Layout.fillWidth: true
             visible: card.expanded
-            text: [card.item.issueNote, card.item.result, l10n.i18n("Plan status: %1", ({ready: l10n.i18n("A plan is ready to review and apply"), unavailable: l10n.i18n("No plan can be applied right now"), needs_investigation: l10n.i18n("Still needs investigation")})[card.item.planStatus] || l10n.i18n("Still needs investigation")), card.item.plan ? l10n.i18n("Plan: %1", card.item.plan) : "", card.item.verification ? l10n.i18n("Verification: %1", card.item.verification) : "", card.item.rollback ? l10n.i18n("Rollback: %1", card.item.rollback) : "", l10n.i18n("Basis: %1", card.basis)].filter(Boolean).join("\n\n")
+            text: [card.item.issueNote, card.item.result, card.evidence.package ? l10n.i18n("Component: %1", card.evidence.package) : "", l10n.i18n("Plan status: %1", ({ready: l10n.i18n("A plan is ready to review and apply"), unavailable: l10n.i18n("No plan can be applied right now"), needs_investigation: l10n.i18n("Still needs investigation")})[card.item.planStatus] || l10n.i18n("Still needs investigation")), card.item.plan ? l10n.i18n("Plan: %1", card.item.plan) : "", card.item.verification ? l10n.i18n("Verification: %1", card.item.verification) : "", card.item.rollback ? l10n.i18n("Rollback: %1", card.item.rollback) : "", l10n.i18n("Basis: %1", card.basis)].filter(Boolean).join("\n\n")
             textFormat: Text.PlainText; wrapMode: Text.WrapAnywhere; font.pixelSize: 13; color: Theme.dim
         }
         RowLayout {
             Layout.fillWidth: true
             spacing: 8
             PillButton {
+                visible: card.canAskAgent || ["dismissed", "resolved"].includes(card.stateName) || !!card.item.conversation
                 text: card.stateName === "working" ? l10n.i18n("View progress") : card.stateName === "dismissed" ? l10n.i18n("Restore") : card.item.conversation ? l10n.i18n("View result") : card.stateName === "resolved" ? l10n.i18n("Show details") : l10n.i18n("Ask Agent to check")
                 onClicked: {
                     if (card.stateName === "dismissed") card.action("restore", {})

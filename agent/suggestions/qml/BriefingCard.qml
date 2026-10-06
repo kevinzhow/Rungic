@@ -17,6 +17,7 @@ Rectangle {
     property string agentName: "Codex"
     property var agentIcon: ({})
     property string meta: ""
+    property bool canAskAgent: true
     property bool busy: false            // the Agent is sorting the cards again
     property bool opening: false         // Open was tapped; waiting for the conversation
     property string workingText: ""      // "Codex is on it · 4 min" when a task runs for it
@@ -159,11 +160,11 @@ Rectangle {
         RowLayout {
             Layout.fillWidth: true
             // From the texts, not the buttons: a hidden row hides its children, which would keep it hidden.
-            visible: face.primaryText !== "" || face.secondaryText !== ""
+            visible: face.primaryText !== "" && (face.canAskAgent || ["empty", "working", "result"].includes(face.visualState)) || face.secondaryText !== ""
             spacing: 8
             PillButton {
                 id: primary
-                visible: face.primaryText !== ""
+                visible: face.primaryText !== "" && (face.canAskAgent || ["empty", "working", "result"].includes(face.visualState))
                 text: face.primaryText
                 forcedState: face.pressedPart === "primary" ? "pressed" : ""
                 focusPolicy: Qt.NoFocus

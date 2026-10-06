@@ -9,6 +9,7 @@ import QtQuick.Window
 import com.rungic.design
 import com.rungic.suggestions
 import org.kde.ki18n
+import "UsageText.js" as UsageText
 
 Item {
     id: widget
@@ -59,6 +60,9 @@ Item {
 
     KI18nContext { id: l10n; translationDomain: "rungic-suggestions" }
     SuggestionsClient { id: client }
+    UsageClient { id: usage }
+    readonly property bool canAskAgent: UsageText.canAsk(usage.providers.find(p => p.id === "codex"))
+    Timer { interval: 60000; repeat: true; running: widget.activeView && widget.live; onTriggered: usage.refresh() }
     Connections {
         target: client
         function onReplied(id, action, result) { if (action === "openCard") widget.openingId = "" }
@@ -80,8 +84,7 @@ Item {
         if (briefing.curating) return l10n.i18nc("@info the agent is choosing the cards again", "Sorting new findings…")
         // A fallback card is either waiting for the first sort or stands in for an agent that failed.
         if (deckState === "cards" && briefing.source === "fallback")
-            return briefing.error ? l10n.i18nc("@info %1 the agent's name", "%1 unavailable", agentName)
-                                  : l10n.i18nc("@info the agent has not chosen the cards yet", "Not sorted yet")
+            return canAskAgent ? l10n.i18nc("@info the agent has not chosen the cards yet", "Not sorted yet") : ""
         if (!briefing.generatedAt) return ""
         return deckState === "empty" ? l10n.i18nc("@info %1 relative time", "Checked %1", ago(briefing.generatedAt)) : ago(briefing.generatedAt)
     }
@@ -108,6 +111,7 @@ Item {
         if (openingId !== "") return   // a second tap while the first opens would start a second conversation
         client.presentCard(currentCard.id, true)
         if (item && item.conversation) { client.conversation(item.conversation); return }
+        if (!canAskAgent && !item) { client.open((currentCard.refs || [])[0] || ""); return }
         openingId = currentCard.id
         client.openCard(currentCard.id)
     }
@@ -155,6 +159,7 @@ Item {
             card: widget.cards[widget.neighbour] || ({})
             position: widget.neighbour + 1; count: widget.cards.length
             agentName: widget.agentName; agentIcon: widget.agentIcon
+            canAskAgent: widget.canAskAgent
             meta: widget.meta; busy: widget.briefing.curating === true
             workingText: widget.workingText(card)
             bodyLines: widget.bodyLines
@@ -168,6 +173,7 @@ Item {
             card: widget.currentCard
             position: widget.current + 1; count: widget.cards.length
             agentName: widget.agentName; agentIcon: widget.agentIcon
+            canAskAgent: widget.canAskAgent
             meta: widget.meta; busy: widget.briefing.curating === true
             opening: widget.openingId !== "" && widget.openingId === widget.currentCard.id
             workingText: widget.deckState === "cards" ? widget.workingText(widget.currentCard) : ""

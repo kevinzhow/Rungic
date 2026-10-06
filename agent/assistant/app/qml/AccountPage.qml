@@ -23,6 +23,7 @@ SettingsFrame {
     readonly property string kind: Account.kind(account)
     readonly property string visualState: forcedState !== "" ? forcedState
         : setup.codex === undefined ? "loading"
+        : setup.accountStatus === "offline" ? "unreachable"
         : login && !login.error ? "signingIn"
         : confirming ? "confirming"
         : kind === "chatgpt" ? "chatgpt" : kind === "apiKey" ? "apiKey" : "signedOut"
@@ -32,6 +33,7 @@ SettingsFrame {
     property bool confirmShown: false
     states: [
         State { name: "loading"; PropertyChanges { page.choicesShown: false; page.codeShown: false; page.confirmShown: false } },
+        State { name: "unreachable"; PropertyChanges { page.choicesShown: false; page.codeShown: false; page.confirmShown: false } },
         State { name: "signedOut"; PropertyChanges { page.choicesShown: true; page.codeShown: false; page.confirmShown: false } },
         State { name: "chatgpt"; PropertyChanges { page.choicesShown: true; page.codeShown: false; page.confirmShown: false } },
         State { name: "apiKey"; PropertyChanges { page.choicesShown: true; page.codeShown: false; page.confirmShown: false } },
@@ -75,7 +77,7 @@ SettingsFrame {
         Layout.leftMargin: Theme.groupMargin
         Layout.rightMargin: Theme.groupMargin
         ListRow {
-            text: page.visualState === "loading" ? "" : Account.label(page.tr, page.account)
+            text: page.visualState === "unreachable" ? i18nc("@info", "Cannot confirm the sign-in right now") : page.visualState === "loading" ? "" : Account.label(page.tr, page.account)
             subtitle: page.kind === "chatgpt" ? (page.account.email || "") : ""
             dot: page.visualState === "loading" ? "" : page.kind === "none" ? "negative" : "positive"
         }
@@ -85,7 +87,7 @@ SettingsFrame {
         Layout.leftMargin: Theme.gutter
         Layout.rightMargin: Theme.gutter
         Layout.topMargin: Theme.spaceM
-        visible: page.visualState !== "loading"
+        visible: !["loading", "unreachable"].includes(page.visualState)
         text: Account.billing(page.tr, page.account)
     }
     Note {
@@ -96,6 +98,17 @@ SettingsFrame {
         visible: !!(page.login && page.login.error)
         tone: "negative"
         text: page.login && page.login.error ? page.login.error : ""
+    }
+
+    Note {
+        Layout.fillWidth: true
+        visible: page.visualState === "unreachable"
+        text: i18nc("@info", "Cannot connect to Codex. Your sign-in has not been changed.")
+    }
+    PillButton {
+        visible: page.visualState === "unreachable"
+        text: i18nc("@action:button", "Check again")
+        onClicked: AgentClient.request("Setup")
     }
 
     // ---- the ways to sign in ----------------------------------------------------------------
