@@ -1,9 +1,14 @@
 """Independent payload corruption and wrong-device checks; no ADB operations."""
+import argparse
 import json
+import shlex
+import shutil
 from pathlib import Path
 import subprocess
 import tempfile
 import unittest
+
+import standalone
 
 from standalone import FILES, digest, preflight, verify, validate_cast_host, cast_payload
 
@@ -90,6 +95,76 @@ class PayloadTests(unittest.TestCase):
         manifest['boot_sha256'] = 'different'
         with self.assertRaisesRegex(ValueError, 'boot image'):
             preflight(Fake(fields), manifest)
+
+
+class InstallerTransferTests(unittest.TestCase):
+    # covers: install.standalone-install/E2
+    def test_transferred_inventory_is_checked_before_apk_install(self):
+        # Exercise the transfer/check boundary on disk. Android identity, free
+        # space and package operations are stand-ins; checksum commands are real.
+        class PackageInstallReached(Exception):
+            pass
+
+        for schema, corrupt in ((1, False), (2, False), (2, True)):
+            with self.subTest(schema=schema, corrupt=corrupt), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                payload = root / 'payload'
+                payload.mkdir()
+                names = FILES | ({'build-manifest.json'} if schema == 2 else set())
+                for name in names:
+                    (payload / name).write_text('fixture: ' + name)
+                manifest = {'schema': schema, 'release': 'test.1', 'rootfs_bytes': 1024,
+                            'files': {name: {'sha256': digest(payload / name)} for name in names}}
+                (payload / 'manifest.json').write_text(json.dumps(manifest))
+                stage = standalone.staging_path(manifest['release'])
+                local_stage = root / 'stage'
+
+                class Device:
+                    def __init__(self):
+                        self.pushed = set()
+                        self.checked = set()
+                        self.packages = []
+
+                    def push(self, local, remote):
+                        self.pushed.add(remote)
+                        target = local_stage / Path(remote).name
+                        shutil.copyfile(local, target)
+                        if corrupt and target.name == 'build-manifest.json':
+                            target.write_text('corrupt transfer')
+
+                    def shell(self, script, **kwargs):
+                        if script.startswith('mkdir -p '):
+                            local_stage.mkdir()
+                        elif '| sha256sum -c -' in script:
+                            self.checked = {shlex.split(line)[1].split('  ', 1)[1]
+                                            for line in script.splitlines()}
+                            result = subprocess.run(['sh', '-c', 'set -eu\n' +
+                                script.replace(stage + '/', str(local_stage) + '/')],
+                                capture_output=True, text=True, timeout=30)
+                            if result.returncode:
+                                raise subprocess.CalledProcessError(result.returncode, 'sh',
+                                                                    result.stdout, result.stderr)
+                        elif script.startswith('pm path '):
+                            return 'package:/product/app/Termux/Termux.apk'
+                        elif script.startswith('pm install '):
+                            self.packages.append(script)
+                            raise PackageInstallReached()
+                        return ''
+
+                device = Device()
+                args = argparse.Namespace(manifest_sha256=digest(payload / 'manifest.json'))
+                expected_error = subprocess.CalledProcessError if corrupt else PackageInstallReached
+                with self.assertRaises(expected_error) as caught:
+                    standalone._install(args, device, payload, manifest, {})
+                expected = {stage + '/' + name for name in names}
+                self.assertEqual(device.checked, expected)
+                self.assertEqual(device.pushed, expected | {stage + '/manifest.json'})
+                self.assertEqual({path.name for path in local_stage.iterdir()}, names | {'manifest.json'})
+                if corrupt:
+                    self.assertIn('build-manifest.json', caught.exception.stdout)
+                    self.assertEqual(device.packages, [])
+                else:
+                    self.assertEqual(device.packages, [f'pm install -r {stage}/rungic.apk'])
 
 
 class BootCompatibilityTests(unittest.TestCase):

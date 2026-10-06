@@ -366,7 +366,7 @@ def _install(args, d, folder, m, evidence):
     ''', root=True)
     stage = staging_path(rid)
     d.shell(f'mkdir -p {stage}')
-    for name in sorted(FILES | {'manifest.json'}):
+    for name in sorted(set(m['files']) | {'manifest.json'}):
         d.push(folder / name, stage + '/' + name)
     checks = '\n'.join(f"echo {shlex.quote(v['sha256'] + '  ' + stage + '/' + n)} | sha256sum -c -" for n, v in m['files'].items())
     d.shell(checks, root=True, timeout=300)
