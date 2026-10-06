@@ -91,6 +91,16 @@ def write_removal_report(path, result):
                   '底座与内核：' + '。'.join(before.get('base', [])), '']
     if result.get('error'):
         lines += ['失败原因：' + result['error'], '']
+    pm_steps = [entry for entry in result.get('steps', []) if 'verified' in entry]
+    if pm_steps:
+        lines += ['## Android 包操作', '', '成败取决于独立读回。命令输出和退出码只作为证据。', '']
+        for entry in pm_steps:
+            lines += [entry['label'] + '：' + ('已确认' if entry['verified'] else '未确认') + '。',
+                      '读回：`' + json.dumps(entry.get('readback'), ensure_ascii=False) + '`。',
+                      '命令退出码：`' + str(entry.get('returncode')) + '`。原始输出：',
+                      '```text', entry['output'], '```', '']
+        if not result.get('complete'):
+            lines += ['下一步：保持现场和未完成标记，先核对失败步骤的读回；修正后使用同样的 --purge 选择续跑。', '']
     if result.get('readback_error'):
         lines += ['最终读回失败，不能确认当前现场：' + result['readback_error'], '']
     if 'preserved_home' in result:
@@ -439,9 +449,10 @@ def uninstall_state(device):
         paths[path] = present == '1'
     pending = device.shell(f'test ! -L {PENDING}; if [ -e {PENDING} ]; then test -f {PENDING}; cat {PENDING}; fi', root=True)
     stages = device.shell("find /data/local/tmp -maxdepth 1 -type d -name 'rungic-*' -print", root=True).splitlines()
+    packages, _ = package_readback(device, 'remove-user-app')
     return {'paths': paths, 'pending': pending, 'stages': stages,
             'other_paths': device.shell("find /data/adb -maxdepth 1 -name '*rungic*' -print", root=True).splitlines(),
-            'user_packages': '\n'.join(line for line in device.shell(f'pm list packages --user 0 {APP}').splitlines() if line == f'package:{APP}'),
+            'user_packages': '\n'.join(line for line in packages['user_packages'] if line == f'package:{APP}'),
             'package_paths': device.shell(f'pm path {APP} || true'),
             'termux_path': device.shell('pm path com.termux || true'),
             'base': device.shell('getprop ro.build.fingerprint; uname -r; getenforce', root=True).splitlines(),
@@ -763,6 +774,73 @@ progress phase runtime-removed
     return header + '\n' + checks + script
 
 
+def installed_package_info(info):
+    # The hidden system package is not the installed package. Do not inspect its flags.
+    active = info.split('Hidden system packages:', 1)[0]
+    block = re.search(r'^\s*Package \[' + re.escape(APP) + r'\][^\n]*:\n(.*?)(?=^\s*Package \[|\Z)', active, re.M | re.S)
+    body = block.group(1) if block else ''
+    match = re.search(r'\b(?:pkgFlags|flags)=\[([^\]]*)\]', body)
+    version = re.search(r'\bversionCode=(\d+)', body)
+    if not match or not version:
+        raise ValueError('当前包属性读回未知。')
+    return {'flags': match.group(1).split(), 'versionCode': int(version.group(1))}
+
+
+def package_readback(device, name, evidence=None):
+    """Observe package state independently of the mutating pm command's response."""
+    def observe(command, **kwargs):
+        entry = {'command': command, 'root': kwargs.get('root', False), 'output': '', 'returncode': None}
+        try:
+            entry['output'] = device.shell(command, **kwargs)
+            entry['returncode'] = 0
+            return entry['output']
+        except subprocess.SubprocessError as error:
+            raw = getattr(error, 'output', '') or ''
+            entry['output'] = raw.decode(errors='replace') if isinstance(raw, bytes) else raw
+            entry['returncode'] = getattr(error, 'returncode', None)
+            raise
+        finally:
+            if evidence is not None:
+                evidence.append(entry)
+
+    if name == 'clear-app-data':
+        # Android may recreate empty cache directories. No files or symlinks may remain.
+        # Check CE and DE storage; never follow an application-data symlink.
+        output = observe(f'''# RUNGIC_APP_DATA_READBACK
+test "$(id -u)" = 0
+BB=/data/adb/magisk/busybox
+for pair in CE:/data/user/0 DE:/data/user_de/0; do
+    kind=${{pair%%:*}}; parent=${{pair#*:}}; path=$parent/{APP}
+    test -d "$parent" && test ! -L "$parent" && test -r "$parent" && test -x "$parent" || exit 1
+    test ! -L "$path" || exit 1
+    if [ -e "$path" ]; then
+        test -d "$path" && test -r "$path" && test -x "$path" || exit 1
+        entries=$("$BB" find "$path" -mindepth 1 ! -type d -print) || exit 1
+        if [ -n "$entries" ]; then state=NOT_EMPTY; else state=EMPTY; fi
+    else state=EMPTY; fi
+    printf '%s\\t%s\\n' "$kind" "$state"
+done''', root=True)
+        rows = output.splitlines()
+        if len(rows) != 2 or any(row not in (kind + '\tEMPTY', kind + '\tNOT_EMPTY')
+                                 for row, kind in zip(rows, ('CE', 'DE'))):
+            raise ValueError('应用数据读回格式未知。')
+        return {'CE': rows[0].split('\t')[1], 'DE': rows[1].split('\t')[1]}, all(row.endswith('\tEMPTY') for row in rows)
+    if name == 'remove-apk-update':
+        paths = observe(f'pm path --user 0 {APP}').splitlines()
+        info = observe(f'dumpsys package {APP}')
+        observed = installed_package_info(info)
+        if not paths or any(not row.startswith('package:/') for row in paths):
+            raise ValueError('更新包路径或当前包属性读回未知。')
+        observed['paths'] = paths
+        flags = observed['flags']
+        return observed, all(row.startswith('package:/product/') for row in paths) and 'SYSTEM' in flags and 'UPDATED_SYSTEM_APP' not in flags
+    output = observe(f'pm list packages --user 0 {APP}')
+    rows = output.splitlines()
+    if any(not re.fullmatch(r'package:[A-Za-z0-9_.]+', row) for row in rows):
+        raise ValueError('用户 0 包列表读回未知。')
+    return {'user_packages': rows}, f'package:{APP}' not in rows
+
+
 def uninstall(args):
     if args.report:
         args.report.mkdir(parents=True, exist_ok=False)
@@ -870,16 +948,40 @@ def _uninstall(args):
                 step('stop-app', lambda: device.shell(f'am force-stop --user 0 {APP}'))
             step('remove-runtime', lambda: device.shell(script, root=True, timeout=1800))
             if before.get('user_packages'):
-                def package(script):
-                    output = device.shell(script, timeout=180)
-                    if output.strip() != 'Success':
-                        raise ValueError('Package removal did not return Success: ' + output)
-                    return output
-                step('clear-app-data', lambda: package(f'pm clear --user 0 {APP}'))
-                info = device.shell(f'dumpsys package {APP}')
-                if 'UPDATED_SYSTEM_APP' in info:
-                    step('remove-apk-update', lambda: package(f'pm uninstall-system-updates {APP}'))
-                step('remove-user-app', lambda: package(f'pm uninstall --user 0 {APP}'))
+                def package(name, label, command):
+                    result['phase'] = name
+                    entry = {'name': name, 'label': label, 'command': command,
+                             'output': '', 'returncode': None, 'verified': False, 'readback': None,
+                             'observations': []}
+                    result['steps'].append(entry)
+                    write_removal_report(report_file, result)
+                    try:
+                        entry['output'] = device.shell(command, timeout=180)
+                        entry['returncode'] = 0
+                    except subprocess.SubprocessError as error:
+                        raw = getattr(error, 'output', '') or ''
+                        entry['output'] = raw.decode(errors='replace') if isinstance(raw, bytes) else raw
+                        entry['returncode'] = getattr(error, 'returncode', None)
+                        entry['command_error'] = str(error)
+                    # Save the command response even if the following observation fails.
+                    write_removal_report(report_file, result)
+                    try:
+                        entry['readback'], entry['verified'] = package_readback(device, name, entry['observations'])
+                    except (subprocess.SubprocessError, ValueError) as error:
+                        entry['readback_error'] = str(error)
+                        raise ValueError(label + '：读回未知，未确认完成。' + str(error)) from error
+                    finally:
+                        write_removal_report(report_file, result)
+                    if not entry['verified']:
+                        raise ValueError(label + '：读回状态未达到要求。' + json.dumps(entry['readback'], ensure_ascii=False))
+                package('clear-app-data', '清空应用数据', f'pm clear --user 0 {APP}')
+                try:
+                    info = installed_package_info(step('inspect-apk-update', lambda: device.shell(f'dumpsys package {APP}')))
+                except (subprocess.SubprocessError, ValueError) as error:
+                    raise ValueError('检查 APK 更新：读回未知，未确认是否存在更新包。' + str(error)) from error
+                if 'UPDATED_SYSTEM_APP' in info['flags']:
+                    package('remove-apk-update', '移除 APK 更新', f'pm uninstall-system-updates {APP}')
+                package('remove-user-app', '卸载用户 0 的应用', f'pm uninstall --user 0 {APP}')
             after = uninstall_state(device)
             result['after'] = after
             for path in targets:

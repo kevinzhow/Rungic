@@ -644,14 +644,21 @@ class Preview(unittest.TestCase):
         device.maintenance.return_value = nullcontext()
         before = {'paths': {}, 'termux_path': 'termux', 'user_packages': 'package:' + standalone.APP}
         commands = []
+        updated = True
 
         def shell(command, **kwargs):
+            nonlocal updated
             commands.append((command, kwargs.get('root', False)))
             if command == 'getprop ro.serialno': return 'USB'
             if command == 'pm list users': return 'UserInfo{0:Owner:13}'
             if command == 'id -u': return '0'
-            if command.startswith('dumpsys'): return 'UPDATED_SYSTEM_APP'
-            if command.startswith('pm uninstall-system-updates'): return 'Success'
+            if 'RUNGIC_APP_DATA_READBACK' in command: return 'CE\tEMPTY\nDE\tEMPTY'
+            if command.startswith('pm path --user 0'): return 'package:/product/app/Rungic/Rungic.apk'
+            if command.startswith('pm list packages --user 0'): return 'package:' + standalone.APP
+            if command.startswith('dumpsys'): return f'Packages:\n  Package [{standalone.APP}] (abc):\n    versionCode=54\n    flags=[ SYSTEM ' + ('UPDATED_SYSTEM_APP' if updated else '') + ' ]\n'
+            if command.startswith('pm uninstall-system-updates'):
+                updated = False
+                return 'Success'
             if command.startswith('pm clear'): return 'Success'
             if command.startswith('pm uninstall --user'):
                 raise subprocess.CalledProcessError(1, 'adb', output=b'Failure [package busy]')
@@ -663,7 +670,7 @@ class Preview(unittest.TestCase):
                                       yes_delete=True, report=Path(directory) / 'report')
             with mock.patch.object(standalone, 'Device', return_value=device), \
                  mock.patch.object(standalone, 'uninstall_state', return_value=before), \
-                 self.assertRaises(subprocess.CalledProcessError):
+                 self.assertRaisesRegex(ValueError, '卸载用户 0'):
                 standalone.uninstall(args)
             report = json.loads((args.report / 'report.json').read_text())
             self.assertFalse(report['complete'])

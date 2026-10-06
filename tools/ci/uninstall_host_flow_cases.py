@@ -12,14 +12,14 @@ for mode in ['normal','package_failure','readback_failure','finish_readback_mark
  case=a.output.resolve()/mode;root=case/'root';adb=root/'data/adb'
  home=adb/'rungic-lxc/runtime/var/lib/lxc/plasma/state/home';home.mkdir(parents=True);(home/'private').write_text('old home')
  appdata=root/'data/user/0'/product.APP;appdata.mkdir(parents=True);(appdata/'private').write_text('app private')
- for d in ['proc/self','proc/1','sys/block','product/etc/rungic','data/local/tmp']:(root/d).mkdir(parents=True,exist_ok=True)
+ for d in ['proc/self','proc/1','sys/block','product/etc/rungic','data/local/tmp','data/user_de/0']:(root/d).mkdir(parents=True,exist_ok=True)
  (root/'proc/mounts').write_text(f'none {home}/Shared none rw 0 0\n' if mode=='preview_mount' else '')
  (root/'proc/1/cmdline').write_bytes(b'init\x00');(root/'proc/1/mountinfo').write_text('1 0 0:1 / / rw - rootfs rootfs rw\n');(root/'proc/self/mountinfo').write_text('1 0 0:1 / / rw - rootfs rootfs rw\n');(root/'product/etc/rungic/firstboot.sh').write_text('old seed')
  def snapshot():
   return {str(x.relative_to(root)):('link:'+os.readlink(x) if x.is_symlink() else 'dir' if x.is_dir() else hashlib.sha256(x.read_bytes()).hexdigest()) for x in root.rglob('*')}
  original=snapshot()
  class Device:
-  def __init__(self,args):self.installed=True;self.commands=[];self.root_removed=False
+  def __init__(self,args):self.installed=True;self.updated=True;self.commands=[];self.root_removed=False
   def maintenance(self,**kwargs):return contextlib.nullcontext()
   def push(self,*args):raise AssertionError('Uninstall must not upload a payload')
   def shell(self,script,root=False,timeout=120):
@@ -30,22 +30,24 @@ for mode in ['normal','package_failure','readback_failure','finish_readback_mark
    if script.startswith('pm list packages'):return 'package:'+product.APP if self.installed else ''
    if script.startswith('pm path com.termux'):return 'package:/data/app/termux/base.apk'
    if script.startswith('pm path '):return 'package:/product/app/Rungic/Rungic.apk'
-   if script.startswith('dumpsys '):return 'versionCode=26 versionName=2.6' if 'grep' in script else 'UPDATED_SYSTEM_APP'
+   if script.startswith('dumpsys '):
+    if 'grep' in script:return 'versionCode=26 versionName=2.6'
+    return f'Packages:\n  Package [{product.APP}] (abc):\n    versionCode=54\n    flags=[ SYSTEM ' + ('UPDATED_SYSTEM_APP' if self.updated else '') + ' ]\n'
    if script.startswith('am force-stop'):return ''
    if script.startswith('pm clear'):
     subprocess.run(['rm','-rf','--',str(appdata)],check=True);return 'Success'
-   if script.startswith('pm uninstall-system-updates'):return 'Success'
+   if script.startswith('pm uninstall-system-updates'):self.updated=False;return 'Success'
    if script.startswith('pm uninstall --user'):
     if mode=='package_failure':raise subprocess.CalledProcessError(1,'package-manager',output='Failure [busy]\n')
     self.installed=False;return 'Success'
-   if root and self.root_removed and mode=='readback_failure' and 'printf' in script and 'if [ -e' in script:
+   if root and self.root_removed and mode=='readback_failure' and 'RUNGIC_APP_DATA_READBACK' not in script and 'printf' in script and 'if [ -e' in script:
     raise subprocess.CalledProcessError(1,'path-readback',output='Injected final readback failure\n')
    if script.startswith('rm -f '+product.PENDING) and mode=='finish_readback_marker':return '' # Command says success, marker actually remains.
    text=script
-   for prefix in ('/data/adb','/data/data','/data/user','/data/local/tmp','/proc','/sys/block','/product'):
+   for prefix in ('/data/adb','/data/data','/data/user_de','/data/user','/data/local/tmp','/proc','/sys/block','/product'):
     text=re.sub(r'(?<![\w/])'+re.escape(prefix)+r'\b',str(case/'root')+prefix,text)
    text=text.replace(str(adb/'magisk/busybox'),'/usr/bin/busybox')
-   run=subprocess.run(['/usr/bin/busybox','ash','-c','set -eu\nchcon() { :; }\ngetprop() { echo fixture-base; }\nuname() { echo fixture-kernel; }\ngetenforce() { echo Enforcing; }\n'+text],capture_output=True,text=True,timeout=30)
+   run=subprocess.run(['/usr/bin/busybox','ash','-c','set -eu\nid() { echo 0; }\nchcon() { :; }\ngetprop() { echo fixture-base; }\nuname() { echo fixture-kernel; }\ngetenforce() { echo Enforcing; }\n'+text],capture_output=True,text=True,timeout=30)
    number=len(self.commands);(case/f'command-{number}.sh').write_text(text);(case/f'command-{number}.stdout').write_text(run.stdout);(case/f'command-{number}.stderr').write_text(run.stderr)
    if 'phase\truntime-removed' in run.stdout:self.root_removed=True
    if run.returncode:raise subprocess.CalledProcessError(run.returncode,'local-shell',output=(run.stdout+run.stderr).replace(str(case/'root'),''))
