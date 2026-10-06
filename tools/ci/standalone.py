@@ -600,8 +600,7 @@ mv "$pending.tmp" "$pending"
 sync
 if [ -x "$controller/rungic-plasma" ]; then
     "$controller/rungic-plasma" stop
-    runtime_state=$("$controller/rungic-plasma" runtime-status) || fail 'Cannot read the container state.'
-    [ "$runtime_state" = STOPPED ] || fail 'The container did not stop.'
+    # Older controllers have no runtime-status; independently inspect the resources below.
 fi
 # Only the casting watcher needs a signal. Other workers stop through the controller.
 for proc in /proc/[0-9]*; do

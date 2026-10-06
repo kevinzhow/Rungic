@@ -30,7 +30,7 @@ class RemovalShell(unittest.TestCase):
         os.link(self.home / '.private', self.home / 'hardlink')
         controller = self.adb / 'rungic-plasma/rungic-plasma'
         controller.parent.mkdir(parents=True)
-        controller.write_text('#!/bin/sh\n[ "$1" != runtime-status ] || echo STOPPED\nexit 0\n')
+        controller.write_text('#!/bin/sh\n[ "$1" = stop ] || { echo "Unknown controller action" >&2; exit 1; }\nexit 0\n')
         controller.chmod(0o755)
         for name in ('proc', 'sys/block', 'product/etc/rungic', 'data/local/tmp'):
             (self.base / name).mkdir(parents=True)
@@ -192,6 +192,30 @@ class RemovalShell(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertFalse(self.home.exists())
         self.assertEqual((old / 'file').read_text(), 'history')
+
+    def test_legacy_controller_needs_only_stop(self):
+        # covers: install.standalone-uninstall/E3 install.standalone-uninstall/E4
+        for purge in (False, True):
+            with self.subTest(purge=purge):
+                fixture=RemovalShell()
+                fixture.shell=self.shell
+                fixture.setUp()
+                try:
+                    calls=fixture.base/'controller-calls'
+                    controller=fixture.adb/'rungic-plasma/rungic-plasma'
+                    controller.write_text('#!/bin/sh\nprintf "%s\\n" "$1" >> "'+str(calls)+'"\n'
+                                          '[ "$1" = stop ] || { echo "plasma {open|start|stop|status}" >&2; exit 1; }\n'
+                                          'echo "Plasma Mobile stopped"\n')
+                    result=fixture.run_shell(purge=purge)
+                    self.assertEqual(result.returncode,0,result.stderr)
+                    self.assertEqual(calls.read_text().splitlines(),['stop'])
+                    self.assertFalse(fixture.home.exists())
+                    self.assertFalse(controller.exists())
+                    self.assertEqual(fixture.unrelated.read_text(),'keep')
+                    if not purge:
+                        self.assertEqual((fixture.adb/'rungic-preserved/home-test/home/.private').read_bytes(),b'example\x00content')
+                finally:
+                    fixture.tmp.cleanup()
 
     def test_stop_failure_prevents_copy_and_deletion(self):
         # covers: install.standalone-uninstall/E4
