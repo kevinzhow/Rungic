@@ -96,7 +96,7 @@ def write_removal_report(path, result):
     if 'preserved_home' in result:
         lines += ['保留位置：`' + result['preserved_home'] + '`。移动后已核对原家目录 inode。', '']
     if 'preflight' in result:
-        display = {'paths': '受保护路径', 'processes': '相关进程', 'mounts': '挂载点',
+        display = {'paths': '受保护路径', 'processes': '相关进程', 'mounts': '挂载点', 'wfd_config': '投屏配置挂载',
                    'images': 'loop／dm 设备', 'home': '家目录挂载',
                    'PASS': '通过', 'BLOCKED': '阻塞', 'UNKNOWN': '未知'}
         lines += ['## 只读预检', '', result['preflight_note'], '',
@@ -492,6 +492,46 @@ check_processes() {
         esac
     done
 }
+# Older casting installers have no removal entry. Undo their owned bind here;
+# do not call an unsupported --remove on a pre-existing installer.
+wfd_config=/vendor/etc/wfdconfig.xml
+wfd_binding() {
+    [ -r /proc/1/mountinfo ] || { echo 'Cannot inspect init mount namespace.' >&2; return 2; }
+    if state=$(awk -v target="$wfd_config" '
+        NF < 10 || $1 !~ /^[0-9]+$/ {invalid_table=1}
+        $5 == target {
+            count++
+            if ($1 !~ /^[0-9]+$/ || NF < 10) invalid=1
+            if ($4 == "/adb/rungic-wfd/wfdconfig.xml" || $4 == "/data/adb/rungic-wfd/wfdconfig.xml") owned++
+        }
+        END {
+            if (NR == 0 || invalid_table) exit 2
+            if (count == 0) print "absent"
+            else if (count == 1 && owned == 1 && !invalid) print "rungic"
+            else print "foreign"
+        }
+    ' /proc/1/mountinfo); then :
+    else echo 'Cannot inspect init mount namespace.' >&2; return 2; fi
+    case "$state" in
+        absent|rungic) printf '%s\n' "$state";;
+        *) echo '投屏配置挂载来源不属于 Rungic，或存在重叠挂载。不会卸载此挂载。' >&2; return 1;;
+    esac
+}
+check_wfd_config() {
+    state=$(wfd_binding) || return $?
+    if [ "$state" = rungic ]; then
+        echo '执行时会撤销投屏配置的挂载（/vendor/etc/wfdconfig.xml）。只撤销来源是 Rungic 的那一条，不动厂商原有挂载。'
+    else echo '没有 Rungic 投屏配置 bind 需要卸载。'; fi
+}
+remove_wfd_config() {
+    state=$(wfd_binding) || return $?
+    [ "$state" = rungic ] || return 0
+    "$BB" nsenter -t 1 -m -- "$BB" umount "$wfd_config" || {
+        echo 'Cannot unmount the Rungic casting configuration.' >&2; return 1;
+    }
+    state=$(wfd_binding) || return $?
+    [ "$state" = absent ] || { echo 'Rungic casting bind remains in init namespace.' >&2; return 1; }
+}
 check_mounts() {
     for table in /proc/mounts /proc/self/mountinfo /proc/[0-9]*/mountinfo; do
         code=0
@@ -552,7 +592,7 @@ check_home() {
 """
     if preview:
         return header + '\n' + checks + r"""
-for name in paths processes mounts images home; do
+for name in paths processes wfd_config mounts images home; do
     if detail=$("check_$name" 2>&1); then state=PASS
     else
         code=$?
@@ -625,6 +665,7 @@ for attempt in 1 2 3 4 5; do
     [ "$attempt" != 5 ] || fail 'Rungic processes remain or cannot be inspected.'
     sleep 1
 done
+remove_wfd_config || fail 'Casting configuration failed removal.'
 check_mounts || fail 'Mounts failed the check.'
 check_images || fail 'Image resources failed the check.'
 check_home || fail 'The home failed the check.'
@@ -792,7 +833,7 @@ def _uninstall(args):
             if len(fields) != 4 or fields[0] != 'check' or fields[2] not in ('PASS', 'BLOCKED', 'UNKNOWN'):
                 raise ValueError('The removal preview response is invalid.')
             checks.append({'name': fields[1], 'state': fields[2], 'reason': fields[3]})
-        if [entry['name'] for entry in checks] != ['paths', 'processes', 'mounts', 'images', 'home']:
+        if [entry['name'] for entry in checks] != ['paths', 'processes', 'wfd_config', 'mounts', 'images', 'home']:
             raise ValueError('The removal preview response is incomplete.')
         result['preflight'] = checks
         result['would_stop_at'] = next((entry['name'] for entry in checks if entry['state'] != 'PASS'), None)

@@ -12,9 +12,9 @@ for mode in ['normal','package_failure','readback_failure','finish_readback_mark
  case=a.output.resolve()/mode;root=case/'root';adb=root/'data/adb'
  home=adb/'rungic-lxc/runtime/var/lib/lxc/plasma/state/home';home.mkdir(parents=True);(home/'private').write_text('old home')
  appdata=root/'data/user/0'/product.APP;appdata.mkdir(parents=True);(appdata/'private').write_text('app private')
- for d in ['proc/self','sys/block','product/etc/rungic','data/local/tmp']:(root/d).mkdir(parents=True,exist_ok=True)
+ for d in ['proc/self','proc/1','sys/block','product/etc/rungic','data/local/tmp']:(root/d).mkdir(parents=True,exist_ok=True)
  (root/'proc/mounts').write_text(f'none {home}/Shared none rw 0 0\n' if mode=='preview_mount' else '')
- (root/'proc/self/mountinfo').write_text('1 0 0:1 / / rw - rootfs rootfs rw\n');(root/'product/etc/rungic/firstboot.sh').write_text('old seed')
+ (root/'proc/1/cmdline').write_bytes(b'init\x00');(root/'proc/1/mountinfo').write_text('1 0 0:1 / / rw - rootfs rootfs rw\n');(root/'proc/self/mountinfo').write_text('1 0 0:1 / / rw - rootfs rootfs rw\n');(root/'product/etc/rungic/firstboot.sh').write_text('old seed')
  def snapshot():
   return {str(x.relative_to(root)):('link:'+os.readlink(x) if x.is_symlink() else 'dir' if x.is_dir() else hashlib.sha256(x.read_bytes()).hexdigest()) for x in root.rglob('*')}
  original=snapshot()

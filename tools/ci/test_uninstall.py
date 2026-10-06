@@ -32,24 +32,93 @@ class RemovalShell(unittest.TestCase):
         controller.parent.mkdir(parents=True)
         controller.write_text('#!/bin/sh\n[ "$1" = stop ] || { echo "Unknown controller action" >&2; exit 1; }\nexit 0\n')
         controller.chmod(0o755)
-        for name in ('proc', 'sys/block', 'product/etc/rungic', 'data/local/tmp'):
+        for name in ('proc', 'proc/1', 'sys/block', 'product/etc/rungic', 'data/local/tmp'):
             (self.base / name).mkdir(parents=True)
         (self.base / 'proc/mounts').write_text('')
         (self.base / 'proc/self').mkdir()
         (self.base / 'proc/self/mountinfo').write_text('1 0 0:1 / / rw - rootfs rootfs rw\n')
+        (self.base / 'proc/1/mountinfo').write_text('1 0 0:1 / / rw - rootfs rootfs rw\n')
+        (self.base / 'proc/1/cmdline').write_bytes(b'init\x00')
         (self.base / 'product/etc/rungic/firstboot.sh').write_text('old seed')
         self.unrelated = self.adb / 'rungic-history-backup'
         self.unrelated.write_text('keep')
 
     def run_shell(self, purge=False, extra='', preview=False):
         script = standalone.uninstall_root_script(purge=purge, operation_id='test', preview=preview)
-        for prefix in ('/data/adb', '/data/data', '/data/local/tmp', '/proc', '/sys/block', '/product'):
+        for prefix in ('/data/adb', '/data/data', '/data/local/tmp', '/proc', '/sys/block', '/product', '/vendor'):
             script = re.sub(r'(?<![\w/])' + re.escape(prefix) + r'\b', str(self.base) + prefix, script)
-        script = script.replace(str(self.adb / 'magisk/busybox'), '/usr/bin/busybox')
+        script = script.replace(str(self.adb / 'magisk/busybox'), getattr(self, 'busybox', '/usr/bin/busybox'))
         env = dict(os.environ)
         # Android context changes are represented separately from filesystem checks.
         return subprocess.run([*self.shell, '-c', 'set -eu\nchcon() { :; }\n' + extra + script],
                               capture_output=True, text=True, env=env, timeout=30)
+
+    def wfd_fixture(self, source='/adb/rungic-wfd/wfdconfig.xml', mode='propagate'):
+        target = self.base / 'vendor/etc/wfdconfig.xml'
+        target.parent.mkdir(parents=True)
+        target.write_text('vendor original config')
+        tables = [self.base / 'proc/1/mountinfo', self.base / 'proc/self/mountinfo']
+        for table in tables:
+            table.write_text(table.read_text() + f'9 1 0:1 {source} {target} rw shared:51 - f2fs /dev/block/dm-54 rw\n')
+        wrapper = self.base / 'busybox-fixture'
+        record = self.base / 'umount.log'
+        # nsenter/umount are explicit OS boundaries; the generated worker remains real.
+        wrapper.write_text('#!/bin/sh\nset -eu\nif [ "$1" = nsenter ]; then\n'
+            '  printf "%s\\n" "$*" >> ' + str(record) + '\n'
+            '  [ "$2" = -t ] && [ "$3" = 1 ] && [ "$4" = -m ] && [ "$5" = -- ]\n'
+            '  [ "$7" = umount ] && [ "$8" = ' + str(target) + ' ]\n'
+            '  [ ! -d ' + str(self.base / 'proc/4426') + ' ]\n' +
+            ('  exit 1\n' if mode == 'failure' else
+             ''.join('  sed -i \'/shared:51/d\' ' + str(t) + '\n' for t in (tables if mode == 'propagate' else tables[:1]))) +
+            '  exit 0\nfi\nexec /usr/bin/busybox "$@"\n')
+        wrapper.chmod(0o755)
+        self.busybox = str(wrapper)
+        return target, record
+
+    def test_removal_releases_only_owned_wfd_bind_after_watcher_exit(self):
+        # covers: install.standalone-uninstall/E4
+        target, record = self.wfd_fixture()
+        watcher = self.base / 'proc/4426'
+        watcher.mkdir()
+        (watcher / 'cmdline').write_bytes(b'app_process\x00/system/bin\x00com.rungic.cast.Main\x00watch\x00')
+        (watcher / 'mountinfo').write_text((self.base / 'proc/1/mountinfo').read_text())
+        result = self.run_shell(purge=True, extra=f'kill() {{ [ "$1" = -TERM ] && [ "$2" = 4426 ]; rm -rf "{watcher}"; }}\n')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(len(record.read_text().splitlines()), 1)
+        self.assertEqual(target.read_text(), 'vendor original config')
+        self.assertFalse(self.home.exists())
+        self.assertNotIn('rungic-wfd', (self.base / 'proc/1/mountinfo').read_text())
+
+    def test_wfd_preview_is_read_only_and_explains_planned_unmount(self):
+        # covers: install.standalone-uninstall/E1
+        target, record = self.wfd_fixture()
+        before = (self.base / 'proc/1/mountinfo').read_text()
+        result = self.run_shell(preview=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('check\twfd_config\tPASS\t', result.stdout)
+        self.assertIn('执行时会撤销投屏配置的挂载', result.stdout)
+        self.assertFalse(record.exists())
+        self.assertEqual((self.base / 'proc/1/mountinfo').read_text(), before)
+        self.assertTrue(self.home.exists())
+
+    def test_foreign_stacked_unreadable_or_failed_wfd_mount_is_never_deleted_through(self):
+        # covers: install.standalone-uninstall/E4
+        for mode in ('foreign', 'stacked', 'unreadable', 'empty', 'failure', 'residual'):
+            with self.subTest(mode=mode):
+                fixture = RemovalShell(); fixture.shell = self.shell; fixture.setUp()
+                try:
+                    target, record = fixture.wfd_fixture(source='/vendor/original.xml' if mode == 'foreign' else '/adb/rungic-wfd/wfdconfig.xml', mode=mode)
+                    table = fixture.base / 'proc/1/mountinfo'
+                    if mode == 'stacked': table.write_text(table.read_text() + f'10 1 0:1 /vendor/other.xml {target} rw - f2fs /dev/block/dm-54 rw\n')
+                    if mode == 'unreadable': table.unlink()
+                    if mode == 'empty': table.write_text('')
+                    result = fixture.run_shell(purge=True)
+                    self.assertNotEqual(result.returncode, 0, result.stderr)
+                    self.assertTrue(fixture.home.exists())
+                    self.assertNotIn('deleted\t', result.stdout)
+                    self.assertEqual(record.exists(), mode in ('failure', 'residual'))
+                    self.assertEqual(target.read_text(), 'vendor original config')
+                finally: fixture.doCleanups()
 
     def test_preview_reports_every_readonly_gate_without_device_mutation(self):
         # covers: install.standalone-uninstall/E1
@@ -68,8 +137,8 @@ class RemovalShell(unittest.TestCase):
         result = self.run_shell(preview=True)
         self.assertEqual(result.returncode, 0, result.stderr)
         rows = [line.split('\t', 3) for line in result.stdout.splitlines()]
-        self.assertEqual([row[1] for row in rows], ['paths', 'processes', 'mounts', 'images', 'home'])
-        self.assertEqual([row[2] for row in rows], ['PASS', 'BLOCKED', 'BLOCKED', 'BLOCKED', 'UNKNOWN'])
+        self.assertEqual([row[1] for row in rows], ['paths', 'processes', 'wfd_config', 'mounts', 'images', 'home'])
+        self.assertEqual([row[2] for row in rows], ['PASS', 'BLOCKED', 'PASS', 'BLOCKED', 'BLOCKED', 'UNKNOWN'])
         after = {str(path.relative_to(self.base)): path.lstat().st_ino for path in self.base.rglob('*')}
         self.assertEqual(before, after)
         self.assertEqual((self.home / '.private').read_bytes(), b'example\x00content')
@@ -387,8 +456,11 @@ class PendingRemoval(unittest.TestCase):
             mounts = root / 'proc/mounts'
             mounts.parent.mkdir(exist_ok=True)
             mounts.write_text('none ' + str(root / 'data/adb/rungic-lxc/runtime') + ' none rw 0 0\n')
+            (root / 'proc/1').mkdir(exist_ok=True)
+            (root / 'proc/1/mountinfo').write_text('1 0 0:1 / / rw - rootfs rootfs rw\n')
+            (root / 'proc/1/cmdline').write_bytes(b'init\x00')
             script = standalone.uninstall_root_script(operation_id='refusal')
-            for prefix in ('/data/adb', '/data/data', '/data/local/tmp', '/proc', '/sys/block', '/product'):
+            for prefix in ('/data/adb', '/data/data', '/data/local/tmp', '/proc', '/sys/block', '/product', '/vendor'):
                 script = re.sub(r'(?<![\w/])' + re.escape(prefix) + r'\b', str(root) + prefix, script)
             result = subprocess.run(['/usr/bin/busybox', 'ash', '-c', script],
                                     env=controller.env, capture_output=True, text=True, timeout=30)
@@ -444,7 +516,7 @@ class Preview(unittest.TestCase):
         # covers: install.standalone-uninstall/E1
         for purge in (False, True):
             device = mock.Mock()
-            device.shell.side_effect = ['USB', 'UserInfo{0:Owner:13}', '0', '\n'.join('check\t' + name + '\tPASS\t' for name in ('paths', 'processes', 'mounts', 'images', 'home'))]
+            device.shell.side_effect = ['USB', 'UserInfo{0:Owner:13}', '0', '\n'.join('check\t' + name + '\tPASS\t' for name in ('paths', 'processes', 'wfd_config', 'mounts', 'images', 'home'))]
             with mock.patch.object(standalone, 'Device', return_value=device), \
                  mock.patch.object(standalone, 'uninstall_state', return_value={'paths': {}, 'termux_path': 'termux'}), mock.patch('builtins.print'):
                 args = argparse.Namespace(serial='USB', adb_port=5037, adb='adb', purge=purge,
@@ -460,7 +532,7 @@ class Preview(unittest.TestCase):
         # covers: install.standalone-uninstall/E1
         response = '\n'.join('check\t' + name + '\t' + state + '\t' + reason for name, state, reason in
                 [('paths', 'PASS', ''), ('processes', 'BLOCKED', 'worker active'),
-                 ('mounts', 'PASS', ''), ('images', 'PASS', ''), ('home', 'UNKNOWN', 'mount read failed')])
+                 ('wfd_config', 'PASS', ''), ('mounts', 'PASS', ''), ('images', 'PASS', ''), ('home', 'UNKNOWN', 'mount read failed')])
         device = mock.Mock()
         device.shell.side_effect = ['USB', 'UserInfo{0:Owner:13}', '0', response]
         with tempfile.TemporaryDirectory() as root:
