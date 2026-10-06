@@ -186,4 +186,10 @@
     <string name="removal_incomplete_details">请在连接的电脑上重新运行卸载命令。打开 Rungic 无法完成卸载。</string>
     <string name="removal_status_unknown">无法确认 Rungic 卸载是否完成</string>
     <string name="removal_status_unknown_details">请检查 Rungic 的超级用户权限后重试。如果卸载曾中断，请先在连接的电脑上重新运行卸载命令。</string>
+    <string name="state_prepared">Rungic 已准备好</string>
+    <string name="notification_account">点此设置账户，完成后即可进入桌面</string>
+    <string name="notification_failed">点此查看原因</string>
+    <string name="state_prepare_failed">Rungic 准备没有完成</string>
+    <string name="notification_action_channel">需要你操作的提醒</string>
+    <string name="notification_action_description">Rungic 准备好或需要你回来继续时提醒你</string>
 </resources>

@@ -54,3 +54,30 @@ class AppRemoval(unittest.TestCase):
                     self.assertNotEqual(result.returncode, 0)
                     self.assertNotIn('RUNGIC_REMOVAL_ABSENT', result.stdout)
                 self.assertEqual(list(adb.iterdir()), [])
+
+    def test_activity_routes_marker_query_independently_of_removed_controller(self):
+        # covers: install.removal-app-status/E1 install.removal-app-status/E2
+        # Compile and execute the actual Activity control methods. Only the su
+        # executable is replaced; its argv is observed, never run on a phone.
+        import json
+        source_dir = ROOT / 'android/app/src/com/rungic/plasma'
+        source = (source_dir / 'MainActivity.java').read_text()
+        methods = source[source.index('    static String control(String action)'):source.index('    @Override public void onBackPressed()')]
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory)
+            su = path / 'su'
+            su.write_text('#!/bin/sh\n/usr/bin/printf "%s" "$3"\n')
+            su.chmod(0o755)
+            methods = methods.replace('"/product/bin/su"', json.dumps(str(su)))
+            harness = path / 'MainActivity.java'
+            harness.write_text('package com.rungic.plasma; import java.io.*; import java.util.concurrent.*;\n'
+                'public class MainActivity { static String controlTimeout="timeout";\n' + methods + '''
+                public static void main(String[] args) throws Exception {
+                    String removal=control("removal-status");
+                    if(!removal.equals(RemovalState.ROOT_COMMAND) || removal.contains("/data/adb/rungic-plasma/"))throw new AssertionError("marker read depends on removed controller: "+removal);
+                    if(!control("start").equals("/data/adb/rungic-plasma/rungic-plasma start"))throw new AssertionError("normal controller route changed");
+                    if(!control("account-status").equals("/data/adb/rungic-plasma/rungic-plasma account-status"))throw new AssertionError("account controller route changed");
+                }}''')
+            subprocess.run(['javac', '-encoding', 'UTF-8', '-d', directory, str(harness),
+                str(source_dir / 'RemovalState.java'), str(source_dir / 'ControlException.java')], check=True, capture_output=True, text=True)
+            subprocess.run(['java', '-cp', directory, 'com.rungic.plasma.MainActivity'], check=True, capture_output=True, text=True, timeout=10)

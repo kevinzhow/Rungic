@@ -196,4 +196,10 @@
     <string name="removal_incomplete_details">Run the removal command again on the connected computer. Opening Rungic cannot finish removal.</string>
     <string name="removal_status_unknown">Cannot read the Rungic removal status</string>
     <string name="removal_status_unknown_details">Check Rungic superuser permission and try again. If removal stopped before completion, run it again on the connected computer.</string>
+    <string name="state_prepared">Rungic is ready</string>
+    <string name="notification_account">Tap to set up your account and enter the desktop</string>
+    <string name="notification_failed">Tap to see why</string>
+    <string name="state_prepare_failed">Rungic preparation did not finish</string>
+    <string name="notification_action_channel">Reminders that need your action</string>
+    <string name="notification_action_description">Reminds you when Rungic is ready or needs you to return</string>
 </resources>

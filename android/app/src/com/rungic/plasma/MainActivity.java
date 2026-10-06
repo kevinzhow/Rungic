@@ -216,6 +216,7 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
     @Override public void onStart() {
         super.onStart();
         started = true;
+        DesktopService.visibility(this,true,!accountReady);
         if(capture!=null)capture.setVisible(true);
         if(platform!=null)platform.desktopBoost(true);
         if(pacer!=null && display.getHolder().getSurface().isValid())pacer.start();
@@ -230,6 +231,7 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
     }
     @Override public void onStop() {
         started = false;
+        DesktopService.visibility(this,false,!accountReady);
         if(display!=null) { display.removeCallbacks(installPoll); display.removeCallbacks(framePoll); }
         if(pacer!=null)pacer.stop();
         if(capture!=null)capture.setVisible(false);
@@ -774,11 +776,11 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
     /** Shown when a control request times out (the Toast of a menu action); set in onCreate. */
     private static volatile String controlTimeout = "System setup timed out";
 
-    private static String control(String action) throws Exception {
+    static String control(String action) throws Exception {
         return control(action,null);
     }
 
-    private static String control(String action, String payload) throws Exception {
+    private static synchronized String control(String action, String payload) throws Exception {
         String command=action.equals("removal-status")?RemovalState.ROOT_COMMAND:"/data/adb/rungic-plasma/rungic-plasma " + action;
         ProcessBuilder b = new ProcessBuilder("/product/bin/su", "--mount-master", "-c", command);
         b.environment().put("PATH", "/product/bin:/system/bin:/system/xbin:/vendor/bin");
@@ -791,8 +793,13 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
         Thread reader = new Thread(() -> { try (InputStream in = p.getInputStream()) {
             byte[] data = new byte[4096]; int n; while ((n = in.read(data)) != -1) if (out.size() < 16384) out.write(data,0,n);
         } catch (IOException ignored) {} }); reader.start();
-        if (!p.waitFor(action.equals("removal-status")?10:(action.equals("account-prepare")?240:90), TimeUnit.SECONDS)) {
-            p.destroy(); throw new IOException(controlTimeout); }
+        try {
+            if (!p.waitFor(action.equals("removal-status")?10:(action.equals("account-prepare")?240:90), TimeUnit.SECONDS)) {
+                p.destroy(); throw new IOException(controlTimeout);
+            }
+        } catch(InterruptedException interrupted) {
+            p.destroy(); Thread.currentThread().interrupt(); throw interrupted;
+        }
         reader.join(2000);
         if (p.exitValue() != 0) throw new ControlException(action, p.exitValue(), out.toString("UTF-8"));
         return out.toString("UTF-8");

@@ -222,6 +222,9 @@ features:
         text: 清除 Rungic 应用数据后再打开，不用重启手机：已完成的安装重新发布状态并直接放行，进行中的安装交给首启脚本，复用底座上的旧 product 种子不会让它一直等待。
         evidence:
           - {doc: docs/95-install-use-case-tests.md, date: 2026-09-30, note: "UC-app-data-cleared，G100 S 两个场景"}
+      - id: E7
+        text: 首装时离开前台后，通知按真实准备阶段更新；就绪但尚未配置账户时提示回来设置，失败时提示查看原因。状态读不清不覆盖已有通知。已有账户、失败或前台接手时停止后台检查，控制器调用不并发。
+        gap: 宿主 JVM 用 Android 通知和控制器替身运行实际服务；通知权限、锁屏可见性、点击后的账户或失败页面需要下一轮真机连续验证。
     pitfalls:
       - text: 只看 Android `sys.boot_completed=1` 证明不了 rootfs 已展开、共享目录已挂载或容器已就绪。按原子状态和真实条件放行，不靠固定延时。
         docs: [docs/80-g100-image-installation-retrospective.md]
@@ -234,6 +237,8 @@ features:
     code:
       - android/app/src/com/rungic/plasma/FirstBootState.java
       - android/app/src/com/rungic/plasma/StartupScreen.java
+      - android/app/src/com/rungic/plasma/DesktopService.java
+      - tools/tests/test_install_notification.py
       - android/app/tests/FirstBootStateTest.java
       - tools/ci/test_install_republish.py
       - tools/ci/rungic-firstboot.sh

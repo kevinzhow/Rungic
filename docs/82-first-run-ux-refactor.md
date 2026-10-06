@@ -82,3 +82,14 @@ APK 与 native `.so` 必须一起构建。账户助手、宿主控制器和包�
 采用上游已有 KConfig 开关：新增 `plasma/config/etc/xdg/plasmamobilerc`，设置 `[InitialStart] wizardRun=true`。由 `rungic-plasma-config` 打包为系统默认，适用于新账户，不依赖复制个人 home 或首次启动脚本逐用户写配置。保留用户显式覆盖的能力；需要查看向导时仍可手动 `plasma-mobile-initial-start --test-wizard`。不删除程序、不关闭 kded 模块，envmanager 的正常桌面配置继续运行。Rungic 的安装 ready、账户配置、真实画面 loading 门槛保持原样。
 
 G100 / portov / 5038 / ZY32M9MRVP 已部署该单一配置文件，并关闭当前已有的一个欢迎向导进程。验证：隔离空 HOME/XDG_CONFIG_HOME，显式 phone 平台，KConfig 继承 true；实际 ARM64 欢迎程序用 offscreen 平台运行，返回 0 并报告不启动向导；现有账户按实际会话环境重新启动该程序同样直接退出。证据 `.work/experiments/g100-welcome-20260929/verification.json`。这是干净配置与现有账户验收，不是重新清数据刷入整包的验收；镜像后续构建通过配置包获得该默认值。
+
+
+## 首装离开前台后的通知（2026-10-07）
+
+复用 `DesktopService`、`FirstBootState` 和原有账户控制器。仅首装窗口、Activity 不可见时，每五秒读取原子安装状态；前台回来即取消后台任务。两者的控制器调用共用同一个所有权锁，取消中的进程也会终止。未知状态或账户查询失败保留上一条通知，不推断安装失败。
+
+准备中显示真实阶段；ready 后独立确认账户。尚未配置时显示“Rungic 已准备好／点此设置账户，完成后即可进入桌面”；失败显示“Rungic 准备没有完成／点此查看原因”。已配置账户或失败后停止后台检查。点击仍进入原有 `MainActivity`，由原有准备、账户或失败状态决定页面。
+
+原常驻 `desktop` 渠道继续使用 LOW。需要用户回来操作的提醒使用新 `install-action` 渠道（DEFAULT），标题与正文设为 PUBLIC，并使用 `setOnlyAlertOnce(true)`；不修改用户已经设置的旧渠道。Android 的渠道创建后重要性由用户控制，PUBLIC 也不能覆盖用户或系统的锁屏通知设置。来源：[渠道文档](https://developer.android.google.cn/develop/ui/compose/notifications/channels?hl=en)、[通知文档](https://developer.android.google.cn/develop/ui/compose/notifications/create-notification?hl=en)。
+
+离线验证运行实际 Java 服务、状态文件读取、生命周期取消和调用所有权；通知系统和账户控制器是替身。完整 Android Java 编译通过。第二轮仍需真实锁屏截图、通知内容、点击后页面以及前后台切换证据，宿主结果不能代替。
