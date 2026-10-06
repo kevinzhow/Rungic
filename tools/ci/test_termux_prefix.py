@@ -1,10 +1,16 @@
 """Offline archive boundaries; no repository access or Android execution."""
 import hashlib
 import io
+import contextlib
+import functools
+import os
+import shutil
+import subprocess
 from pathlib import Path
 import tempfile
 import unittest
 import zipfile
+from unittest import mock
 
 import build_termux_prefix as builder
 
@@ -37,6 +43,43 @@ class BootstrapSeed(unittest.TestCase):
         self.assertEqual((prefix / 'bin/sh').readlink(), Path('bash'))
         self.assertEqual((prefix / 'bin/sh').read_bytes(), b'binary')
         self.assertEqual(result['symlinks'], 1)
+
+    # covers: install.standalone-install
+    # Host seed composition only; Android initialization remains untested here.
+    def test_caller_umask_does_not_change_composed_archive(self):
+        apk, checksum = self.apk(('var/lib/dpkg/status', b''))
+        package = self.root / 'package'
+        control = package / 'DEBIAN'; control.mkdir(parents=True)
+        (control / 'control').write_text('Package: pulseaudio\nVersion: 1.0\nArchitecture: aarch64\nMaintainer: Test <test@example.invalid>\nDescription: Offline seed fixture\n')
+        binary = package / builder.ANDROID_PREFIX.lstrip('/') / 'bin/pulseaudio'
+        binary.parent.mkdir(parents=True); binary.write_bytes(b'fixture executable'); binary.chmod(0o755)
+        deb = self.root / 'pulseaudio.deb'
+        subprocess.run(['dpkg-deb', '--build', '--root-owner-group', str(package), str(deb)],
+                       check=True, stdout=subprocess.DEVNULL)
+        original_run = builder.run
+        original_extract = builder.extract_bootstrap
+        def offline_download(command, log):
+            if command[0] == 'apt-get':
+                if command[-1] == 'pulseaudio':
+                    archives = Path(command[2]).parent / 'var/cache/apt/archives'
+                    shutil.copyfile(deb, archives / deb.name)
+            else:
+                original_run(command, log)
+        checksums = []
+        for mask in (0o022, 0o002, 0o077):
+            out = self.root / ('seed-' + oct(mask))
+            previous = os.umask(mask)
+            try:
+                with mock.patch('sys.argv', ['builder', '--apk', str(apk), '--output', str(out)]), \
+                     mock.patch.object(builder, 'run', side_effect=offline_download), \
+                     mock.patch.object(builder, 'extract_bootstrap', functools.partial(original_extract, expected=checksum)), \
+                     contextlib.redirect_stdout(io.StringIO()):
+                    builder.main()
+            finally:
+                os.umask(previous)
+            checksums.append(builder.digest(out / 'termux-prefix.tar.gz'))
+            self.assertIn('Status: install ok unpacked', (out / 'prefix/usr/var/lib/dpkg/status').read_text())
+        self.assertEqual(len(set(checksums)), 1, 'caller umask changed prefix archive bytes')
 
     def test_wrong_apk_hash_fails_before_extraction(self):
         apk, _ = self.apk(); prefix = self.root / 'usr'

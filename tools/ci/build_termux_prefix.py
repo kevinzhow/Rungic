@@ -131,6 +131,8 @@ def main():
     p.add_argument('--output', required=True, type=Path)
     p.add_argument('--lock', type=Path, help='Replay an emitted lock; reject version/hash drift')
     args = p.parse_args(); out = args.output.resolve()
+    # Generated dpkg metadata must have stable modes in the composed archive.
+    os.umask(0o022)
     out.mkdir(parents=True, exist_ok=False)
     prefix = out / 'prefix/usr'; bootstrap = extract_bootstrap(args.apk, prefix)
     resolver = out / 'resolver'

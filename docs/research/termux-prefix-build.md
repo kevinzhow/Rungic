@@ -7,7 +7,8 @@ repository. It reproduces the official installer's executable permissions and
 host apt using isolated package state. It does not install Android packages on
 the build host.
 
-Run on Linux with Python 3, apt-get, dpkg-deb and GNU tar and gzip. The archive uses explicit `gzip -n` and sorted entries with zero timestamps and numeric ownership. Supply the official APK
+Run on Linux with Python 3, apt-get, dpkg-deb and GNU tar and gzip. The archive uses explicit `gzip -n` and sorted entries with zero timestamps and numeric ownership. The CLI fixes its creation mask to `0022`, so generated dpkg
+metadata has the same permissions regardless of the caller's umask. Supply the official APK
 from the URL in the script; the script verifies it before extraction:
 
 ```sh
@@ -50,6 +51,18 @@ Both archives have SHA-256
 Each preserved 1,146 bootstrap symlinks. Raw apt logs, signed indexes, lock and
 reports are retained under the developer checkout's `.work/termux-repro/`.
 This checks the host composition; neither build executed an Android program.
+
+The historical K8 replay above used caller umask `0002`. Its 23 generated dpkg
+package lists had mode `0664`; a Mac build with umask `0022` produced `0644`.
+All 10,036 archive entries had identical content, links and order. The fixed
+builder now sets umask `0022` before composition. Two fresh K8 replays with
+caller umasks `0002` and `0077`, the official APK and the same 23 locked packages,
+both produced SHA-256
+`42f5ab0af60ced0dc241339b78bae80b2f20b5dea41b7b6d9209d9271f61afbf`.
+This also matches the Mac archive built with an explicit `0022` wrapper. Existing
+archives remain unchanged. The regression uses a real DEB and archive tools with
+an offline download substitute; these official-input replays use authenticated
+apt downloads. Neither check executes an Android program.
 
 ## Bootstrap compatibility boundary
 
