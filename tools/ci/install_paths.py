@@ -32,21 +32,21 @@ MAINTENANCE_LOCK = '/data/adb/rungic-maintenance.lock'
 FIRSTBOOT_LOCK = '/data/adb/rungic-firstboot.lock'
 # Lock inodes remain: removing a held lock permits a second owner to create a new inode.
 RETAINED = {
-    PENDING: 'Hold during incomplete removal. Successful removal clears this marker.',
-    '/data/adb/magisk': 'Keep the shared Magisk tools.',
-    '/data/adb/magisk/busybox': 'Keep the shared Magisk BusyBox executable.',
-    '/data/adb/service.d': 'Keep the shared service directory. Remove only owned service files.',
-    COMPAT: 'Block the read-only product seed. Installation can replace this guard.',
-    UNINSTALLED: 'Block fallback to the old seed until the installer publishes a new installation.',
-    MAINTENANCE_LOCK: 'Serialize installation and removal.',
-    FIRSTBOOT_LOCK: 'Serialize removal with the existing first-boot worker.',
-    '/data/adb/rungic-install.lock': 'Keep the installation lock inode.',
-    '/data/adb/rungic-cast-install.lock': 'Keep the casting lock inode.',
-    PRESERVED: 'Keep historical preserved homes and their preservation records.',
-    '/storage/emulated/0/Plasma': 'Android user files are outside removal scope.',
-    '/product/app/Rungic/Rungic.apk': 'Read-only Android base APK.',
-    '/product/etc/rungic': 'Read-only Android base seed.',
-    '/data/data/com.termux': 'Keep Termux, its prefix and unrelated user files. Remove only the two Rungic private paths in the deletion plan.',
+    PENDING: '卸载未完成时阻止重新安装。完成并独立读回后清除此标记。',
+    '/data/adb/magisk': '多个应用共用的 Magisk 工具，保留。',
+    '/data/adb/magisk/busybox': '多个工具共用的 Magisk BusyBox，保留。',
+    '/data/adb/service.d': '共享服务目录，保留。只删除 Rungic 的服务文件。',
+    COMPAT: '阻止只读系统分区中的旧种子重新安装。新安装可替换此拦截。',
+    UNINSTALLED: '新安装发布前阻止回退到旧种子。',
+    MAINTENANCE_LOCK: '协调安装与卸载，保留锁文件。',
+    FIRSTBOOT_LOCK: '协调卸载与首启进程，保留锁文件。',
+    '/data/adb/rungic-install.lock': '保留安装锁的原文件，避免出现两个锁持有者。',
+    '/data/adb/rungic-cast-install.lock': '保留投屏安装锁的原文件，避免出现两个锁持有者。',
+    PRESERVED: '保留以前保存的家目录及其保存记录。',
+    '/storage/emulated/0/Plasma': 'Android 用户文件不在卸载范围内，保留。',
+    '/product/app/Rungic/Rungic.apk': 'Android 只读系统分区中的底座 APK，保留。',
+    '/product/etc/rungic': 'Android 只读系统分区中的底座种子，保留。',
+    '/data/data/com.termux': '保留 Termux、前缀和无关用户文件。只删除计划内两个 Rungic 私有路径。',
 }
 
 

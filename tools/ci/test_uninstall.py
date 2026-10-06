@@ -124,7 +124,7 @@ class RemovalShell(unittest.TestCase):
         # covers: install.standalone-uninstall/E1
         proc = self.base / 'proc/123'
         proc.mkdir()
-        (proc / 'cmdline').write_bytes(b'com.rungic.plasma.DeviceDaemon 10000\x00')
+        (proc / 'cmdline').write_bytes(b'com.rungic.plasma.DeviceDaemon 10000 --token fixture-secret\x00')
         (proc / 'mountinfo').write_text('1 0 0:1 / / rw - rootfs rootfs rw\n')
         (self.base / 'proc/mounts').write_text('none ' + str(self.home / 'Shared') + ' none rw 0 0\n')
         (self.base / 'proc/self/mountinfo').write_text('invalid-id 0 0:1 / / rw - rootfs rootfs rw\n')
@@ -141,6 +141,9 @@ class RemovalShell(unittest.TestCase):
         self.assertEqual([row[2] for row in rows], ['PASS', 'BLOCKED', 'PASS', 'BLOCKED', 'BLOCKED', 'UNKNOWN'])
         after = {str(path.relative_to(self.base)): path.lstat().st_ino for path in self.base.rglob('*')}
         self.assertEqual(before, after)
+        self.assertIn('com.rungic.plasma.DeviceDaemon 10000', result.stdout)
+        self.assertIn(str(self.home / 'Shared'), result.stdout)
+        self.assertNotIn('fixture-secret', result.stdout)
         self.assertEqual((self.home / '.private').read_bytes(), b'example\x00content')
         self.assertFalse((self.adb / 'rungic-uninstalling').exists())
         self.assertFalse((self.adb / 'modules').exists())
@@ -764,7 +767,7 @@ class HostFlow(unittest.TestCase):
                                      str(source.parents[1]), root], capture_output=True, text=True, timeout=60)
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
             cases = json.loads((Path(root) / 'results.json').read_text())
-            self.assertEqual(len(cases), 6)
+            self.assertEqual(len(cases), 8)
             for case in cases:
                 self.assertTrue(all(case['checks'].values()), case)
             failed = Path(root) / 'readback_failure'
@@ -782,3 +785,50 @@ class HostFlow(unittest.TestCase):
             entry = next(item for item in normal['path_results'] if item['path'] == removed)
             self.assertEqual(entry['operation'], 'deleted')
             self.assertEqual(entry['readback'], 'absent')
+
+
+class ApkVersionSources(unittest.TestCase):
+    def dump(self, active_flags='SYSTEM UPDATED_SYSTEM_APP', extra=''):
+        return f"""Packages:
+  Package [{standalone.APP}] (active):
+    codePath=/data/app/current
+    versionCode=239 minSdk=31
+    versionName=2.39
+    flags=[ {active_flags} ]
+Hidden system packages:
+  Package [{standalone.APP}] (system):
+    codePath=/product/app/Rungic
+    versionCode=26
+    versionName=2.6
+    flags=[ SYSTEM ]
+{extra}"""
+
+    def test_active_update_and_hidden_base_do_not_mix(self):
+        # covers: install.standalone-uninstall/E1
+        versions = standalone.removal_apk_versions(self.dump())
+        self.assertEqual(versions['active']['version_name'], '2.39')
+        self.assertEqual(versions['system']['version_name'], '2.6')
+        with tempfile.TemporaryDirectory() as temp:
+            report = Path(temp) / 'report.json'
+            standalone.write_removal_report(report, {'plan_only': True, 'before': {
+                'apk_sources': versions, 'user_packages': 'package:' + standalone.APP}})
+            text = report.with_suffix('.md').read_text()
+            self.assertIn('用户 0 更新包：2.39（代码 239）', text)
+            self.assertIn('系统分区 APK：2.6（代码 26）', text)
+
+    def test_ordinary_apk_does_not_invent_a_system_base(self):
+        # covers: install.standalone-uninstall/E1
+        versions = standalone.removal_apk_versions(self.dump('HAS_CODE').split('Hidden system packages:')[0])
+        self.assertEqual(versions['active']['version_name'], '2.39')
+        self.assertIsNone(versions['system'])
+
+    def test_duplicate_package_or_failed_readback_is_unknown(self):
+        # covers: install.standalone-uninstall/E1
+        active = self.dump().split('Hidden system packages:')[0]
+        self.assertIsNone(standalone.removal_apk_versions(active + active)['active'])
+        self.assertEqual(standalone.removal_apk_versions('Failure [Binder]'), {'active': None, 'system': None})
+
+    def test_system_apk_without_update_uses_its_active_system_version(self):
+        # covers: install.standalone-uninstall/E1
+        versions = standalone.removal_apk_versions(self.dump('SYSTEM').split('Hidden system packages:')[0])
+        self.assertEqual(versions['system'], versions['active'])

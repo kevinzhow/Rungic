@@ -85,14 +85,29 @@ def write_removal_report(path, result):
              '默认保留当前 Linux 家目录。只有显式 --purge 才永久删除它。以前保留的家目录始终保留。', '',
              '本报告不证明首装、重启后的旧种子拦截或完整候选质量通过。', '']
     if result.get('error') and any('verified' in entry for entry in result.get('steps', [])):
-        lines[4:4] = ['下一步：保持现场和未完成标记，先核对失败步骤的读回。修正后，用同样的 --purge 选择续跑。', '']
+        next_step = ('下一步：此前已独立确认卸载标记清除，但最终现场未确认。请先核对失败步骤的读回，再决定后续操作。'
+                     if result.get('marker_cleared') else
+                     '下一步：保持现场和未完成标记，先核对失败步骤的读回。修正后，用同样的 --purge 选择续跑。')
+        lines[4:4] = [next_step, '']
     lines += ['当前模式：' + ('--purge，永久删除当前 Linux 家目录，不能恢复。' if result.get('purge') else '保留当前 Linux 家目录。'),
               '开始时间：' + result.get('started_at', '未进入执行计划') + '。', '']
     before = result.get('before', {})
     if before:
         lines += ['安装前实际版本：`' + before.get('release', '未找到独立发布描述符') + '`。',
-                  'APK 版本：' + '。'.join(before.get('apk_versions', [])),
                   '底座与内核：' + '。'.join(before.get('base', [])), '']
+        sources = before.get('apk_sources')
+        if sources is not None:
+            def version(entry):
+                if not entry: return '版本未确认'
+                return entry.get('version_name', '名称未确认') + '（代码 ' + entry.get('version_code', '未确认') + '）'
+            active = sources.get('active')
+            flags = (active or {}).get('flags', '').split()
+            label = '用户 0 更新包' if 'UPDATED_SYSTEM_APP' in flags else '用户 0 APK'
+            installed = before.get('user_packages')
+            current = version(active) if installed else '未安装' if installed == '' else '安装状态未确认'
+            lines += [label + '：' + current + '。', '系统分区 APK：' + version(sources.get('system')) + '。', '']
+        else:
+            lines += ['APK 版本（旧报告未区分来源）：' + '。'.join(before.get('apk_versions', [])), '']
     if result.get('error'):
         lines += ['失败原因：' + result['error'], '']
     pm_steps = [entry for entry in result.get('steps', []) if 'verified' in entry and entry['name'] != 'persist-user-app']
@@ -109,6 +124,8 @@ def write_removal_report(path, result):
     if persistence:
         warning = '现在重启手机，系统自带的 Rungic 可能会恢复。' if result.get('package_kind') == 'system' else '请先不要重启手机。'
         lines += ['卸载结果是否已保存：' + ('已确认。' if persistence['verified'] else '未确认。' + warning) + '详细读回证据见 report.json。', '']
+    if result.get('before_finish'):
+        lines += ['最终现场：清除卸载标记后重新读取。清除前快照保留在 report.json 的 before_finish。' if result.get('complete') else '已保留清除标记前快照；最终现场未确认，不能据旧快照判定完成。', '']
     if result.get('readback_error'):
         lines += ['最终读回失败，不能确认当前现场：' + result['readback_error'], '']
     if 'preserved_home' in result:
@@ -118,17 +135,29 @@ def write_removal_report(path, result):
                    'images': 'loop／dm 设备', 'home': '家目录挂载',
                    'PASS': '通过', 'BLOCKED': '阻塞', 'UNKNOWN': '未知'}
         lines += ['## 只读预检', '', result['preflight_note'], '',
-                  '按当前现场，如果不先解除条件，检查会阻塞在：' + (display.get(result['would_stop_at'], result['would_stop_at']) if result['would_stop_at'] else '未发现阻塞项') + '。', '',
+                  '当前发现需要重新检查的项目：' + (display.get(result['would_stop_at'], result['would_stop_at']) if result['would_stop_at'] else '未发现阻塞项') + '。', '',
                   '| 检查 | 当前结果 | 原因 |', '| --- | --- | --- |']
         for entry in result['preflight']:
-            lines.append(f"| {display.get(entry['name'], entry['name'])} | {display.get(entry['state'], entry['state'])} | {entry['reason']} |")
+            reason = entry['reason'].replace('请先解除挂载并重试。', '执行时会先停止服务，再重新检查。')
+            lines.append(f"| {display.get(entry['name'], entry['name'])} | {display.get(entry['state'], entry['state'])} | {reason.replace('|', '&#124;').replace(chr(10), '<br>')} |")
         lines.append('')
-    lines += ['## 删除范围', '', '| 路径 | 操作结果 | 独立读回 |', '| --- | --- | --- |']
+    if result.get('plan_only'):
+        lines += ['## 删除范围', '', '| 路径 | 执行时计划删除 | 现在是否存在 |', '| --- | --- | --- |']
+    else:
+        lines += ['## 删除范围', '', '| 路径 | 操作结果 | 独立读回 |', '| --- | --- | --- |']
     operations = {'deleted': '删除脚本报告已删除', 'absent': '删除脚本报告原本不存在',
                   'failed_attempt': '已尝试删除，删除脚本没有报告成功', 'not_attempted': '未尝试删除'}
     observations = {'absent': '确认不存在', 'present': '仍然存在', 'unknown': '读回未完成，未确认'}
     for entry in result['path_results']:
-        lines.append(f"| `{entry['path']}` | {operations[entry['operation']]} | {observations[entry['readback']]} |")
+        if result.get('plan_only'):
+            target = entry['path']
+            value = before.get('paths', {}).get(target)
+            if value is None and target.startswith('/data/local/tmp/rungic-') and 'stages' in before:
+                value = target in before['stages']
+            present = '存在' if value is True else '不存在' if value is False else '未确认'
+            lines.append(f"| `{target}` | 计划删除 | {present} |")
+        else:
+            lines.append(f"| `{entry['path']}` | {operations[entry['operation']]} | {observations[entry['readback']]} |")
     lines += ['', '停止服务可能改变运行状态。“未尝试删除”不表示运行状态完全未变。', '',
               '## 明确保留', '', '| 路径 | 原因 |', '| --- | --- |']
     for target, reason in result.get('expected_retained', {}).items():
@@ -444,6 +473,32 @@ def _install(args, d, folder, m, evidence):
                       'status_command': 'standalone.py status with the same --serial and --adb-port'}))
 
 
+def removal_apk_versions(info):
+    """Keep active and hidden system versions separate; ambiguous metadata stays unknown."""
+    active_text, _, system_text = info.partition('Hidden system packages:')
+    def package(text):
+        blocks = re.findall(r'^\s*Package \[' + re.escape(APP) + r'\][^\n]*:\n(.*?)(?=^\s*Package \[|\Z)', text, re.M | re.S)
+        if len(blocks) != 1:
+            return None
+        body = blocks[0]
+        result = {}
+        for key, expression in (('version_code', r'\bversionCode=(\d+)'),
+                                ('version_name', r'^\s*versionName=([^\n]+)'),
+                                ('path', r'^\s*codePath=([^\n]+)'),
+                                ('flags', r'\b(?:pkgFlags|flags)=\[([^\]]*)\]')):
+            values = re.findall(expression, body, re.M)
+            if len(values) == 1:
+                result[key] = values[0].strip()
+        return result or None
+    active = package(active_text)
+    system = package(system_text)
+    if not system and active:
+        flags = active.get('flags', '').split()
+        if 'SYSTEM' in flags and 'UPDATED_SYSTEM_APP' not in flags:
+            system = active.copy()
+    return {'active': active, 'system': system}
+
+
 def uninstall_state(device):
     """Read exact owned paths and report other Rungic names without deleting them."""
     owned = list(PATHS.values()) + list(RETAINED) + [PENDING, HOME, f'/data/user/0/{APP}']
@@ -459,13 +514,15 @@ def uninstall_state(device):
     stages = device.shell("find /data/local/tmp -maxdepth 1 -type d -name 'rungic-*' -print", root=True).splitlines()
     packages, _ = package_readback(device, 'remove-user-app')
     uninstalled = device.shell(f'test ! -L {UNINSTALLED}; if [ -e {UNINSTALLED} ]; then test -f {UNINSTALLED}; cat {UNINSTALLED}; fi', root=True)
+    apk_info = device.shell(f'dumpsys package {APP} || true')
     return {'paths': paths, 'pending': pending, 'uninstalled': uninstalled, 'stages': stages,
             'other_paths': device.shell("find /data/adb -maxdepth 1 -name '*rungic*' -print", root=True).splitlines(),
             'user_packages': '\n'.join(line for line in packages['user_packages'] if line == f'package:{APP}'),
             'package_paths': device.shell(f'pm path {APP} || true'),
             'termux_path': device.shell('pm path com.termux || true'),
             'base': device.shell('getprop ro.build.fingerprint; uname -r; getenforce', root=True).splitlines(),
-            'apk_versions': device.shell(f'dumpsys package {APP} | grep -E "versionCode=|versionName=" || true').splitlines(),
+            'apk_versions': [line.strip() for line in apk_info.splitlines() if re.search(r'\bversionCode=|\bversionName=', line)],
+            'apk_sources': removal_apk_versions(apk_info),
             'release': device.shell(f'if [ -f {REMOTE}/active.env ]; then cat {REMOTE}/active.env; fi', root=True)}
 
 
@@ -510,7 +567,9 @@ check_processes() {
         fi
         case "$command" in
             *'/data/adb/rungic-plasma/'*|*'/data/adb/rungic-lxc/'*|*'/data/adb/rungic-wfd/'*|*'com.rungic.cast.Main watch '*|*'com.rungic.plasma.MediaDaemon '*|*'com.rungic.plasma.DeviceDaemon '*|*'com.rungic.clipboard.ClipboardDaemon '*|*'com.rungic.telephony.CallDaemon '*|*'/data/data/com.termux/files/usr/tmp/rungic-plasma-audio/'*)
-                echo "相关进程仍在运行：${proc##*/}。执行会先停止服务，再重新检查。" >&2; return 1;;
+                echo "相关进程仍在运行：${proc##*/}。执行会先停止服务，再重新检查。" >&2
+                printf '%s\n' "$command" | sed -E 's/((--)?(password|token|secret|api[-_]key|authorization)(=| +))[^ ]+/\1[REDACTED]/Ig' >&2
+                return 1;;
         esac
     done
 }
@@ -559,7 +618,10 @@ check_mounts() {
         code=0
         grep -Eq '/adb/(rungic-|\.rungic-)' "$table" 2>/dev/null || code=$?
         case "$code" in
-            0) echo '家目录或运行目录下面还有挂载点。没有删除任何内容。请先解除挂载并重试。--purge 会永久删除家目录，不能恢复。它也不能绕过挂载检查。' >&2; return 1;;
+            0) echo '家目录或运行目录下面还有挂载点。没有删除任何内容。请先解除挂载并重试。--purge 会永久删除家目录，不能恢复。它也不能绕过挂载检查。' >&2
+               echo "匹配挂载表：$table（最多列 20 行）" >&2
+               awk '/\/adb\/(rungic-|\.rungic-)/ { print; if (++shown == 20) exit }' "$table" >&2
+               return 1;;
             1) :;;
             *) case "$table" in
                    /proc/mounts|/proc/self/mountinfo) :;;
@@ -1197,6 +1259,13 @@ def _uninstall(args):
                 f'if [ -e {PENDING} ] || [ -L {PENDING} ]; then echo PRESENT; else echo ABSENT; fi', root=True))
             if marker.strip() != 'ABSENT':
                 raise ValueError('Removal marker remains or its readback is unknown.')
+            result['marker_cleared'] = True
+            result['before_finish'] = result.pop('after')
+            result['phase'] = 'finish-snapshot'
+            result['after'] = uninstall_state(device)
+            result['after_phase'] = 'after-marker-clear'
+            if result['after'].get('pending') != '' or result['after'].get('paths', {}).get(PENDING) is not False:
+                raise ValueError('Final removal snapshot does not confirm the marker is absent.')
             result['complete'] = True
             result['phase'] = 'complete'
     except BaseException as error:
@@ -1205,6 +1274,7 @@ def _uninstall(args):
         result['failed'].append({'phase': result.get('phase', 'lock'), 'reason': str(error)})
         try:
             result['after'] = uninstall_state(device)
+            result['after_phase'] = 'failure-readback'
         except Exception as readback_error:
             result.pop('after', None)
             result['readback_error'] = str(readback_error)
@@ -1224,8 +1294,8 @@ def _uninstall(args):
                 if kind == 'preserved':
                     result['preserved_home'] = value
                     result['preserved_home_status'] = 'Verified rename, with the original home inode.'
-                    result['expected_retained'][value] = 'Original home inode verified after rename.'
-        if result['complete']:
+                    result['expected_retained'][value] = '移动后已核对原家目录 inode，保留用户资料。'
+        if result.get('after', {}).get('paths', {}).get(PENDING) is False:
             result['expected_retained'].pop(PENDING, None)
         if result['complete'] and 'preserved_home' not in result:
             result['preserved_home_status'] = 'Removed by explicit --purge request.' if args.purge else 'No current home exists. This operation did not verify historical homes.'

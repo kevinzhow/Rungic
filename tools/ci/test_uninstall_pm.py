@@ -8,9 +8,9 @@ import standalone
 class PackageReadback(unittest.TestCase):
     def run_case(self, failed_step=None, unknown=False, command_rc=1, resume=False, invalid_info=False, persistent=True, kind='system', already_removed=False):
         device=mock.Mock();device.maintenance.return_value=nullcontext()
-        present=not already_removed;updated=kind=='system';calls=[]
+        present=not already_removed;updated=kind=='system';marker=True;calls=[]
         def shell(command, **kwargs):
-            nonlocal present,updated
+            nonlocal present,updated,marker
             calls.append(command)
             if command=='getprop ro.serialno':return 'USB'
             if command=='pm list users':return 'UserInfo{0:Owner:13}'
@@ -40,12 +40,13 @@ class PackageReadback(unittest.TestCase):
                     return 'STABLE\t'+'a'*64+'\n'+xml
                 value='false' if persistent else 'true'
                 return 'STABLE\t'+'a'*64+f'\n<package-restrictions><pkg name="{standalone.APP}" inst="{value}" /></package-restrictions>'
-            if command.startswith('if [ -e '+standalone.PENDING):return 'ABSENT'
+            if command.startswith('rm -f '+standalone.PENDING):marker=False;return ''
+            if command.startswith('if [ -e '+standalone.PENDING):return 'PRESENT' if marker else 'ABSENT'
             return ''
         device.shell.side_effect=shell
         before={'paths':{},'termux_path':'termux','user_packages':'' if already_removed else 'package:'+standalone.APP}
         if resume:before['pending']='resume-op:1:-:'+kind
-        def state(d):return before if len(calls)<4 else {'paths':{},'termux_path':'termux','user_packages':'package:'+standalone.APP if present else ''}
+        def state(d):return before if len(calls)<4 else {'paths':{standalone.PENDING:marker},'pending':'op:1:-' if marker else '', 'termux_path':'termux','user_packages':'package:'+standalone.APP if present else ''}
         with tempfile.TemporaryDirectory() as temp:
             args=argparse.Namespace(serial='USB',adb_port=5037,adb='adb',purge=True,yes_delete=True,report=Path(temp)/'report')
             with mock.patch.object(standalone,'Device',return_value=device),mock.patch.object(standalone,'uninstall_state',side_effect=state),mock.patch.object(standalone,'PACKAGE_PERSIST_TIMEOUT',0,create=True):
