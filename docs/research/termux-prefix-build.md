@@ -7,7 +7,7 @@ repository. It reproduces the official installer's executable permissions and
 host apt using isolated package state. It does not install Android packages on
 the build host.
 
-Run on Linux with Python 3, apt-get, dpkg-deb and GNU tar. Supply the official APK
+Run on Linux with Python 3, apt-get, dpkg-deb and GNU tar and gzip. The archive uses explicit `gzip -n` and sorted entries with zero timestamps and numeric ownership. Supply the official APK
 from the URL in the script; the script verifies it before extraction:
 
 ```sh
@@ -39,3 +39,40 @@ all actual postinst scripts plus the second-stage entry. The Rungic firstboot at
 `e93a35f` only extracts the seed; it does not run those scripts. Validate startup,
 playback and recording through that product flow without manually repairing the
 prefix and reporting the repair as successful first installation.
+
+## Reproducible build check
+
+On 2026-10-07, the builder on K8-Plus downloaded the pinned official APK,
+resolved 23 packages against signed Termux indexes, and built a seed. A second
+build used its emitted lock and downloaded the same package versions again.
+Both archives have SHA-256
+`ded598dfe489f77fce453f72bbf9da8d7fd6369860b201d7ccefcb8089b4fa9e`.
+Each preserved 1,146 bootstrap symlinks. Raw apt logs, signed indexes, lock and
+reports are retained under the developer checkout's `.work/termux-repro/`.
+This checks the host composition; neither build executed an Android program.
+
+## Bootstrap compatibility boundary
+
+The pinned input is the official GitHub **debug-signed** ARM64 APK for Termux
+0.118.3. Its APK file SHA-256 is an input identity, not a signing certificate
+hash. Use this bootstrap with that Termux build; a matching version string alone
+does not prove APK identity or certificate compatibility. An F-Droid build or
+another Termux version is outside this builder's verified input combination.
+
+Current `rungic-firstboot.sh` checks the seed APK and archive against the payload
+manifest and checks that `com.termux` exists. It **does not** compare the installed
+Termux version or certificate with the bootstrap source. It also preserves an
+existing executable PulseAudio prefix. This is a known limitation, not an
+installation compatibility guarantee. Record installed APK identity and prefix
+provenance before using the seed. The next candidate's device QA must verify
+startup, playback and recording from the ordinary product path.
+
+For the USB G100 candidate on 2026-10-07, mibook independently read
+`/product/app/Termux/Termux.apk` and package metadata (0.118.3, versionCode 1002,
+DEBUGGABLE). Its APK file SHA-256 matches the pinned input exactly, and both
+signing certificates have SHA-256
+`b6da01480eefd5fbf2cd3771b8d1021ec791304bdd6c4bf41d3faabad48ee5e1`.
+The independent comparison is recorded in QA thread message `9eb81171`.
+This confirms the APK/bootstrap input combination for that base; it does not
+prove prefix configuration, startup, playback or recording. The runtime matching
+check described above remains absent.

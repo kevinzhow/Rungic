@@ -127,8 +127,11 @@ features:
       - tools/ci/test_firstboot_cast.py
       - .agents/skills/rungic-three-stage-image/
       - tools/ci/test_standalone_guards.py
+      - tools/ci/build_termux_prefix.py
+      - tools/ci/test_termux_prefix.py
     docs:
       - docs/75-image-build-separation.md
+      - docs/research/termux-prefix-build.md
       - docs/91-x70-independent-install.md
       - docs/92-x70-android-base-end-to-end.md
       - docs/93-x70-independent-image-revalidation.md

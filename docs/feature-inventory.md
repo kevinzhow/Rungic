@@ -2664,7 +2664,7 @@ Agent 不靠点界面就能拿到合并日志、崩溃回溯、追踪、截图�
 - 同时有多个 ADB server（5037/5038）且重启时交替接管。每条设备命令绑定精确端口和序列号，单个端口没列出设备不代表手机没启动。 [docs/92-x70-android-base-end-to-end.md](../docs/92-x70-android-base-end-to-end.md) [docs/80-g100-image-installation-retrospective.md](../docs/80-g100-image-installation-retrospective.md)
 - `adb exec-out su -c 'tar ...'` 导出备份时 stderr 混进了二进制流，归档损坏而命令返回 0。先在手机写文件、记 SHA，再 adb pull 并两端核对。 [docs/92-x70-android-base-end-to-end.md](../docs/92-x70-android-base-end-to-end.md)
 
-文档：[docs/75-image-build-separation.md](../docs/75-image-build-separation.md)、[docs/91-x70-independent-install.md](../docs/91-x70-independent-install.md)、[docs/92-x70-android-base-end-to-end.md](../docs/92-x70-android-base-end-to-end.md)、[docs/93-x70-independent-image-revalidation.md](../docs/93-x70-independent-image-revalidation.md)
+文档：[docs/75-image-build-separation.md](../docs/75-image-build-separation.md)、[docs/research/termux-prefix-build.md](../docs/research/termux-prefix-build.md)、[docs/91-x70-independent-install.md](../docs/91-x70-independent-install.md)、[docs/92-x70-android-base-end-to-end.md](../docs/92-x70-android-base-end-to-end.md)、[docs/93-x70-independent-image-revalidation.md](../docs/93-x70-independent-image-revalidation.md)
 
 #### 明确范围地卸载并保留家目录（实验）
 

@@ -181,7 +181,7 @@ def main():
     artifact = out / 'termux-prefix.tar.gz'
     # Numeric ownership is applied on-device to the actual Termux UID by firstboot.
     run(['tar', '--sort=name', '--mtime=@0', '--owner=0', '--group=0', '--numeric-owner',
-         '-C', str(out / 'prefix'), '-czf', str(artifact), 'usr'], out / 'archive.log')
+         '--use-compress-program=gzip -n', '-C', str(out / 'prefix'), '-cf', str(artifact), 'usr'], out / 'archive.log')
     scripts = out / 'configuration-scripts'; scripts.mkdir()
     pending = []
     second = prefix / 'etc/termux/bootstrap/termux-bootstrap-second-stage.sh'
