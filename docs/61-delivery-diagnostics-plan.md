@@ -386,3 +386,5 @@ python3 tools/rungic_acceptance.py render .work/deploy/RUN/acceptance-retry/repo
 `session.ready` 在 60 秒内采样会话环境、KWin 与 plasmashell，要求连续三次进程稳定、外壳运行至少 15 秒和 `ksplashqml` 明确退出，再保存手机截图 `session.ready.png`。查询失败或截图失败不会通过。该自动结果仅确认进程与启动画面退出，不宣称完整桌面可见。
 
 即使只跑 smoke 或 selected，选择该场景就带入 `manual.session.ready.1`。审阅者查看同次截图或手机画面，记录版本、启动标识、时间与完整主屏实际可见的观察；运行单照常结束，不停下来等人；该项先显示“待人工”，未填写时总判定为未完成。补填必须提供确认人和带时区的实际观察时间，报告在该行显示两项。使用既有 `manual REPORT --manual manual.session.ready.1=pass:实际观察 --reviewer James --observed-at 2026-10-07T07:10:00+09:00` 生成独立关联报告，保留原始未验项。黑屏、启动画面或无法判断应记录失败，不以 PNG 文件存在代替观察。重启验收分别保留三轮结果，本检查不自动执行或证明整机重启恢复。
+
+该自动项的 `covers` 仍为空：完整主屏体验必须由单独的审阅观察提供证据，不把进程／截图采集宣称成自动功能通过。历史报告按本计划的关联展示也不能因此获得一条当时没有执行的桌面体验覆盖。

@@ -7,9 +7,7 @@
       "level": "smoke",
       "check": "session_ready",
       "title": "60 秒内确认会话环境、KWin 和 plasmashell 连续三次采样稳定且外壳运行至少 15 秒，ksplashqml 已退出；保存手机截图。完整主屏是否可见须人工确认，本自动项不证明桌面可用或重启恢复。",
-      "covers": [
-        "install.desktop-entry/E6"
-      ],
+      "covers": [],
       "params": {
         "timeout": 60
       },
