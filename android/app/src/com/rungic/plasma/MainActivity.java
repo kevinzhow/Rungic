@@ -329,31 +329,15 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
         worker.execute(() -> {
             try {
                 if (isDestroyed() || generation!=surfaceGeneration || !holder.getSurface().isValid()) return;
-                // The controller can already be gone during an interrupted removal.
-                // Read the root marker without depending on that controller or its runtime.
-                final boolean removalPending;
-                try { removalPending=RemovalState.isPending(control("removal-status")); }
-                catch(Exception failure) {
-                    Log.w("RungicWayland", "Removal state could not be read", failure);
-                    runOnUiThread(() -> {
-                        if(!isDestroyed() && generation==surfaceGeneration)
-                            showProblem(getString(R.string.removal_status_unknown), getString(R.string.removal_status_unknown_details), true);
-                    });
-                    return;
-                }
-                if(removalPending) {
-                    runOnUiThread(() -> {
-                        if(!isDestroyed() && generation==surfaceGeneration)
-                            showProblem(getString(R.string.removal_incomplete), getString(R.string.removal_incomplete_details), false);
-                    });
-                    return;
-                }
                 File installSource=new File(getFilesDir(),"rungic-install-source.properties");
                 File installStatus=new File(getFilesDir(),"rungic-install.properties");
                 if(!installRepublishAsked && !installSource.exists() && !installStatus.exists()) {
                     installRepublishAsked=true;
                     try { control("install-publish"); }
-                    catch(Exception e) { Log.w("RungicWayland","Install status not republished",e); }
+                    catch(Exception e) {
+                        if(showRemovalFailure(e,generation)) { installRepublishAsked=false; return; }
+                        Log.w("RungicWayland","Install status not republished",e);
+                    }
                 }
                 FirstBootState install=FirstBootState.readSource(installSource,
                     new File("/product/etc/rungic/seed.env"),installStatus);
@@ -463,6 +447,7 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
                 if(resume)resumeChecks();
             } catch (Throwable e) {
                 Log.e("RungicWayland", "Start failed", e);
+                if(showRemovalFailure(e,generation))return;
                 runOnUiThread(() -> {
                     if(!isDestroyed() && generation==surfaceGeneration)
                         showProblem(getString(R.string.start_failed), getString(R.string.start_failed_details), true);
@@ -474,15 +459,32 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
         });
     }
 
+    /** Runs on a worker, after failure only; no extra root call on a normal return to the front. */
+    private boolean showRemovalFailure(Throwable failure, int generation) {
+        RemovalState.Result state=RemovalState.afterFailure(failure,()->control("removal-status"));
+        if(state==RemovalState.Result.OTHER)return false;
+        runOnUiThread(()->{
+            if(isDestroyed() || generation!=surfaceGeneration)return;
+            boolean unknown=state==RemovalState.Result.UNKNOWN;
+            showProblem(getString(unknown?R.string.removal_status_unknown:R.string.removal_incomplete),
+                getString(unknown?R.string.removal_status_unknown_details:R.string.removal_incomplete_details),unknown);
+        });
+        return true;
+    }
+
     private void notifyState(String message) {
         if(!message.equals(notificationState)) { notificationState=message; DesktopService.update(this,message); }
     }
     /** What start does on a resume, off the display's path: the controller restarts a failed
      *  session and the hardware backends that stopped (a frame that does not come waits for it). */
     private void resumeChecks() {
+        final int generation=surfaceGeneration;
         Thread checks=new Thread(() -> {
             try { control("start"); }
-            catch(Exception e) { Log.w("RungicWayland","Checks after the return to the front failed",e); }
+            catch(Exception e) {
+                showRemovalFailure(e,generation);
+                Log.w("RungicWayland","Checks after the return to the front failed",e);
+            }
         },"rungic-resume-checks");
         checks.setDaemon(true);checks.start();
     }
