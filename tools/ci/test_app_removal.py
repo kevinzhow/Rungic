@@ -8,6 +8,21 @@ import unittest
 ROOT = Path(__file__).resolve().parents[2]
 
 class AppRemoval(unittest.TestCase):
+    def test_controller_removal_message_matches_java_contract(self):
+        # covers: install.removal-app-status/E1
+        java=(ROOT/'android/app/src/com/rungic/plasma/RemovalState.java').read_text()
+        literal=re.search(r'INCOMPLETE_MESSAGE = "(.*?)";',java).group(1)
+        import json
+        expected=json.loads('"'+literal+'"')
+        for name in ('system/rungic-plasma','system/rungic-runtime','tools/ci/rungic-firstboot.sh'):
+            with self.subTest(script=name):
+                messages=[]
+                for line in (ROOT/name).read_text().splitlines():
+                    if 'rungic-uninstalling' not in line:continue
+                    messages.extend(match.group(2) for match in re.finditer(r"echo\s+(['\"])(.*?)\1",line))
+                self.assertTrue(messages,'The removal guard no longer emits a checked message')
+                for message in messages:self.assertEqual(message,expected,name)
+
     def test_marker_query_without_controller_and_unknown_root_access(self):
         # covers: install.removal-app-status/E1 install.removal-app-status/E2
         source = (ROOT / 'android/app/src/com/rungic/plasma/RemovalState.java').read_text()
