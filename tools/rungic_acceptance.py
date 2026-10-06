@@ -61,23 +61,43 @@ def wait_for(condition, timeout=10, interval=0.5):
 # ---------------------------------------------------------------- session
 
 @check
-def session_ready(ctx, settle_s=15, timeout=90):
-    """KWin and plasmashell up with stable PIDs, and plasmashell running long enough to have
-    loaded its launcher model: later checks must not race a session that is still starting."""
-    probe = ('{ test -f /run/user/1000/rungic-session.env || test -f /run/user/1000/moto-session.env; } && echo env; k=$(pidof kwin_wayland) && echo kwin $k; '
-             'p=$(pidof -s plasmashell) && echo shell $p $(ps -o etimes= -p $p)')
-    samples, deadline = [], time.monotonic() + timeout
+def session_ready(ctx, settle_s=15, timeout=60):
+    """Check stable session processes and splash exit; save a picture for human desktop confirmation."""
+    probe = ('{ test -f /run/user/1000/rungic-session.env || test -f /run/user/1000/moto-session.env; } && echo env; '
+             'k=$(pidof kwin_wayland) && echo kwin $k; '
+             'p=$(pidof -s plasmashell) && echo shell $p $(ps -o etimes= -p $p); '
+             's=$(pidof ksplashqml); code=$?; '
+             'if [ "$code" = 0 ] && [ -n "$s" ]; then echo splash running $s; '
+             'elif [ "$code" = 1 ]; then echo splash clear; else echo splash unknown; fi')
+    samples, state = [], {}
+    began = time.monotonic()
+    deadline = began + timeout
     while time.monotonic() < deadline:
-        text = run(probe, 'container', check=False).stdout
-        state = {line.split()[0]: line.split()[1:] for line in text.splitlines() if line.strip()}
+        response = run(probe, 'container', check=False)
+        state = {line.split()[0]: line.split()[1:] for line in response.stdout.splitlines() if line.strip()}
         key = (tuple(state.get('kwin', [])), (state.get('shell') or [None])[0])
-        age = int(state['shell'][1]) if len(state.get('shell', [])) > 1 else 0
+        shell = state.get('shell', [])
+        age = int(shell[1]) if len(shell) == 2 and shell[1].isdigit() else 0
         samples = (samples + [key])[-3:]
-        if {'env', 'kwin', 'shell'} <= set(state) and len(samples) == 3 and len(set(samples)) == 1 \
-                and age >= settle_s:
-            return result(True, {'shell_age_s': age}, kwin=list(key[0]), plasmashell=key[1])
+        if response.returncode == 0 and {'env', 'kwin', 'shell'} <= set(state) \
+                and all(key) and len(samples) == 3 and len(set(samples)) == 1 \
+                and age >= settle_s and state.get('splash') == ['clear']:
+            shot = Path(ctx['out_dir']) / 'session.ready.png'
+            try:
+                captured = Path(rungic_agent.screenshot(shot))
+                with captured.open('rb') as f:
+                    if f.read(8) != b'\x89PNG\r\n\x1a\n':
+                        raise ValueError('captured file is not a PNG')
+            except Exception as error:
+                return result(False, screenshot_error=str(error), splash='clear')
+            return result(True, {'shell_age_s': age, 'ready_wait_s': round(time.monotonic() - began, 1)},
+                          kwin=list(key[0]), plasmashell=key[1], splash='clear', screenshot=str(captured),
+                          visible_desktop_confirmed=False, manual_confirmation_required=True)
         time.sleep(2)
-    return result(False, present=sorted(state), samples=[list(map(str, s)) for s in samples])
+    return result(False, {'ready_wait_s': round(time.monotonic() - began, 1)},
+                  present=sorted(state), splash=state.get('splash', ['unknown']),
+                  samples=[list(map(str, sample)) for sample in samples],
+                  error='The stable desktop and splash exit were not confirmed within the deadline')
 
 
 @check
@@ -1037,13 +1057,15 @@ def run_scenarios(selected, release=None, out_dir=None, since=None, skips=None, 
     spec = load()
     manual = [{'id': f'manual.{i}', 'title': title, 'status': 'not-run', 'note': ''}
               for i, title in enumerate(spec.get('manual', []), 1)] if scope == 'full' else []
+    manual += [{'id': f'manual.{scenario["id"]}.{i}', 'title': title, 'status': 'not-run', 'note': '', 'requires_reviewer': scenario.get('manual_review', False)}
+               for scenario in selected for i, title in enumerate(scenario.get('manual', []), 1)]
     for id, value in (manual_results or {}).items():
         row = next((r for r in manual if r['id'] == id), None)
         if row is None:
             raise ValueError(f'manual ID is not in the {scope} plan: {id}')
-        if value.get('status') not in ('pass', 'fail') or not value.get('note', '').strip():
-            raise ValueError(f'manual result requires pass or fail and an observation: {id}')
-        row.update(status=value['status'], note=value['note'].strip())
+        validate_manual_result(row, value)
+        row.update({key: value[key] for key in ('status', 'note', 'reviewer', 'observed_at') if key in value})
+        row['note'] = value['note'].strip()
     started = time.time()
     stamp = datetime.datetime.now().strftime('%Y%m%d-%H%M%S')
     out_dir = Path(out_dir) if out_dir else RESULTS / (release or 'unreleased') / stamp
@@ -1458,7 +1480,7 @@ def render_report(path):
     lines += ['', '| 你想知道的 | 回答 |', '| --- | --- |',
               f'| 测的是什么 | {tested_identity} |',
               f'| 结果如何 | {observation_text} |',
-              f'| 没测到什么 | 本次计划直接关联 {len(run_coverage)} 个用户场景（共 {len(live_scenarios)} 个）。完整验收另关联 {len(full_only)} 个，本次没有运行。其余 {len(uncovered)} 个没有本验收计划的自动检查直接关联。' + (f'其中实际执行了 {len(executed_coverage)} 个，关联检查全部通过的 {len(passed_coverage)} 个。' if run_coverage else '') + f'{pending if scope == "full" else len(first.get("manual", []))} 项人工检查未执行。 |', '']
+              f'| 没测到什么 | 本次计划直接关联 {len(run_coverage)} 个用户场景（共 {len(live_scenarios)} 个）。完整验收另关联 {len(full_only)} 个，本次没有运行。其余 {len(uncovered)} 个没有本验收计划的自动检查直接关联。' + (f'其中实际执行了 {len(executed_coverage)} 个，关联检查全部通过的 {len(passed_coverage)} 个。' if run_coverage else '') + f'{pending} 项本次计划内的人工检查未执行。 |', '']
     if scope == 'smoke' and decision == 'pass' and not run_coverage:
         lines += ['冒烟只说明系统起来了、接口通了，不说明任何用户场景可用。', '']
     if combined['identity_errors']:
@@ -1600,11 +1622,12 @@ def render_report(path):
     lines += [f'**{omitted_title}（{len(omitted)} 项）：**', '']
     lines += ['- ' + md(s['title']).rstrip('。') + '。关联的用户能力：' + label(s['id']) for s in omitted] or ['无。']
     lines += ['', '**人工项：**', '']
-    if scope == 'full':
+    if manual:
         lines += [f'- {md(r["title"])}：' + ('待人工' if r['status'] == 'not-run' else status(r)) +
-                  f'（{md(r["id"])}） · {md(r["note"])}' for r in manual] or ['无。']
-    else:
-        lines += ['- 本次不检查：' + md(title) for title in first.get('manual', [])] or ['无。']
+                  f'（{md(r["id"])}） · {md(r["note"])}' +
+                  (f' · 确认人：{md(r.get("reviewer"))}，时间：{md(r.get("observed_at"))}' if r.get('status') != 'not-run' and r.get('requires_reviewer') else '') for r in manual] or ['无。']
+    if scope != 'full':
+        lines += ['- 本次不检查：' + md(title) for title in first.get('manual', [])]
     lines += ['', '## 5. 指标变化', '']
     for source, report in attempts:
         for row in report.get('scenarios', []):
@@ -1667,7 +1690,21 @@ def parse_manual(entries):
     return results
 
 
-def manual_report(path, results, out_dir=None):
+def validate_manual_result(definition, value):
+    id = definition['id']
+    if value.get('status') not in ('pass', 'fail') or not value.get('note', '').strip():
+        raise ValueError(f'manual result requires pass or fail and an observation: {id}')
+    if definition.get('requires_reviewer'):
+        if not str(value.get('reviewer') or '').strip():
+            raise ValueError(f'manual result requires a reviewer: {id}')
+        try:
+            observed = datetime.datetime.fromisoformat(value.get('observed_at') or '')
+            if observed.tzinfo is None: raise ValueError('missing timezone')
+        except (TypeError, ValueError):
+            raise ValueError(f'manual result requires an observation time with timezone: {id}')
+
+
+def manual_report(path, results, out_dir=None, reviewer=None, observed_at=None):
     """Save human observations in a new linked report. Do not rerun automatic checks or change previous evidence."""
     import copy
     import os
@@ -1675,18 +1712,19 @@ def manual_report(path, results, out_dir=None):
     attempts, warnings = read_attempts(path)
     combined = combine(attempts, warnings)
     first, latest = combined['first'], combined['latest']
-    if first.get('scope') != 'full':
-        raise ValueError('manual observations require a readable full report')
+    if not combined['manual']:
+        raise ValueError('manual observations require a readable report with planned manual checks')
     if not results:
         raise ValueError('no manual observations supplied')
     definitions = {r['id']: r for r in combined['manual']}
     rows = []
     for id, value in results.items():
         if id not in definitions:
-            raise ValueError(f'manual ID is not in the original full plan: {id}')
-        if value.get('status') not in ('pass', 'fail') or not value.get('note', '').strip():
-            raise ValueError(f'manual result requires pass or fail and an observation: {id}')
-        rows.append({'id': id, 'title': definitions[id]['title'], 'status': value['status'], 'note': value['note'].strip()})
+            raise ValueError(f'manual ID is not in the original plan: {id}')
+        definition = definitions[id]
+        value = {**value, **({'reviewer': reviewer, 'observed_at': observed_at} if reviewer or observed_at else {})}
+        validate_manual_result(definition, value)
+        rows.append({**definition, **{key: value[key] for key in ('status', 'reviewer', 'observed_at') if key in value}, 'note': value['note'].strip()})
     stamp = datetime.datetime.now().strftime('%Y%m%d-%H%M%S')
     out_dir = Path(out_dir) if out_dir else path.parent / ('manual-' + stamp)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -1716,13 +1754,15 @@ def main():
     p = sub.add_parser('render'); p.add_argument('report')
     p = sub.add_parser('manual'); p.add_argument('report'); p.add_argument('--out-dir')
     p.add_argument('--manual', action='append', required=True, metavar='ID=pass|fail:OBSERVATION')
+    p.add_argument('--reviewer', help='person or agent who reviewed the picture')
+    p.add_argument('--observed-at', help='actual observation time in ISO 8601 with timezone')
     a = parser.parse_args()
     if a.cmd == 'render':
         print(render_report(a.report))
         return 0
     if a.cmd == 'manual':
         try:
-            report = manual_report(a.report, parse_manual(a.manual), a.out_dir)
+            report = manual_report(a.report, parse_manual(a.manual), a.out_dir, a.reviewer, a.observed_at)
         except ValueError as error:
             parser.error(str(error))
         attempts, warnings = read_attempts(Path(report['path']).resolve())

@@ -699,3 +699,65 @@ def test_interface_dependents_quote_each_scenario_title(runner, catalog):
     report = acc.run_scenarios([runner.scenario('one', 'good')], out_dir=runner.path)
     rendered = acc.render_report(report['path']).read_text()
     assert '依赖这个接口的场景：1 个（只表示依赖，不表示已测）：「输入文字」。' in rendered
+
+# covers: install.desktop-entry/E6 delivery.acceptance/E6
+@pytest.mark.parametrize('splash,rc,expected', [('clear', 0, True), ('running 12', 0, False), ('unknown', 0, False), ('clear', 1, False)])
+def test_session_requires_splash_exit_and_keeps_visible_desktop_unconfirmed(tmp_path, monkeypatch, splash, rc, expected):
+    clock = [0]
+    monkeypatch.setattr(acc.time, 'monotonic', lambda: clock[0])
+    monkeypatch.setattr(acc.time, 'sleep', lambda value: clock.__setitem__(0, clock[0] + value))
+    monkeypatch.setattr(acc, 'run', lambda *a, **k: types.SimpleNamespace(
+        stdout=f'env\nkwin 10\nshell 11 20\nsplash {splash}\n', returncode=rc))
+    def capture(path):
+        Path(path).write_bytes(b'\x89PNG\r\n\x1a\n')
+        return str(path)
+    monkeypatch.setattr(acc.rungic_agent, 'screenshot', capture)
+    row = acc.session_ready({'out_dir': tmp_path}, timeout=6)
+    assert row['passed'] is expected
+    if expected:
+        assert row['details']['visible_desktop_confirmed'] is False
+        assert row['details']['manual_confirmation_required'] is True
+        assert Path(row['details']['screenshot']).exists()
+    else:
+        assert not (tmp_path / 'session.ready.png').exists()
+
+# covers: install.desktop-entry/E6
+@pytest.mark.parametrize('failure', ['capture-failed', 'not-png'])
+def test_session_does_not_pass_without_picture(tmp_path, monkeypatch, failure):
+    clock = [0]
+    monkeypatch.setattr(acc.time, 'monotonic', lambda: clock[0])
+    monkeypatch.setattr(acc.time, 'sleep', lambda value: clock.__setitem__(0, clock[0] + value))
+    monkeypatch.setattr(acc, 'run', lambda *a, **k: types.SimpleNamespace(
+        stdout='env\nkwin 10\nshell 11 20\nsplash clear\n', returncode=0))
+    def capture(path):
+        if failure == 'capture-failed': raise OSError('screen unavailable')
+        Path(path).write_text('no picture')
+        return str(path)
+    monkeypatch.setattr(acc.rungic_agent, 'screenshot', capture)
+    row = acc.session_ready({'out_dir': tmp_path}, timeout=6)
+    assert row['passed'] is False and row['details']['screenshot_error']
+
+# covers: install.desktop-entry/E6 delivery.acceptance/E6
+def test_selected_desktop_check_requires_linked_human_observation(runner):
+    case = runner.scenario('session.ready')
+    case['manual'] = ['Confirm the actual complete home screen']
+    case['manual_review'] = True
+    report = acc.run_scenarios([case], out_dir=runner.path, scope='smoke')
+    assert report['scenarios'][0]['status'] == 'pass'
+    assert report['verdict'] == 'incomplete'
+    assert report['manual_results'][0]['id'] == 'manual.session.ready.1'
+    human = acc.manual_report(report['path'], {'manual.session.ready.1': {'status': 'pass', 'note': 'Saw complete home, boot TEST, screenshot session.ready.png', 'reviewer': 'James', 'observed_at': '2026-10-07T07:10:00+09:00'}}, runner.path.parent / 'human')
+    combined = acc.combine(acc.read_attempts(Path(human['path']))[0])
+    assert combined['verdict'] == 'pass'
+    assert report['manual_results'][0]['status'] == 'not-run'
+
+
+# covers: install.desktop-entry/E6 delivery.acceptance/E6
+@pytest.mark.parametrize('identity', [{}, {'reviewer': 'James'}, {'reviewer': 'James', 'observed_at': '2026-10-07T07:10:00'}])
+def test_desktop_manual_result_rejects_missing_reviewer_or_timezone(runner, identity):
+    case = runner.scenario('session.ready'); case.update(manual=['Observe the complete home screen'], manual_review=True)
+    report = acc.run_scenarios([case], out_dir=runner.path, scope='smoke')
+    directory = runner.path.parent / 'invalid-observation'
+    with pytest.raises(ValueError, match='reviewer|observation time'):
+        acc.manual_report(report['path'], {'manual.session.ready.1': {'status': 'pass', 'note': 'Saw desktop', **identity}}, directory)
+    assert not directory.exists()

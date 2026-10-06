@@ -6,8 +6,17 @@
       "id": "session.ready",
       "level": "smoke",
       "check": "session_ready",
-      "title": "桌面合成器（KWin）和外壳（plasmashell）在运行。连续 3 次采样，进程不变。外壳已运行至少 15 秒。会话环境文件存在。不检查宿主重启后的恢复。",
-      "covers": []
+      "title": "60 秒内确认会话环境、KWin 和 plasmashell 连续三次采样稳定且外壳运行至少 15 秒，ksplashqml 已退出；保存手机截图。完整主屏是否可见须人工确认，本自动项不证明桌面可用或重启恢复。",
+      "covers": [
+        "install.desktop-entry/E6"
+      ],
+      "params": {
+        "timeout": 60
+      },
+      "manual": [
+        "查看同次 session.ready.png 与手机画面，确认完整主屏可见，未停留在启动画面或黑屏；记录实际版本、启动标识、观察时间和截图。三轮整机重启分别留证，不从单次运行推断。"
+      ],
+      "manual_review": true
     },
     {
       "id": "session.units",
