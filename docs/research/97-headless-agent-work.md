@@ -1332,3 +1332,29 @@ KWin 的层从低到高（`effect/globals.h`）：Desktop、Below、Normal、Abo
 - 未测：手机上的触控全屏操作（会打断用户正在用的桌面模式；无头系统测试 `desktop_mode_fullscreen` 覆盖窗口层级）；电视投屏（需要电视）。
 
 **会话就绪误报**（§19.4 记过两次）：部署的重启步骤又报 “Desktop did not become ready”，桌面其实已在 6 秒内就绪。原因：`system/rungic-plasma` 用 `pidof kwin_wayland`/`pidof plasmashell` 记下重启前的进程，要求就绪时“全是新进程”；而 0 号（桌面模式）和其他工作区各有一个 KWin 和 plasmashell，会话重启时它们照常运行，条件永远不成立。改为只看会话自己的两个用户单元 `plasma-kwin_wayland.service`、`plasma-plasmashell.service` 的主进程。手机上的控制器换成新版（旧版存为 `/data/adb/rungic-plasma/rungic-plasma.before-20261003`，与仓库 HEAD 的旧版哈希相同），`rungic_plasma.py restart-session` 在工作区 0、1 都在运行时 6.7 秒报告就绪。控制器属于发布清单的 Android 侧文件，没有开发覆盖机制，下一次正式发布会按清单部署同一文件。
+
+
+## 2026-10-07：私有 portal 激活与 Wayland 就绪（离线修复）
+
+第一轮 G100 的三次启动均出现工作区 KDE portal 提前连接 Wayland 失败。两份完整日志显示请求来自 KWin 自身，发生在工作区脚本等待 socket 之前；只延后发布总线地址不能挡住这个请求。socket 已经监听也不能证明合成器正在处理请求。
+
+私有总线现有的优先服务目录增加 KDE 后端激活入口。`rungic-workspace-portal` 不创建 Qt GUI，不自行请求 portal；先对该工作区地址做非阻塞连接，再等一次真正的 Wayland `sync` 回复，总时间不超过 20 秒。没有地址时不回退到用户桌面，超时或断连以非零退出并记录地址。构建时从上游 D-Bus 服务文件读取后端的实际路径和参数（不同发行版的 libexec 目录不同）。成功后 `exec` 该上游 `xdg-desktop-portal-kde`，保持原进程身份、后端参数及退出码。服务文件只安装到工作区私有目录，工作区 0 和 Agent 工作区使用它，用户主桌面的上游服务文件不变。不增加后端崩溃后的重试。
+
+有界 roundtrip 复用呈现器已有机制，提取到 `wayland-ready.h`，使用单调时钟、处理读写错误并在成功或失败时释放 callback；呈现器保留原来的超时参数。连接等待仅针对地址未提供服务，不是对 portal 崩溃的恢复。20 秒留在 D-Bus 默认激活超时之内。
+
+上游查阅：[Wayland Client API](https://wayland.freedesktop.org/docs/html/apb.html)、[KWin v6.6.6 main_wayland.cpp](https://github.com/KDE/kwin/blob/v6.6.6/src/main_wayland.cpp)。本机协议库为 Wayland 1.24.0，MIT；KWin 源码 GPL-2.0-or-later。保留上游 portal，不改 KWin、Qt 或 portal 的实现。单纯 `test -S`、固定等待和崩溃重试均未采用。
+
+本地回归使用真实 libwayland 服务和 D-Bus：先建 socket、暂停服务分发，此时激活不能启动后端；允许分发后才执行。还检查地址延迟出现、无响应超时、断连、无地址、后端缺失、参数/PID/退出码，以及私有 D-Bus 激活名称。后端为最小测试进程，不将这些结果写成 KDE portal 已通过。`tools/system/tests/workspace_portal.py` 另外启动真实工作区 KWin 和上游 KDE portal，连续三次检查其私有总线名称与实际可执行文件；它是软件渲染证据，不能代替手机 GPU 和整机三次启动验收。
+
+
+本轮开发验证结果：本地工作区回归 13 项通过。Mac mini 的现有隔离系统镜像 `rungic-system:e14d334e6523` 上，新 portal 系统检查（35.8 秒）及既有 `workspace_headless`（46.3 秒）通过。portal 连续三轮均取得私有总线名称，名称所有者执行文件为上游后端，早连失败签名为零；既有输入、无障碍、声音及用户会话独立性也通过。原件在 `.work/system-tests/20261007-061856/`，工作树归档摘要 `86fc9d803a5e`。首次固定 libexec 路径导致测试失败的原报告 `.work/system-tests/20261007-061626/` 保留。当前实际设备和原候选未改动。
+
+
+### Portal 构建边界
+
+私有总线的模板采用 `CMAKE_INSTALL_FULL_LIBEXECDIR`，与 helper 的 GNUInstallDirs 安装目录一致。
+上游激活命令从构建环境的 KDE portal service 文件读取，因此必须在目标发行版环境中原生构建，
+构建容器与目标 rootfs 使用同一发行版及同一 `xdg-desktop-portal-kde` 版本。
+当前打包入口是 Ubuntu 26.04 ARM64 原生容器；模拟 ARM64 执行也仍是目标环境内的原生构建。
+CMake 对交叉编译直接报错，避免把宿主的 portal 路径装进不同的目标系统。
+20 秒就绪上限小于 D-Bus 默认 25 秒激活超时，留出后端 exec 和名称注册时间。

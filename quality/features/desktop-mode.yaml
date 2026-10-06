@@ -892,6 +892,7 @@ features:
       - android/app/src/com/rungic/plasma/Director.java
       - android/app/src/com/rungic/plasma/DirectorArt.java
       - agent/workspace/present.cpp
+      - agent/workspace/wayland-ready.h
       - packages/android-host/debian/patches/rungic/21-tv-director.patch
       - packages/kwin/debian/patches/rungic/screencast-finish-without-implicit-sync.patch
     docs: [docs/58-miracast-desktop-feasibility.md, docs/research/97-headless-agent-work.md]

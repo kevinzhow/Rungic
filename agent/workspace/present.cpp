@@ -45,6 +45,7 @@
 #include "linux-explicit-synchronization-unstable-v1-client-protocol.h"
 #include "xdg-shell-client-protocol.h"
 #include <wayland-client.h>
+#include "wayland-ready.h"
 
 namespace
 {
@@ -290,29 +291,7 @@ const wl_callback_listener kFrameListener{.done = [](void *data, wl_callback *ca
 // The first roundtrips with a bound: a frozen host takes the connection and never answers.
 bool roundtrip(wl_display *display, int timeoutMs)
 {
-    bool done = false;
-    wl_callback *callback = wl_display_sync(display);
-    static const wl_callback_listener listener{.done = [](void *data, wl_callback *, uint32_t) { *static_cast<bool *>(data) = true; }};
-    wl_callback_add_listener(callback, &listener, &done);
-    wl_display_flush(display);
-    const qint64 end = QDateTime::currentMSecsSinceEpoch() + timeoutMs;
-    while (!done) {
-        const qint64 left = end - QDateTime::currentMSecsSinceEpoch();
-        if (left <= 0)
-            break;
-        while (wl_display_prepare_read(display) != 0)
-            wl_display_dispatch_pending(display);
-        pollfd p{.fd = wl_display_get_fd(display), .events = POLLIN};
-        if (poll(&p, 1, int(left)) > 0) {
-            wl_display_read_events(display);
-        } else {
-            wl_display_cancel_read(display);
-        }
-        wl_display_dispatch_pending(display);
-    }
-    if (!done)
-        wl_callback_destroy(callback);
-    return done;
+    return rungic::waylandRoundtrip(display, rungic::Clock::now() + std::chrono::milliseconds(timeoutMs));
 }
 } // namespace
 

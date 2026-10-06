@@ -805,6 +805,9 @@ features:
         text: 用户界面重启（装 Rungic 应用、Plasma 崩溃）不会停掉 Agent 的工作区。
       - id: E8
         text: 工作区重启后，Agent 的桌面工具自动换用新的会话，不会一直报 “The connection is closed”。
+      - id: E9
+        text: 工作区私有总线激活 KDE portal 前，先确认自己的 Wayland 合成器已实际响应。等待最多 20 秒，未响应时明确失败；就绪后执行上游后端，不增加崩溃重试，不改变用户主桌面的总线。
+        device: 离线真实协议与无头 KWin 不证明手机 GPU 或整机重启通过。新候选须连续三次开机，此启动签名的崩溃均为零。
     pitfalls:
       - text: KWin 只有一个座席（一个指针、一个键盘焦点、一个活动窗口），要隔离输入只能每个工作区一个合成器。
         docs: [docs/research/91-agent-workspaces.md]
@@ -830,6 +833,11 @@ features:
       - agent/workspace/dbus/session.conf
       - agent/workspace/dbus/org.a11y.Bus.service
       - agent/workspace/defaults/kwinrc
+      - agent/workspace/portal.cpp
+      - agent/workspace/wayland-ready.h
+      - agent/workspace/dbus/org.freedesktop.impl.portal.desktop.kde.service.in
+      - tools/tests/test_workspace_portal.py
+      - tools/system/tests/workspace_portal.py
       - agent/workspace/CMakeLists.txt
       - agent/workspace/input.cpp
       - agent/workspace/desktop.cpp

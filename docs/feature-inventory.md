@@ -4,7 +4,7 @@
 
 以产品功能和用户场景为骨架：每条功能是用户能感知的一件事；“体验”是它必须做到的，每条都标明由什么检查（自动测试、实机验收、人工验证或已登记的缺口）。数据在 `quality/`，规则见 [quality/README.md](../quality/README.md)。
 
-共 165 条功能、728 条体验，其中 680 条有检查。
+共 165 条功能、729 条体验，其中 681 条有检查。
 
 ## Agent 能力
 
@@ -242,6 +242,7 @@ Agent 在自己的工作区（或用户指定的桌面）上打开应用、看�
 - **E6** 工作区里的声音进它自己的 null sink，没人看时用户听不到。显示时接到默认输出。停止后 sink 和回环都清理掉。（系统测试、人工）
 - **E7** 用户界面重启（装 Rungic 应用、Plasma 崩溃）不会停掉 Agent 的工作区。（单元测试、系统测试）
 - **E8** 工作区重启后，Agent 的桌面工具自动换用新的会话，不会一直报 “The connection is closed”。（单元测试）
+- **E9** 工作区私有总线激活 KDE portal 前，先确认自己的 Wayland 合成器已实际响应。等待最多 20 秒，未响应时明确失败；就绪后执行上游后端，不增加崩溃重试，不改变用户主桌面的总线。（单元测试、系统测试；只能在手机上看：离线真实协议与无头 KWin 不证明手机 GPU 或整机重启通过。新候选须连续三次开机，此启动签名的崩溃均为零。）
 
 注意：
 - KWin 只有一个座席（一个指针、一个键盘焦点、一个活动窗口），要隔离输入只能每个工作区一个合成器。 [docs/research/91-agent-workspaces.md](../docs/research/91-agent-workspaces.md)
@@ -3087,7 +3088,7 @@ Agent 不靠点界面就能拿到合并日志、崩溃回溯、追踪、截图�
 
 | 接口 | 说明 | 使用它的功能 | 使用方测试 | 提供方测试 |
 |---|---|---|---|---|
-| `platform-bridge` 平台桥 | Rungic 应用通过 files/tmp/platform.sock 提供 Unix socket 接口，每行传输一个 JSON 对象。接口涵盖状态、显示、亮度、方向、振动、设置面板、桌面模式、助理屏、电视、导播台和文字提交。 | `agent.voice`、`agent.progress`、`agent.task-control`、`agent.phone-mode`、`agent.workspaces`、`agent.where`、`delivery.acceptance`、`delivery.agent-diagnostics`、`delivery.system-tests`、`desktop-mode.on-off`、`desktop-mode.floating-window`、`desktop-mode.fullscreen`、`desktop-mode.cast-connect`、`desktop-mode.tv-computer-mode`、`desktop-mode.tv-touchpad`、`desktop-mode.audio-follow`、`desktop-mode.director`、`desktop-mode.tv-director`、`desktop-mode.remote-viewing`、`desktop-mode.cast-test-pattern`、`desktop.orientation`、`desktop.resolution-refresh`、`desktop.brightness`、`desktop.host-bridges`、`desktop.power`、`desktop.device-panel` | 11 | 1 |
+| `platform-bridge` 平台桥 | Rungic 应用通过 files/tmp/platform.sock 提供 Unix socket 接口，每行传输一个 JSON 对象。接口涵盖状态、显示、亮度、方向、振动、设置面板、桌面模式、助理屏、电视、导播台和文字提交。 | `agent.voice`、`agent.progress`、`agent.task-control`、`agent.phone-mode`、`agent.workspaces`、`agent.where`、`delivery.acceptance`、`delivery.agent-diagnostics`、`delivery.system-tests`、`desktop-mode.on-off`、`desktop-mode.floating-window`、`desktop-mode.fullscreen`、`desktop-mode.cast-connect`、`desktop-mode.tv-computer-mode`、`desktop-mode.tv-touchpad`、`desktop-mode.audio-follow`、`desktop-mode.director`、`desktop-mode.tv-director`、`desktop-mode.remote-viewing`、`desktop-mode.cast-test-pattern`、`desktop.orientation`、`desktop.resolution-refresh`、`desktop.brightness`、`desktop.host-bridges`、`desktop.power`、`desktop.device-panel` | 12 | 1 |
 | `kwin-android-host` KWin 安卓宿主 | KWin 的 android-host 后端连接 Rungic 应用内的宿主。接口提供输出、帧时钟、零拷贝呈现、显式同步、空闲抑制和投屏输出。 | `agent.workspaces`、`apps.gpu`、`apps.vulkan`、`apps.xwayland-gpu`、`delivery.acceptance`、`delivery.trace`、`delivery.probes`、`desktop-mode.tv-computer-mode`、`desktop-mode.external-screen`、`desktop-mode.tv-director`、`desktop-mode.apk-fullscreen`、`desktop.session`、`desktop.panels`、`desktop.orientation`、`desktop.host-display`、`desktop.resolution-refresh`、`desktop.display-size`、`desktop.power`、`install.desktop-entry`、`install.app-restart-recovery`、`install.apk-build` | — | 5 |
 | `host-input` 宿主输入 | Android 将触摸、按键、指针、手势和输入法文字送入 KWin。输入方式包括直接触摸、触控板、电视遥控和键盘。 | `delivery.acceptance`、`delivery.ui-automation`、`desktop-mode.fullscreen`、`desktop-mode.fullscreen-touch`、`desktop-mode.tv-computer-mode`、`desktop-mode.tv-touchpad`、`desktop-mode.apk-fullscreen`、`desktop.touch`、`desktop.edge-back`、`desktop.android-text` | — | 1 |
 | `camera` 相机 | Android Camera2 通过 PipeWire 相机节点 rungic.camera.N 提供画面，并按需开关相机。平台桥的 capture-info 查询返回可用相机。 | `apps.camera`、`apps.snapshot`、`apps.plasma-camera`、`apps.firefox`、`delivery.acceptance`、`delivery.probes` | 2 | 3 |
