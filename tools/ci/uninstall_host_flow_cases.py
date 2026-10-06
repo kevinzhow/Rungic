@@ -12,11 +12,13 @@ for mode in ['normal','package_failure','readback_failure','finish_readback_mark
  case=a.output.resolve()/mode;root=case/'root';adb=root/'data/adb'
  home=adb/'rungic-lxc/runtime/var/lib/lxc/plasma/state/home';home.mkdir(parents=True);(home/'private').write_text('old home')
  appdata=root/'data/user/0'/product.APP;appdata.mkdir(parents=True);(appdata/'private').write_text('app private')
- for d in ['proc/self','proc/1','sys/block','product/etc/rungic','data/local/tmp','data/user_de/0']:(root/d).mkdir(parents=True,exist_ok=True)
+ for d in ['proc/self','proc/1','sys/block','product/etc/rungic','data/local/tmp','data/user_de/0','data/system/users/0']:(root/d).mkdir(parents=True,exist_ok=True)
  (root/'proc/mounts').write_text(f'none {home}/Shared none rw 0 0\n' if mode=='preview_mount' else '')
  (root/'proc/1/cmdline').write_bytes(b'init\x00');(root/'proc/1/mountinfo').write_text('1 0 0:1 / / rw - rootfs rootfs rw\n');(root/'proc/self/mountinfo').write_text('1 0 0:1 / / rw - rootfs rootfs rw\n');(root/'product/etc/rungic/firstboot.sh').write_text('old seed')
  def snapshot():
   return {str(x.relative_to(root)):('link:'+os.readlink(x) if x.is_symlink() else 'dir' if x.is_dir() else hashlib.sha256(x.read_bytes()).hexdigest()) for x in root.rglob('*')}
+ restrictions=root/'data/system/users/0/package-restrictions.xml'
+ restrictions.write_text(f'<package-restrictions><pkg name="{product.APP}" inst="true" /></package-restrictions>')
  original=snapshot()
  class Device:
   def __init__(self,args):self.installed=True;self.updated=True;self.commands=[];self.root_removed=False
@@ -39,12 +41,12 @@ for mode in ['normal','package_failure','readback_failure','finish_readback_mark
    if script.startswith('pm uninstall-system-updates'):self.updated=False;return 'Success'
    if script.startswith('pm uninstall --user'):
     if mode=='package_failure':raise subprocess.CalledProcessError(1,'package-manager',output='Failure [busy]\n')
-    self.installed=False;return 'Success'
+    self.installed=False;restrictions.write_text(f'<package-restrictions><pkg name="{product.APP}" inst="false" /></package-restrictions>');return 'Success'
    if root and self.root_removed and mode=='readback_failure' and 'RUNGIC_APP_DATA_READBACK' not in script and 'printf' in script and 'if [ -e' in script:
     raise subprocess.CalledProcessError(1,'path-readback',output='Injected final readback failure\n')
    if script.startswith('rm -f '+product.PENDING) and mode=='finish_readback_marker':return '' # Command says success, marker actually remains.
    text=script
-   for prefix in ('/data/adb','/data/data','/data/user_de','/data/user','/data/local/tmp','/proc','/sys/block','/product'):
+   for prefix in ('/data/system','/data/adb','/data/data','/data/user_de','/data/user','/data/local/tmp','/proc','/sys/block','/product'):
     text=re.sub(r'(?<![\w/])'+re.escape(prefix)+r'\b',str(case/'root')+prefix,text)
    text=text.replace(str(adb/'magisk/busybox'),'/usr/bin/busybox')
    run=subprocess.run(['/usr/bin/busybox','ash','-c','set -eu\nid() { echo 0; }\nchcon() { :; }\ngetprop() { echo fixture-base; }\nuname() { echo fixture-kernel; }\ngetenforce() { echo Enforcing; }\n'+text],capture_output=True,text=True,timeout=30)

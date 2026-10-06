@@ -43,8 +43,8 @@ class RemovalShell(unittest.TestCase):
         self.unrelated = self.adb / 'rungic-history-backup'
         self.unrelated.write_text('keep')
 
-    def run_shell(self, purge=False, extra='', preview=False):
-        script = standalone.uninstall_root_script(purge=purge, operation_id='test', preview=preview)
+    def run_shell(self, purge=False, extra='', preview=False, package_kind=None):
+        script = standalone.uninstall_root_script(purge=purge, operation_id='test', preview=preview, package_kind=package_kind)
         for prefix in ('/data/adb', '/data/data', '/data/local/tmp', '/proc', '/sys/block', '/product', '/vendor'):
             script = re.sub(r'(?<![\w/])' + re.escape(prefix) + r'\b', str(self.base) + prefix, script)
         script = script.replace(str(self.adb / 'magisk/busybox'), getattr(self, 'busybox', '/usr/bin/busybox'))
@@ -415,6 +415,19 @@ class RemovalShell(unittest.TestCase):
         self.assertTrue((self.base / 'product/etc/rungic/firstboot.sh').exists())
 
 
+    def test_package_type_survives_deletion_and_legacy_resume_is_upgraded(self):
+        # covers: install.standalone-uninstall/E5, install.standalone-uninstall/E7
+        pending = self.adb / 'rungic-uninstalling'
+        pending.write_text('test:0:-\n')
+        result = self.run_shell(package_kind='ordinary')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(pending.read_text().strip(), 'test:0:-:ordinary')
+        self.assertEqual((self.adb / 'rungic-uninstalled').read_text().strip(), 'test:ordinary')
+        conflict = self.run_shell(package_kind='system')
+        self.assertNotEqual(conflict.returncode, 0)
+        self.assertEqual(pending.read_text().strip(), 'test:0:-:ordinary')
+        self.assertEqual(self.run_shell(package_kind='ordinary').returncode, 0)
+
     def test_damaged_record_and_missing_preserved_target_fail_closed(self):
         # covers: install.standalone-uninstall/E5
         self.run_shell(extra='rm() { return 1; }\n')
@@ -573,7 +586,7 @@ class Preview(unittest.TestCase):
             device.maintenance.return_value = nullcontext()
             device.shell.side_effect = ['USB', 'UserInfo{0:Owner:13}', '0',
                                         'deleted\t' + standalone.PATHS['RUNGIC_LXC']]
-            before = {'paths': {}, 'termux_path': 'termux', 'user_packages': ''}
+            before = {'paths': {}, 'termux_path': 'termux', 'user_packages': '', 'uninstalled': 'old:system'}
             after = {'paths': {standalone.PATHS['RUNGIC_CONTROLLER']: True},
                      'termux_path': 'termux', 'user_packages': ''}
             args = argparse.Namespace(serial='USB', adb_port=5037, adb='adb', purge=True,
@@ -596,7 +609,7 @@ class Preview(unittest.TestCase):
             device.maintenance.return_value = nullcontext()
             removed = standalone.PATHS['RUNGIC_LXC']
             device.shell.side_effect = ['USB', 'UserInfo{0:Owner:13}', '0', 'deleted\t' + removed]
-            before = {'paths': {}, 'termux_path': 'termux', 'user_packages': ''}
+            before = {'paths': {}, 'termux_path': 'termux', 'user_packages': '', 'uninstalled': 'old:system'}
             failure = subprocess.CalledProcessError(1, 'path-readback', output='Injected final readback failure')
             args = argparse.Namespace(serial='USB', adb_port=5037, adb='adb', purge=True,
                                       yes_delete=True, report=Path(root) / 'report')
@@ -653,7 +666,7 @@ class Preview(unittest.TestCase):
             if command == 'pm list users': return 'UserInfo{0:Owner:13}'
             if command == 'id -u': return '0'
             if 'RUNGIC_APP_DATA_READBACK' in command: return 'CE\tEMPTY\nDE\tEMPTY'
-            if command.startswith('pm path --user 0'): return 'package:/product/app/Rungic/Rungic.apk'
+            if command.startswith('pm path '): return 'package:/product/app/Rungic/Rungic.apk'
             if command.startswith('pm list packages --user 0'): return 'package:' + standalone.APP
             if command.startswith('dumpsys'): return f'Packages:\n  Package [{standalone.APP}] (abc):\n    versionCode=54\n    flags=[ SYSTEM ' + ('UPDATED_SYSTEM_APP' if updated else '') + ' ]\n'
             if command.startswith('pm uninstall-system-updates'):

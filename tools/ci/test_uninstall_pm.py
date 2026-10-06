@@ -6,9 +6,9 @@ from unittest import mock
 import standalone
 
 class PackageReadback(unittest.TestCase):
-    def run_case(self, failed_step=None, unknown=False, command_rc=1, resume=False, invalid_info=False):
+    def run_case(self, failed_step=None, unknown=False, command_rc=1, resume=False, invalid_info=False, persistent=True, kind='system', already_removed=False):
         device=mock.Mock();device.maintenance.return_value=nullcontext()
-        present=True;updated=True;calls=[]
+        present=not already_removed;updated=kind=='system';calls=[]
         def shell(command, **kwargs):
             nonlocal present,updated
             calls.append(command)
@@ -28,21 +28,27 @@ class PackageReadback(unittest.TestCase):
                 return 'CE\tNOT_EMPTY\nDE\tEMPTY' if failed_step=='clear-app-data' else 'CE\tEMPTY\nDE\tEMPTY'
             if command.startswith('dumpsys package'):
                 if invalid_info:return 'Failure [Binder transaction]'
-                flag='SYSTEM UPDATED_SYSTEM_APP' if updated else 'SYSTEM HAS_CODE'
+                flag=('SYSTEM UPDATED_SYSTEM_APP' if updated else 'SYSTEM HAS_CODE') if kind=='system' else 'HAS_CODE'
                 return f'Packages:\n  Package [{standalone.APP}] (abc):\n    versionCode=54\n    flags=[ {flag} ]\nHidden system packages:\n'
-            if command.startswith('pm path --user 0'):
-                return 'package:/data/app/update/base.apk' if updated else 'package:/product/app/Rungic/Rungic.apk'
+            if command.startswith('pm path '):
+                return 'package:/data/app/update/base.apk' if updated or kind=='ordinary' else 'package:/product/app/Rungic/Rungic.apk'
             if command.startswith('pm list packages --user 0'):
                 return 'package:'+standalone.APP if present else ''
+            if 'RUNGIC_PACKAGE_PERSISTENCE' in command:
+                if kind=='ordinary':
+                    xml=f'<packages><package name="{standalone.APP}" /></packages>' if not persistent else '<packages/>'
+                    return 'STABLE\t'+'a'*64+'\n'+xml
+                value='false' if persistent else 'true'
+                return 'STABLE\t'+'a'*64+f'\n<package-restrictions><pkg name="{standalone.APP}" inst="{value}" /></package-restrictions>'
             if command.startswith('if [ -e '+standalone.PENDING):return 'ABSENT'
             return ''
         device.shell.side_effect=shell
-        before={'paths':{},'termux_path':'termux','user_packages':'package:'+standalone.APP}
-        if resume:before['pending']='resume-op:1:-'
+        before={'paths':{},'termux_path':'termux','user_packages':'' if already_removed else 'package:'+standalone.APP}
+        if resume:before['pending']='resume-op:1:-:'+kind
         def state(d):return before if len(calls)<4 else {'paths':{},'termux_path':'termux','user_packages':'package:'+standalone.APP if present else ''}
         with tempfile.TemporaryDirectory() as temp:
             args=argparse.Namespace(serial='USB',adb_port=5037,adb='adb',purge=True,yes_delete=True,report=Path(temp)/'report')
-            with mock.patch.object(standalone,'Device',return_value=device),mock.patch.object(standalone,'uninstall_state',side_effect=state):
+            with mock.patch.object(standalone,'Device',return_value=device),mock.patch.object(standalone,'uninstall_state',side_effect=state),mock.patch.object(standalone,'PACKAGE_PERSIST_TIMEOUT',0,create=True):
                 try:standalone.uninstall(args)
                 except ValueError:pass
             result=json.loads((args.report/'report.json').read_text());markdown=(args.report/'report.md').read_text()
@@ -55,6 +61,35 @@ class PackageReadback(unittest.TestCase):
         self.assertEqual(len(steps),3)
         for step in steps:
             self.assertEqual(step['returncode'],1);self.assertIn('Success',step['output']);self.assertTrue(step['verified'])
+    def test_in_memory_absence_with_installed_disk_state_keeps_removal_pending(self):
+        # covers: install.standalone-uninstall/E7
+        result,_,_=self.run_case(persistent=False)
+        self.assertFalse(result['complete'])
+        self.assertNotIn('finish',[step['name'] for step in result['steps']])
+        self.assertEqual(result['phase'],'persist-user-app')
+
+    def test_ordinary_apk_removed_from_packages_xml_can_complete(self):
+        # covers: install.standalone-uninstall/E7
+        result,_,_=self.run_case(kind='ordinary')
+        self.assertTrue(result['complete'])
+        self.assertEqual(result['package_kind'],'ordinary')
+        self.assertNotIn('remove-apk-update',[step['name'] for step in result['steps']])
+
+    def test_ordinary_apk_still_in_persistent_registry_keeps_marker(self):
+        # covers: install.standalone-uninstall/E7
+        result,_,_=self.run_case(kind='ordinary',persistent=False)
+        self.assertFalse(result['complete'])
+        self.assertNotIn('finish',[step['name'] for step in result['steps']])
+        self.assertEqual(result['phase'],'persist-user-app')
+
+    def test_resume_after_apk_is_gone_uses_recorded_type(self):
+        # covers: install.standalone-uninstall/E5, install.standalone-uninstall/E7
+        result,_,calls=self.run_case(kind='ordinary',resume=True,already_removed=True)
+        self.assertTrue(result['complete']);self.assertEqual(result['package_kind'],'ordinary')
+        self.assertEqual(result['package_kind_evidence']['source'],'existing-removal-record')
+        self.assertFalse(any(command.startswith(('pm clear','pm uninstall','dumpsys package')) for command in calls))
+        self.assertTrue(any('file=$parent/packages.xml' in command for command in calls))
+
     def test_zero_success_without_changed_state_stops_each_step(self):
         # covers: install.standalone-uninstall/E7
         for name in ('clear-app-data','remove-apk-update','remove-user-app'):
@@ -74,8 +109,8 @@ class PackageReadback(unittest.TestCase):
     def test_unknown_update_status_cannot_be_treated_as_no_update(self):
         # covers: install.standalone-uninstall/E7
         result,_,calls=self.run_case(invalid_info=True)
-        self.assertFalse(result['complete']);self.assertEqual(result['phase'],'inspect-apk-update')
-        self.assertIn('检查 APK 更新',result['error'])
+        self.assertFalse(result['complete']);self.assertEqual(result['phase'],'inspect-package-type')
+        self.assertIn('卸载包类型',result['error'])
         self.assertFalse(any(c.startswith('pm uninstall') for c in calls))
 
 
@@ -137,5 +172,91 @@ class ActualReadbacks(unittest.TestCase):
         with self.assertRaises(ValueError):standalone.package_readback(device,'remove-user-app')
         device.shell.return_value='package:com.rungic.plasma.other'
         self.assertTrue(standalone.package_readback(device,'remove-user-app')[1])
+
+class PersistentPackageState(unittest.TestCase):
+    def stable(self,inst='false',body=None):
+        return 'STABLE\t'+'a'*64+'\n'+(body if body is not None else f'<package-restrictions><pkg name="{standalone.APP}" inst="{inst}" /></package-restrictions>')
+
+    def wait(self,responses,timeout=3,kind='system'):
+        device=mock.Mock();device.shell.side_effect=responses
+        evidence=[];clock=[0];saved=[]
+        def sleep(seconds):clock[0]+=seconds
+        with mock.patch.object(standalone,'PACKAGE_PERSIST_TIMEOUT',timeout),mock.patch.object(standalone.time,'monotonic',side_effect=lambda:clock[0]),mock.patch.object(standalone.time,'sleep',side_effect=sleep):
+            result=standalone.wait_user_package_persistence(device,evidence,lambda:saved.append(len(evidence)),kind=kind)
+        return result,evidence,saved
+
+    def test_waits_for_actual_uninstalled_state_and_retains_every_attempt(self):
+        # covers: install.standalone-uninstall/E7
+        result,evidence,saved=self.wait([self.stable('true'),'PENDING\tbackup','PENDING\tchanged',self.stable()],timeout=5)
+        self.assertEqual(result['state'],'uninstalled');self.assertEqual(result['elapsed_seconds'],3)
+        self.assertEqual(len(evidence),4);self.assertEqual(saved,[1,2,3,4])
+        self.assertEqual(evidence[0]['readback']['state'],'installed')
+        self.assertEqual(evidence[-1]['readback']['inst'],'false')
+        self.assertTrue(all(entry['root'] and entry['returncode']==0 for entry in evidence))
+
+    def test_unknown_missing_duplicate_and_malformed_values_never_complete(self):
+        # covers: install.standalone-uninstall/E7
+        bodies=['','<other/>','<package-restrictions/>',f'<package-restrictions><pkg name="{standalone.APP}" inst="unknown" /></package-restrictions>',f'<package-restrictions><pkg name="{standalone.APP}" inst="false" /><pkg name="{standalone.APP}" inst="false" /></package-restrictions>']
+        for body in bodies:
+            with self.subTest(body=body),self.assertRaises(ValueError):self.wait([self.stable(body=body)])
+        for output in ('','PENDING\tbackup\nignored','Success','STABLE\tinvalid\n<package-restrictions/>'):
+            with self.subTest(output=output),self.assertRaises(ValueError):self.wait([output])
+
+    def test_pending_or_default_installed_state_times_out(self):
+        # covers: install.standalone-uninstall/E7
+        for output in ('PENDING\tbackup','PENDING\tchanged',self.stable('true'),self.stable(body=f'<package-restrictions><pkg name="{standalone.APP}" /></package-restrictions>')):
+            with self.subTest(output=output),self.assertRaisesRegex(ValueError,'超时'):self.wait([output],timeout=0)
+
+    def test_failed_read_retains_raw_output_and_never_completes(self):
+        # covers: install.standalone-uninstall/E7
+        device=mock.Mock();device.shell.side_effect=subprocess.CalledProcessError(1,'read',output=b'Permission denied')
+        evidence=[];saved=[]
+        with self.assertRaisesRegex(ValueError,'读回失败'):
+            standalone.wait_user_package_persistence(device,evidence,lambda:saved.append(True))
+        self.assertEqual(evidence[0]['output'],'Permission denied');self.assertEqual(evidence[0]['returncode'],1)
+        self.assertEqual(saved,[True])
+
+    def test_global_package_registry_requires_stable_absence(self):
+        # covers: install.standalone-uninstall/E7
+        installed=self.stable(body=f'<packages><package name="{standalone.APP}" /></packages>')
+        absent=self.stable(body='<packages><package name="com.other" /></packages>')
+        result,evidence,_=self.wait([installed,'PENDING\tbackup',absent],kind='ordinary')
+        self.assertEqual(result['kind'],'ordinary');self.assertFalse(result['registered'])
+        self.assertTrue(evidence[0]['readback']['registered'])
+        self.assertIn('backup=$parent/packages-backup.xml',evidence[0]['command'])
+        with self.assertRaisesRegex(ValueError,'超时'):self.wait([installed],timeout=0,kind='ordinary')
+        with self.assertRaises(ValueError):self.wait([self.stable()],kind='ordinary')
+        with self.assertRaises(ValueError):self.wait([self.stable(body=f'<packages><package name="{standalone.APP}" /><package name="{standalone.APP}" /></packages>')],kind='ordinary')
+
+    def test_real_shell_handles_text_binary_backup_and_concurrent_write(self):
+        # covers: install.standalone-uninstall/E7
+        import os
+        import shutil
+        for shell in (['/bin/sh'],['/usr/bin/busybox','ash']):
+            for variant in ('text','binary','backup','changed','missing','symlink','conversion_error','backup_during_sync','ordinary_text','ordinary_binary','ordinary_backup'):
+                mode=variant.removeprefix('ordinary_');kind='ordinary' if variant.startswith('ordinary_') else 'system'
+                with self.subTest(shell=shell,mode=variant),tempfile.TemporaryDirectory() as temp:
+                    root=Path(temp);parent=root/'users/0';parent.mkdir(parents=True)
+                    xml=f'<package-restrictions><pkg name="{standalone.APP}" inst="false" /></package-restrictions>'
+                    target=parent/('packages.xml' if kind=='ordinary' else 'package-restrictions.xml')
+                    backup=parent/('packages-backup.xml' if kind=='ordinary' else 'package-restrictions-backup.xml')
+                    target.write_bytes((b'ABX\0' if mode in ('binary','conversion_error') else b'')+xml.encode())
+                    before=target.read_bytes()
+                    if mode=='backup':backup.write_text('old')
+                    if mode=='missing':target.unlink()
+                    if mode=='symlink':target.unlink();target.symlink_to(root/'outside');(root/'outside').write_text(xml)
+                    converter=root/'abx2xml';converter.write_text("#!/usr/bin/python3\nimport sys\nfrom pathlib import Path\nassert sys.argv[2]=='-'\ndata=Path(sys.argv[1]).read_bytes()\nassert data[:4]==b'ABX\\0'\n"+("sys.exit(1)\n" if mode=='conversion_error' else "sys.stdout.write(data[4:].decode())\n"));converter.chmod(0o755)
+                    script=standalone.package_persistence_script(kind).replace('/data/adb/magisk/busybox','/usr/bin/busybox').replace('/data/system/users/0' if kind=='system' else '/data/system',str(parent)).replace('/system/bin/abx2xml',str(converter))
+                    sync=':'
+                    if mode=='changed':sync=f"printf x >> {target}"
+                    if mode=='backup_during_sync':sync=f"printf old > {backup}"
+                    run=subprocess.run([*shell,'-c','set -eu\nid() { echo 0; }\nsync() { '+sync+'; }\n'+script],capture_output=True,text=True,timeout=5)
+                    if mode in ('missing','symlink','conversion_error'):self.assertNotEqual(run.returncode,0)
+                    elif mode in ('backup','changed','backup_during_sync'):
+                        self.assertEqual(run.returncode,0,run.stderr);self.assertTrue(run.stdout.startswith('PENDING\t'))
+                    else:
+                        self.assertEqual(run.returncode,0,run.stderr);self.assertEqual(run.stdout.split('\n',1)[1].strip(),xml)
+                        self.assertEqual(target.read_bytes(),before)
+                    if mode not in ('missing','changed','symlink'):self.assertEqual(target.read_bytes(),before)
 
 if __name__=='__main__':unittest.main()

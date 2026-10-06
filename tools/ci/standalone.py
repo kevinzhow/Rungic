@@ -19,6 +19,8 @@ import re
 import shlex
 import subprocess
 import sys
+import time
+import xml.etree.ElementTree as ET
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent))
@@ -83,7 +85,7 @@ def write_removal_report(path, result):
              '默认保留当前 Linux 家目录。只有显式 --purge 才永久删除它。以前保留的家目录始终保留。', '',
              '本报告不证明首装、重启后的旧种子拦截或完整候选质量通过。', '']
     if result.get('error') and any('verified' in entry for entry in result.get('steps', [])):
-        lines[4:4] = ['下一步：保持现场和未完成标记，先核对失败步骤的读回；修正后使用同样的 --purge 选择续跑。', '']
+        lines[4:4] = ['下一步：保持现场和未完成标记，先核对失败步骤的读回。修正后，用同样的 --purge 选择续跑。', '']
     lines += ['当前模式：' + ('--purge，永久删除当前 Linux 家目录，不能恢复。' if result.get('purge') else '保留当前 Linux 家目录。'),
               '开始时间：' + result.get('started_at', '未进入执行计划') + '。', '']
     before = result.get('before', {})
@@ -93,7 +95,7 @@ def write_removal_report(path, result):
                   '底座与内核：' + '。'.join(before.get('base', [])), '']
     if result.get('error'):
         lines += ['失败原因：' + result['error'], '']
-    pm_steps = [entry for entry in result.get('steps', []) if 'verified' in entry]
+    pm_steps = [entry for entry in result.get('steps', []) if 'verified' in entry and entry['name'] != 'persist-user-app']
     if pm_steps:
         lines += ['## Android 包操作', '', '成败取决于独立读回。命令输出和退出码只作为证据。', '']
         for entry in pm_steps:
@@ -101,6 +103,12 @@ def write_removal_report(path, result):
                       '读回：`' + json.dumps(entry.get('readback'), ensure_ascii=False) + '`。',
                       '命令退出码：`' + str(entry.get('returncode')) + '`。原始输出：',
                       '```text', entry['output'], '```', '']
+    persistence = next((entry for entry in result.get('steps', []) if entry['name'] == 'persist-user-app'), None)
+    if persistence and not persistence['verified'] and result.get('error'):
+        lines += ['下一步：等 1 分钟后，用同样的参数重新运行卸载。保留当前现场和未完成标记。', '']
+    if persistence:
+        warning = '现在重启手机，系统自带的 Rungic 可能会恢复。' if result.get('package_kind') == 'system' else '请先不要重启手机。'
+        lines += ['卸载结果是否已保存：' + ('已确认。' if persistence['verified'] else '未确认。' + warning) + '详细读回证据见 report.json。', '']
     if result.get('readback_error'):
         lines += ['最终读回失败，不能确认当前现场：' + result['readback_error'], '']
     if 'preserved_home' in result:
@@ -450,7 +458,8 @@ def uninstall_state(device):
     pending = device.shell(f'test ! -L {PENDING}; if [ -e {PENDING} ]; then test -f {PENDING}; cat {PENDING}; fi', root=True)
     stages = device.shell("find /data/local/tmp -maxdepth 1 -type d -name 'rungic-*' -print", root=True).splitlines()
     packages, _ = package_readback(device, 'remove-user-app')
-    return {'paths': paths, 'pending': pending, 'stages': stages,
+    uninstalled = device.shell(f'test ! -L {UNINSTALLED}; if [ -e {UNINSTALLED} ]; then test -f {UNINSTALLED}; cat {UNINSTALLED}; fi', root=True)
+    return {'paths': paths, 'pending': pending, 'uninstalled': uninstalled, 'stages': stages,
             'other_paths': device.shell("find /data/adb -maxdepth 1 -name '*rungic*' -print", root=True).splitlines(),
             'user_packages': '\n'.join(line for line in packages['user_packages'] if line == f'package:{APP}'),
             'package_paths': device.shell(f'pm path {APP} || true'),
@@ -460,16 +469,18 @@ def uninstall_state(device):
             'release': device.shell(f'if [ -f {REMOTE}/active.env ]; then cat {REMOTE}/active.env; fi', root=True)}
 
 
-def uninstall_root_script(purge=False, operation_id=None, stages=(), preview=False):
+def uninstall_root_script(purge=False, operation_id=None, stages=(), preview=False, package_kind=None):
     operation_id = valid_id(operation_id or uuid.uuid4().hex)
     for stage in stages:
         if not stage.startswith('/data/local/tmp/rungic-'):
             raise ValueError('Invalid staging path.')
         valid_id(stage.removeprefix('/data/local/tmp/rungic-'))
+    if package_kind not in (None, 'system', 'ordinary'):
+        raise ValueError('Unknown removal package kind.')
     values = {'home': HOME, 'preserved': PRESERVED, 'compat': COMPAT,
               'pending': PENDING, 'uninstalled': UNINSTALLED,
               'controller': PATHS['RUNGIC_CONTROLLER'], 'lxc': PATHS['RUNGIC_LXC'],
-              'operation': operation_id, 'purge': '1' if purge else '0',
+              'operation': operation_id, 'package_kind': package_kind or 'unknown', 'purge': '1' if purge else '0',
               'stage_release': stages[0].removeprefix('/data/local/tmp/rungic-') if stages else '-'}
     header = '\n'.join(key + '=' + shlex.quote(value) for key, value in values.items())
     paths = ' '.join(shlex.quote(path) for path in (*PATHS.values(), *stages))
@@ -617,6 +628,8 @@ done
 umask 077
 fail() { echo "Rungic removal stopped: $*" >&2; exit 1; }
 check_paths || fail 'Protected paths failed the check.'
+record=$operation:$purge:$stage_release
+[ "$package_kind" = unknown ] || record=$record:$package_kind
 resuming=0
 changed=0
 home_before=0
@@ -626,7 +639,7 @@ if present "$pending"; then
     resuming=1
     [ -f "$pending" ] || fail 'The removal record is not a file.'
     actual=$(cat "$pending") || fail 'Cannot read the removal record.'
-    [ "$actual" = "$operation:$purge:$stage_release" ] || fail 'Removal record differs from this request.'
+    [ "$actual" = "$record" ] || [ "$actual" = "$operation:$purge:$stage_release" ] || fail 'Removal record differs from this request.'
 fi
 finish_root() {
     code=$?
@@ -645,7 +658,7 @@ trap 'exit 129' HUP
 trap 'exit 130' INT
 trap 'exit 143' TERM
 [ ! -L "$pending.tmp" ] || fail 'The pending record is a symlink.'
-printf '%s\n' "$operation:$purge:$stage_release" > "$pending.tmp"
+printf '%s\n' "$record" > "$pending.tmp"
 sync
 mv "$pending.tmp" "$pending"
 sync
@@ -755,7 +768,9 @@ fi
 [ ! -L "$uninstalled" ] || fail 'The seed marker is a symlink.'
 changed=1
 progress phase changing
-printf '%s\n' "$operation" > "$uninstalled"
+seed_record=$operation
+[ "$package_kind" = unknown ] || seed_record=$seed_record:$package_kind
+printf '%s\n' "$seed_record" > "$uninstalled"
 sync
 progress phase seed-blocked
 """
@@ -880,6 +895,106 @@ done' ''', root=True)
     return {'user_packages': rows}, f'package:{APP}' not in rows
 
 
+PACKAGE_PERSIST_TIMEOUT = 30
+PACKAGE_PERSIST_SCRIPT = r'''# RUNGIC_PACKAGE_PERSISTENCE
+# AOSP Settings/ResilientAtomicFile prefer backup over main at boot.
+BB=/data/adb/magisk/busybox
+parent=/data/system/users/0
+file=$parent/package-restrictions.xml
+backup=$parent/package-restrictions-backup.xml
+test "$(id -u)" = 0 || exit 1
+test -d "$parent" && test ! -L "$parent" && test -r "$parent" && test -x "$parent" || exit 1
+if [ -e "$backup" ] || [ -L "$backup" ]; then printf 'PENDING\tbackup\n'; exit 0; fi
+test -f "$file" && test ! -L "$file" && test -r "$file" || exit 1
+first=$("$BB" sha256sum "$file") || exit 1
+first=${first%% *}
+magic=$("$BB" od -An -tx1 -N4 "$file" | "$BB" tr -d ' \n') || exit 1
+if [ "$magic" = 41425800 ]; then
+    xml=$(/system/bin/abx2xml "$file" -) || exit 1
+else
+    xml=$("$BB" cat "$file") || exit 1
+fi
+# Flush what was observed, then reject a concurrent/unfinished PM write.
+sync || exit 1
+last=$("$BB" sha256sum "$file") || exit 1
+last=${last%% *}
+if [ "$first" != "$last" ] || [ -e "$backup" ] || [ -L "$backup" ]; then
+    printf 'PENDING\tchanged\n'; exit 0
+fi
+printf 'STABLE\t%s\n%s\n' "$last" "$xml"
+'''
+
+
+def package_persistence_script(kind):
+    if kind == 'system':
+        return PACKAGE_PERSIST_SCRIPT
+    if kind == 'ordinary':
+        return PACKAGE_PERSIST_SCRIPT.replace('parent=/data/system/users/0', 'parent=/data/system').replace(
+            'file=$parent/package-restrictions.xml', 'file=$parent/packages.xml').replace(
+            'backup=$parent/package-restrictions-backup.xml', 'backup=$parent/packages-backup.xml')
+    raise ValueError('无法确认卸载结果已保存：包类型未知。')
+
+
+def wait_user_package_persistence(device, observations, save=lambda: None, kind='system'):
+    """Wait for user-0 restrictions on disk, including on a resumed removal.
+    Missing XML, conversion failures and unknown reads never mean uninstalled.
+    """
+    command = package_persistence_script(kind)
+    started = time.monotonic()
+    while True:
+        entry = {'command': command, 'root': True,
+                 'output': '', 'returncode': None}
+        observations.append(entry)
+        try:
+            remaining = PACKAGE_PERSIST_TIMEOUT - (time.monotonic() - started)
+            entry['output'] = device.shell(command, root=True,
+                                          timeout=max(1, min(10, remaining)))
+            entry['returncode'] = 0
+            header, _, xml = entry['output'].partition('\n')
+            observed = {'state': 'pending', 'attempt': len(observations)}
+            if re.fullmatch(r'STABLE\t[0-9a-f]{64}', header):
+                try:
+                    document = ET.fromstring(xml)
+                except ET.ParseError as error:
+                    raise ValueError('无法确认卸载结果已保存：包持久状态 XML 无法解析。') from error
+                root, tag = ('package-restrictions', 'pkg') if kind == 'system' else ('packages', 'package')
+                if document.tag != root:
+                    raise ValueError('无法确认卸载结果已保存：包持久状态根节点未知。')
+                packages = [node for node in document.findall(tag) if node.get('name') == APP]
+                if len(packages) > 1:
+                    raise ValueError('无法确认卸载结果已保存：包持久状态存在重复条目。')
+                if kind == 'system':
+                    if not packages:
+                        raise ValueError('无法确认卸载结果已保存：用户 0 包持久状态缺少目标条目。')
+                    installed = packages[0].get('inst', 'true')
+                    if installed not in ('true', 'false'):
+                        raise ValueError('无法确认卸载结果已保存：用户 0 包持久状态 inst 值未知。')
+                    verified = installed == 'false'
+                    observed['inst'] = installed
+                else:
+                    verified = not packages
+                    observed['registered'] = bool(packages)
+                observed.update(kind=kind, state='uninstalled' if verified else 'installed',
+                                xml_sha256=header.split('\t')[1])
+                entry['readback'] = observed
+                if verified:
+                    observed['elapsed_seconds'] = round(time.monotonic() - started, 3)
+                    return observed
+            elif header not in ('PENDING\tbackup', 'PENDING\tchanged') or xml:
+                raise ValueError('无法确认卸载结果已保存：包持久状态读回格式未知。')
+            entry['readback'] = observed
+        except subprocess.SubprocessError as error:
+            raw = getattr(error, 'output', '') or ''
+            entry['output'] = raw.decode(errors='replace') if isinstance(raw, bytes) else raw
+            entry['returncode'] = getattr(error, 'returncode', None)
+            raise ValueError('无法确认卸载结果已保存：包持久状态读回失败。') from error
+        finally:
+            save()
+        if time.monotonic() - started >= PACKAGE_PERSIST_TIMEOUT:
+            raise ValueError('无法确认卸载结果已保存：等待超时（最多 30 秒），手机还未确认保存卸载结果。卸载未完成。')
+        time.sleep(min(1, max(0, PACKAGE_PERSIST_TIMEOUT - (time.monotonic() - started))))
+
+
 def uninstall(args):
     if args.report:
         args.report.mkdir(parents=True, exist_ok=False)
@@ -920,12 +1035,19 @@ def _uninstall(args):
             raise ValueError('The installed release descriptor is invalid.')
         stage = (staging_path(valid_id(release.split('=', 1)[1])),)
     operation_id = uuid.uuid4().hex
+    remembered_kind = None
     if before.get('pending'):
         parts = before['pending'].split(':')
-        if len(parts) != 3 or parts[1] != str(int(args.purge)):
+        if len(parts) not in (3, 4) or parts[1] != str(int(args.purge)) or (len(parts) == 4 and parts[3] not in ('system', 'ordinary')):
             raise ValueError('Resume the previous removal with the same --purge choice.')
+        remembered_kind = parts[3] if len(parts) == 4 else None
         operation_id = valid_id(parts[0])
         stage = () if parts[2] == '-' else (staging_path(valid_id(parts[2])),)
+    if remembered_kind is None and not before.get('user_packages'):
+        seed = before.get('uninstalled', '').split(':')
+        if len(seed) == 2 and seed[1] in ('system', 'ordinary'):
+            valid_id(seed[0])
+            remembered_kind = seed[1]
     targets = list(PATHS.values()) + list(stage)
     result = {'schema': 1, 'kind': 'rungic-uninstall', 'serial': identity,
               'adb_port': args.adb_port, 'operation_id': operation_id, 'purge': args.purge,
@@ -983,6 +1105,30 @@ def _uninstall(args):
 
     try:
         with device.maintenance(removal=True):
+            if before.get('user_packages') or remembered_kind is None:
+                try:
+                    info = installed_package_info(step('inspect-package-type', lambda: device.shell(f'dumpsys package {APP}')))
+                except (subprocess.SubprocessError, ValueError) as error:
+                    raise ValueError('无法确认卸载包类型：' + str(error)) from error
+                paths = step('inspect-package-paths', lambda: device.shell(f'pm path {APP}')).splitlines()
+                if not paths or any(not row.startswith('package:/') for row in paths):
+                    raise ValueError('无法确认卸载包类型：包路径读回未知。')
+                if 'SYSTEM' in info['flags'] or any(row.startswith(('package:/product/', 'package:/system/')) for row in paths):
+                    kind = 'system'
+                elif all(row.startswith('package:/data/app/') for row in paths):
+                    kind = 'ordinary'
+                else:
+                    raise ValueError('无法确认卸载包类型：包标志或路径不符合支持范围。')
+                if remembered_kind is not None and kind != remembered_kind:
+                    raise ValueError('卸载包类型与上次记录不同，请保持现场并检查。')
+                result['package_kind_evidence'] = {'flags': info['flags'], 'paths': paths}
+            else:
+                kind = remembered_kind
+                result['package_kind_evidence'] = {'source': 'existing-removal-record'}
+            result['package_kind'] = kind
+            script = uninstall_root_script(args.purge, operation_id, stage, package_kind=kind)
+            (args.report / 'uninstall-root.sh').write_text(script)
+            write_removal_report(report_file, result)
             if before.get('user_packages'):
                 step('stop-app', lambda: device.shell(f'am force-stop --user 0 {APP}'))
             step('remove-runtime', lambda: device.shell(script, root=True, timeout=1800))
@@ -1032,6 +1178,18 @@ def _uninstall(args):
                 result['failed'].append({'path': 'com.termux', 'reason': 'The package path changed.'})
             if result['failed']:
                 raise ValueError('Removal is incomplete. Read the report.')
+            result['phase'] = 'persist-user-app'
+            persistence = {'name': 'persist-user-app', 'label': '确认用户 0 卸载状态已持久保存',
+                           'verified': False, 'output': '', 'observations': []}
+            result['steps'].append(persistence)
+            write_removal_report(report_file, result)
+            print('正在等待手机保存卸载结果（最多 30 秒）。请先不要重启手机。', flush=True)
+            try:
+                persistence['readback'] = wait_user_package_persistence(
+                    device, persistence['observations'], lambda: write_removal_report(report_file, result), kind=kind)
+                persistence['verified'] = True
+            finally:
+                write_removal_report(report_file, result)
             if before.get('user_packages'):
                 result['deleted'].append(APP_DATA)
             step('finish', lambda: device.shell(f'rm -f {PENDING}; sync', root=True))

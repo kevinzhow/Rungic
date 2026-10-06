@@ -108,3 +108,16 @@ ADB、包管理器与 Android 内核环境仍为替身。mountinfo 故障为显�
 `pm clear`、`pm uninstall-system-updates`、`pm uninstall --user 0` 的输出和退出码只作为证据。清数据后独立检查用户 0 的 CE 和 DE 存储，允许 Android 重建的空目录，但文件或链接残留不算清空；目录无法检查时停止。移除更新后检查用户 0 的包路径已回到 product 分区，当前包包含 SYSTEM 且没有 UPDATED_SYSTEM_APP。用户 0 卸载后检查精确包名已从成功读取的包列表消失。未知读回不能当作不存在。
 
 每一步报告记录实际观察、原始输出和退出码。即使输出 Success、退出 0，状态未达到要求也停止并保留未完成标记；相反，动作已生效但 pm 返回非零，可以在独立读回确认后继续。失败报告指出具体步骤和未满足的状态。使用相同的 purge 选择续跑，已经不存在的受管理路径按原契约记录。
+
+
+## 2026-10-07：用户 0 状态持久化（离线修复）
+
+第一轮真机曾出现即时包列表已无 Rungic，但卸载报告结束后立即重启，底座 APK 又安装到用户 0。后续只读证据显示该固件保存 Android 二进制 XML，卸载后约 7 秒才出现明确未安装状态。原报告不能据即时包列表断言重启后仍卸载。
+
+`standalone.py` 在删除未完成标记之前增加 30 秒有界读回，包括续做时应用已经不在即时列表的情况。先在删除前读取并记录包类型。系统预装包检查用户 0 的 `package-restrictions.xml`，唯一目标条目必须明确 `inst="false"`；普通安装包检查 `/data/system/packages.xml`，目标包条目必须已移除。类型未知时不删除，类型同时写进原有卸载记录与种子拦截标记，应用已删除的续做从记录恢复类型。两种都先检查目录和主文件，备份存在时等待；识别 ABX 魔数后使用系统 `abx2xml 文件 -` 只读转换，否则读取文本。读前后 SHA256 一致、同步后仍无优先备份，且符合对应包类型的未安装条件才确认落盘。文件变化、备份存在或仍已安装继续等待。缺文件、系统包缺目标条目、异常 XML、未知属性、转换失败及超时均保留未完成标记并报告失败。原始读回、退出码、每次尝试和摘要保存在 JSON；可读报告只说明是否已确认保存卸载状态。
+
+上游依据为 Android 16 的 [Settings.java](https://android.googlesource.com/platform/frameworks/base/+/refs/heads/android16-release/services/core/java/com/android/server/pm/Settings.java)、[ResilientAtomicFile.java](https://android.googlesource.com/platform/frameworks/base/+/refs/heads/android16-release/services/core/java/com/android/server/pm/ResilientAtomicFile.java) 及 [Abx.java](https://android.googlesource.com/platform/frameworks/base/+/refs/heads/android16-release/cmds/abx/src/com/android/commands/abx/Abx.java)，许可证 Apache-2.0。读取规则优先使用 `package-restrictions-backup.xml` 或 `packages-backup.xml`；成功写入先同步主文件、撤掉旧备份，再生成 reserve copy。因此主 XML 中的值不能绕过仍存在的优先备份。本修复复用 Android 工具，不修改 Package Manager 或这些状态文件。
+
+离线检查包含真实 shell 的文本／二进制转换分支、备份、并发变化、缺失与转换失败；ABX 转换器在离线夹具中为替身。真实卸载入口仍执行临时目录内的删除脚本。首次失败回归是“即时列表消失但磁盘仍已安装”：旧实现误报完成，新实现保留标记。另验证延迟读回、所有尝试留证、未知和超时拒绝、相同操作续做。没有操作手机或据此宣称重启验收通过；新候选须重新做立即重启及底座种子拦截验证。
+
+离线回归另验证普通 APK 移除条目后完成、条目尚在时超时保留标记，以及应用已消失时按记录续做。普通包与系统包的 XML 不能互换，类型冲突或未知记录停止。第一轮真机仅有 G100 系统包路径证据；普通包需要下一轮在无预装 Rungic APK 的设备上独立验收。
