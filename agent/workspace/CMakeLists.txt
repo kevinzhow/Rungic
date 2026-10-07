@@ -56,14 +56,18 @@ target_link_libraries(rungic-workspace-present PRIVATE Qt6::Gui K::KPipeWire Pkg
 qt_add_executable(rungic-workspace-keeper keeper.cpp)
 target_link_libraries(rungic-workspace-keeper PRIVATE rungic-workspace-protocols Qt6::DBus Qt6::Network PkgConfig::WAYLAND_CLIENT)
 # Keep the distribution's backend path and arguments. Only private buses use this override.
-file(STRINGS /usr/share/dbus-1/services/org.freedesktop.impl.portal.desktop.kde.service
-    KDE_PORTAL_EXEC REGEX "^Exec=")
-if(NOT KDE_PORTAL_EXEC MATCHES "^Exec=/" OR KDE_PORTAL_EXEC MATCHES ";")
-    message(FATAL_ERROR "Cannot identify the upstream KDE portal activation command")
-endif()
-string(REGEX REPLACE "^Exec=" "" KDE_PORTAL_EXEC "${KDE_PORTAL_EXEC}")
-configure_file(dbus/org.freedesktop.impl.portal.desktop.kde.service.in
-    org.freedesktop.impl.portal.desktop.kde.service @ONLY)
+# Both KDE and the GTK fallback can be activated before this workspace's display responds.
+foreach(backend kde gtk)
+    string(TOUPPER "${backend}" upper)
+    file(STRINGS /usr/share/dbus-1/services/org.freedesktop.impl.portal.desktop.${backend}.service
+        ${upper}_PORTAL_EXEC REGEX "^Exec=")
+    if(NOT ${upper}_PORTAL_EXEC MATCHES "^Exec=/" OR ${upper}_PORTAL_EXEC MATCHES ";")
+        message(FATAL_ERROR "Cannot identify the upstream ${backend} portal activation command")
+    endif()
+    string(REGEX REPLACE "^Exec=" "" ${upper}_PORTAL_EXEC "${${upper}_PORTAL_EXEC}")
+    configure_file(dbus/org.freedesktop.impl.portal.desktop.${backend}.service.in
+        org.freedesktop.impl.portal.desktop.${backend}.service @ONLY)
+endforeach()
 add_executable(rungic-workspace-portal portal.cpp)
 target_link_libraries(rungic-workspace-portal PRIVATE PkgConfig::WAYLAND_CLIENT)
 install(TARGETS rungic-workspace-portal rungic-workspace-input rungic-workspace-stream rungic-workspace-desktop rungic-workspace-keeper rungic-workspace-present DESTINATION ${CMAKE_INSTALL_LIBEXECDIR})
@@ -75,6 +79,9 @@ install(FILES defaults/kwinrc DESTINATION share/rungic-workspace/defaults)
 install(PROGRAMS rungic-workspace-a11y rungic-agent-wakelock DESTINATION libexec)
 install(FILES rungic-agent-wakelock.service DESTINATION lib/systemd/system)
 install(FILES dbus/session.conf dbus/desktop.conf DESTINATION share/rungic-workspace/dbus-1)
-install(FILES dbus/org.a11y.Bus.service ${CMAKE_CURRENT_BINARY_DIR}/org.freedesktop.impl.portal.desktop.kde.service DESTINATION share/rungic-workspace/dbus-1/services)
+install(FILES dbus/org.a11y.Bus.service
+    ${CMAKE_CURRENT_BINARY_DIR}/org.freedesktop.impl.portal.desktop.kde.service
+    ${CMAKE_CURRENT_BINARY_DIR}/org.freedesktop.impl.portal.desktop.gtk.service
+    DESTINATION share/rungic-workspace/dbus-1/services)
 file(GLOB DESKTOP_BUS_SERVICES dbus/desktop-services/*.service)
 install(FILES ${DESKTOP_BUS_SERVICES} DESTINATION share/rungic-workspace/dbus-1/desktop-services)

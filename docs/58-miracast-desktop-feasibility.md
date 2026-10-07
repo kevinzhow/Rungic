@@ -818,3 +818,12 @@ G100 S（XT2537-4，SM6435 `_parrot_v3`），接收端TCL 85Q6H。电视这次�
 - 同一时刻还有几个核心转储：`rungic-workspace-stream` 是 SIGABRT，`rungic-workspace-desktop` 是 SIGSEGV（在 `QWaylandShmBuffer` 中）。都是宿主随 APK 退出、Wayland 连接断开时的连带结果。
 
 **状态**：手机全屏部分已实现。电视部分复用同一套布局，实机验收要电视在场。
+
+
+### 2026-10-07 启动条件修复（task #99）
+
+第二轮 G100 的三次开机都记录了 audio-follow 在 `org.kde.KWin` 名称注册前调用 `loadScript`，以 `ServiceUnknown` 退出；五秒后的自动重启恢复，不算首次启动通过。`After=plasma-kwin_wayland.service` 只排序启动任务，不能代表接口就绪。
+
+`rungic-plasma-audio-follow.service` 现在先通过 `rungic-wait-dbus org.kde.KWin` 检查名称实际有属主，再启动原脚本。这个入口由语音浮层已有的名称等待抽出，浮层也使用同一实现。等待上限 120 秒，单次查询上限一秒；依赖一直不就绪或会话总线断开仍报告启动错误，保留原本的失败恢复策略。名称出现之后的实际脚本调用仍可能失败，不把名称检查扩大成运行成功。
+
+依据是 [D-Bus 的 NameHasOwner 契约](https://dbus.freedesktop.org/doc/dbus-specification.html#bus-messages-name-has-owner)：它检查当前名称所有权，不启动服务。工作空间 portal 使用的 Wayland 往返则是显示就绪条件，不能替代这里的总线名称条件。私人总线的延迟注册、缺失超时和语音浮层回归由离线测试检查；实际 KWin 脚本的系统测试在无手机的原生 ARM64 环境运行。第二轮原始失败保留；此修复的 G100 开机验证留给第三轮新候选。

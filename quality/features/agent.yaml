@@ -837,6 +837,7 @@ features:
       - agent/workspace/portal.cpp
       - agent/workspace/wayland-ready.h
       - agent/workspace/dbus/org.freedesktop.impl.portal.desktop.kde.service.in
+      - agent/workspace/dbus/org.freedesktop.impl.portal.desktop.gtk.service.in
       - tools/tests/test_workspace_portal.py
       - tools/system/tests/workspace_portal.py
       - agent/workspace/CMakeLists.txt

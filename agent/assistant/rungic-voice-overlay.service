@@ -11,7 +11,7 @@ BusName=com.rungic.VoiceAssistant
 # D-Bus while it loads. After= alone let it start while plasmashell's start was still timing
 # out (the phone screen off, 2026-09-29); the overlay then hung until systemd killed it. Wait
 # for plasmashell's bus name, for up to two minutes; later, Restart= tries again.
-ExecStartPre=/bin/sh -c 'for i in $(seq 120); do busctl --user status org.kde.plasmashell >/dev/null 2>&1 && exit 0; sleep 1; done; echo "plasmashell not on the session bus after 120 s" >&2; exit 1'
+ExecStartPre=/usr/libexec/rungic-wait-dbus org.kde.plasmashell
 ExecStart=/usr/bin/rungic-voice-assistant --overlay
 TimeoutStartSec=180
 Restart=on-failure

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Private workspace bus activation only. Wait for its KWin, then replace ourselves with KDE's portal.
+// Private workspace bus activation only. Wait for its KWin, then exec the distribution's portal backend.
 #include "wayland-ready.h"
 #include <cstdlib>
 #include <cstring>

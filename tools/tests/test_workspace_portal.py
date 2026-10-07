@@ -1,4 +1,4 @@
-"""Actual Wayland protocol and D-Bus activation; only the KDE backend is a test process."""
+"""Actual Wayland protocol and D-Bus activation; portal backends are test processes."""
 import os
 from pathlib import Path
 import select
@@ -36,7 +36,9 @@ int main(int argc, char **argv) {
     if (argc > 2) return 17;
     DBusError error; dbus_error_init(&error);
     DBusConnection *bus = dbus_bus_get(DBUS_BUS_SESSION, &error);
-    if (!bus || dbus_bus_request_name(bus, "org.freedesktop.impl.portal.desktop.kde", 0, &error) != DBUS_REQUEST_NAME_REPLY_PRIMARY_OWNER) return 3;
+    const char *name = getenv("TEST_PORTAL_NAME");
+    if (!name) name = "org.freedesktop.impl.portal.desktop.kde";
+    if (!bus || dbus_bus_request_name(bus, name, 0, &error) != DBUS_REQUEST_NAME_REPLY_PRIMARY_OWNER) return 3;
     while (dbus_connection_read_write_dispatch(bus, -1)) {}
 }
 '''
@@ -133,11 +135,20 @@ class PortalReadiness(unittest.TestCase):
 
     def test_private_bus_activation_uses_gate_before_owning_backend_name(self):
         # covers: agent.workspaces/E9
+        self.check_private_activation('kde')
+
+    def test_gtk_fallback_activation_waits_for_the_same_wayland_roundtrip(self):
+        # covers: agent.workspaces/E9
+        self.check_private_activation('gtk')
+
+    def check_private_activation(self, backend):
         server = self.listening()
         services = self.root / 'services'; services.mkdir()
-        source = ROOT / 'agent/workspace/dbus/org.freedesktop.impl.portal.desktop.kde.service.in'
+        name = f'org.freedesktop.impl.portal.desktop.{backend}'
+        self.env['TEST_PORTAL_NAME'] = name
+        source = ROOT / f'agent/workspace/dbus/{name}.service.in'
         content = source.read_text().replace('@CMAKE_INSTALL_FULL_LIBEXECDIR@/rungic-workspace-portal',
-            f'{self.portal} --timeout-ms 1500').replace('@KDE_PORTAL_EXEC@', f'{self.backend} {self.record}')
+            f'{self.portal} --timeout-ms 1500').replace(f'@{backend.upper()}_PORTAL_EXEC@', f'{self.backend} {self.record}')
         (services / source.name.removesuffix('.in')).write_text(content)
         config = self.root / 'bus.conf'
         config.write_text(f'''<busconfig><type>session</type><listen>unix:tmpdir={self.root}</listen>
@@ -151,7 +162,7 @@ class PortalReadiness(unittest.TestCase):
         call = self.launch(['dbus-send', '--bus=' + address, '--print-reply', '--reply-timeout=2500',
                            '--dest=org.freedesktop.DBus', '/org/freedesktop/DBus',
                            'org.freedesktop.DBus.StartServiceByName',
-                           'string:org.freedesktop.impl.portal.desktop.kde', 'uint32:0'],
+                           'string:' + name, 'uint32:0'],
                           env=self.env, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         time.sleep(0.2)
         self.assertIsNone(call.poll()); self.assertFalse(self.record.exists())

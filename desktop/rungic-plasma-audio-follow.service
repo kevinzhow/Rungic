@@ -5,7 +5,10 @@ Wants=pulseaudio.service
 PartOf=graphical-session.target
 
 [Service]
+# After= orders processes; KWin can still be initializing before it owns its D-Bus name.
+ExecStartPre=/usr/libexec/rungic-wait-dbus org.kde.KWin
 ExecStart=/usr/bin/rungic-audio-follow
+TimeoutStartSec=180
 Restart=on-failure
 RestartSec=5
 

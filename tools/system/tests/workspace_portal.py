@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MIT
-"""Real private workspace KWin and upstream KDE portal, three fresh workspace starts (no phone)."""
+"""Real private workspace KWin and upstream KDE/GTK portals, three fresh workspace starts (no phone)."""
 import os
 from pathlib import Path
 import subprocess
@@ -8,7 +8,7 @@ import contracts
 import harness
 
 SLOT = '8'
-BACKEND = 'org.freedesktop.impl.portal.desktop.kde'
+BACKENDS = ('kde', 'gtk')
 
 
 def test():
@@ -37,14 +37,16 @@ def test():
                         if result.returncode:
                             raise harness.Failed(result.stderr[-500:] + '\n' + log_path.read_text()[-1800:])
                         return result.stdout.strip()
-                    session.check(call('StartServiceByName', 'su', BACKEND, '0') in ('u 1', 'u 2'),
-                                  f'cycle {cycle}: upstream portal owns the private bus name')
-                    pid = int(call('GetConnectionUnixProcessID', 's', BACKEND).split()[1])
-                    executable = os.readlink(f'/proc/{pid}/exe')
-                    session.check(executable.endswith('/xdg-desktop-portal-kde'),
-                                  f'cycle {cycle}: activation replaced gate with upstream binary')
+                    for backend in BACKENDS:
+                        name = 'org.freedesktop.impl.portal.desktop.' + backend
+                        session.check(call('StartServiceByName', 'su', name, '0') in ('u 1', 'u 2'),
+                                      f'cycle {cycle}: upstream {backend} portal owns the private bus name')
+                        pid = int(call('GetConnectionUnixProcessID', 's', name).split()[1])
+                        executable = os.readlink(f'/proc/{pid}/exe')
+                        session.check(executable.endswith('/xdg-desktop-portal-' + backend),
+                                      f'cycle {cycle}: activation replaced gate with upstream {backend} binary')
                     text = log_path.read_text()
-                    session.check('Failed to create wl_display' not in text and 'Wayland did not respond' not in text,
+                    session.check('Failed to create wl_display' not in text and 'Wayland did not respond' not in text and 'cannot open display' not in text,
                                   f'cycle {cycle}: no early Wayland failure signature')
                 finally:
                     if proc.poll() is None: proc.terminate()

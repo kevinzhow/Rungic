@@ -892,3 +892,12 @@ Agent 2  KWin#2 ──── │ 显示源 agent-2               │  电视 / �
   - 浮窗里看板的焦点格很小：成员行只排到“决定”那一行上方，放不下的裁掉（浮窗约能显示一行，全屏和电视能显示全部）。已用测试看板在实机核对。
 
 **仍未验收**：通知（没人看对话时发出、点击打开会话），以及开着实时语音时的里程碑播报。另外，息屏后团队无法继续，见第一次验收的第 1 条。
+
+
+### 2026-10-07 GTK portal 的显示就绪条件（task #99）
+
+第二轮 C01.1 的私有工作空间总线先激活 GTK portal 的 Lockdown 回退接口。01:23:04Z 的 GTK 进程报告 `cannot open display` 并退出，随后同一总线的 KDE portal 激活成功、GTK 再次激活成功。首次错误不能被后来成功覆盖。这份日志来自本轮第一次开机，不是上一轮 QA。
+
+同一私有总线原先只为 KDE backend 使用 `rungic-workspace-portal`。现在 GTK activation 也复用这个包装器：使用工作空间的 `WAYLAND_DISPLAY`，等现有 `waylandRoundtrip` 成功，再 exec 发行版原有 backend，保留其参数与进程身份。监听 socket 存在不足以放行；缺地址、超时、compositor 断开和 backend 不存在都继续失败。系统用户总线的发行版 activation 文件不改。
+
+构建时从目标发行版 KDE／GTK 的 `.service` 读取原始 Exec；包明确声明 GTK runtime 和 build 依赖，保持拒绝把宿主路径嵌入交叉构建。GTK 初始化必须能打开显示，参见 [GTK init_check](https://docs.gtk.org/gtk3/func.init_check.html)。两个 backend 都由同一私人总线 activation 回归和现有三次真实工作空间启动测试覆盖；G100 的复验留给第三轮。GTK 的用户影响，以及其他 portal 日志问题，不由本次启动条件检查自动证明。
