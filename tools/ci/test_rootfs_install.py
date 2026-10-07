@@ -89,7 +89,7 @@ class RootfsInstallTests(unittest.TestCase):
     def test_failed_attempt_cannot_resume_or_reach_image_builder(self):
         repo = self.root / 'repo'
         repo.mkdir()
-        (repo / 'release.json').write_text('{"version":"test.1","packages":{"rungic-plasma-config":"1"}}')
+        (repo / 'release.json').write_text('{"version":"test.1","packages":{"rungic-plasma-config":"1","gir1.2-gst-plugins-base-1.0":"1+rungic1"}}')
         calls = []
         def fail_guest(*command):
             calls.append(command)
@@ -122,7 +122,7 @@ class RootfsInstallTests(unittest.TestCase):
     def test_bootstrap_source_format_is_accepted_by_real_apt(self):
         repo = self.root / 'repo'
         repo.mkdir()
-        (repo / 'release.json').write_text('{"version":"test.1","packages":{"rungic-plasma-config":"1"}}')
+        (repo / 'release.json').write_text('{"version":"test.1","packages":{"rungic-plasma-config":"1","gir1.2-gst-plugins-base-1.0":"1+rungic1"}}')
         def stop_at_guest(*command):
             if command[0] == 'mmdebstrap':
                 (Path(command[7]) / 'var/lib').mkdir(parents=True)
@@ -135,6 +135,9 @@ class RootfsInstallTests(unittest.TestCase):
             with self.assertRaises(subprocess.CalledProcessError):
                 prepare_rootfs.prepare(args)
         state = args.output/'prepared-root/var/lib/rungic-apt'
+        self.assertNotIn('gir1.2-gst-plugins-base-1.0', (state/'runtime-packages.txt').read_text().splitlines(),
+                         'a later unversioned argument must not override an exact release pin')
+        self.assertIn('gir1.2-gst-plugins-base-1.0=1+rungic1', (state/'exact-packages.txt').read_text().splitlines())
         sources = list(state.glob('bootstrap.*'))
         self.assertEqual(len(sources), 1)
         result = subprocess.run(['apt-get', '-o', f'Dir::Etc::sourcelist={sources[0]}',

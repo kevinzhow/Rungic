@@ -50,7 +50,7 @@ def prepare(args):
     exact = {**manifest['packages'], 'rungic-release': manifest['version']}
     (state / 'exact-packages.txt').write_text(''.join(f'{name}={version}\n' for name, version in sorted(exact.items())))
     runtime = [line.strip() for line in (ROOT / 'system/ubuntu-packages.txt').read_text().splitlines()
-               if line.strip() and not line.lstrip().startswith('#')]
+               if line.strip() and not line.lstrip().startswith('#') and line.strip() not in exact]
     (state / 'runtime-packages.txt').write_text('\n'.join(runtime) + '\n')
     shutil.copy2(HERE / 'install_rootfs.sh', state / 'install-rootfs.sh')
     runner = ['--qemu', str(args.qemu.resolve())] if args.qemu else ['--native']
