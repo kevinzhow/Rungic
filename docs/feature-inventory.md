@@ -4,7 +4,7 @@
 
 以产品功能和用户场景为骨架：每条功能是用户能感知的一件事；“体验”是它必须做到的，每条都标明由什么检查（自动测试、实机验收、人工验证或已登记的缺口）。数据在 `quality/`，规则见 [quality/README.md](../quality/README.md)。
 
-共 167 条功能、743 条体验，其中 694 条有检查。
+共 167 条功能、745 条体验，其中 696 条有检查。
 
 ## Agent 能力
 
@@ -1041,8 +1041,10 @@ Linux 应用用手机的相机拍照录像，用手机的扬声器和麦克风�
 - **E4** ~/Shared 上可写共享映射和 SQLite WAL 正常，rungic-fs-audit 的必需项全部通过。（人工）
 - **E5** 会话启动后标准目录不会被 xdg-user-dirs-update 改回主目录，录屏、截图、下载存到对应目录。（人工）
 - **E6** 安卓一侧改过的文件，Linux 下次打开时就能看到。bindfs 意外退出留下的断开挂载在服务重启时被清掉，不会无限重启。（单元测试）
+- **E7** Linux 一侧新建、改名、删除的文件，安卓的媒体库（相册、播放器、文件选择）跟着更新：bindfs 以 shell uid（2000）访问安卓存储，而不是 root。（单元测试、人工）
 
 注意：
+- MediaProvider 的 FUSE 对 root（uid 0）的操作直接放行，但不更新媒体库。bindfs 以 root 运行时，Linux 新建的文件进不了媒体库，删掉的留下旧行（docs/121 E2E-04）。Rungic 应用自己的 uid 没有存储权限，写不了 Plasma 目录，所以用 shell uid。 [docs/121-acceptance-checklist.md](../docs/121-acceptance-checklist.md)
 - bindfs 不能带 --direct-io：FUSE 对 direct-io 拒绝可写共享映射，SQLite WAL、LMDB、MMKV 都会 I/O error。 [docs/69-filesystem-capabilities.md](../docs/69-filesystem-capabilities.md)
 - 共享存储不支持符号链接、硬链接、区分大小写、执行、chmod、xattr、Unix 套接字和 FIFO。应用私有数据、数据库、源码仓库和可执行程序放本地目录。 [docs/69-filesystem-capabilities.md](../docs/69-filesystem-capabilities.md)
 - 下载到共享存储的 AppImage 不能直接运行（两层 noexec，安卓 FUSE 存不下执行位），尚未决定。 [docs/69-filesystem-capabilities.md](../docs/69-filesystem-capabilities.md)
@@ -1769,8 +1771,10 @@ Agent 不靠点界面就能拿到合并日志、崩溃回溯、追踪、截图�
 - **E4** 键盘打开时全屏工具栏出现在键盘上方，不挡最下面一排键。在键盘上的触摸不会漏到下面的画面。（单元测试、人工）
 - **E5** 浮动键盘打开时手机键盘不同时弹出。收起键盘或退出全屏后键盘消失。（单元测试、系统测试）
 - **E6** 键盘加载后位于横屏舞台的底部中间，高度合适，不超出屏幕，离底边留出呼出工具栏的那条边。（单元测试、人工）
+- **E7** 浮动键盘的语言和手机键盘一样（手机键盘设置页里选的语言）。它只读手机键盘的配置，用过浮动键盘之后，手机键盘的语言和切换键不变。（单元测试、人工）
 
 注意：
+- 不能用 QML 的 Settings 读 KDE 的配置文件。QSettings 的 INI 格式把名为 General 的组写成 [%General]，还会按自己的格式改写整个文件：plasmakeyboardrc 被写成 `zh_CN, en_US`，KConfig 读到带空格的 " en_US"，手机键盘只剩中文（G100，2026-10-08）。窗口程序（phonekeyboard.h）只读这个文件；一次性迁移 rungic-keyboard-repair 修复已写坏的文件。 [docs/121-acceptance-checklist.md](../docs/121-acceptance-checklist.md)
 - 系统键盘 plasma-keyboard 只有铺满屏宽一种尺寸，KWin 只把它放在屏幕底部或光标下，不能旋转和浮动。而画面在窗口里旋转是我们全屏自己的设计，所以键盘做在窗口里，不改共享层。 [docs/research/97-headless-agent-work.md](../docs/research/97-headless-agent-work.md)
 - Qt 虚拟键盘的内置样式按 2560×800 的大屏设计，字号随键盘宽度缩放，手机上按键字只有约 2 mm。自己的样式里所有尺寸取自按键高度。样式的 id 不能叫 style（被键盘组件的同名属性遮住），内联组件看不到外层 id。 [docs/research/97-headless-agent-work.md](../docs/research/97-headless-agent-work.md)
 - 离屏截图不可靠：打字之后截出的顶栏是空的（手机软件渲染、Docker llvmpipe 都一样），看设计要看手机上的真实窗口。 [docs/research/97-headless-agent-work.md](../docs/research/97-headless-agent-work.md)
