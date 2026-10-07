@@ -141,6 +141,16 @@ def check_install_completion(root, release, source_commit):
     return receipt
 
 
+def installation_provenance(root, release, source_commit):
+    if source_commit:
+        receipt = check_install_completion(root, release, source_commit)
+        return {"source_commit": receipt["source_commit"],
+                "sha256": sha256(root / "var/lib/rungic-apt/root-install.complete")}
+    if os.path.lexists(root / "var/lib/rungic-apt/root-install.complete"):
+        raise ValueError("unverified root must not carry an installation completion receipt")
+    return None
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--inside", action="store_true", help=argparse.SUPPRESS)
@@ -149,7 +159,9 @@ def main():
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--size-gib", type=int, default=16)
     parser.add_argument("--firefox-version", required=True)
-    parser.add_argument("--install-source", help="Require fresh installation completion for this source SHA")
+    modes = parser.add_mutually_exclusive_group(required=True)
+    modes.add_argument("--unverified-root", action="store_true", help="Explicitly compose a historical binary root without complete installation proof")
+    modes.add_argument("--install-source", help="Require fresh installation completion for this source SHA")
     args = parser.parse_args()
     root = args.root.resolve(strict=True)
     release = args.release.resolve(strict=True)
@@ -159,13 +171,10 @@ def main():
                             "--root", str(root), "--release", str(release),
                             "--output", str(output), "--size-gib", str(args.size_gib),
                             "--firefox-version", args.firefox_version,
-                            *(["--install-source", args.install_source] if args.install_source else [])])
+                            *(["--install-source", args.install_source] if args.install_source else ["--unverified-root"])])
     if output.exists() or args.size_gib < 8 or args.size_gib > 128:
         raise ValueError("output exists or image size is outside 8–128 GiB")
-    if args.install_source:
-        check_install_completion(root, release, args.install_source)
-    elif os.path.lexists(root / "var/lib/rungic-apt/root-install.complete"):
-        raise ValueError("installation completion receipt requires --install-source")
+    install_receipt = installation_provenance(root, release, args.install_source)
     installed = packages(root / "var/lib/dpkg/status")
     check_preinstalled_apps(root, installed)
     manifest = json.loads(release.read_text())
@@ -229,7 +238,7 @@ def main():
     compressed = output.with_suffix(".img.gz")
     with compressed.open("wb") as destination:
         subprocess.run(["gzip", "-1", "-n", "-c", str(output)], stdout=destination, check=True)
-    report = {"schema_version": 1, "account_status_protocol": 2, "home_layout_checked": True,
+    report = {"schema_version": 1, "install_receipt": install_receipt, "account_status_protocol": 2, "home_layout_checked": True,
               "fresh_account_checked": True, "preinstalled_apps_checked": True,
               "release_version": manifest["version"],
               "release_sha256": sha256(release), "arch": "arm64",

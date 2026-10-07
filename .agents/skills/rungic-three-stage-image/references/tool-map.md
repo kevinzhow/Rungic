@@ -91,7 +91,7 @@ python3 tools/ci/preflight.py "$device_spec" "$stock_dir" \
 python3 tools/ci/module_abi.py "$kernel_symvers" "$oem_modules" \
   --output "$run_dir/kernel-abi.json"
 
-python3 tools/ci/build_rootfs_image.py --root "$rootfs_tree" \
+python3 tools/ci/build_rootfs_image.py --install-source "$source_sha" --root "$rootfs_tree" \
   --release "$package_release" --output "$rootfs_output" \
   --size-gib "$rootfs_size_gib" --firefox-version "$firefox_version"
 ```
@@ -151,3 +151,5 @@ python3 tools/ci/accept_release.py "$release_dir" \
 Isolated tests and controlled UI state do not replace the applicable first-installation evidence.
 Record independent installation, upgrade, and old full-bundle data-removal acceptance separately.
 Do not run phone tests or reflash devices for documentation or skill changes.
+
+Historical binary-root composition must explicitly select `--unverified-root` instead of `--install-source`. Its report has `install_receipt: null`; copied stale installation receipts must be removed before package updates.

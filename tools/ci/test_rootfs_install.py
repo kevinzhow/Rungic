@@ -11,7 +11,7 @@ import unittest
 from unittest.mock import patch
 from types import SimpleNamespace
 import prepare_rootfs
-from build_rootfs_image import check_install_completion
+from build_rootfs_image import check_install_completion, installation_provenance
 
 HERE = Path(__file__).resolve().parent
 SOURCE = 'b' * 40
@@ -163,6 +163,53 @@ class RootfsInstallTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn('completion', result.stderr)
         self.assertFalse(image.parent.exists())
+
+    # covers: install.rungicos-image/E3
+    def test_image_cli_requires_exactly_one_explicit_provenance_mode(self):
+        for flags in ([], ['--install-source', SOURCE, '--unverified-root']):
+            image = self.root / 'image/rootfs.img'
+            result = subprocess.run([sys.executable, str(HERE/'build_rootfs_image.py'), '--inside',
+                '--root', str(self.root), '--release', str(self.release), '--output', str(image),
+                '--firefox-version', '1', *flags], capture_output=True, text=True)
+            self.assertEqual(result.returncode, 2)
+            self.assertFalse(image.parent.exists())
+
+    # covers: install.rungicos-image/E3
+    def test_report_provenance_matches_receipt_and_unverified_rejects_stale_receipt(self):
+        self.assertIsNone(installation_provenance(self.root, self.release, None))
+        self.write_receipt()
+        self.assertEqual(installation_provenance(self.root, self.release, SOURCE),
+            {'source_commit': SOURCE, 'sha256': hashlib.sha256(
+                (self.state/'root-install.complete').read_bytes()).hexdigest()})
+        with self.assertRaisesRegex(ValueError, 'unverified root'):
+            installation_provenance(self.root, self.release, None)
+
+    # covers: install.rungicos-image/E3
+    def test_binary_baseline_update_discards_only_copied_receipt_and_selects_unverified(self):
+        import build_fingerprinted_rootfs as binary
+        import shutil
+        self.write_receipt()
+        repo = self.root/'updates'; repo.mkdir()
+        (repo/'release.json').write_bytes(self.release.read_bytes())
+        output = self.root/'new'; calls = []
+        def run(*command):
+            calls.append(command)
+            if command[0] == 'cp':
+                shutil.copytree(self.root/'baseline', output/'prepared-root', dirs_exist_ok=True)
+            if command[0] == 'unshare':
+                self.assertFalse((output/'prepared-root/var/lib/rungic-apt/root-install.complete').exists())
+        baseline = self.root/'baseline'; baseline.mkdir()
+        shutil.copytree(self.state, baseline/'var/lib/rungic-apt')
+        argv = ['binary', '--base-root', str(baseline), '--packages', str(repo),
+                '--qemu', '/unused-qemu', '--output', str(output), '--firefox-version', '1']
+        with patch.object(sys, 'argv', argv), patch.object(binary, 'run', side_effect=run), \
+             patch.object(binary, 'inventory', return_value={'packages': {}}):
+            binary.main()
+        self.assertTrue((baseline/'var/lib/rungic-apt/root-install.complete').exists())
+        self.assertIn('--unverified-root', calls[-1])
+        with patch.object(binary.subprocess, 'run') as invoke:
+            binary.run('true')
+            self.assertEqual(invoke.call_args.kwargs['stdin'], subprocess.DEVNULL)
 
 if __name__ == '__main__':
     unittest.main()

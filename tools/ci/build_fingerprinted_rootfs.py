@@ -18,7 +18,7 @@ from build_rootfs_image import packages, write_release_preferences
 
 
 def run(*command):
-    subprocess.run(command, check=True)
+    subprocess.run(command, check=True, stdin=subprocess.DEVNULL)
 
 
 def inventory(root):
@@ -59,6 +59,9 @@ def main():
     root = args.output / 'prepared-root'
     root.mkdir()
     run('cp', '-a', '--reflink=auto', str(args.base_root) + '/.', str(root))
+    # Binary-baseline composition has its own fingerprint, not a fresh-install proof.
+    # Updating dpkg invalidates a copied receipt; never refresh it to claim full installation.
+    (root / 'var/lib/rungic-apt/root-install.complete').unlink(missing_ok=True)
     release = json.loads((args.packages / 'release.json').read_text())
     write_release_preferences(root, release)
     debs = sorted(args.packages.glob('*.deb'))
@@ -84,7 +87,7 @@ def main():
         'scope': 'Composition from a fingerprinted binary root baseline and source-built updates; see payload build-manifest.json.'}, indent=2) + '\n')
     run(sys.executable, str(HERE / 'build_rootfs_image.py'), '--inside', '--root', str(root),
         '--release', str(args.packages / 'release.json'), '--output', str(args.output / 'image/rootfs.img'),
-        '--size-gib', str(args.size_gib), '--firefox-version', args.firefox_version)
+        '--size-gib', str(args.size_gib), '--firefox-version', args.firefox_version, '--unverified-root')
 
 
 if __name__ == '__main__':
