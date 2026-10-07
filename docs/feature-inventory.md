@@ -4,7 +4,7 @@
 
 以产品功能和用户场景为骨架：每条功能是用户能感知的一件事；“体验”是它必须做到的，每条都标明由什么检查（自动测试、实机验收、人工验证或已登记的缺口）。数据在 `quality/`，规则见 [quality/README.md](../quality/README.md)。
 
-共 166 条功能、736 条体验，其中 687 条有检查。
+共 167 条功能、742 条体验，其中 693 条有检查。
 
 ## Agent 能力
 
@@ -1364,6 +1364,21 @@ Linux 应用用手机的相机拍照录像，用手机的扬声器和麦克风�
 
 文档：[docs/94-build-fingerprints.md](../docs/94-build-fingerprints.md)
 
+#### 发版验收清单（实验）
+
+`delivery.release-checklist` · 依赖安卓 — 每个发布候选重新安装之后，Agent 像用户一样看着 G100 的屏幕、经 ADB 触摸，把 docs/121 列好的十项走一遍，屏幕看不出的事实用一条命令核对，写带截图的报告。取代 task
+
+经由接口：`host-input`、`camera`、`audio`、`platform-bridge`
+
+- **E1** 清单每项写明操作、看到什么算过和一条核对命令；结果只有通过、失败、没跑（写原因）三种，失败照实保留，重试另记。（人工）
+- **E2** 报告每项附截图，人不用重跑就能复核；只操作 G100，只删除本轮 rungic-e2e-<RUN> 下的文件。（人工）
+
+注意：
+- Agent 看图判断可能偏宽松，所以每项写死“看到什么算过”；看不清就判失败。 [docs/121-acceptance-checklist.md](../docs/121-acceptance-checklist.md)
+- 同一 adb 上还有用户日常用的 G100 S；rungic_device 的默认序列号就是它，必须显式指定 ZY32M9MRVP。 [docs/121-acceptance-checklist.md](../docs/121-acceptance-checklist.md)
+
+文档：[docs/121-acceptance-checklist.md](../docs/121-acceptance-checklist.md)
+
 ### 查清手机上出了什么问题
 
 Agent 不靠点界面就能拿到合并日志、崩溃回溯、追踪、截图、完整性报告，并按控件名操作桌面复现问题。
@@ -1450,6 +1465,8 @@ Agent 不靠点界面就能拿到合并日志、崩溃回溯、追踪、截图�
 - **E1** 按名称找到控件并操作（按下、点击、填文字）：打开抽屉找到 Calculator 启动，在 Kalk 里按 C、7、+、8、= 得到 15，全程不用固定坐标。（系统测试、人工）
 - **E2** 无障碍按需开启，运行中的 Qt 程序约 2 秒内注册，不用重启。用完关闭并记录状态。（系统测试、人工）
 - **E3** 没有动作的元素（启动器图标、自绘键盘）按“窗口原点＋元素中心”换算到物理坐标，经 Android 输入点击。（单元测试、人工）
+- **E4** 没有控件名可用时，Agent 看着截图按截图像素触摸、滑动、长按、按键和输入网址，并用一条命令核对屏幕上看不出的结果；坐标不用换算，命令失败如实返回退出码。（单元测试）
+- **E5** Agent 用屏幕键盘打字时按键的无障碍标识找到真实的键去点：大小写用 Shift，数字和标点切到符号页，拼音点完字母后按候选文字选词。同一页的键一次发给手机，一行字几十秒内打完；键盘上没有的字报错，不改用别的输入方式。（单元测试）
 
 注意：
 - 会话刚重启时抽屉搜索结果不进 AT-SPI 树。快捷设置折叠时未显示的磁贴仍报告 showing。plasma-keyboard 的面板坐标与屏幕有偏移。Kirigami 搜索框没有 EditableText 接口。 [docs/55-agent-native-debugging.md](../docs/55-agent-native-debugging.md)
@@ -2099,6 +2116,7 @@ Agent 不靠点界面就能拿到合并日志、崩溃回溯、追踪、截图�
 - **E2** 录屏图块换成本项目的录屏插件，用户原来禁用的录屏仍是禁用。（单元测试、系统测试）
 - **E3** 设置里指向旧 /usr/local 路径的输入法、门户覆盖、Codex 配置和 Firefox 启动器改到新路径。用户自己改过的值不动。（单元测试、系统测试）
 - **E4** 迁移在 KWin 启动前运行，KWin 第一次就读到新的输入法路径。每个迁移只运行一次。旧的固定 3 倍显示迁移已退役，不凭 scale=3 猜测用户选择。（单元测试、系统测试）
+- **E5** 新账户第一次进桌面就用 Rime 拼音键盘，键盘语言是简体中文和美式英文，可以用语言键切换。用户自己选过的输入法和语言不动。（单元测试）
 
 注意：
 - 家目录不随 rootfs 快照回滚，失败部署期间写进 ~/.config 的内容会留下。排查部署后异常时要看部署时段改过的用户配置。 [docs/61-delivery-diagnostics-plan.md](../docs/61-delivery-diagnostics-plan.md)
@@ -2226,6 +2244,7 @@ Agent 不靠点界面就能拿到合并日志、崩溃回溯、追踪、截图�
 - **E4** 用户词库只在打字时打开：键盘收起、失焦或显示时 5 秒不按键就关闭会话并释放词库，组合中不关闭。另一个进程正持有词库时本边仍能打中文（不学习），对方释放后转为共享，学到的词两边都排第一，词库不被修复程序改写。（单元测试、人工）
 - **E5** 建会话加第一个键在实机上远低于 50 ms，不需要预建会话。（人工；只能在手机上看：耗时取决于手机的 CPU 和存储（LevelDB 每次打开都写 MANIFEST 并 fsync）。离线在 tmpfs 与 NVMe 上就相差十倍，只有手机上量的数字能说明。）
 - **E6** 密码字段不交给 Rime，敏感字段不学习词频。用户词频和定制在 ~/.local/share/plasma-rime（0700），default.custom.yaml 只首次创建。（单元测试）
+- **E7** 在把预编辑算进光标周围文字的编辑器里（KWrite、Kate），拼音留在预编辑区直到选词；只有光标被移开或文字在别处被改动才提交组合。（单元测试）
 
 注意：
 - librime 打开词库失败会安排 userdb_recovery_task，LevelDB RepairDB 不取 LOCK，会改写另一进程正在用的词库。所以在确认能独占词库之前，任何会话都不能尝试打开它。 [docs/41-plasma-rime-input.md](../docs/41-plasma-rime-input.md)
@@ -3102,11 +3121,11 @@ Agent 不靠点界面就能拿到合并日志、崩溃回溯、追踪、截图�
 
 | 接口 | 说明 | 使用它的功能 | 使用方测试 | 提供方测试 |
 |---|---|---|---|---|
-| `platform-bridge` 平台桥 | Rungic 应用通过 files/tmp/platform.sock 提供 Unix socket 接口，每行传输一个 JSON 对象。接口涵盖状态、显示、亮度、方向、振动、设置面板、桌面模式、助理屏、电视、导播台和文字提交。 | `agent.voice`、`agent.progress`、`agent.task-control`、`agent.phone-mode`、`agent.workspaces`、`agent.where`、`delivery.acceptance`、`delivery.agent-diagnostics`、`delivery.system-tests`、`desktop-mode.on-off`、`desktop-mode.floating-window`、`desktop-mode.fullscreen`、`desktop-mode.cast-connect`、`desktop-mode.tv-computer-mode`、`desktop-mode.tv-touchpad`、`desktop-mode.audio-follow`、`desktop-mode.director`、`desktop-mode.tv-director`、`desktop-mode.remote-viewing`、`desktop-mode.cast-test-pattern`、`desktop.orientation`、`desktop.resolution-refresh`、`desktop.brightness`、`desktop.host-bridges`、`desktop.power`、`desktop.device-panel` | 12 | 1 |
+| `platform-bridge` 平台桥 | Rungic 应用通过 files/tmp/platform.sock 提供 Unix socket 接口，每行传输一个 JSON 对象。接口涵盖状态、显示、亮度、方向、振动、设置面板、桌面模式、助理屏、电视、导播台和文字提交。 | `agent.voice`、`agent.progress`、`agent.task-control`、`agent.phone-mode`、`agent.workspaces`、`agent.where`、`delivery.acceptance`、`delivery.agent-diagnostics`、`delivery.release-checklist`、`delivery.system-tests`、`desktop-mode.on-off`、`desktop-mode.floating-window`、`desktop-mode.fullscreen`、`desktop-mode.cast-connect`、`desktop-mode.tv-computer-mode`、`desktop-mode.tv-touchpad`、`desktop-mode.audio-follow`、`desktop-mode.director`、`desktop-mode.tv-director`、`desktop-mode.remote-viewing`、`desktop-mode.cast-test-pattern`、`desktop.orientation`、`desktop.resolution-refresh`、`desktop.brightness`、`desktop.host-bridges`、`desktop.power`、`desktop.device-panel` | 12 | 1 |
 | `kwin-android-host` KWin 安卓宿主 | KWin 的 android-host 后端连接 Rungic 应用内的宿主。接口提供输出、帧时钟、零拷贝呈现、显式同步、空闲抑制和投屏输出。 | `agent.workspaces`、`apps.gpu`、`apps.vulkan`、`apps.xwayland-gpu`、`delivery.acceptance`、`delivery.trace`、`delivery.probes`、`desktop-mode.tv-computer-mode`、`desktop-mode.external-screen`、`desktop-mode.tv-director`、`desktop-mode.apk-fullscreen`、`desktop.session`、`desktop.panels`、`desktop.orientation`、`desktop.host-display`、`desktop.resolution-refresh`、`desktop.display-size`、`desktop.power`、`install.desktop-entry`、`install.app-restart-recovery`、`install.apk-build` | — | 5 |
-| `host-input` 宿主输入 | Android 将触摸、按键、指针、手势和输入法文字送入 KWin。输入方式包括直接触摸、触控板、电视遥控和键盘。 | `delivery.acceptance`、`delivery.ui-automation`、`desktop-mode.fullscreen`、`desktop-mode.fullscreen-touch`、`desktop-mode.tv-computer-mode`、`desktop-mode.tv-touchpad`、`desktop-mode.apk-fullscreen`、`desktop.touch`、`desktop.edge-back`、`desktop.android-text` | — | 1 |
-| `camera` 相机 | Android Camera2 通过 PipeWire 相机节点 rungic.camera.N 提供画面，并按需开关相机。平台桥的 capture-info 查询返回可用相机。 | `apps.camera`、`apps.snapshot`、`apps.plasma-camera`、`apps.firefox`、`delivery.acceptance`、`delivery.probes` | 2 | 3 |
-| `audio` 扬声器与麦克风 | Android 扬声器和麦克风作为 PulseAudio 设备提供，包括 android、android_phone 输出和麦克风源。设备按需挂起，输出通过 Android 侧的 PulseAudio（system/android-audio）。 | `agent.voice`、`agent.call-proxy`、`apps.phone-audio`、`apps.virtual-audio`、`apps.firefox`、`delivery.acceptance`、`delivery.probes`、`desktop-mode.audio-follow`、`desktop.screen-recording`、`install.cold-start` | 5 | 3 |
+| `host-input` 宿主输入 | Android 将触摸、按键、指针、手势和输入法文字送入 KWin。输入方式包括直接触摸、触控板、电视遥控和键盘。 | `delivery.acceptance`、`delivery.ui-automation`、`delivery.release-checklist`、`desktop-mode.fullscreen`、`desktop-mode.fullscreen-touch`、`desktop-mode.tv-computer-mode`、`desktop-mode.tv-touchpad`、`desktop-mode.apk-fullscreen`、`desktop.touch`、`desktop.edge-back`、`desktop.android-text` | — | 1 |
+| `camera` 相机 | Android Camera2 通过 PipeWire 相机节点 rungic.camera.N 提供画面，并按需开关相机。平台桥的 capture-info 查询返回可用相机。 | `apps.camera`、`apps.snapshot`、`apps.plasma-camera`、`apps.firefox`、`delivery.acceptance`、`delivery.release-checklist`、`delivery.probes` | 2 | 3 |
+| `audio` 扬声器与麦克风 | Android 扬声器和麦克风作为 PulseAudio 设备提供，包括 android、android_phone 输出和麦克风源。设备按需挂起，输出通过 Android 侧的 PulseAudio（system/android-audio）。 | `agent.voice`、`agent.call-proxy`、`apps.phone-audio`、`apps.virtual-audio`、`apps.firefox`、`delivery.acceptance`、`delivery.release-checklist`、`delivery.probes`、`desktop-mode.audio-follow`、`desktop.screen-recording`、`install.cold-start` | 5 | 3 |
 | `communication-audio` 通话音频 | $XDG_RUNTIME_DIR/rungic-communication.sock 为电话模式和通话提供双向通信音频，使用 android_communication 设备。 | `agent.phone-mode` | 1 | 2 |
 | `codec` 硬件编解码 | Android MediaCodec 通过 IPC 为 GStreamer、FFmpeg 和 Firefox 提供 H.264/HEVC/VP9 解码及 H.264 编码。 | `apps.snapshot`、`apps.hw-codec`、`apps.firefox-hw-video`、`delivery.acceptance`、`desktop.screen-recording` | 9 | 1 |
 | `clipboard` 剪贴板 | Android ClipboardDaemon 与 Wayland 剪贴板双向同步。 | `desktop-mode.clipboard`、`desktop.clipboard`、`desktop.clipboard-history` | 3 | 1 |

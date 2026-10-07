@@ -653,6 +653,10 @@ features:
         text: 没有动作的元素（启动器图标、自绘键盘）按“窗口原点＋元素中心”换算到物理坐标，经 Android 输入点击。
         evidence:
           - {doc: docs/55-agent-native-debugging.md, date: 2026-09-23}
+      - id: E4
+        text: 没有控件名可用时，Agent 看着截图按截图像素触摸、滑动、长按、按键和输入网址，并用一条命令核对屏幕上看不出的结果；坐标不用换算，命令失败如实返回退出码。
+      - id: E5
+        text: Agent 用屏幕键盘打字时按键的无障碍标识找到真实的键去点：大小写用 Shift，数字和标点切到符号页，拼音点完字母后按候选文字选词。同一页的键一次发给手机，一行字几十秒内打完；键盘上没有的字报错，不改用别的输入方式。
     pitfalls:
       - text: 会话刚重启时抽屉搜索结果不进 AT-SPI 树。快捷设置折叠时未显示的磁贴仍报告 showing。plasma-keyboard 的面板坐标与屏幕有偏移。Kirigami 搜索框没有 EditableText 接口。
         docs: [docs/55-agent-native-debugging.md]
@@ -663,6 +667,30 @@ features:
       - tools/rungic_agent.py
       - tools/system/tests/ui_automation_atspi.py
     docs: [docs/55-agent-native-debugging.md]
+
+  - id: delivery.release-checklist
+    title: 发版验收清单
+    scenario: delivery.release
+    status: experimental
+    platform: android
+    interfaces: [host-input, camera, audio, platform-bridge]
+    summary: 每个发布候选重新安装之后，Agent 像用户一样看着 G100 的屏幕、经 ADB 触摸，把 docs/121 列好的十项走一遍，屏幕看不出的事实用一条命令核对，写带截图的报告。取代 task #103 的冻结规范和 core 计划。
+    experience:
+      - id: E1
+        text: 清单每项写明操作、看到什么算过和一条核对命令；结果只有通过、失败、没跑（写原因）三种，失败照实保留，重试另记。
+        evidence:
+          - {doc: docs/121-acceptance-checklist.md, date: 2026-10-07, note: "20261007a 第一次实跑，E2E-02 两次失败与修复后通过分开记"}
+      - id: E2
+        text: 报告每项附截图，人不用重跑就能复核；只操作 G100，只删除本轮 rungic-e2e-<RUN> 下的文件。
+        evidence:
+          - {doc: docs/121-acceptance-checklist.md, date: 2026-10-07}
+    pitfalls:
+      - text: Agent 看图判断可能偏宽松，所以每项写死“看到什么算过”；看不清就判失败。
+        docs: [docs/121-acceptance-checklist.md]
+      - text: 同一 adb 上还有用户日常用的 G100 S；rungic_device 的默认序列号就是它，必须显式指定 ZY32M9MRVP。
+        docs: [docs/121-acceptance-checklist.md]
+    code: []
+    docs: [docs/121-acceptance-checklist.md]
 
   - id: delivery.probes
     title: 诊断探针

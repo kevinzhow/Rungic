@@ -143,4 +143,5 @@
 - {path: docs/118-standalone-uninstall.md, kind: reference, note: 独立卸载的路径范围、家目录原地保留、失败恢复和未验收边界}
 
 - {path: docs/119-app-removal-status.md, kind: journal, note: App 在控制器缺失时独立读取未完成卸载标记，包含失败与重试边界}
+- {path: docs/121-acceptance-checklist.md, kind: reference, note: 发版验收清单：Agent 在 G100 上按截图触摸操作的十项、判定与报告格式}
 - {path: docs/research/termux-prefix-build.md, kind: reference, note: 固定 APK 与认证仓库的 Termux 前缀构建及重放；Android 配置待验}

@@ -28,7 +28,7 @@ class AgentGuideTests(unittest.TestCase):
         dated = re.findall(r'用户于\s*(\d{4}-\d{2}-\d{2})', text)
         self.assertGreaterEqual(len(dated), 10, 'the user\'s requirements carry the date they were given')
         named = set(re.findall(r'\$(rungic-[a-z0-9-]+)', text))
-        self.assertEqual(named, {'rungic-three-stage-image', 'rungic-dev-release'})
+        self.assertEqual(named, {'rungic-three-stage-image', 'rungic-dev-release', 'rungic-phone-acceptance'})
         for skill in named:
             with self.subTest(skill):
                 body = (ROOT / '.agents/skills' / skill / 'SKILL.md').read_text()

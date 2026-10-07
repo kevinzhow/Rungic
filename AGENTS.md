@@ -65,6 +65,7 @@ Phosh 时期的首轮设备能力审计和复用研究见 `docs/research/28-capa
 - 新文件要有功能认领，新文档要在 `quality/docs.yaml` 分类，新功能要写体验；测试在被检查的地方写 `covers: 功能/E编号`，实机验收在场景里写 `covers`。结构性警告必须清零，测试欠账只许减少（`quality/baseline.json`），`tools/run-tests.sh` 会检查。
 - 与安卓无关的 Linux 系统功能优先用无头系统测试（`tools/system_test.py`，Mac mini 上的 `kwin_wayland --virtual`）；它和安卓之间的接口按 `quality/contracts/` 的契约两头分别测，Linux 一侧对着替身离线测，安卓一侧在手机上只读核对。
 - 实机检查不得改变用户正在用的状态：读不懂状态就报失败，不做切换（2026-10-03 一次检查误关了用户的桌面模式，见 `quality/README.md`）。
+- 界面交互的发版验收（用户于 2026-10-07 明确）：重新安装候选之后，由 Agent 像用户一样看截图、经 ADB 触摸，把 `docs/121-acceptance-checklist.md` 列好的项目走一遍，屏幕看不出的事实用一条命令核对，出带截图的报告（skill `.agents/skills/rungic-phone-acceptance/SKILL.md`，`$rungic-phone-acceptance`）。不要再为界面验收写专用的读回框架或长篇冻结规范；丰富的自动化测试留在离线单元测试和无头系统测试。
 
 ## 优先修复共享系统能力，避免逐个应用重复适配
 

@@ -93,3 +93,90 @@ def test_ui_tap_maps_the_element_centre_to_physical_pixels(monkeypatch):
     with pytest.raises(ValueError, match='not on screen'):
         rungic_agent.ui_tap('kalk', '0/3/7')
     assert len(taps) == 1
+
+
+# covers: delivery.ui-automation/E4
+def test_touches_use_screenshot_pixels_and_refuse_what_input_would_misread(monkeypatch):
+    """An agent reading a screenshot touches at its pixels: tap, swipe and key become Android input
+    commands as they are; text is ASCII with spaces as %s; exec reports a failing command's status."""
+    calls = []
+    monkeypatch.setattr(rungic_agent, 'run', lambda script, level='root', timeout=60, check=True:
+                        calls.append((script, level)) or types.SimpleNamespace(returncode=3, stdout='o', stderr='e'))
+    rungic_agent.tap(540, '1200')
+    rungic_agent.swipe(100, 2000, 100, 2000, ms=800)      # a long press
+    rungic_agent.key('back')
+    rungic_agent.text('http://10.0.0.1/a b')
+    assert calls == [('input tap 540 1200', 'shell'), ('input swipe 100 2000 100 2000 800', 'shell'),
+                     ('input keyevent BACK', 'shell'), ('input text http://10.0.0.1/a%sb', 'shell')]
+    for bad in (lambda: rungic_agent.tap(-1, 5), lambda: rungic_agent.key('BACK; reboot'),
+                lambda: rungic_agent.text('你好'), lambda: rungic_agent.text(''),
+                lambda: rungic_agent.execute('true', level='kernel')):
+        with pytest.raises(ValueError):
+            bad()
+    assert len(calls) == 4
+    assert rungic_agent.execute('sha256sum f') == {'exit': 3, 'stdout': 'o', 'stderr': 'e'}
+    assert calls[-1] == ('sha256sum f', 'user')
+
+
+def keyboard_phone(monkeypatch, pages):
+    """A phone whose plasma-keyboard shows pages[state['page']]; a touch on a page key switches page.
+    The panel ends 36 logical px above the output's bottom (the navigation bar), as on the G100."""
+    state = {'page': 'lower', 'touches': []}
+
+    def at(x, y):     # screenshot pixels back to the page's key, through the same placement
+        for ident, name, (kx, ky) in pages[state['page']]:
+            if abs((kx + 10) * 3 - x) <= 1 and abs((ky + 10 - 36) * 3 - y) <= 1:
+                return ident, name
+        raise AssertionError(f'touch at {x},{y} hits no key')
+
+    def a11y(*args, **kw):
+        if args == ('apps',):
+            return [{'name': 'plasma-keyboard', 'pid': 7}]
+        keys = [{'path': f'0/{i}', 'id': ident, 'name': name, 'states': ['showing', 'enabled'],
+                 'extents': [x, y, 20, 20]} for i, (ident, name, (x, y)) in enumerate(pages[state['page']])]
+        return [{'path': '0', 'id': 'QGuiApplication.InputPanelWindow', 'extents': [0, 0, 360, 785]}] + keys
+
+    def run(script, level='root', **kw):
+        for line in script.splitlines():
+            x, y = map(int, line.split()[2:])
+            ident, name = at(x, y)
+            state['touches'].append(name)
+            state['page'] = {'shift': 'upper' if state['page'] == 'lower' else 'lower', 'symbol': 'symbols'
+                             if state['page'] != 'symbols' else 'lower'}.get(ident, 'lower' if state['page'] == 'upper' else state['page'])
+    monkeypatch.setattr(rungic_agent, 'a11y', a11y)
+    monkeypatch.setattr(rungic_agent, 'ui_windows', lambda: [
+        {'pid': 1, 'resource_class': 'plasmashell', 'normal': False, 'x': 0, 'y': 749, 'w': 360, 'h': 36},
+        {'pid': 2, 'resource_class': 'kwin_wayland', 'normal': False, 'x': 0, 'y': 513, 'w': 360, 'h': 236}])
+    monkeypatch.setattr(rungic_agent, 'host_request', lambda op: {'physicalWidth': 1080})
+    monkeypatch.setattr(rungic_agent, 'run', run)
+    monkeypatch.setattr(rungic_agent.time, 'sleep', lambda s: None)
+    rungic_agent._placement.clear()
+    return state
+
+
+# covers: delivery.ui-automation/E5
+def test_keyboard_type_touches_the_keys_a_user_would(monkeypatch):
+    """Shift for a capital (one shot), the symbol page for digits, keys found by identifier; the
+    panel above the navigation bar moves every key up by its 36 px."""
+    letters = [(f'key:{c}', c, (20 * i, 600)) for i, c in enumerate('abg')]
+    common = [('shift', 'Shift', (0, 700)), ('symbol', '&123', (40, 700)), ('space', 'Space', (80, 700)),
+              ('enter', 'Enter', (120, 700))]
+    pages = {'lower': letters + common,
+             'upper': [(i, n.upper(), p) for i, n, p in letters] + common,
+             'symbols': [('key:1', '1', (0, 600)), ('key:2', '2', (20, 600))] + common}
+    state = keyboard_phone(monkeypatch, pages)
+    assert rungic_agent.keyboard_type('Ab 12\n') == {'typed': 6}
+    assert state['touches'] == ['Shift', 'A', 'b', 'Space', '&123', '1', '2', 'Enter']
+    with pytest.raises(ValueError, match='no key types'):
+        rungic_agent.keyboard_type('é')
+
+
+# covers: delivery.ui-automation/E5
+def test_keyboard_pinyin_picks_the_shown_candidate_by_its_text(monkeypatch):
+    pinyin = [(f'key:{c}', c, (20 * i, 600)) for i, c in enumerate('nihao')]
+    pages = {'lower': pinyin + [('candidate', '你好', (0, 560)), ('candidate', '妳好', (40, 560))]}
+    state = keyboard_phone(monkeypatch, pages)
+    rungic_agent.keyboard_pinyin('nihao', '你好')
+    assert state['touches'] == list('nihao') + ['你好']
+    with pytest.raises(ValueError, match='no candidate'):
+        rungic_agent.keyboard_pinyin('ni', '泥')

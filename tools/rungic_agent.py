@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
-"""Read-only device diagnostics for agents: status, merged logs, crashes and evidence bundles.
+"""Device diagnostics for agents: status, merged logs, crashes and evidence bundles, plus the touches
+of an agent that operates the phone like a user (tap, swipe, key, text by screenshot pixels) and
+one-off commands for checking a result (docs/121).
 
 Every function returns plain data (dict/list/str) so the same code serves the
-command line and the MCP server (tools/rungic_agent_mcp.py). Nothing here changes
-device state; see docs/55-agent-native-debugging.md for the safety classes.
+command line and the MCP server (tools/rungic_agent_mcp.py). The diagnostics change no device
+state; touches and exec do what a user or a shell would. See docs/55-agent-native-debugging.md
+for the safety classes.
 
 Timeline: Android and the LXC container share one kernel, so logcat
 (`-v epoch`), journald (__REALTIME_TIMESTAMP) and dmesg (monotonic, converted
@@ -451,6 +454,197 @@ def ui_tap(app, path):
     return {'element': element, 'window': origin, 'tap': [tx, ty], 'scale': round(scale, 3)}
 
 
+# ---------------------------------------------------------------- touch by screenshot coordinates
+# For an agent that looks at screenshot() and acts like a user (docs/121). Coordinates are the
+# screenshot's own pixels, which are also Android's touch coordinates: no conversion.
+
+def _ints(*values):
+    numbers = [int(v) for v in values]
+    if any(n < 0 for n in numbers):
+        raise ValueError(f'coordinates and durations are not negative: {numbers}')
+    return numbers
+
+
+def tap(x, y):
+    x, y = _ints(x, y)
+    run(f'input tap {x} {y}', 'shell')
+    return {'tap': [x, y]}
+
+
+def swipe(x1, y1, x2, y2, ms=300):
+    """A finger from (x1, y1) to (x2, y2); a long press is a swipe that does not move."""
+    x1, y1, x2, y2, ms = _ints(x1, y1, x2, y2, ms)
+    run(f'input swipe {x1} {y1} {x2} {y2} {ms}', 'shell')
+    return {'swipe': [x1, y1, x2, y2], 'ms': ms}
+
+
+def key(name):
+    """An Android key event: BACK, HOME, ENTER, ... (KEYCODE_ prefix optional) or a number."""
+    code = str(name).upper()
+    if not re.fullmatch(r'(KEYCODE_)?[A-Z0-9_]+', code):
+        raise ValueError(f'not a key name: {name!r}')
+    run(f'input keyevent {code}', 'shell')
+    return {'key': code}
+
+
+def text(value):
+    """Android text input, delivered to the focused field as key events. Not the on-screen keyboard:
+    a check of the keyboard itself must touch its keys (docs/121 E2E-02)."""
+    if not value or not re.fullmatch(r'[\x21-\x7e ]+', value):
+        raise ValueError('input text takes printable ASCII only')
+    run('input text ' + shlex.quote(value.replace(' ', '%s')), 'shell')
+    return {'text': value}
+
+
+def execute(script, level='user', timeout=60):
+    """One command at a run level (shell, root, container, user): {exit, stdout, stderr}, never raises
+    on the command's own failure."""
+    if level not in rungic_device.LEVELS:
+        raise ValueError(f'levels: {sorted(rungic_device.LEVELS)}')
+    reply = run(script, level, timeout, check=False)
+    return {'exit': reply.returncode, 'stdout': reply.stdout, 'stderr': reply.stderr}
+
+
+# ---------------------------------------------------------------- the on-screen keyboard by its keys
+# Real touches on the visible keys, found by their accessible identifiers (packages/plasma-keyboard
+# accessible-keys.patch, docs/41): key:<text>, shift, symbol, language, space, enter, backspace, ...,
+# candidate (name: the candidate's text). The key layout is read once per keyboard page and the touches
+# of one page go to the phone in one command, so a line takes seconds, not a minute (docs/121).
+
+KEYBOARD = 'plasma-keyboard'
+_PAGE_KEYS = ('shift', 'symbol', 'mode')     # keys that change which keys are shown
+
+
+_placement = {}     # app -> (dx, dy, scale, root size): where its keys are, read once per process
+
+
+def keyboard_keys(app=KEYBOARD):
+    """The showing keys: [{id, name, enabled, at: [x, y] in screenshot pixels}].
+
+    plasma-keyboard's root window is as tall as the output and draws its keys at its bottom, but KWin
+    shows only the input panel, which ends above the navigation bar: the keys are where the panel's
+    bottom says (on the G100 36 logical px above where the accessibility tree puts them). Another app
+    (Rungic's floating keyboard) is a window of its own: its keys are relative to that window."""
+    tree = a11y('tree', app)
+    if not tree:
+        raise ValueError(f'{app} has no accessible tree (is the keyboard shown and accessibility on?)')
+    root = tree[0]['extents']
+    placed = _placement.get(app)
+    if not placed or placed[3] != tuple(root[2:]):
+        windows = ui_windows()
+        scale = host_request('display-get')['physicalWidth'] / max(w['x'] + w['w'] for w in windows)
+        pid = next((x['pid'] for x in a11y('apps') if x['name'] == app), None)
+        own = [w for w in windows if w['pid'] == pid and abs(w['w'] - root[2]) <= 1 and abs(w['h'] - root[3]) <= 1]
+        if own:
+            dx, dy = own[0]['x'], own[0]['y']
+        else:
+            panels = [w for w in windows if w['resource_class'] == 'kwin_wayland' and not w['normal']
+                      and abs(w['w'] - root[2]) <= 1 and 0 < w['h'] < root[3]]
+            if len(panels) != 1:
+                raise ValueError(f'the keyboard panel is not shown ({len(panels)} candidates)')
+            dx, dy = 0, panels[0]['y'] + panels[0]['h'] - root[3]
+        placed = _placement[app] = (dx, dy, scale, tuple(root[2:]))
+    dx, dy, scale, _ = placed
+    keys = []
+    for n in tree[1:]:
+        ident, (x, y, w, h) = n.get('id', ''), n.get('extents', [0, 0, 0, 0])
+        if not ident or ident.startswith('QGuiApplication') or w <= 0 or h <= 0 or 'showing' not in n.get('states', []):
+            continue
+        keys.append({'id': ident, 'name': n.get('name', ''), 'enabled': 'enabled' in n.get('states', []),
+                     'at': [int((dx + x + w / 2) * scale), int((dy + y + h / 2) * scale)]})
+    return keys
+
+
+def _key(keys, ident, name=None):
+    found = [k for k in keys if k['id'] == ident and (name is None or k['name'] == name)]
+    return found[0] if found else None
+
+
+def _touch(points):
+    if points:
+        run('\n'.join(f'input tap {x} {y}' for x, y in points), 'shell', timeout=30 + 2 * len(points))
+        time.sleep(0.3)
+
+
+def keyboard_press(*idents, app=KEYBOARD):
+    """Touch keys by identifier, in order, from one reading of the layout; candidate=TEXT picks a candidate."""
+    keys, points = keyboard_keys(app), []
+    for ident in idents:
+        ident, _, name = ident.partition('=')
+        k = _key(keys, ident, name or None)
+        if not k:
+            raise ValueError(f'no key {ident}{"=" + name if name else ""}; shown: {sorted({k["id"] for k in keys})}')
+        points.append(k['at'])
+    _touch(points)
+    return {'pressed': list(idents)}
+
+
+def _wanted(c):
+    if c == ' ':
+        return 'space', None
+    if c == '\n':
+        return 'enter', None
+    if c.isascii() and c.isalpha():
+        return f'key:{c.lower()}', c
+    return f'key:{c}', None
+
+
+def keyboard_type(value, app=KEYBOARD, attempts=4):
+    """Type value by touching the keys a user would: Shift for the other case, the symbol pages for
+    digits and punctuation. Lowercase and digit runs go in one command; after a key that can change
+    the page (Enter, an uppercase letter, punctuation) the layout is read again. A character no
+    page has is an error, never typed another way."""
+    keys, batch, typed = keyboard_keys(app), [], 0
+    for c in value:
+        ident, name = _wanted(c)
+        for _ in range(attempts):
+            k = _key(keys, ident, name)
+            if k and k['enabled']:
+                break
+            _touch(batch)
+            batch = []
+            keys = keyboard_keys(app)
+            k = _key(keys, ident, name)
+            if k and k['enabled']:
+                break
+            letter_here = _key(keys, ident)
+            flip = 'shift' if letter_here and name else next((p for p in _PAGE_KEYS[1:] if _key(keys, p)), None)
+            if not flip:
+                break
+            _touch([_key(keys, flip)['at']])
+            keys = keyboard_keys(app)
+        else:
+            k = None
+        if not k or not k['enabled']:
+            raise ValueError(f'no key types {c!r} after {typed} characters; shown: {sorted({k["id"] for k in keys})}')
+        batch.append(k['at'])
+        typed += 1
+        if not (c.islower() or c.isdigit() or c == ' '):
+            _touch(batch)
+            batch = []
+            keys = keyboard_keys(app)
+    _touch(batch)
+    return {'typed': typed}
+
+
+def keyboard_pinyin(pinyin, pick, app=KEYBOARD):
+    """Chinese through the pinyin layout: touch the letters, then the shown candidate whose text is pick."""
+    if not re.fullmatch(r"[a-z']+", pinyin):
+        raise ValueError('pinyin is lowercase letters (and the separator \')')
+    keys = keyboard_keys(app)
+    missing = [c for c in pinyin if not _key(keys, f'key:{c}')]
+    if missing:
+        raise ValueError(f'the shown layout has no keys for {missing} (switch to the pinyin layout first)')
+    _touch([_key(keys, f'key:{c}')['at'] for c in pinyin])
+    keys = keyboard_keys(app)
+    k = _key(keys, 'candidate', pick)
+    if not k:
+        shown = [x['name'] for x in keys if x['id'] == 'candidate'][:10]
+        raise ValueError(f'no candidate {pick!r} after {pinyin!r}; shown: {shown}')
+    _touch([k['at']])
+    return {'pinyin': pinyin, 'picked': pick}
+
+
 # ---------------------------------------------------------------- evidence bundle
 
 def snapshot(label='manual', since_seconds=300, with_screenshot=True):
@@ -513,7 +707,31 @@ def main():
     p = sub.add_parser('screenshot'); p.add_argument('path', nargs='?')
     p = sub.add_parser('snapshot'); p.add_argument('label', nargs='?', default='manual')
     p.add_argument('--since', type=float, default=300)
+    p = sub.add_parser('tap', help='touch at screenshot pixels'); p.add_argument('x'); p.add_argument('y')
+    p = sub.add_parser('swipe', help='finger from x1 y1 to x2 y2 (same point: long press)')
+    for name in ('x1', 'y1', 'x2', 'y2'):
+        p.add_argument(name)
+    p.add_argument('--ms', default=300)
+    p = sub.add_parser('key', help='Android key event: BACK, HOME, ENTER ...'); p.add_argument('name')
+    p = sub.add_parser('text', help='ASCII into the focused field (not through the on-screen keyboard)')
+    p.add_argument('value')
+    p = sub.add_parser('exec', help='one command on the phone; prints stdout, exits with its status')
+    p.add_argument('script'); p.add_argument('--as', dest='level', default='user', choices=sorted(rungic_device.LEVELS))
+    p.add_argument('--timeout', type=float, default=60)
+    p = sub.add_parser('keyboard-keys', help='the shown keys of the on-screen keyboard and where they are')
+    p.add_argument('--app', default=KEYBOARD)
+    p = sub.add_parser('keyboard-press', help='touch keys by identifier (shift, symbol, language, candidate=TEXT, ...)')
+    p.add_argument('idents', nargs='+'); p.add_argument('--app', default=KEYBOARD)
+    p = sub.add_parser('keyboard-type', help='type by touching the keys (\\n for Enter)')
+    p.add_argument('value'); p.add_argument('--app', default=KEYBOARD)
+    p = sub.add_parser('keyboard-pinyin', help='touch the pinyin letters, then the candidate PICK')
+    p.add_argument('pinyin'); p.add_argument('pick'); p.add_argument('--app', default=KEYBOARD)
     a = parser.parse_args()
+    if a.cmd == 'exec':
+        r = execute(a.script, a.level, a.timeout)
+        sys.stdout.write(r['stdout'])
+        sys.stderr.write(r['stderr'])
+        sys.exit(r['exit'])
     if a.cmd == 'logs':
         r = logs(a.since, tuple(a.source or ('logcat', 'journal', 'kernel')), a.priority, a.grep, a.scope, a.noise, a.limit)
         if a.json:
@@ -527,7 +745,13 @@ def main():
              'crash': lambda: crash_get(a.id),
              'crash-groups': lambda: crash_groups(a.since, a.release),
              'crash-symbolize': lambda: crash_symbolize(a.ids, a.recent), 'host': lambda: host_request(a.op),
-             'screenshot': lambda: screenshot(a.path), 'snapshot': lambda: snapshot(a.label, a.since)}[a.cmd]()
+             'screenshot': lambda: screenshot(a.path), 'snapshot': lambda: snapshot(a.label, a.since),
+             'tap': lambda: tap(a.x, a.y), 'swipe': lambda: swipe(a.x1, a.y1, a.x2, a.y2, a.ms),
+             'key': lambda: key(a.name), 'text': lambda: text(a.value),
+             'keyboard-keys': lambda: keyboard_keys(a.app),
+             'keyboard-press': lambda: keyboard_press(*a.idents, app=a.app),
+             'keyboard-type': lambda: keyboard_type(a.value.replace('\\n', '\n'), a.app),
+             'keyboard-pinyin': lambda: keyboard_pinyin(a.pinyin, a.pick, a.app)}[a.cmd]()
     print(value if isinstance(value, str) else json.dumps(value, ensure_ascii=False, indent=1))
 
 
