@@ -118,7 +118,7 @@ Agent 2  KWin#2 ──── │ 显示源 agent-2               │  电视 / �
   - `rungic-workspace N`（用户单元 `rungic-workspace@N`）：独立 D-Bus 会话、独立 KWin 设置目录、自己的 Xwayland。GPU 环境取自 `/etc/plasma/gpu-env`，另需 `FD_KGSL_DMABUF_UBWC=1`，否则报 EGL_BAD_MATCH。启动器把总线地址和 X 显示号写入 `~/.local/state/rungic-workspaces/N/`。
   - `rungic-workspace-env N 命令`：在工作区里运行一条命令。
   - `rungic-user 命令`：在工作区里，把一条命令送回用户会话执行（例如通知）。
-  - `rungic-workspace-input`：Agent 的指针和键盘，走 KWin fake input。
+  - `rungic-workspace-input`：Agent 的指针和键盘，走 KWin fake input。2026-10-07 修正文字输入：第 6 版 `keyboard_keysym` 由 KWin 处理实际键盘映射和修饰键，支持混合大小写、!、@ 和 Unicode。单独快捷键也复用同一上游接口。整段文字编码／可打印性先验证，不支持则报错，不写入前缀。文字输入要求 keystate 第 5 版确认没有活动修饰键或 Caps Lock；不能确认时拒绝。指针协议不变。原生测试覆盖真实 GTK 字段及 AT-SPI 读回、英美／德文映射、错误分支；手机焦点及实际呈现由第三轮继续验证。
   - `rungic-workspace-stream`：给浮窗的画面，走 zkde_screencast，内嵌指针；同时转发浮窗里的触摸。
   - `rungic-workspace-desktop`：壁纸。
 - **语音服务**：启动时拉起工作区 1。每个 Codex 线程的 `shell_environment_policy.set` 和 `mcp_servers.rungic-desktop.env` 都设为工作区环境：`WAYLAND_DISPLAY`、`DISPLAY`、`DBUS_SESSION_BUS_ADDRESS`、`RUNGIC_WORKSPACE`，外加用户会话的 `RUNGIC_USER_*`。

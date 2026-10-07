@@ -187,7 +187,7 @@ Agent 在自己的工作区（或用户指定的桌面）上打开应用、看�
 
 `agent.computer-use` · Linux 系统功能 — Codex 默认使用当前模型和登录凭据，根据截图操作桌面。用户可以显式选择 Luna API。输入和窗口管理复用 KWin 与标准门户。
 
-- **E1** Agent 能点击、双击、拖动、滚动、按键和输入任何语言的文字来操作图形应用。应用收到的是普通的键盘鼠标事件，Plasma 在后台时也能输入。（系统测试、人工；只能在手机上看：任何语言的文字靠 KWin 的 commitText 提交，这是 Rungic 的 KWin 补丁（virtualkeyboard-commit-text），系统测试容器里是 Ubuntu 原版 KWin，只测了按键和指针。“Plasma 在后台”指 Android 前台是别的应用，只有手机能造出）
+- **E1** Agent 能点击、双击、拖动、滚动、按键和输入任何语言的文字来操作图形应用。应用收到的是普通的键盘鼠标事件，Plasma 在后台时也能输入。（单元测试、系统测试、人工；只能在手机上看：任何语言的文字靠 KWin 的 commitText 提交，这是 Rungic 的 KWin 补丁（virtualkeyboard-commit-text），系统测试容器是 Ubuntu 原版 KWin：另测 keysym 兼容输入的大小写、符号、中文及真实字段读回；不替代正式补丁的手机整段输入验收。“Plasma 在后台”指 Android 前台是别的应用，只有手机能造出）
 - **E2** 截图只截任务所在的窗口（连同它的弹出菜单和对话框），范围变化时用一句话告诉模型。点击坐标误差约 1 像素。（单元测试、系统测试、人工；只能在手机上看：截图的像素由 KWin 的 ScreenShot2 渲染，需要 OpenGL 合成。系统测试容器没有 GPU 渲染节点，KWin 退回 QPainter，截图被取消，真实画面和点击误差只能在手机上看）
 - **E3** 默认 Codex 用 desktop_screenshot 和 desktop_act 逐步操作并核验结果。API 备选保留 desktop_goal 的完成、提问、失败和中止。（单元测试、系统测试、人工）
 - **E4** 程序被一个看不见的对话框挡住时（门户的“另存为”没有回来），工具结果直接说明，Agent 不会一直点菜单。（单元测试、人工）

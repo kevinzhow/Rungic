@@ -36,6 +36,7 @@ from .models import TEXT_ROLES, Abort, AxNode, Field, Missed
 
 from rungic_cua import a11y  # noqa: I001 - rungic-cua is on PYTHONPATH (/usr/local/lib/rungic-cua)
 from rungic_cua.a11y import Node
+from rungic_cua.kwin import missing_commit_text
 from rungic_cua.backend import CLICK_ACTIONS, LinuxAtspiBackend
 
 SCREENSHOT = os.environ.get("RUNGIC_SCREENSHOT", "/usr/local/libexec/rungic-screenshot")
@@ -311,8 +312,8 @@ def type_text(text: str) -> None:
     d.backend._no_virtual_keyboard()
     try:
         d.backend.kwin.commit_text(text)
-    except a11y.GLib.Error:
-        if not (text.isascii() and text.isprintable()):
+    except a11y.GLib.Error as error:
+        if not missing_commit_text(error) or not (text.isascii() and text.isprintable()):
             raise
         source.type_text(text)  # a KWin without commitText: Latin text as key events
     time.sleep(TEXT_SETTLE)

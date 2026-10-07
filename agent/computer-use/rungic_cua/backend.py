@@ -27,7 +27,7 @@ from arc_cua.models import ActionKind, DesktopElement, DesktopSnapshot, Executab
 
 from . import a11y
 from .a11y import A11yBus, Node
-from .kwin import KWin
+from .kwin import KWin, missing_commit_text
 from .portal import BTN_LEFT, BTN_RIGHT, RemoteInput
 
 CLICK_ACTIONS = ('press', 'click', 'activate', 'toggle', 'jump', 'open', 'showmenu', 'expand or collapse')
@@ -322,8 +322,10 @@ class LinuxAtspiBackend:
         time.sleep(0.05)
         try:
             self.kwin.commit_text(text)
-        except a11y.GLib.Error:
-            # A KWin without commitText (before moto15): Latin text as key events.
+        except a11y.GLib.Error as error:
+            if not missing_commit_text(error):
+                raise
+            # Upstream/older KWin: keymap-based text or actual EditableText.
             if text.isascii() and text.isprintable():
                 self.input.type_text(text)
             else:

@@ -9,7 +9,7 @@ for dir in agent/screen agent/workspace; do
     cmake -S /src/$dir -B /build/$dir -DCMAKE_INSTALL_PREFIX=/usr -DCMAKE_BUILD_TYPE=RelWithDebInfo >/build.log 2>&1 \
         && cmake --build /build/$dir -j"$(nproc)" >>/build.log 2>&1 \
         && cmake --install /build/$dir >>/build.log 2>&1 \
-        || { echo "{\"test\": \"build $dir\", \"passed\": false, \"log\": \"$(tail -5 /build.log | tr '\"\n' "' ")\"}"; exit 1; }
+        || { cat /build.log >&2; echo "{\"test\": \"build $dir\", \"passed\": false, \"log\": \"$(tail -5 /build.log | tr '\"\n' "' ")\"}"; exit 1; }
 done
 sh /src/tools/system/build-media.sh >/build.log 2>&1 \
     || { echo "{\"test\": \"build media\", \"passed\": false, \"log\": \"$(tail -5 /build.log | tr '\"\n' "' ")\"}"; exit 1; }

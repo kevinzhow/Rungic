@@ -644,7 +644,7 @@ features:
         text: Agent 能点击、双击、拖动、滚动、按键和输入任何语言的文字来操作图形应用。应用收到的是普通的键盘鼠标事件，Plasma 在后台时也能输入。
         evidence:
           - {doc: docs/68-luna-computer-use.md, date: 2026-09-25, note: "微信 3 步打开聊天"}
-        device: 任何语言的文字靠 KWin 的 commitText 提交，这是 Rungic 的 KWin 补丁（virtualkeyboard-commit-text），系统测试容器里是 Ubuntu 原版 KWin，只测了按键和指针。“Plasma 在后台”指 Android 前台是别的应用，只有手机能造出
+        device: 任何语言的文字靠 KWin 的 commitText 提交，这是 Rungic 的 KWin 补丁（virtualkeyboard-commit-text），系统测试容器是 Ubuntu 原版 KWin：另测 keysym 兼容输入的大小写、符号、中文及真实字段读回；不替代正式补丁的手机整段输入验收。“Plasma 在后台”指 Android 前台是别的应用，只有手机能造出
       - id: E2
         text: 截图只截任务所在的窗口（连同它的弹出菜单和对话框），范围变化时用一句话告诉模型。点击坐标误差约 1 像素。
         evidence:

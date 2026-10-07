@@ -22,12 +22,13 @@ qt_standard_project_setup(REQUIRES 6.5)
 add_library(rungic-workspace-protocols STATIC)
 qt6_generate_wayland_protocol_client_sources(rungic-workspace-protocols FILES
     /usr/share/plasma-wayland-protocols/fake-input.xml
+    /usr/share/plasma-wayland-protocols/keystate.xml
     /usr/share/plasma-wayland-protocols/zkde-screencast-unstable-v1.xml
     ${WAYLAND_PROTOCOLS}/staging/ext-idle-notify/ext-idle-notify-v1.xml)
 target_link_libraries(rungic-workspace-protocols PUBLIC Qt6::Core Qt6::Gui Qt6::WaylandClient)
 target_include_directories(rungic-workspace-protocols PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
 qt_add_executable(rungic-workspace-input input.cpp)
-target_link_libraries(rungic-workspace-input PRIVATE rungic-workspace-protocols PkgConfig::XKB)
+target_link_libraries(rungic-workspace-input PRIVATE rungic-workspace-protocols PkgConfig::XKB PkgConfig::WAYLAND_CLIENT)
 qt_add_executable(rungic-workspace-stream stream.cpp)
 target_link_libraries(rungic-workspace-stream PRIVATE rungic-workspace-protocols Qt6::DBus)
 qt_add_executable(rungic-workspace-desktop desktop.cpp)

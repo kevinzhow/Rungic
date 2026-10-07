@@ -73,7 +73,7 @@ i.click(x + w / 2, y + h * 0.3)
 time.sleep(0.5)
 i.click(x + w / 2, y + h * 0.85)
 time.sleep(0.5)
-i.type_text("abc")
+i.type_text("Rungic09AbC123!@中文")
 time.sleep(0.5)
 i.close()
 '''
@@ -195,7 +195,7 @@ def test():
         s.check(not seen_by_user and not s.find(caption='agent app'),
                 "the agent's app opens in the workspace and never in the user's session")
         ws('python3', '-c', INPUT, *map(str, window['client']))
-        s.wait_for(lambda: 'text abc' in (tmp / 'ws.log').read_text() if (tmp / 'ws.log').exists() else False,
+        s.wait_for(lambda: 'text Rungic09AbC123!@中文' in (tmp / 'ws.log').read_text() if (tmp / 'ws.log').exists() else False,
                    10, "the agent's input in its app")
         s.check('clicked' in (tmp / 'ws.log').read_text(), "the agent's click and typing reach its app as ordinary events")
         s.check(s.find(caption='user app', active=True) is not None and not (tmp / 'user.log').exists(),

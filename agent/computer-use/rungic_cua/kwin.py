@@ -13,6 +13,11 @@ from pathlib import Path
 
 from gi.repository import Gio, GLib
 
+def missing_commit_text(error: GLib.Error) -> bool:
+    """Only an absent method permits compatibility input; transport failures do not."""
+    return Gio.DBusError.get_remote_error(error) == 'org.freedesktop.DBus.Error.UnknownMethod'
+
+
 INTERFACE = '''
 <node><interface name="com.rungic.Cua"><method name="Report"><arg type="s" direction="in"/></method></interface></node>
 '''

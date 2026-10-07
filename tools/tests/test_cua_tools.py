@@ -624,3 +624,92 @@ def test_the_screenshot_is_the_window_then_its_menus_in_the_screens_own_pixels(t
         screen.point(-1200, 10)                                # off the screen: refused, not clicked
     assert (tmp_path / 'shot.log').read_text().splitlines() == [
         'window {chat}', 'window {chat}', 'area 100 50 780 480', 'window {dialog}']
+
+
+# covers: agent.computer-use/E1
+@pytest.mark.parametrize('message', ['Rungic09AbC123 A ! @', '中文🙂', 'a\nkey 65 1'])
+def test_workspace_text_is_one_framed_request(message, monkeypatch):
+    from rungic_cua.fakeinput import WorkspaceInput
+    source = WorkspaceInput()
+    sent = []
+    monkeypatch.setattr(source, '_send', sent.append)
+    source.type_text(message)
+    assert len(sent) == 1 and '\n' not in sent[0]
+    assert bytes.fromhex(sent[0].removeprefix('text ')).decode() == message
+    sent.clear()
+    source.type_text('')
+    assert sent == []
+
+
+# covers: agent.computer-use/E1 agent.plan-two/E1
+@pytest.mark.parametrize('remote_name', [
+    'org.freedesktop.DBus.Error.UnknownMethod',
+    'org.freedesktop.DBus.Error.NoReply',
+    'org.freedesktop.DBus.Error.ServiceUnknown',
+    'org.freedesktop.DBus.Error.AccessDenied',
+])
+@pytest.mark.parametrize('text', ['Rungic09AbC123 A ! @', '中文'])
+def test_text_fallback_only_when_commit_method_is_missing(remote_name, text, monkeypatch):
+    from types import SimpleNamespace
+    from gi.repository import Gio
+    from rungic_cua import backend as backend_module
+    import types
+    ax = types.ModuleType('typesafe.ax_walk')
+    models = types.ModuleType('typesafe.models')
+    for name in ('AX_PRESS', 'AxAttrs', 'Frame', 'walk_actionable'):
+        setattr(ax, name, mock.Mock())
+    for name in ('TEXT_ROLES', 'Abort', 'AxNode', 'Field', 'Missed'):
+        setattr(models, name, mock.Mock())
+    # Upstream observation types are absent offline; text routing uses none.
+    with mock.patch.dict(sys.modules, {'typesafe.ax_walk': ax, 'typesafe.models': models}):
+        from typesafe import linux
+    error = Gio.DBusError.new_for_dbus_error(remote_name, 'deliberate failure')
+    backend = backend_module.LinuxAtspiBackend.__new__(backend_module.LinuxAtspiBackend)
+    backend.input = mock.Mock()
+    backend.kwin = mock.Mock()
+    backend.kwin.commit_text.side_effect = error
+    backend._pointer = mock.Mock()
+    backend._no_virtual_keyboard = mock.Mock()
+    backend._set_text = mock.Mock()
+    monkeypatch.setattr(backend_module.time, 'sleep', lambda _: None)
+    node = mock.Mock()
+    missing = remote_name.endswith('UnknownMethod')
+    if missing:
+        backend._type_text(node, text)
+        if text.isascii():
+            backend.input.type_text.assert_called_once_with(text)
+            backend._set_text.assert_not_called()
+        else:
+            backend._set_text.assert_called_once_with(node, text)
+            backend.input.type_text.assert_not_called()
+    else:
+        with pytest.raises(type(error)):
+            backend._type_text(node, text)
+        backend.input.type_text.assert_not_called()
+        backend._set_text.assert_not_called()
+    backend.input.reset_mock()
+    monkeypatch.setattr(linux, '_desktop', lambda: SimpleNamespace(backend=backend))
+    monkeypatch.setattr(linux, '_input', lambda: backend.input)
+    if missing and text.isascii():
+        linux.type_text(text)
+        backend.input.type_text.assert_called_once_with(text)
+    else:
+        with pytest.raises(type(error)):
+            linux.type_text(text)
+        backend.input.type_text.assert_not_called()
+
+
+# covers: agent.computer-use/E1
+def test_text_commit_success_never_calls_compatibility_input(monkeypatch):
+    from rungic_cua.backend import LinuxAtspiBackend
+    backend = LinuxAtspiBackend.__new__(LinuxAtspiBackend)
+    backend._pointer = mock.Mock()
+    backend._no_virtual_keyboard = mock.Mock()
+    backend._set_text = mock.Mock()
+    backend.input = mock.Mock()
+    backend.kwin = mock.Mock()
+    monkeypatch.setattr(time, 'sleep', lambda _: None)
+    backend._type_text(mock.Mock(), '中文Rungic09AbC123!@')
+    backend.kwin.commit_text.assert_called_once_with('中文Rungic09AbC123!@')
+    backend.input.type_text.assert_not_called()
+    backend._set_text.assert_not_called()

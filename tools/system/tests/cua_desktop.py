@@ -15,8 +15,10 @@ workspace, on a headless 1920x1080 KWin (--virtual), driving a GTK test app that
 
 Stand-ins: kstart and systemd-run (no systemd user manager in the container) are scripts that log their
 arguments and start the program; arc_cua (plan two's executor, an upstream package not shipped to the
-container) is an empty module. KWin here is Ubuntu's, without Rungic's commitText patch: text in any
-language is the phone's to show (luna's `type`), ASCII key typing is checked here."""
+container) is an empty module. KWin here is Ubuntu's, without Rungic's commitText patch: the actual keysym
+helper is checked with mixed case, shifted symbols and Unicode; backend/TypeSafe
+compatibility routes are checked against a real missing method. Upstream
+TypeSafe observation types are stand-ins; the text adapter is source code."""
 import json
 import os
 import subprocess
@@ -50,6 +52,11 @@ if mode == "unsaved":
         return True
     win.connect("delete-event", ask)
     win.add(Gtk.Label(label="unsaved work"))
+elif mode == "entry":
+    entry = Gtk.Entry()
+    entry.get_accessible().set_name("fallback input")
+    entry.connect("changed", lambda widget: say(event="text", text=widget.get_text()))
+    win.add(entry)
 else:
     area = Gtk.DrawingArea()
     area.set_can_focus(True)
@@ -116,6 +123,15 @@ def setup(tmp):
     (stubs / 'arc_cua/keyboard.py').write_text('def parse_hotkey(t): return [], t\n')
     (stubs / 'arc_cua/models.py').write_text('class ActionKind: pass\nclass DesktopElement: pass\n'
                                              'class DesktopSnapshot: pass\nclass ExecutableAction: pass\n')
+    # Only upstream observation types are absent; linux.py's actual text
+    # adapter below runs against the real KWin/input, without their use.
+    typesafe = stubs / 'typesafe_computer_use'
+    typesafe.mkdir()
+    (typesafe / '__init__.py').write_text('__path__.append("/src/agent/computer-use/typesafe")\n')
+    (typesafe / 'ax_walk.py').write_text('AX_PRESS = "press"\nclass AxAttrs: pass\nclass Frame: pass\n'
+                                        'def walk_actionable(*args): raise RuntimeError("observation not installed")\n')
+    (typesafe / 'models.py').write_text('TEXT_ROLES = set()\nclass Abort(Exception): pass\nclass AxNode: pass\n'
+                                       'class Field: pass\nclass Missed(Exception): pass\n')
     sys.path.insert(0, str(stubs))
     bin_dir = tmp / 'bin'
     bin_dir.mkdir()
@@ -272,8 +288,140 @@ def test():
         s.check(True, 'maximize fills the screen (and unminimizes)')
         closed = cua.call('desktop_window', {'window_id': window['id'], 'action': 'close'})
         s.check(closed['still_open'] is False and events(canvas_log, 'closed'), 'close closes it in one go')
+        text_fallback_checks(s, tmp)
+        steps = list(s.steps)
+    # Separate real compositors: the map actually differs from the default US
+    # map. A fresh bus prevents a child from using the previous KWin.
+    for layout in ('gb', 'de'):
+        child = subprocess.run(['dbus-run-session', '--', sys.executable, __file__, '--text-layout', layout],
+                               text=True, capture_output=True, timeout=90)
+        rows = [json.loads(line) for line in child.stdout.splitlines() if line.startswith('{')]
+        if child.returncode or not rows or not rows[-1]['passed']:
+            raise harness.Failed(f'layout {layout}: {child.stdout[-2000:]} {child.stderr[-500:]}')
+        steps += rows[-1]['steps']
+    return steps
+
+
+def text_fallback_checks(s, tmp, layout='us'):
+    from rungic_cua.backend import LinuxAtspiBackend
+    from rungic_cua.portal import keysym
+    from gi.repository import Gio, GLib
+    from rungic_cua.a11y import A11yBus
+    real = LinuxAtspiBackend.__new__(LinuxAtspiBackend)
+    real.bus, real.kwin, real.input = A11yBus(), s.kwin_api, s.pointer()
+    was_enabled = real.bus.enabled()
+    try:
+        real.bus.set_enabled(True)
+        layouts = Gio.bus_get_sync(Gio.BusType.SESSION).call_sync(
+            'org.kde.keyboard', '/Layouts', 'org.kde.KeyboardLayouts', 'getLayoutsList', None, None, 0, 3000).unpack()[0]
+        s.check(layouts and (layouts[0][0] == layout or (layout == 'us' and layouts[0][2] == 'English (US)')),
+                f'actual KWin layout list={layouts!r}, expected {layout}')
+        s.start(['python3', str(tmp / 'app.py'), 'rungic-test-entry', str(tmp / 'entry.log'), 'Input', 'entry'])
+        s.wait_for(lambda: s.find(cls='rungic-test-entry', active=True), 10, 'the real GTK input field')
+        real._window, real._root = real.active_window()
+        real._origin = real.bus.origin(real._root)
+        node = next(n for n in real.bus.tree(real._root) if n.name == 'fallback input')
+        log = tmp / 'entry.log'
+        def readback():
+            rows = events(log, 'text')
+            return rows[-1]['text'] if rows else ''
+        def check_text(expected, label):
+            s.wait_for(lambda: readback() == expected, 5, f'{label}: expected {expected!r}, actual {readback()!r}')
+            actual = real.bus.call(node.bus, node.path, 'org.a11y.atspi.Text', 'GetText', GLib.Variant('(ii)', (0, -1)))[0]
+            s.check(actual == expected, f'{layout}: {label}, actual text={actual!r}')
+        for text in ('Rungic09AbC123 A ! @', '中文', '🙂'):
+            real.input.chord(['CTRL', 'A'])
+            real.input.type_text(text)
+            check_text(text, 'helper case-exact field and AT-SPI readback')
+        # Explicitly reject a late invalid character before sending the prefix.
+        before = readback()
+        for text in ('prefix\x00', 'prefix\n'):
+            try:
+                real.input.type_text(text)
+            except RuntimeError as error:
+                s.check('no text key' in str(error), f'{layout}: unsupported text reports an error')
+            else:
+                raise harness.Failed('unsupported text silently accepted')
+            time.sleep(.1)
+            s.check(readback() == before, f'{layout}: unsupported text sends no prefix')
+        for command in ('text ff', 'text 0', 'text'):
+            try:
+                real.input._send(command)
+            except RuntimeError:
+                pass
+            else:
+                raise harness.Failed(f'malformed input accepted: {command}')
+        s.check(readback() == before, f'{layout}: malformed requests leave the field unchanged')
+        # Global state checks must work even though the helper never has focus.
+        sym = keysym('SHIFT')
+        real.input.key(sym, True)
+        try:
+            real.input.type_text('A!@')
+        except RuntimeError as error:
+            s.check('inactive modifiers' in str(error), f'{layout}: held Shift rejects text explicitly')
+        else:
+            raise harness.Failed('text was accepted while Shift was held')
+        finally:
+            real.input.key(sym, False)
+        s.check(readback() == before, f'{layout}: held-Shift rejection leaves the field unchanged')
+        real.input.chord(['CTRL', 'A'])
+        real.input.type_text('a')
+        check_text('a', 'modifier state restored after mixed text and rejection')
+        # Actual D-Bus UnknownMethod, never an injected error. Backend ASCII
+        # uses helper events; Unicode uses this real GTK EditableText object.
+        try:
+            s.kwin_api.commit_text('ignored')
+        except GLib.Error as error:
+            s.check(Gio.DBusError.get_remote_error(error) == 'org.freedesktop.DBus.Error.UnknownMethod',
+                    f'{layout}: upstream compositor genuinely lacks commitText')
+        else:
+            raise harness.Failed('fixture unexpectedly has commitText; fallback untested')
+        for text in ('Rungic09AbC123 A ! @', '中文'):
+            real._type_text(node, text)
+            check_text(text, 'backend fallback readback')
+        from typesafe_computer_use import linux
+        linux._state = SimpleNamespace(backend=real, stale=lambda: None)
+        real.input.chord(['CTRL', 'A'])
+        real.input.chord(['BACKSPACE'])
+        linux.type_text('Rungic09AbC123 A ! @')
+        check_text('Rungic09AbC123 A ! @', 'actual TypeSafe ASCII fallback readback')
+        before = readback()
+        try:
+            linux.type_text('中文')
+        except GLib.Error as error:
+            s.check(Gio.DBusError.get_remote_error(error) == 'org.freedesktop.DBus.Error.UnknownMethod',
+                    f'{layout}: TypeSafe without commitText reports Unicode unsupported')
+        else:
+            raise harness.Failed('TypeSafe Unicode silently accepted without commitText')
+        s.check(readback() == before, f'{layout}: TypeSafe unsupported Unicode leaves text unchanged')
+        if layout == 'gb':
+            real._type_text(node, 'A!@£')
+            check_text('A!@£', 'British map and Unicode fallback')
+        if layout == 'de':
+            real.input.chord(['CTRL', 'A'])
+            real.input.type_text('Yz@€')
+            check_text('Yz@€', 'German map including AltGr symbols')
+    finally:
+        real.bus.set_enabled(was_enabled)
+        real.input.close()
+
+
+def layout_test(layout):
+    tmp = Path('/tmp/cua-text-' + layout.replace(',', '-'))
+    tmp.mkdir(exist_ok=True)
+    setup(tmp)
+    config = tmp / 'config'
+    config.mkdir()
+    (config / 'kxkbrc').write_text('[Layout]\nUse=true\nLayoutList=' + layout + '\n')
+    os.environ['XDG_CONFIG_HOME'] = str(config)
+    os.environ['RUNGIC_WORKSPACE'] = '1'
+    with harness.Session(1920, 1080, 'text-' + layout.replace(',', '-')) as s:
+        text_fallback_checks(s, tmp, layout)
         return s.steps
 
 
 if __name__ == '__main__':
-    harness.run('cua_desktop', test)
+    if len(sys.argv) == 3 and sys.argv[1] == '--text-layout':
+        harness.run('text_layout', lambda: layout_test(sys.argv[2]))
+    else:
+        harness.run('cua_desktop', test)

@@ -49,7 +49,11 @@ arc-cua的接口：`observe() -> DesktopSnapshot`、`is_fresh(snapshot, action)`
   - 控件没有屏幕位置时，才用AT-SPI的Action兜底。
 - **文字**：点击聚焦 → Ctrl+A → KWin的`org.kde.kwin.VirtualKeyboard.commitText`（KWin moto15新增），由KWin像输入法一样把整段文字提交给当前焦点的输入框：text-input v1/v2/v3，任何语言都可以；应用不支持text-input时退回按键事件。全程在Linux内完成，Plasma在后台时同样可用。
   - 起初复用了宿主平台桥`text-commit`（Android键盘的路径）来输入中文。那条路绕经Android宿主再回到KWin，而且Plasma退到后台时宿主没有键盘焦点，已废弃。
-  - 没有`commitText`的旧KWin上，ASCII改用门户逐键输入，其他文字用AT-SPI的EditableText兜底。
+  - 仅当 D-Bus 明确返回 `org.freedesktop.DBus.Error.UnknownMethod` 时才使用兼容输入。超时、服务消失和权限拒绝直接报错，不把连接故障当成缺少方法。
+  - 没有 `commitText` 的旧版／上游 KWin 上，ASCII 改用 keysym 输入，其他文字用实际控件的 AT-SPI EditableText 兜底。用户桌面由已有 RemoteDesktop portal 注入；工作区由 `rungic-workspace-input` 使用 fake-input 第 6 版的 `keyboard_keysym`，复用 KWin 的实际键盘映射、修饰键处理及 Unicode 临时映射，不维护 ASCII 键位表。
+  - 工作区助手整段接收 UTF-8 十六进制文字，先拒绝无效编码、控制字符和不支持的协议，再发按键；有已按下／锁定的修饰键或 Caps Lock 时明确拒绝。不会先写入有效前缀再忽略后面的不支持字符。单独按键和快捷键仍由显式修饰键控制。
+  - 当前发行配方始终包含 `virtualkeyboard-commit-text.patch`：正常完整安装预期不进入该兼容分支。原生系统测试的 Ubuntu KWin 没有此补丁，每次文本调用都实际返回 UnknownMethod；没有测量手机上该分支的触发频率。
+  - 上游依据：[KWin 6.6.6 fake-input 实现](https://invent.kde.org/plasma/kwin/-/blob/v6.6.6/src/backends/fakeinput/fakeinputbackend.cpp) 和 [协议第 6 版](https://invent.kde.org/libraries/plasma-wayland-protocols/-/blob/master/src/protocols/fake-input.xml)。`org_kde_kwin_fake_input_keyboard_keysym` 按当前映射取得键码和修饰键，发送后恢复原状态；字符不在映射中时使用临时映射。
 - **滑块**：AT-SPI `Value.CurrentValue`。
 - **按键和快捷键**：门户的keysym，MOD映射为Ctrl。
 - **滚动**：光标滑到窗口中心后发离散滚轮事件。

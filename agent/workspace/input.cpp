@@ -9,10 +9,12 @@
 //   rel DX DY         pointer by DX DY
 //   button CODE 0|1   Linux button code (BTN_LEFT 0x110 = 272), released or pressed
 //   axis 0|1 VALUE    vertical or horizontal scroll, in pointer axis units (15 a notch)
-//   key KEYSYM 0|1    a key by X keysym (the us layout's key for it)
+//   key KEYSYM 0|1    a keysym through KWin (chord modifiers are explicit)
+//   text UTF8_HEX     printable text through KWin; validate the whole request first
 #include <QCoreApplication>
 #include <QGuiApplication>
 #include <QHash>
+#include <QVector>
 #include <QSocketNotifier>
 #include <QWaylandClientExtensionTemplate>
 #include <cstdio>
@@ -22,43 +24,39 @@
 #include <xkbcommon/xkbcommon.h>
 
 #include "qwayland-fake-input.h"
+#include "qwayland-keystate.h"
 
 class FakeInput : public QWaylandClientExtensionTemplate<FakeInput>, public QtWayland::org_kde_kwin_fake_input
 {
 public:
     FakeInput()
-        : QWaylandClientExtensionTemplate<FakeInput>(4)
+        : QWaylandClientExtensionTemplate<FakeInput>(6)
     {
         initialize();
     }
 };
 
-// X keysym -> evdev key code, from the us layout (levels 0 and 1).
-static QHash<uint32_t, uint32_t> keycodes()
+// Reject text while modifiers or Caps Lock are active. wl_keyboard modifiers
+// are focus-local; KWin's keystate protocol provides the global state.
+class KeyState : public QWaylandClientExtensionTemplate<KeyState>, public QtWayland::org_kde_kwin_keystate
 {
-    QHash<uint32_t, uint32_t> map;
-    xkb_context *context = xkb_context_new(XKB_CONTEXT_NO_FLAGS);
-    const xkb_rule_names names{nullptr, nullptr, "us", nullptr, nullptr};
-    xkb_keymap *keymap = context ? xkb_keymap_new_from_names(context, &names, XKB_KEYMAP_COMPILE_NO_FLAGS) : nullptr;
-    if (keymap) {
-        for (xkb_keycode_t code = xkb_keymap_min_keycode(keymap); code <= xkb_keymap_max_keycode(keymap); ++code) {
-            for (xkb_level_index_t level = 0; level < 2; ++level) {
-                const xkb_keysym_t *syms = nullptr;
-                const int count = xkb_keymap_key_get_syms_by_level(keymap, code, 0, level, &syms);
-                for (int i = 0; i < count; ++i) {
-                    if (!map.contains(syms[i])) {
-                        map.insert(syms[i], code - 8);
-                    }
-                }
-            }
+public:
+    KeyState() : QWaylandClientExtensionTemplate<KeyState>(5) { initialize(); }
+    QHash<uint32_t, uint32_t> states;
+    bool idle(wl_display *display)
+    {
+        if (!isActive() || QWaylandClientExtension::version() < 5) return false;
+        states.clear();
+        fetchStates();
+        if (wl_display_roundtrip(display) < 0) return false;
+        for (uint32_t key : {key_capslock, key_alt, key_control, key_shift, key_meta, key_altgr}) {
+            if (states.value(key, UINT32_MAX) != state_unlocked) return false;
         }
-        xkb_keymap_unref(keymap);
+        return true;
     }
-    if (context) {
-        xkb_context_unref(context);
-    }
-    return map;
-}
+protected:
+    void org_kde_kwin_keystate_stateChanged(uint32_t key, uint32_t state) override { states[key] = state; }
+};
 
 int main(int argc, char *argv[])
 {
@@ -66,8 +64,9 @@ int main(int argc, char *argv[])
     QGuiApplication app(argc, argv);
     QGuiApplication::setDesktopFileName(QStringLiteral("com.rungic.WorkspaceInput"));
     FakeInput input;
-    const QHash<uint32_t, uint32_t> keys = keycodes();
     auto *display = qApp->nativeInterface<QNativeInterface::QWaylandApplication>()->display();
+    KeyState state;
+    wl_display_roundtrip(display);
     bool authenticated = false;
 
     auto reply = [](const std::string &text) {
@@ -88,6 +87,7 @@ int main(int argc, char *argv[])
             input.authenticate(QStringLiteral("Rungic workspace"), QStringLiteral("The agent's pointer and keyboard"));
             authenticated = true;
         }
+        wl_display_roundtrip(display);
         char command[16] = {};
         double a = 0, b = 0;
         const int fields = std::sscanf(line.c_str(), "%15s %lf %lf", command, &a, &b);
@@ -101,12 +101,47 @@ int main(int argc, char *argv[])
         } else if (name == "axis" && fields == 3) {
             input.axis(uint32_t(a), wl_fixed_from_double(b));
         } else if (name == "key" && fields == 3) {
-            const auto code = keys.constFind(uint32_t(a));
-            if (code == keys.constEnd()) {
-                reply("error no key for keysym " + std::to_string(uint32_t(a)));
+            if (input.QWaylandClientExtension::version() < 6) {
+                reply("error keyboard input requires fake-input version 6");
                 return;
             }
-            input.keyboard_key(*code, uint32_t(b));
+            input.keyboard_keysym(uint32_t(a), uint32_t(b));
+        } else if (name == "text" && line.size() >= 5 && line[4] == ' ') {
+            const QByteArray hex = QByteArray::fromStdString(line.substr(5));
+            const QByteArray bytes = QByteArray::fromHex(hex);
+            const QString text = QString::fromUtf8(bytes);
+            if (bytes.toHex() != hex || text.toUtf8() != bytes) {
+                reply("error text must be valid UTF-8 encoded as lowercase hex");
+                return;
+            }
+            if (!state.idle(display)) {
+                reply("error text requires known inactive modifiers and Caps Lock");
+                return;
+            }
+            if (input.QWaylandClientExtension::version() < 6) {
+                reply("error text input requires fake-input version 6");
+                return;
+            }
+            QVector<xkb_keysym_t> symbols;
+            for (auto character : text.toUcs4()) {
+                const auto symbol = xkb_utf32_to_keysym(character);
+                if (!QChar::isPrint(character) || symbol == XKB_KEY_NoSymbol) {
+                    reply("error no text key for Unicode " + std::to_string(character));
+                    return;
+                }
+                symbols.append(symbol);
+            }
+            // KWin 6.6.6 derives modifiers from its active keymap and restores
+            // them after each symbol; it supplies a temporary map for Unicode
+            // absent from the layout. Reuse that implementation, as the portal does.
+            for (auto symbol : symbols) {
+                input.keyboard_keysym(symbol, 1);
+                input.keyboard_keysym(symbol, 0);
+                if (wl_display_roundtrip(display) < 0) {
+                    reply("error compositor disconnected during text input");
+                    return;
+                }
+            }
         } else {
             reply("error unknown command: " + line);
             return;

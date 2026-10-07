@@ -88,13 +88,13 @@ class WorkspaceInput:
         self._button(button, False)
 
     def type_text(self, text: str) -> None:
-        """Latin text as individual key events with a typing rhythm."""
-        for ch in text:
-            sym = ord(ch)
-            self.key(sym, True)
-            time.sleep(0.02 + random.random() * 0.03)
-            self.key(sym, False)
-            time.sleep(0.03 + random.random() * 0.05)
+        """Use the helper's actual keymap, preserving case and shifted symbols.
+
+        One framed request lets the helper reject unsupported text before typing
+        a prefix. Key chords retain their explicit modifiers.
+        """
+        if text:
+            self._send('text ' + text.encode('utf-8').hex())
 
     def scroll_notches(self, axis: int, notches: int) -> None:
         self._send(f'axis {axis} {notches * AXIS_NOTCH:.1f}')

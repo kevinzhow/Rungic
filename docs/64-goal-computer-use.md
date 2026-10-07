@@ -32,6 +32,7 @@
 ```
 
 - **显示坐标**：“显示器”是活动窗口所在的输出；屏幕点是该输出的逻辑坐标，截图按原生像素，缩放比即输出的设备像素比。
+- **文字兼容路径（2026-10-07）**：正常使用 KWin `commitText`。只有实际 UnknownMethod 才退回已有 ASCII keysym 输入，保留原文字的大小写和符号；其他 D-Bus 错误直接报错。该 TypeSafe 入口没有目标控件的 EditableText 引用，因此缺少 `commitText` 时非 ASCII 文字明确失败；不会静默略过。AT-SPI backend 有实际控件引用时仍使用 EditableText 输入中文。原生 ARM64 测试验证实际文本框读回；Android 键盘和手机呈现仍需单独验收。
 - **点击**：无障碍元素的 press 也用真实指针点击当前位置（Qt/微信对指针事件更可靠），只有没有位置的元素才用 AT-SPI 动作。
 - **追问**：写手需要用户信息时，本轮以 `outcome: "question"` 结束，由语音助手问用户，再带 `replies` 重新调用。对话只由语音助手持有。
 - **中止**：创建 `$XDG_RUNTIME_DIR/moto-clicker/abort`（`moto-clicker stop`），代替上游的“鼠标甩到左上角”。
