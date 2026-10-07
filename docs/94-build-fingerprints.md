@@ -76,3 +76,39 @@ python tools/build_artifact.py /path/to/recipe.json --check
 证据均在本轮运行目录：`identity-preservation.json`、`device-payload-check.log`、`acceptance/report.json`、`desktop-reboot.png`、`reboot-services-after-unlock.log`、`reboot-audio/report.json`、`cast-scan.json`、`cast-scan-after-reboot.json`、`final-system.log` 与 `cleanup.log`。smoke 工具自动附带了上次 X70 指标对比，跨机型数值不能作为本次性能改善结论。
 
 本轮通过的是构建复用检查、离线镜像检查和 G100 保留账户更新及重启检查；没有重新验收空白账户首装、Android 清数据刷入或故障回退，不能用本轮结果替代这些边界。
+
+
+## 完整首装编排
+
+`tools/ci/prepare_rootfs.py` 从 Ubuntu ARM64 最小树开始，复用
+`system/ubuntu-packages.txt` 和现有 `build_rootfs_image.py`。
+在原生 ARM64 构建容器内，以 root（或构建用 user namespace 内的 root）运行：
+
+```bash
+python3 tools/ci/prepare_rootfs.py --packages "$checked_package_repo" \
+  --source-commit "$source_sha" --firefox-version "$firefox_version" \
+  --output "$new_attempt_dir" --size-gib 16
+```
+
+`--packages` 指向已核对的本地 APT 仓库，包含 `release.json`、`Packages`、
+`Release` 和该 release 的精确 DEB。参数绑定源码 SHA、Firefox 版本、Ubuntu
+suite 与镜像大小。构建记录仍应通过 `build_artifact.py` 的输入指纹固定仓库、
+工具链和脚本；完成凭据不能补足上游二进制的原始源码证明。
+
+编排先安装拥有 Mozilla 源、密钥和 pin 的 `rungic-plasma-config`，再刷新源并
+安装完整 release 和运行依赖。临时 APT 源选择写在 `/var/lib/rungic-apt`，
+编排不手写包拥有的 `/etc/apt` 配置。安装脚本来自磁盘，所有包管理命令
+关闭 stdin；配置询问或维护脚本读取输入失败会停止构建，不能吞掉后续命令。
+随后创建锁定口令的模板账户，生成中英文 locale，核验 APT、dpkg、项目 venv
+及其运行导入，记录安装包集合，再清理本轮下载缓存。
+
+`root-install.complete` 仅在最后一步写入，包含源码 SHA、release 版本及
+文件摘要、dpkg 状态摘要和脚本摘要。镜像命令的 `--install-source` 必须匹配
+它；缺少或不匹配时，在创建镜像目录之前拒绝。已有带完成凭据的树不能省略
+此参数。历史手动准备树的原有镜像入口保留，但不提供这份完整首装证明。
+
+每次 `--output` 必须是不存在的新目录；失败的目录保留，工具没有续跑或
+补齐完成凭据的选项。`--prepare-only` 在安装检查结束后停止；之后仍需用
+带 `--install-source` 的现有镜像器打包。同一个 output 不能再次执行首装。
+`--qemu` 供已有 ARM64 binfmt 配置的 x86 runner 使用，完整交叉安装仍需在
+相应 runner 验证。此工具不接触手机，也不修改已冻结的候选。

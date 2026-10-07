@@ -124,6 +124,23 @@ def check_fresh_account(root):
                 raise ValueError("first-install image contains user credentials")
 
 
+def check_install_completion(root, release, source_commit):
+    """Require the final installation receipt for the fresh-root build path."""
+    try:
+        receipt = json.loads((root / "var/lib/rungic-apt/root-install.complete").read_text())
+        manifest = json.loads(release.read_text())
+        expected = {"schema": 1, "source_commit": source_commit,
+                    "release": manifest["version"], "release_sha256": sha256(release),
+                    "dpkg_status_sha256": sha256(root / "var/lib/dpkg/status"),
+                    "all_installation_steps_completed": True}
+        if not re.fullmatch(r"[0-9a-f]{40}", source_commit) or any(
+                receipt.get(key) != value for key, value in expected.items()):
+            raise ValueError("installation completion receipt does not match source, release or root")
+    except (OSError, KeyError, TypeError, AttributeError, json.JSONDecodeError) as error:
+        raise ValueError("installation completion receipt is missing or invalid") from error
+    return receipt
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--inside", action="store_true", help=argparse.SUPPRESS)
@@ -132,6 +149,7 @@ def main():
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--size-gib", type=int, default=16)
     parser.add_argument("--firefox-version", required=True)
+    parser.add_argument("--install-source", help="Require fresh installation completion for this source SHA")
     args = parser.parse_args()
     root = args.root.resolve(strict=True)
     release = args.release.resolve(strict=True)
@@ -140,9 +158,14 @@ def main():
         os.execvp("podman", ["podman", "unshare", sys.executable, __file__, "--inside",
                             "--root", str(root), "--release", str(release),
                             "--output", str(output), "--size-gib", str(args.size_gib),
-                            "--firefox-version", args.firefox_version])
+                            "--firefox-version", args.firefox_version,
+                            *(["--install-source", args.install_source] if args.install_source else [])])
     if output.exists() or args.size_gib < 8 or args.size_gib > 128:
         raise ValueError("output exists or image size is outside 8–128 GiB")
+    if args.install_source:
+        check_install_completion(root, release, args.install_source)
+    elif os.path.lexists(root / "var/lib/rungic-apt/root-install.complete"):
+        raise ValueError("installation completion receipt requires --install-source")
     installed = packages(root / "var/lib/dpkg/status")
     check_preinstalled_apps(root, installed)
     manifest = json.loads(release.read_text())

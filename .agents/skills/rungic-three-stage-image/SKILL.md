@@ -100,8 +100,11 @@ Do not require embedding it in `product` or copying encrypted userdata.
 Check image capacity and backend requirements for the target.
 G100's 16 GiB/KGSL values are not universal defaults.
 
-`build_rootfs_image.py` packages a prepared root tree.
-It does not download packages or perform complete automatic installation.
+`prepare_rootfs.py` installs into a new root tree, then calls `build_rootfs_image.py`.
+It installs the configuration owner first, isolates package stdin, and requires a final source/release-bound completion receipt before imaging.
+A failed output directory cannot resume; retain it and select a new one.
+`build_rootfs_image.py` alone packages a prepared root tree; it does not download packages.
+See [the fresh-root procedure](../../../docs/94-build-fingerprints.md#完整首装编排).
 
 ## CI3: independent Rungic installation and upgrade
 

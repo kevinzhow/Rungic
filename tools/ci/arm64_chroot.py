@@ -3,6 +3,7 @@
 
 import argparse
 import os
+import platform
 from pathlib import Path
 import subprocess
 import sys
@@ -28,17 +29,22 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--inside", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--rootfs", type=Path, required=True)
-    parser.add_argument("--qemu", type=Path, required=True)
+    runner = parser.add_mutually_exclusive_group(required=True)
+    runner.add_argument("--qemu", type=Path)
+    runner.add_argument("--native", action="store_true", help="Use a native ARM64 runner without QEMU")
     parser.add_argument("command", nargs=argparse.REMAINDER)
     args = parser.parse_args()
     rootfs = args.rootfs.resolve(strict=True)
-    qemu = args.qemu.resolve(strict=True)
+    qemu = args.qemu.resolve(strict=True) if args.qemu else None
+    if args.native and platform.machine() not in ("arm64", "aarch64"):
+        raise ValueError("native ARM64 chroot requires an ARM64 runner")
+    runner_args = ["--qemu", str(qemu)] if qemu else ["--native"]
     if not args.inside:
         # Podman's rootless user namespace maps the build user's UID to root
         # and subuids to guest users; package postinst scripts can chown files.
         os.execvp("podman", ["podman", "unshare", "unshare", "-mpf",
                             sys.executable, __file__, "--inside", "--rootfs", str(rootfs),
-                            "--qemu", str(qemu), *args.command])
+                            *runner_args, *args.command])
     # argparse REMAINDER treats a standalone -- as an argument.
     command = args.command[1:] if args.command[:1] == ["--"] else args.command
     if not command or not command[0].startswith("/"):
@@ -47,11 +53,13 @@ def main():
     mountdir = tempfile.mkdtemp(prefix="rungic-binfmt-")
     mounted = []
     try:
-        run("mount", "-t", "binfmt_misc", "binfmt_misc", mountdir)
-        mounted.append(mountdir)
+        if qemu:
+            run("mount", "-t", "binfmt_misc", "binfmt_misc", mountdir)
+            mounted.append(mountdir)
         # ARM64 ELF e_machine is 0x00b7. The F flag keeps QEMU open across chroot.
-        rule = b":rungic-aarch64:M:18:\xb7\x00::" + os.fsencode(qemu) + b":F\n"
-        (Path(mountdir) / "register").write_bytes(rule)
+        if qemu:
+            rule = b":rungic-aarch64:M:18:\xb7\x00::" + os.fsencode(qemu) + b":F\n"
+            (Path(mountdir) / "register").write_bytes(rule)
         # A sanitized image tree has an empty /dev. Package scripts need actual
         # devices: redirecting to a missing /dev/null silently creates a file.
         # This bind lives only in our private mount namespace and is not imaged.

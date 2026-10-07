@@ -808,7 +808,7 @@ features:
         evidence:
           - {doc: docs/92-x70-android-base-end-to-end.md, date: 2026-09-30, note: "五个独立包未安装"}
       - id: E3
-        text: 镜像里的包安装干净：dpkg --audit、apt-get check、ext4 检查通过。APT pin 按本次 manifest 重新生成，不留旧 release 的 pin。
+        text: 镜像里的包安装干净：dpkg --audit、apt-get check、ext4 检查通过。APT pin 按本次 manifest 重新生成，不留旧 release 的 pin。完整首装以新目录执行，包不能读取编排输入；最终完成凭据绑定源码、release 与包状态，缺失或不符时拒绝出镜像。
         evidence:
           - {doc: docs/93-x70-independent-image-revalidation.md, date: 2026-09-30}
           - {doc: docs/94-build-fingerprints.md, date: 2026-09-30}
@@ -830,6 +830,9 @@ features:
       - text: 组合 rootfs/host 的执行器要在 podman unshare 内运行，不能在其中再启动 Podman。mtime 不进缓存键，不承诺逐字节可复现。
         docs: [docs/94-build-fingerprints.md]
     code:
+      - tools/ci/prepare_rootfs.py
+      - tools/ci/install_rootfs.sh
+      - tools/ci/test_rootfs_install.py
       - tools/ci/build_rootfs_image.py
       - tools/ci/arm64_chroot.py
       - tools/ci/rootfs.Dockerfile

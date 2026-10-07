@@ -1,0 +1,140 @@
+#!/usr/bin/env python3
+"""Check fail-closed CI2 installation at shell, receipt and filesystem boundaries."""
+import hashlib
+import json
+import os
+from pathlib import Path
+import subprocess
+import sys
+import tempfile
+import unittest
+from unittest.mock import patch
+from types import SimpleNamespace
+import prepare_rootfs
+from build_rootfs_image import check_install_completion
+
+HERE = Path(__file__).resolve().parent
+SOURCE = 'b' * 40
+
+class RootfsInstallTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+        self.release = self.root / 'release.json'
+        self.release.write_text('{"version":"test.1","packages":{}}\n')
+        self.state = self.root / 'var/lib/rungic-apt'
+        self.state.mkdir(parents=True)
+        self.status = self.root / 'var/lib/dpkg/status'
+        self.status.parent.mkdir(parents=True)
+        self.status.write_text('installed fixture\n')
+        self.receipt = {'schema': 1, 'source_commit': SOURCE, 'release': 'test.1',
+                        'release_sha256': hashlib.sha256(self.release.read_bytes()).hexdigest(),
+                        'dpkg_status_sha256': hashlib.sha256(self.status.read_bytes()).hexdigest(),
+                        'all_installation_steps_completed': True}
+
+    def write_receipt(self):
+        (self.state / 'root-install.complete').write_text(json.dumps(self.receipt))
+
+    # covers: install.rungicos-image/E3
+    def test_stdin_reader_reproduces_silent_skip_and_new_runner_fails(self):
+        reader = self.root / 'maintainer.sh'
+        reader.write_text('read -r answer || exit 42\n')
+        marker = self.root / 'completed'
+        commands = f'bash {reader}\nprintf done > {marker}\n'
+        old = subprocess.run(['bash', '-se'], input=commands, text=True, capture_output=True)
+        self.assertEqual(old.returncode, 0)
+        self.assertFalse(marker.exists(), 'old reader consumes the following command')
+        script = self.root / 'install.sh'
+        script.write_text('set -eu\n' + commands)
+        caller = ('from prepare_rootfs import run; '
+                  f'run("bash", {str(script)!r})')
+        new = subprocess.run([sys.executable, '-c', caller], input='old inherited input\n',
+                             text=True, capture_output=True, env=dict(os.environ, PYTHONPATH=str(HERE)))
+        self.assertNotEqual(new.returncode, 0, new.stdout + new.stderr)
+        self.assertIn('42', new.stderr)
+        self.assertFalse(marker.exists())
+
+    # covers: install.rungicos-image/E3
+    def test_missing_receipt_rejects_image(self):
+        with self.assertRaisesRegex(ValueError, 'completion'):
+            check_install_completion(self.root, self.release, SOURCE)
+
+    # covers: install.rungicos-image/E3
+    def test_matching_receipt_accepted(self):
+        self.write_receipt()
+        check_install_completion(self.root, self.release, SOURCE)
+
+    # covers: install.rungicos-image/E3
+    def test_mismatched_or_incomplete_receipt_rejects_image(self):
+        for key, value in [('source_commit', 'c' * 40), ('release', 'test.2'),
+                           ('release_sha256', '0' * 64), ('dpkg_status_sha256', '0' * 64),
+                           ('all_installation_steps_completed', False), ('schema', 0)]:
+            with self.subTest(field=key):
+                original = self.receipt[key]
+                self.receipt[key] = value
+                self.write_receipt()
+                with self.assertRaisesRegex(ValueError, 'completion'):
+                    check_install_completion(self.root, self.release, SOURCE)
+                self.receipt[key] = original
+
+    # covers: install.rungicos-image/E3
+    def test_later_root_modification_invalidates_receipt(self):
+        self.write_receipt()
+        self.status.write_text('post-failure ad hoc repair\n')
+        with self.assertRaisesRegex(ValueError, 'completion'):
+            check_install_completion(self.root, self.release, SOURCE)
+
+    # covers: install.rungicos-image/E3
+    def test_failed_attempt_cannot_resume_or_reach_image_builder(self):
+        repo = self.root / 'repo'
+        repo.mkdir()
+        (repo / 'release.json').write_text('{"version":"test.1","packages":{"rungic-plasma-config":"1"}}')
+        calls = []
+        def fail_guest(*command):
+            calls.append(command)
+            if command[0] == 'mmdebstrap':
+                tree = Path(command[7])
+                (tree / 'var/lib').mkdir(parents=True)
+            else:
+                raise subprocess.CalledProcessError(42, command)
+        args = SimpleNamespace(output=self.root/'attempt-1', packages=repo, source_commit=SOURCE,
+                               firefox_version='1', suite='test', mirror='http://mirror.invalid',
+                               qemu=None, size_gib=16, prepare_only=False)
+        with patch('prepare_rootfs.platform.machine', return_value='aarch64'), patch('prepare_rootfs.run', side_effect=fail_guest):
+            with self.assertRaises(subprocess.CalledProcessError):
+                prepare_rootfs.prepare(args)
+            self.assertFalse((args.output/'root-install.complete.json').exists())
+            self.assertFalse((args.output/'image').exists())
+            count = len(calls)
+            with self.assertRaises(FileExistsError):
+                prepare_rootfs.prepare(args)
+            self.assertEqual(len(calls), count)
+            args.output = self.root/'attempt-2'
+            with self.assertRaises(subprocess.CalledProcessError):
+                prepare_rootfs.prepare(args)
+        self.assertTrue((self.root/'attempt-1/prepared-root').is_dir())
+        self.assertTrue((self.root/'attempt-2/prepared-root').is_dir())
+        self.assertFalse(any('build_rootfs_image.py' in str(command) for command in calls))
+
+    # covers: install.rungicos-image/E3
+    def test_configuration_is_package_owned(self):
+        script = (HERE/'install_rootfs.sh').read_text()
+        orchestration = (HERE/'prepare_rootfs.py').read_text()
+        self.assertNotIn('/etc/apt', script + orchestration)
+        config_install = script.index('--no-install-recommends "$config"')
+        remaining_install = script.index('--no-install-recommends "${release_packages[@]}"')
+        self.assertLess(config_install, remaining_install)
+
+    # covers: install.rungicos-image/E3
+    def test_missing_receipt_stops_real_image_cli_before_writing_output(self):
+        image = self.root/'image/rootfs.img'
+        result = subprocess.run([sys.executable, str(HERE/'build_rootfs_image.py'), '--inside',
+               '--root', str(self.root), '--release', str(self.release), '--output', str(image),
+               '--firefox-version', '1', '--install-source', SOURCE], capture_output=True, text=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('completion', result.stderr)
+        self.assertFalse(image.parent.exists())
+
+if __name__ == '__main__':
+    unittest.main()
