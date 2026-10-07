@@ -9,7 +9,7 @@ import time
 import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
-GATE = ROOT / 'shared/platform/wait-dbus.py'
+GATE = ROOT / 'shared/platform/wait-dbus.sh'
 NAME = 'com.rungic.ReadinessTest'
 
 
@@ -50,7 +50,7 @@ GLib.MainLoop().run()
 
     # covers: desktop-mode.audio-follow/E1
     def test_delayed_name_blocks_start_then_same_gate_succeeds(self):
-        gate = self.launch(['/usr/bin/python3', str(GATE), NAME, '--timeout', '2'])
+        gate = self.launch(['/bin/sh', str(GATE), NAME, '2'])
         time.sleep(.2)
         self.assertIsNone(gate.poll(), 'service proceeded before its dependency owned the name')
         self.own_name()
@@ -60,11 +60,33 @@ GLib.MainLoop().run()
     # covers: desktop-mode.audio-follow/E1
     def test_missing_name_times_out_and_does_not_start_service(self):
         started = time.monotonic()
-        gate = self.launch(['/usr/bin/python3', str(GATE), NAME, '--timeout', '.2'])
+        gate = self.launch(['/bin/sh', str(GATE), NAME, '1'])
         _, err = gate.communicate(timeout=3)
         self.assertEqual(gate.returncode, 1)
         self.assertIn(NAME.encode(), err)
-        self.assertLess(time.monotonic() - started, 1.5)
+        self.assertLess(time.monotonic() - started, 3)
+
+    # covers: desktop-mode.audio-follow/E1
+    def test_existing_owner_does_not_require_a_later_signal(self):
+        self.own_name()
+        gate = self.launch(['/bin/sh', str(GATE), NAME, '2'])
+        _, err = gate.communicate(timeout=1)
+        self.assertEqual(gate.returncode, 0, err.decode())
+
+    # covers: desktop-mode.audio-follow/E1
+    def test_invalid_timeout_cannot_select_an_unbounded_wait(self):
+        for timeout in ('0', '00', '-1', 'nan', '121'):
+            with self.subTest(timeout=timeout):
+                gate = self.launch(['/bin/sh', str(GATE), NAME, timeout])
+                _, err = gate.communicate(timeout=1)
+                self.assertEqual(gate.returncode, 2, err.decode())
+
+    # covers: agent.home-hold/E1
+    def test_overlay_keeps_its_failure_message_and_exit_code(self):
+        gate = self.launch(['/bin/sh', str(GATE), 'org.kde.plasmashell', '1'])
+        _, err = gate.communicate(timeout=3)
+        self.assertEqual(gate.returncode, 1)
+        self.assertEqual(err.decode(), 'plasmashell not on the session bus after 1 s\n')
 
     # covers: agent.home-hold/E1
     def test_both_units_use_the_same_installed_gate(self):
@@ -72,5 +94,5 @@ GLib.MainLoop().run()
                            ('agent/assistant/rungic-voice-overlay.service', 'org.kde.plasmashell')]:
             self.assertIn('ExecStartPre=/usr/libexec/rungic-wait-dbus ' + name,
                           (ROOT / unit).read_text())
-        self.assertIn('shared/platform/wait-dbus.py',
+        self.assertIn('shared/platform/wait-dbus.sh',
                       (ROOT / 'packaging/rungic-plasma-bridges/build.sh').read_text())

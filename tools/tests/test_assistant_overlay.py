@@ -174,13 +174,13 @@ class UnitTest(unittest.TestCase):
         self.assertEqual(unit['Service']['Restart'], 'on-failure')
         wait = unit['Service']['ExecStartPre']
         self.assertEqual(wait, '/usr/libexec/rungic-wait-dbus org.kde.plasmashell')
-        gate = ROOT / 'shared/platform/wait-dbus.py'
+        gate = ROOT / 'shared/platform/wait-dbus.sh'
         daemon = subprocess.Popen(['dbus-daemon', '--session', '--nofork', '--print-address'], stdout=subprocess.PIPE, text=True)
         try:
             address = daemon.stdout.readline().strip()
             env = {**os.environ, 'DBUS_SESSION_BUS_ADDRESS': address}
             started = time.monotonic()
-            waiting = subprocess.Popen(['/usr/bin/python3', str(gate), 'org.kde.plasmashell'], env=env)
+            waiting = subprocess.Popen(['/bin/sh', str(gate), 'org.kde.plasmashell'], env=env)
             time.sleep(2.5)
             self.assertIsNone(waiting.poll(), 'no plasmashell yet: still waiting, not started and not failed')
             shell = subprocess.Popen([sys.executable, '-c', 'from gi.repository import Gio, GLib\n'

@@ -822,8 +822,12 @@ G100 S（XT2537-4，SM6435 `_parrot_v3`），接收端TCL 85Q6H。电视这次�
 
 ### 2026-10-07 启动条件修复（task #99）
 
-第二轮 G100 的三次开机都记录了 audio-follow 在 `org.kde.KWin` 名称注册前调用 `loadScript`，以 `ServiceUnknown` 退出；五秒后的自动重启恢复，不算首次启动通过。`After=plasma-kwin_wayland.service` 只排序启动任务，不能代表接口就绪。
+第二轮 G100 的三次开机都记录了 audio-follow 在 `org.kde.KWin` 名称注册前调用 `loadScript`，以 `ServiceUnknown` 退出；五秒后的自动重启恢复，不算首次启动通过。实际发行版单元的 `BusName=org.kde.KWinWrapper` 使 systemd 采用 `Type=dbus`，等待的是 Wrapper 名称；`After=plasma-kwin_wayland.service` 因此不能代表调用目标 `org.kde.KWin` 就绪。
 
-`rungic-plasma-audio-follow.service` 现在先通过 `rungic-wait-dbus org.kde.KWin` 检查名称实际有属主，再启动原脚本。这个入口由语音浮层已有的名称等待抽出，浮层也使用同一实现。等待上限 120 秒，单次查询上限一秒；依赖一直不就绪或会话总线断开仍报告启动错误，保留原本的失败恢复策略。名称出现之后的实际脚本调用仍可能失败，不把名称检查扩大成运行成功。
+`rungic-plasma-audio-follow.service` 现在先通过 `rungic-wait-dbus org.kde.KWin` 检查名称实际有属主，再启动原脚本。这个入口由语音浮层已有的名称等待抽出，浮层也使用同一实现。复用发行版 `gdbus wait --session --timeout=120` 的名称变化订阅与当前属主查询，等待上限 120 秒；依赖一直不就绪或会话总线断开仍报告启动错误，保留原本的失败恢复策略。名称出现之后的实际脚本调用仍可能失败，不把名称检查扩大成运行成功。
 
-依据是 [D-Bus 的 NameHasOwner 契约](https://dbus.freedesktop.org/doc/dbus-specification.html#bus-messages-name-has-owner)：它检查当前名称所有权，不启动服务。工作空间 portal 使用的 Wayland 往返则是显示就绪条件，不能替代这里的总线名称条件。私人总线的延迟注册、缺失超时和语音浮层回归由离线测试检查；实际 KWin 脚本的系统测试在无手机的原生 ARM64 环境运行。第二轮原始失败保留；此修复的 G100 开机验证留给第三轮新候选。
+依据是 [D-Bus 的 NameHasOwner 契约](https://dbus.freedesktop.org/doc/dbus-specification.html#bus-messages-name-has-owner)：它检查当前名称所有权，不启动服务。工作空间 portal 使用的 Wayland 往返则是显示就绪条件，不能替代这里的总线名称条件。[GLib 的名称监听](https://docs.gtk.org/gio/func.bus_watch_name_on_connection.html)先订阅变化，再检查当前属主。私人总线的延迟注册、缺失超时和语音浮层回归由离线测试检查；实际 KWin 脚本的系统测试在无手机的原生 ARM64 环境运行。第二轮原始失败保留；此修复的 G100 开机验证留给第三轮新候选。
+
+原生 ARM64 的三次隔离 systemd 用户会话里，原 audio-follow 每次首次启动均保持 active 且 `NRestarts=0`。名称缺失的反例每次都返回启动失败，`ExecStartPre` 退出码为 1，主程序未运行；在原五秒自动重试前读回并停止反例，避免把后续恢复误报成首次通过。另一次真实 KWin 工作空间检查确认脚本收到窗口回报，KDE／GTK 后端各三次激活通过。
+
+运行中 KWin 崩溃重启后，已有脚本丢失不会自动重新加载，这是独立的 task #101；本次只处理首次启动依赖就绪。

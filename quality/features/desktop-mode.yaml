@@ -693,7 +693,7 @@ features:
       - desktop/rungic-plasma-audio-follow.service
       - agent/workspace/rungic-workspace-sound
       - tools/tests/test_audio_follow.py
-      - shared/platform/wait-dbus.py
+      - shared/platform/wait-dbus.sh
       - tools/tests/test_session_bus_readiness.py
       - tools/system/tests/audio_follow_startup.py
     docs: [docs/58-miracast-desktop-feasibility.md, docs/research/97-headless-agent-work.md]
