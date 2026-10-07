@@ -15,6 +15,7 @@ import argparse
 import array
 import json
 import math
+import shutil
 import subprocess
 import sys
 
@@ -30,6 +31,16 @@ def goertzel(samples, freq, rate=RATE):
     for x in samples:
         s1, s2 = x + k * s1 - s2, s1
     return s1 * s1 + s2 * s2 - k * s1 * s2
+
+
+def levels(samples):
+    """Each window's RMS in dBFS: whether the microphone hears anything at all."""
+    out = []
+    for start in range(0, len(samples) - WINDOW + 1, WINDOW):
+        window = samples[start:start + WINDOW]
+        rms = math.sqrt(sum(x * x for x in window) / len(window)) or 1e-9
+        out.append(round(20 * math.log10(rms / 32768), 1))
+    return out
 
 
 def shares(samples):
@@ -52,9 +63,13 @@ def verdict(values, strong=0.2, quiet=0.05):
 
 
 def record(seconds, source):
-    argv = ['parecord', '--raw', '--format=s16le', '--channels=1', f'--rate={RATE}']
-    if source:
-        argv.append(f'--device={source}')
+    # pw-record where PipeWire runs: on mibook (Fedora) parecord over ssh delivered only zeros.
+    if shutil.which('pw-record'):
+        argv = ['pw-record', f'--rate={RATE}', '--channels=1', '--format=s16'] + \
+            ([f'--target={source}'] if source else []) + ['-']
+    else:
+        argv = ['parecord', '--raw', '--format=s16le', '--channels=1', f'--rate={RATE}'] + \
+            ([f'--device={source}'] if source else [])
     proc = subprocess.Popen(argv, stdout=subprocess.PIPE)
     try:
         data = proc.stdout.read(RATE * 2 * seconds)
@@ -69,9 +84,11 @@ def main():
     parser.add_argument('--seconds', type=int, default=8)
     parser.add_argument('--source', help='PulseAudio source (default: the default source, the built-in mic)')
     a = parser.parse_args()
-    values = shares(record(a.seconds, a.source))
+    samples = record(a.seconds, a.source)
+    values = shares(samples)
     heard = verdict(values)
-    print(json.dumps({'windows_880hz_share': [round(v, 3) for v in values], 'heard': heard}))
+    print(json.dumps({'windows_880hz_share': [round(v, 3) for v in values], 'windows_dbfs': levels(samples),
+                      'heard': heard}))
     sys.exit(0 if heard else 1)
 
 

@@ -592,7 +592,8 @@ def _wanted(c):
 def keyboard_type(value, app=KEYBOARD, attempts=4):
     """Type value by touching the keys a user would: Shift for the other case, the symbol pages for
     digits and punctuation. Lowercase and digit runs go in one command; after a key that can change
-    the page (Enter, an uppercase letter, punctuation) the layout is read again. A character no
+    the page (Enter, Space, an uppercase letter, punctuation) the layout is read again: the floating
+    keyboard goes back from the symbols to the letters after a space. A character no
     page has is an error, never typed another way."""
     keys, batch, typed = keyboard_keys(app), [], 0
     for c in value:
@@ -619,7 +620,7 @@ def keyboard_type(value, app=KEYBOARD, attempts=4):
             raise ValueError(f'no key types {c!r} after {typed} characters; shown: {sorted({k["id"] for k in keys})}')
         batch.append(k['at'])
         typed += 1
-        if not (c.islower() or c.isdigit() or c == ' '):
+        if not (c.islower() or c.isdigit()):
             _touch(batch)
             batch = []
             keys = keyboard_keys(app)
