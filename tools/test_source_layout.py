@@ -50,6 +50,14 @@ class SourceLayoutTests(unittest.TestCase):
                 self.assertTrue((ROOT / entry['source']).is_file())
                 mode = destinations[(entry['source'], entry['path'])]
                 self.assertEqual(int(str(entry['mode']), 8), mode)
+        # And the other way: a file only the first install puts down never reaches phones installed
+        # earlier. #57 added system/root-provider to the install only, and a release updating
+        # rungic-runtime, which reads it, would have left those phones' Linux unable to start (docs/121
+        # 2026-10-08). Casting (rungic-wfd) has its own installer and checksums.
+        released = {(entry['source'], entry['path']) for entry in release['android']}
+        missing = sorted(key for key in destinations
+                         if key not in released and not key[1].startswith('/data/adb/rungic-wfd/'))
+        self.assertEqual(missing, [], 'put down by a first install but never updated by a release')
 
 
 if __name__ == '__main__':

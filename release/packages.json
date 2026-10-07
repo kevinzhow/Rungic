@@ -282,6 +282,16 @@
       "mode": "755"
     },
     {
+      "source": "system/root-provider",
+      "path": "/data/adb/rungic-plasma/root-provider",
+      "mode": "755"
+    },
+    {
+      "source": "lxc/rungic-lxc",
+      "path": "/data/adb/rungic-lxc/rungic-lxc",
+      "mode": "755"
+    },
+    {
       "source": "system/android-audio",
       "path": "/data/adb/rungic-plasma/android-audio",
       "mode": "755"
