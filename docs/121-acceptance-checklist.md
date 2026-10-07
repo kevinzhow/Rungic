@@ -181,3 +181,5 @@ KernelSU 特有的只有一处：没授权时 App 只显示笼统的“暂时无
 - 浮动键盘：切换语言、打字、关掉窗口之后，`plasmakeyboardrc` 一个字节都没变。修复迁移 `rungic-keyboard-repair` 用真实的 kreadconfig6/kwriteconfig6 把写坏的文件改回 `zh_CN,en_US`，并去掉了 `[%General]`。
 - 媒体库：bindfs 改成以 uid 2000 运行，带上账户组，因为家目录是 0750。在 `~/Shared` 里新建、删除，以及编辑器那种“写临时文件再改名”（QSaveFile、GIO 两种命名都试了）都会同步到媒体库，SQLite WAL 正常。目录的行在 rmdir 后还留着，adb shell 自己删目录也一样，是 Android 的行为。
 - 网络：重启后 `/run/rungic-own-network` 是 0755，pasta 一直在跑，默认路由是 10.0.2.2。但在**打开 Rungic 之前连不上网**：Android 的后台网络限制拦住了 Rungic 的 uid（`blocked=APP_BACKGROUND`，进程状态 CACHED）。打开 App 后，或者 DesktopService 前台服务在跑时，局域网和 kernel.org 都通。所以开机后、强行停止 App 后，Linux 在“自己的网络”模式下都是断网的，要另外处理（见下）。另外，上一次开机失败时写下了 network-mode.failed，这次开机先按设计回到共享网络跑一次，再下一次开机才用回自己的网络。
+
+后续（同日）：firstboot 每次开机用 root 把 Rungic 加进电池优化白名单（`dumpsys deviceidle whitelist +com.rungic.plasma`），这样 Android 不再按“App 没在运行”断它的网（白名单使 netpolicy 对它放行，`UID=10220: true`）。G100 验证：先撤掉白名单再重启，不打开 App（没有 Rungic 进程），firstboot 日志里有 “background network allowed”，Linux 访问局域网和 kernel.org 都返回 200。

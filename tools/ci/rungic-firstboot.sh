@@ -82,6 +82,19 @@ install_runtime_boot() {
     mv /data/adb/service.d/rungic-runtime.sh.tmp /data/adb/service.d/rungic-runtime.sh
 }
 install_runtime_boot
+# Linux's own network (docs/116) goes out as the Rungic app's uid (pasta), and Android cuts the
+# network of an app that is not running (netpolicy blocked=APP_BACKGROUND): at boot and after a
+# force-stop Linux was offline until the app was opened (G100, 2026-10-08, docs/121). The
+# power-save allowlist exempts the uid, so Linux's network does not depend on the app. Every boot,
+# as the setting can be cleared in Android's battery settings; optional, a refusal is logged.
+allow_background_network() {
+    if dumpsys deviceidle whitelist +com.rungic.plasma >/dev/null 2>&1; then
+        echo 'background network allowed (power-save allowlist)'
+    else
+        echo 'power-save allowlist not set; Linux own network needs the app running'
+    fi
+}
+allow_background_network
 if [ -f "$marker" ] && [ "$(cat "$marker")" = "$RELEASE_ID" ]; then
     publish ready complete
     echo 'already installed'

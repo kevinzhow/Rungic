@@ -2435,6 +2435,7 @@ Agent 不靠点界面就能拿到合并日志、崩溃回溯、追踪、截图�
 
 注意：
 - 镜像只带一行占位注释的 /etc/resolv.conf，原先没有任何机制写入 DNS，新装设备的 Linux 程序解析不了域名（issue [docs/research/32-network-integration.md](../docs/research/32-network-integration.md)
+- 独立网络以 Rungic 应用的 uid 联网，所以也受安卓按应用的网络限制：应用没在运行（开机后、强行停止后）时 netpolicy 以 APP_BACKGROUND 断网。firstboot 每次开机把应用加进电池优化（deviceidle）白名单来豁免（2026-10-08，G100）。 [docs/121-acceptance-checklist.md](../docs/121-acceptance-checklist.md)
 - 共用安卓的网络时，Linux 的连接带着 uid 0、1000 进入安卓网络栈，安卓和 VPN 应用按系统身份处理。用户手机开 Clash 全局 VPN 时 root 的 TLS 失败而应用正常（2026-10-06）。独立网络让 Linux 以 Rungic 应用的身份联网；抽象 socket 属于网络命名空间，要中转。 [docs/116-own-network.md](../docs/116-own-network.md)
 - 没有 Linux NetworkManager 守护进程、wpa_supplicant 或 DHCP。安卓独占网卡、路由、DNS 与凭据。在服务页打开 NetworkManager 等服务可能抢走网卡、断开无线调试。 [docs/research/32-network-integration.md](../docs/research/32-network-integration.md) [docs/83-service-policy.md](../docs/83-service-policy.md)
 - 普通安卓 API 会脱敏 SSID/BSSID，靠白名单 root cmd wifi 补齐。固定安卓 16 的输出格式，换 ROM 要重验。 [docs/research/32-network-integration.md](../docs/research/32-network-integration.md)
