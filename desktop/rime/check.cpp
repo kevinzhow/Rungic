@@ -16,6 +16,7 @@
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#include "echo.h"
 #include "runtime.h"
 
 static QTextStream out(stdout);
@@ -96,6 +97,20 @@ static int second() {
     return failures ? 1 : 0;
 }
 
+// covers: desktop.rime/E7
+static void echoes() {
+    check(preeditEcho("ab", 1, {"ni"}, "ab", 1), "echo: the editor keeps the preedit apart");
+    check(preeditEcho("ab", 1, {"ni"}, "anib", 3), "echo: the editor counts the preedit, cursor after it (KWrite)");
+    check(preeditEcho("", 0, {"n"}, "n", 1), "echo: first letter in an empty document");
+    check(preeditEcho("ab", 1, {"ni"}, "anib", 1), "echo: the editor counts the preedit, cursor before it");
+    check(preeditEcho("", 0, {"n", "ni", "ni h"}, "ni", 2), "echo: the report of an earlier preedit comes late");
+    check(!preeditEcho("ab", 1, {"ni"}, "ab", 2), "outside change: the cursor moved");
+    check(!preeditEcho("ab", 1, {"ni"}, "anixb", 3), "outside change: the text changed");
+    check(!preeditEcho("ab", 1, {"ni"}, "anib", 2), "outside change: the cursor moved inside the preedit");
+    check(!preeditEcho("", 0, {"n", "ni"}, "nix", 3), "outside change: text typed after a preedit");
+    check(!preeditEcho("ab", -1, {"ni"}, "ab", 1), "no recorded start: not an echo");
+}
+
 int main(int argc, char **argv) {
     QCoreApplication app(argc, argv);
     QTemporaryDir temporary;
@@ -103,6 +118,7 @@ int main(int argc, char **argv) {
     auto &rime = RimeRuntime::instance();
     if (!rime.ready) { out << "FAIL schema " << RimeRuntime::schema << " is not deployed" << Qt::endl; return 1; }
     if (app.arguments().contains("--second")) return second();
+    echoes();
 
     // covers: desktop.rime/E6
     // The user's dictionary and settings: a directory only the user can read, and the default

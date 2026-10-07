@@ -8,6 +8,7 @@
 #include <QVirtualKeyboardInputContext>
 #include <QVirtualKeyboardInputEngine>
 #include <QVirtualKeyboardSelectionListModel>
+#include "echo.h"
 #include "runtime.h"
 // rime_api.h defines these as macros; they would break moc output (QMetaType::Bool).
 #undef Bool
@@ -32,6 +33,9 @@ class RimeInputMethod : public QVirtualKeyboardAbstractInputMethod {
     Engine::InputMode mode = Engine::InputMode::Pinyin;
     QStringList candidates;
     bool composing = false;
+    QString baseText;      // the text around the cursor and the cursor when the composition started
+    int baseCursor = -1;
+    QStringList preedits;  // the preedits shown during this composition (echo.h)
 
     bool ensureSession(bool sensitive) {
         // A field whose text must not be remembered gets a guest session, which does not learn:
@@ -85,6 +89,8 @@ class RimeInputMethod : public QVirtualKeyboardAbstractInputMethod {
             api->candidate_list_end(&iterator);
         }
         composing = !preedit.isEmpty();
+        if (!composing) preedits.clear();
+        else if (preedits.isEmpty() || preedits.last() != preedit) preedits.append(preedit);
         context->setPreeditText(preedit);
         emit selectionListChanged(Model::Type::WordCandidateList);
         emit selectionListActiveItemChanged(Model::Type::WordCandidateList, candidates.isEmpty() ? -1 : 0);
@@ -139,6 +145,11 @@ public:
         // Editing keys reach Rime only during a composition; they need no session otherwise.
         if (!composing && symbol > 0xff00) return false;
         if (!ensureSession(hints.testFlag(Qt::ImhSensitiveData))) return false;
+        if (!composing) {
+            baseText = inputContext()->surroundingText();
+            baseCursor = inputContext()->cursorPosition();
+            preedits.clear();
+        }
         const bool handled = api->process_key(session.id, symbol, 0);
         refresh();
         used();
@@ -167,8 +178,14 @@ public:
         clearCandidates();
         used();
     }
+    // An outside change of the text or cursor finishes the composition; our own preedit coming back
+    // from the application does not (echo.h).
     void update() override {
-        if (session.id && composing) { api->commit_composition(session.id); refresh(); }
+        const auto c = inputContext();
+        if (session.id && composing && !(c && preeditEcho(baseText, baseCursor, preedits, c->surroundingText(), c->cursorPosition()))) {
+            api->commit_composition(session.id);
+            refresh();
+        }
         used();
     }
 
