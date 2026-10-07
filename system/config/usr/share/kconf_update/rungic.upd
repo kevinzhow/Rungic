@@ -25,3 +25,8 @@ Script=rungic-usr-paths.sh,sh
 # disabled list (docs/73).
 Id=rungic-recording-quicksetting-v1
 Script=rungic-recording-quicksetting.sh,sh
+
+# A new account's keyboard: Rime as KWin's input method and Chinese plus English (docs/41).
+# Runs before KWin like the others, so the first session already has them.
+Id=rungic-keyboard-defaults-v1
+Script=rungic-keyboard-defaults.sh,sh

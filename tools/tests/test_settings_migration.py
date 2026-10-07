@@ -234,6 +234,25 @@ def test_the_old_firefox_launcher_goes_and_the_users_own_stays(home):
     assert (apps / 'firefox.desktop').read_text() == '[Desktop Entry]\nName=Mine\n', "the user's own launcher stays"
 
 
+# covers: desktop.settings-migration/E5
+def test_a_new_account_gets_rime_and_chinese_with_english(home):
+    # plasma-mobile's own kwinrc lives elsewhere (XDG_CONFIG_DIRS); the user's has no input method.
+    write(home, 'kwinrc', '[Windows]\nPlacement=Maximizing\n')
+    migrate(home, 'rungic-keyboard-defaults.sh')
+    assert config(home, 'kwinrc')['Wayland']['InputMethod'] == NEW_IM
+    assert config(home, 'kwinrc')['Windows']['Placement'] == 'Maximizing', 'other settings are kept'
+    assert config(home, 'plasmakeyboardrc')['General']['enabledLocales'] == 'zh_CN,en_US'
+
+
+# covers: desktop.settings-migration/E5
+def test_a_keyboard_and_languages_the_user_chose_stay(home):
+    write(home, 'kwinrc', '[Wayland]\nInputMethod=/usr/share/applications/org.kde.plasma.keyboard.desktop\n')
+    write(home, 'plasmakeyboardrc', '[General]\nenabledLocales=en_US\n')
+    migrate(home, 'rungic-keyboard-defaults.sh')
+    assert config(home, 'kwinrc')['Wayland']['InputMethod'] == '/usr/share/applications/org.kde.plasma.keyboard.desktop'
+    assert config(home, 'plasmakeyboardrc')['General']['enabledLocales'] == 'en_US'
+
+
 def upd_entries():
     entries, current = [], None
     for line in (UPDATE / 'rungic.upd').read_text().splitlines():
