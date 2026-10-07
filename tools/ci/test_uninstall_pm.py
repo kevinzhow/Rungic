@@ -158,7 +158,7 @@ class ActualReadbacks(unittest.TestCase):
                         self.assertTrue(kwargs['root'])
                         if mode=='diagnostic_failure' and 'RUNGIC_APP_DATA_ENTRIES' in script:
                             raise subprocess.CalledProcessError(1,'entry-readback',output='No entry listing')
-                        script=script.replace('/data/adb/magisk/busybox','/usr/bin/busybox')
+                        script=script.replace(standalone.ROOT_PROVIDER_SH,'BB=/usr/bin/busybox; RUNGIC_ROOT=magisk').replace('/data/adb/magisk/busybox','/usr/bin/busybox')
                         for source in ('/data/user/0','/data/user_de/0'):
                             script=script.replace(source,str(root/source.lstrip('/')))
                         command=[shell,'ash','-c'] if shell.endswith('busybox') else [shell,'-c']
@@ -284,7 +284,7 @@ class PersistentPackageState(unittest.TestCase):
                     if mode=='missing':target.unlink()
                     if mode=='symlink':target.unlink();target.symlink_to(root/'outside');(root/'outside').write_text(xml)
                     converter=root/'abx2xml';converter.write_text("#!/usr/bin/python3\nimport sys\nfrom pathlib import Path\nassert sys.argv[2]=='-'\ndata=Path(sys.argv[1]).read_bytes()\nassert data[:4]==b'ABX\\0'\n"+("sys.exit(1)\n" if mode=='conversion_error' else "sys.stdout.write(data[4:].decode())\n"));converter.chmod(0o755)
-                    script=standalone.package_persistence_script(kind).replace('/data/adb/magisk/busybox','/usr/bin/busybox').replace('/data/system/users/0' if kind=='system' else '/data/system',str(parent)).replace('/system/bin/abx2xml',str(converter))
+                    script=standalone.package_persistence_script(kind).replace(standalone.ROOT_PROVIDER_SH,'BB=/usr/bin/busybox; RUNGIC_ROOT=magisk').replace('/data/adb/magisk/busybox','/usr/bin/busybox').replace('/data/system/users/0' if kind=='system' else '/data/system',str(parent)).replace('/system/bin/abx2xml',str(converter))
                     sync=':'
                     if mode=='changed':sync=f"printf x >> {target}"
                     if mode=='backup_during_sync':sync=f"printf old > {backup}"

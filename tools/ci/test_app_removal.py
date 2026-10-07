@@ -68,7 +68,8 @@ class AppRemoval(unittest.TestCase):
             su = path / 'su'
             su.write_text('#!/bin/sh\n/usr/bin/printf "%s" "$3"\n')
             su.chmod(0o755)
-            methods = methods.replace('"/product/bin/su"', json.dumps(str(su)))
+            # The root provider's su (RootShell.su(), formerly a fixed /product/bin/su) is the stand-in.
+            methods = methods.replace('RootShell.su()', json.dumps(str(su))).replace('"/product/bin/su"', json.dumps(str(su)))
             harness = path / 'MainActivity.java'
             harness.write_text('package com.rungic.plasma; import java.io.*; import java.util.concurrent.*;\n'
                 'public class MainActivity { static String controlTimeout="timeout";\n' + methods + '''
@@ -79,5 +80,6 @@ class AppRemoval(unittest.TestCase):
                     if(!control("account-status").equals("/data/adb/rungic-plasma/rungic-plasma account-status"))throw new AssertionError("account controller route changed");
                 }}''')
             subprocess.run(['javac', '-encoding', 'UTF-8', '-d', directory, str(harness),
-                str(source_dir / 'RemovalState.java'), str(source_dir / 'ControlException.java')], check=True, capture_output=True, text=True)
+                str(source_dir / 'RemovalState.java'), str(source_dir / 'ControlException.java'), str(source_dir / 'RootShell.java')],
+                check=True, capture_output=True, text=True)
             subprocess.run(['java', '-cp', directory, 'com.rungic.plasma.MainActivity'], check=True, capture_output=True, text=True, timeout=10)

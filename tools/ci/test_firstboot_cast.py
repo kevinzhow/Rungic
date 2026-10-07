@@ -71,7 +71,8 @@ class FirstbootCastTest(unittest.TestCase):
 
     def run_section(self, seed):
         body = cast_section().replace("/data/adb/", f"{self.root}/data/adb/").replace("/system/bin/sh", "sh")
-        script = f"set -eu\nseed={seed}\n{body}wait\necho section-done\n"
+        # The provider's BusyBox, as the first boot's detection (not part of this section) sets it.
+        script = f"set -eu\nseed={seed}\nRUNGIC_BUSYBOX={self.root}/data/adb/magisk/busybox\n{body}wait\necho section-done\n"
         return subprocess.run(["sh", "-c", script], env=self.env, capture_output=True, text=True)
 
     # covers: desktop-mode.cast-install/E1

@@ -65,6 +65,8 @@ esac''')
  read release < "$TEST_ROOT/release";;
  *) exit 90;;
 esac''')
+        # The installed root provider (system/root-provider) as on a Magisk phone, with the sandbox's BusyBox.
+        (self.base / 'root-provider').write_text(f'RUNGIC_ROOT=magisk\nRUNGIC_BUSYBOX={self.root}/data/adb/magisk/busybox\n')
         script = ROOT / 'system/rungic-runtime'
         text = script.read_text().replace('/system/bin/sh', '/bin/sh')
         text = re.sub(r'(?<![\w/])(/data/adb|/storage/emulated/0|/dev/memcg|/dev/cpuctl|/dev/stune|/sys/fs/cgroup|/proc)\b',
