@@ -3,16 +3,32 @@
 # tools at different paths and load a live sepolicy rule with different binaries, so scripts
 # that need a BusyBox or a live policy load come here instead of hardcoding Magisk.
 # Sourced, not executed: it only defines variables and functions.
-RUNGIC_BUSYBOX=/data/adb/ksu/bin/busybox
-RUNGIC_MAGISK=
-if [ -x /data/adb/magisk/busybox ]; then
+#
+# The active provider is the one whose runtime is up: Magisk's /debug_ramdisk/magisk exists only
+# while Magisk runs, so a phone that moved to KernelSU with Magisk's /data/adb/magisk left behind
+# is KernelSU. Neither active is an error, not a guess. tools/ci/standalone.py (ROOT_PROVIDER_SH)
+# and tools/ci/rungic-firstboot.sh carry the same rule; tools/tests/test_root_provider.py keeps
+# the three in step.
+if [ -x /debug_ramdisk/magisk ]; then
+    RUNGIC_ROOT=magisk
     RUNGIC_BUSYBOX=/data/adb/magisk/busybox
     RUNGIC_MAGISK=/debug_ramdisk/magisk
-    [ -x "$RUNGIC_MAGISK" ] || RUNGIC_MAGISK=/data/adb/magisk/magisk
+    # The live policy loader is magiskpolicy: `magisk --live` is not an option of magisk itself
+    # ("Unrecognized argument: --live", Magisk 31.0 on the G100).
+    RUNGIC_MAGISKPOLICY=/debug_ramdisk/magiskpolicy
+    [ -x "$RUNGIC_MAGISKPOLICY" ] || RUNGIC_MAGISKPOLICY=/data/adb/magisk/magiskpolicy
+elif [ -x /data/adb/ksud ]; then
+    RUNGIC_ROOT=kernelsu
+    RUNGIC_BUSYBOX=/data/adb/ksu/bin/busybox
+    RUNGIC_MAGISK=
+    RUNGIC_MAGISKPOLICY=
+else
+    echo 'No active root provider: neither Magisk (/debug_ramdisk/magisk) nor KernelSU (/data/adb/ksud)' >&2
+    return 1 2>/dev/null || exit 1
 fi
 rungic_sepolicy_apply() {
-    if [ -n "$RUNGIC_MAGISK" ]; then
-        "$RUNGIC_MAGISK" --live --apply "$1"
+    if [ "$RUNGIC_ROOT" = magisk ]; then
+        "$RUNGIC_MAGISKPOLICY" --live --apply "$1"
     else
         /data/adb/ksud sepolicy apply "$1"
     fi

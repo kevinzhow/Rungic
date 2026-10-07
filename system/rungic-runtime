@@ -4,9 +4,12 @@ set -eu
 umask 077
 BASE=/data/adb/rungic-plasma
 STATE=/data/adb/rungic-lxc/runtime/var/lib/lxc/plasma/state/host/runtime
-BB=/data/adb/magisk/busybox
 [ "$(id -u)" = 0 ] || exit 1
 [ "${1:-status}" = stop ] || [ "${1:-status}" = status ] || [ ! -e /data/adb/rungic-uninstalling ] || { echo 'Rungic 卸载未完成，请重新运行卸载。' >&2; exit 1; }
+# The root provider's BusyBox (Magisk or KernelSU); exported for the watcher's own shell below.
+. /data/adb/rungic-plasma/root-provider
+BB=$RUNGIC_BUSYBOX
+export BB
 mkdir -p "$STATE"
 chmod 700 "$STATE"
 log() {
@@ -25,7 +28,7 @@ case "${1:-status}" in
     # Close caller's controller/install locks before taking our private supervisor lock.
     "$BB" setsid /system/bin/sh -c '
         exec 3>&- 4>&- 5>&- 6>&- 7>&- 8>&- 9>&-
-        exec /data/adb/magisk/busybox flock -n /data/adb/rungic-plasma/runtime.lock /data/adb/rungic-plasma/rungic-runtime watch
+        exec "$BB" flock -n /data/adb/rungic-plasma/runtime.lock /data/adb/rungic-plasma/rungic-runtime watch
     ' </dev/null >/dev/null 2>&1 &
     ;;
  boot)

@@ -5,16 +5,19 @@ set -eu
 set -o pipefail
 [ ! -e /data/adb/rungic-uninstalling ] || { echo 'Rungic 卸载未完成，请重新运行卸载。' >&2; exit 1; }
 umask 077
-# Magisk and KernelSU both supply a BusyBox and watch /data/adb/service.d; detect which one
-# provides root here: the Magisk-only steps below are skipped under KernelSU, which keeps its
-# own root allowlist (the user grants the app root in its manager instead of a SQLite row).
-if [ -x /data/adb/magisk/busybox ]; then
+# Magisk and KernelSU both supply a BusyBox and run the scripts in /data/adb/service.d; the active provider is
+# the one whose runtime is up (the rule of system/root-provider, which is not installed yet when
+# this runs): the Magisk-only steps below are skipped under KernelSU, which keeps its own root
+# allowlist (the user grants the app root in its manager instead of a SQLite row).
+if [ -x /debug_ramdisk/magisk ]; then
     RUNGIC_BUSYBOX=/data/adb/magisk/busybox
     RUNGIC_MAGISK=/debug_ramdisk/magisk
-    [ -x "$RUNGIC_MAGISK" ] || RUNGIC_MAGISK=/data/adb/magisk/magisk
-else
+elif [ -x /data/adb/ksud ]; then
     RUNGIC_BUSYBOX=/data/adb/ksu/bin/busybox
     RUNGIC_MAGISK=
+else
+    echo 'No active root provider: neither Magisk (/debug_ramdisk/magisk) nor KernelSU (/data/adb/ksud)' >&2
+    exit 1
 fi
 export RUNGIC_BUSYBOX RUNGIC_MAGISK
 export PATH=/data/adb/magisk:/data/adb/ksu/bin:/system/bin:/system/xbin

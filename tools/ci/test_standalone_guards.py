@@ -55,6 +55,7 @@ class ExistingRuntime(unittest.TestCase):
         self.trusted = standalone.digest(self.payload / 'manifest.json')
         self.adb = self.root / 'data/adb'
         executable(self.adb / 'magisk/busybox', '#!/bin/sh\n')
+        executable(self.root / 'debug_ramdisk/magisk', '#!/bin/sh\n')     # Magisk's runtime is up
         bin_dir = self.root / 'bin'
         # df -k /data as Android prints it, with plenty of space: the space check is not under test here.
         executable(bin_dir / 'df', '#!/bin/sh\necho "Filesystem 1K-blocks Used Available Use% Mounted"\n'
@@ -76,6 +77,7 @@ class ExistingRuntime(unittest.TestCase):
                     raise Staging(script)
                 # As Device.shell sends it (set -eu first), with /data/adb in the sandbox.
                 text = 'set -eu\n' + re.sub(r'(?<![\w/])/data/adb\b', str(test.adb), script)
+                text = re.sub(r'(?<![\w/])/debug_ramdisk\b', str(test.root / 'debug_ramdisk'), text)
                 result = subprocess.run(['sh', '-c', text], env=test.env, capture_output=True, text=True, timeout=30)
                 if result.returncode:
                     raise subprocess.CalledProcessError(result.returncode, 'sh', result.stdout, result.stderr)
@@ -145,6 +147,7 @@ class FirstBootSpace(unittest.TestCase):
                                  f'echo "/dev/block/dm-50 300000000 1 $(cat {self.free}) 1% /data"\n')
         # busybox flock -n LOCK sh SCRIPT SEED: run the command without the lock.
         executable(self.root / 'data/adb/magisk/busybox', '#!/bin/sh\nshift 3\nexec "$@"\n')
+        executable(self.root / 'debug_ramdisk/magisk', '#!/bin/sh\nexit 0\n')     # Magisk's runtime is up
         # Already installed parts the script skips: the Termux prefix and the LXC host.
         executable(self.root / 'data/user/0/com.termux/files/usr/bin/pulseaudio', '#!/bin/sh\n')
         executable(self.root / 'data/adb/rungic-lxc/rungic-lxc-enter', '#!/bin/sh\n')
@@ -163,7 +166,7 @@ class FirstBootSpace(unittest.TestCase):
         sums['SPARSE_WRITE_SHA256'] = hashlib.sha256((self.seed / 'rungic-sparse-write').read_bytes()).hexdigest()
         sums.update(ROOTFS_SHA256='0' * 64, ROOTFS_BYTES=str(self.ROOTFS_BYTES), PHONE_HTTP_PROXY='', RELEASE_ID='test.1')
         (self.seed / 'seed.env').write_text(''.join(f"{k}='{v}'\n" for k, v in sums.items()))
-        text = re.sub(r'(?<![\w/])(/data/adb|/data/user/0|/product/etc/rungic)\b', f'{self.root}\\1', FIRSTBOOT.read_text())
+        text = re.sub(r'(?<![\w/])(/data/adb|/data/user/0|/product/etc/rungic|/debug_ramdisk)\b', f'{self.root}\\1', FIRSTBOOT.read_text())
         text = text.replace('/system/bin/sh', 'bash').replace('export PATH=', 'export IGNORED_PATH=')
         self.script = self.root / 'firstboot.sh'
         self.script.write_text(text)

@@ -343,6 +343,14 @@ def pack(args):
     print(json.dumps({'folder': str(out), 'manifest_sha256': digest(out / 'manifest.json')}))
 
 
+# The active root provider, as system/root-provider decides it (Magisk while its runtime is up,
+# else KernelSU, else an error): sets BB to its BusyBox and RUNGIC_ROOT. Inlined into each root
+# script because removal runs after the controller (and with it root-provider) is gone.
+ROOT_PROVIDER_SH = ("if [ -x /debug_ramdisk/magisk ]; then BB=/data/adb/magisk/busybox; RUNGIC_ROOT=magisk; "
+                    "elif [ -x /data/adb/ksud ]; then BB=/data/adb/ksu/bin/busybox; RUNGIC_ROOT=kernelsu; "
+                    "else echo 'No active root provider: neither Magisk (/debug_ramdisk/magisk) nor KernelSU "
+                    "(/data/adb/ksud)' >&2; exit 1; fi")
+
 class Device:
     def __init__(self, args):
         self.adb = [args.adb, '-P', str(args.adb_port), '-s', args.serial]
@@ -362,9 +370,9 @@ class Device:
         worker = "printf 'RUNGIC_LOCKED\\n'; read -r release"
         command = '/system/bin/sh -c ' + shlex.quote(worker)
         for lock in reversed(locks):
-            command = '"$bb" flock -n ' + shlex.quote(lock) + ' ' + command
+            command = '"$BB" flock -n ' + shlex.quote(lock) + ' ' + command
         # The root provider's BusyBox, resolved by the shell that holds the locks.
-        command = 'bb=/data/adb/magisk/busybox; [ -x "$bb" ] || bb=/data/adb/ksu/bin/busybox; ' + command
+        command = ROOT_PROVIDER_SH + '; ' + command
         process = subprocess.Popen(self.adb + ['shell', 'su', '-c', 'sh'],
                                    stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                    stderr=subprocess.STDOUT)
@@ -435,8 +443,9 @@ def _install(args, d, folder, m, evidence):
         test ! -e {PATHS['RUNGIC_LXC']}
         test ! -e {PATHS['RUNGIC_CONTROLLER']}
     fi
-    # Either root manager provides the busybox the installer relies on.
-    {{ test -x /data/adb/magisk/busybox || test -x /data/adb/ksu/bin/busybox; }}
+    # An active root provider with the BusyBox the installer relies on.
+    {ROOT_PROVIDER_SH}
+    test -x "$BB"
     df -k /data | tail -n 1 | awk -v need={m['rootfs_bytes'] // 1024 + 4 * 1024**2} '{{if ($4 < need) exit 1}}'
     ''', root=True)
     stage = staging_path(rid)
@@ -458,9 +467,17 @@ def _install(args, d, folder, m, evidence):
         print(platform(f'pm install -r {stage}/termux.apk', timeout=180), flush=True)
     print(platform(f'pm install -r {stage}/rungic.apk', timeout=180), flush=True)
     permissions = ('RECORD_AUDIO', 'CAMERA', 'POST_NOTIFICATIONS', 'BLUETOOTH_CONNECT', 'BLUETOOTH_SCAN', 'READ_PHONE_STATE')
+    # Runtime permissions are optional as before (the app asks itself): one that neither identity
+    # can grant is reported and the install goes on.
     for permission in permissions:
-        platform(f'pm grant {APP} android.permission.{permission}')
-    platform(f'appops set {APP} SYSTEM_ALERT_WINDOW allow')
+        try:
+            platform(f'pm grant {APP} android.permission.{permission}')
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
+            print(f'permission {permission} not granted; the app asks for it when needed', flush=True)
+    try:
+        platform(f'appops set {APP} SYSTEM_ALERT_WINDOW allow')
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
+        print('SYSTEM_ALERT_WINDOW not allowed; the app asks when casting (optional)', flush=True)
     # Root-owned durable descriptor and payload, published before the controller exists.
     d.shell(f'''mkdir -p {REMOTE}/payload
         chmod 700 {REMOTE} {REMOTE}/payload
@@ -501,7 +518,8 @@ def _install(args, d, folder, m, evidence):
         # Grant before publishing the entry point, not only at seed completion.
         # Magisk needs the policy row pre-granted; KernelSU has no SQL policy
         # store, so the user grants root to the app in its manager instead.
-        if [ -x /debug_ramdisk/magisk ]; then
+        {ROOT_PROVIDER_SH}
+        if [ "$RUNGIC_ROOT" = magisk ]; then
             # Fixed Magisk 31 schema: INSERT returns no SQL NULL (docs/39).
             /debug_ramdisk/magisk --sqlite "INSERT OR REPLACE INTO policies (uid,policy,until,logging,notification) VALUES($owner,2,0,1,1)"
         else
@@ -521,9 +539,8 @@ def _install(args, d, folder, m, evidence):
     print('Payload verified; starting independent installation.', flush=True)
     # Device process survives a host disconnect; the service entry retries after reboot.
     # KernelSU keeps its BusyBox elsewhere than Magisk.
-    d.shell(f'''bb=/data/adb/magisk/busybox
-        [ -x "$bb" ] || bb=/data/adb/ksu/bin/busybox
-        "$bb" setsid /system/bin/sh {REMOTE}/payload/firstboot.sh {REMOTE}/payload </dev/null >{PATHS['RUNGIC_LAUNCH_LOG']} 2>&1 &''', root=True)
+    d.shell(f'''{ROOT_PROVIDER_SH}
+        "$BB" setsid /system/bin/sh {REMOTE}/payload/firstboot.sh {REMOTE}/payload </dev/null >{PATHS['RUNGIC_LAUNCH_LOG']} 2>&1 &''', root=True)
     print(json.dumps({'state': 'installing', 'release': rid, 'base': evidence,
                       'status_command': 'standalone.py status with the same --serial and --adb-port'}))
 
@@ -642,8 +659,7 @@ def uninstall_root_script(purge=False, operation_id=None, stages=(), preview=Fal
     checks = r"""
 set -eu
 set -o pipefail
-BB=/data/adb/magisk/busybox
-[ -x "$BB" ] || BB=/data/adb/ksu/bin/busybox
+""" + ROOT_PROVIDER_SH + r"""
 present() { [ -e "$1" ] || [ -L "$1" ]; }
 check_paths() {
     for parent in /data/data/com.termux /data/data/com.termux/files /data/data/com.termux/files/usr /data/data/com.termux/files/usr/tmp /data/adb /data/adb/service.d /data/adb/modules /data/local/tmp "$preserved" "$compat" "$lxc" "$controller" "$pending"; do
@@ -999,7 +1015,7 @@ def package_readback(device, name, evidence=None):
         # Check CE and DE storage; never follow an application-data symlink.
         output = observe(f'''# RUNGIC_APP_DATA_READBACK
 test "$(id -u)" = 0
-BB=/data/adb/magisk/busybox
+{ROOT_PROVIDER_SH}
 for pair in CE:/data/user/0 DE:/data/user_de/0; do
     kind=${{pair%%:*}}; parent=${{pair#*:}}; path=$parent/{APP}
     test -d "$parent" && test ! -L "$parent" && test -r "$parent" && test -x "$parent" || exit 1
@@ -1025,7 +1041,7 @@ done''', root=True)
                     continue
                 try:
                     names = observe(f'''# RUNGIC_APP_DATA_ENTRIES
-BB=/data/adb/magisk/busybox
+{ROOT_PROVIDER_SH}
 path={parent}/{APP}
 test -d {parent} && test ! -L {parent} && test -d "$path" && test ! -L "$path" || exit 1
 "$BB" find "$path" -mindepth 1 ! -type d -print0 | "$BB" sh -c '
@@ -1068,7 +1084,7 @@ done' ''', root=True)
 PACKAGE_PERSIST_TIMEOUT = 30
 PACKAGE_PERSIST_SCRIPT = r'''# RUNGIC_PACKAGE_PERSISTENCE
 # AOSP Settings/ResilientAtomicFile prefer backup over main at boot.
-BB=/data/adb/magisk/busybox
+''' + ROOT_PROVIDER_SH + r'''
 parent=/data/system/users/0
 file=$parent/package-restrictions.xml
 backup=$parent/package-restrictions-backup.xml

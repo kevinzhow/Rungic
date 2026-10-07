@@ -46,6 +46,8 @@ class RemovalShell(unittest.TestCase):
 
     def run_shell(self, purge=False, extra='', preview=False, package_kind=None):
         script = standalone.uninstall_root_script(purge=purge, operation_id='test', preview=preview, package_kind=package_kind)
+        # The sandbox's root provider is Magisk with the host's BusyBox (substituted below).
+        script = script.replace(standalone.ROOT_PROVIDER_SH, 'BB=/data/adb/magisk/busybox; RUNGIC_ROOT=magisk')
         for prefix in ('/data/adb', '/data/data', '/data/local/tmp', '/proc', '/sys/block', '/product', '/vendor'):
             script = re.sub(r'(?<![\w/])' + re.escape(prefix) + r'\b', str(self.base) + prefix, script)
         script = script.replace(str(self.adb / 'magisk/busybox'), getattr(self, 'busybox', '/usr/bin/busybox'))
@@ -477,6 +479,7 @@ class PendingRemoval(unittest.TestCase):
             (root / 'proc/1/mountinfo').write_text('1 0 0:1 / / rw - rootfs rootfs rw\n')
             (root / 'proc/1/cmdline').write_bytes(b'init\x00')
             script = standalone.uninstall_root_script(operation_id='refusal')
+            script = script.replace(standalone.ROOT_PROVIDER_SH, 'BB=/data/adb/magisk/busybox; RUNGIC_ROOT=magisk')
             for prefix in ('/data/adb', '/data/data', '/data/local/tmp', '/proc', '/sys/block', '/product', '/vendor'):
                 script = re.sub(r'(?<![\w/])' + re.escape(prefix) + r'\b', str(root) + prefix, script)
             result = subprocess.run(['/usr/bin/busybox', 'ash', '-c', script],
@@ -713,8 +716,8 @@ class MaintenanceLock(unittest.TestCase):
             # No handset: execute the exact lease command against local lock files.
             adb.write_text("#!/usr/bin/python3\nimport os,sys\n"
                            "first=sys.stdin.buffer.readline()\ncommand=sys.stdin.buffer.readline().decode()\n"
-                           "command=command.replace('bb=/data/adb/magisk/busybox; [ -x \"$bb\" ] || bb=/data/adb/ksu/bin/busybox; ','')\n"
-                           "command=command.replace('\"$bb\" flock','/usr/bin/flock')\n"
+                           f"command=command.replace({standalone.ROOT_PROVIDER_SH + '; '!r},'')\n"
+                           "command=command.replace('\"$BB\" flock','/usr/bin/flock')\n"
                            "command=command.replace('/data/adb/magisk/busybox flock','/usr/bin/flock').replace('/system/bin/sh','/bin/sh').replace('/data/adb/',sys.argv[1]+'/')\n"
                            "os.execl('/bin/sh','sh','-c',command)\n")
             adb.chmod(0o755)

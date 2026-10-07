@@ -59,7 +59,7 @@ for mode in ['normal','normal_no_termux','termux_readback_failure','package_fail
     if mode=='final_snapshot_package_reappears':self.installed=True
     if mode=='final_snapshot_retained_gone':(adb/'rungic-uninstalled').unlink(missing_ok=True)
    if script.startswith('rm -f '+product.PENDING):self.marker_cleared=True
-   text=script
+   text=script.replace(product.ROOT_PROVIDER_SH,'BB=/data/adb/magisk/busybox; RUNGIC_ROOT=magisk')
    for prefix in ('/data/system','/data/adb','/data/data','/data/user_de','/data/user','/data/local/tmp','/proc','/sys/block','/product'):
     text=re.sub(r'(?<![\w/])'+re.escape(prefix)+r'\b',str(case/'root')+prefix,text)
    text=text.replace('BB='+str(adb/'magisk/busybox'),'BB=/usr/bin/busybox')
