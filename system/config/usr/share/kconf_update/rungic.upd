@@ -30,3 +30,7 @@ Script=rungic-recording-quicksetting.sh,sh
 # Runs before KWin like the others, so the first session already has them.
 Id=rungic-keyboard-defaults-v1
 Script=rungic-keyboard-defaults.sh,sh
+
+# plasmakeyboardrc as the floating keyboard's QML Settings left it (docs/121, 2026-10-08).
+Id=rungic-keyboard-repair-v1
+Script=rungic-keyboard-repair.sh,sh

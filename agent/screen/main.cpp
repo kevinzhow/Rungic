@@ -12,6 +12,7 @@
 
 #include "agentscreen.h"
 #include "floater.h"
+#include "phonekeyboard.h"
 
 int main(int argc, char *argv[])
 {
@@ -54,6 +55,7 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty(QStringLiteral("agent"), single);
     engine.rootContext()->setContextProperty(QStringLiteral("director"), director.get());
     engine.rootContext()->setContextProperty(QStringLiteral("floater"), &floater);
+    engine.rootContext()->setContextProperty(QStringLiteral("phoneKeyboardLocales"), phoneKeyboardLocales());
     engine.loadFromModule("com.rungic.agentscreen", "Main");
     if (engine.rootObjects().isEmpty())
         return 1;

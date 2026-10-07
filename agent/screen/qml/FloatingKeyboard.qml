@@ -75,15 +75,11 @@ Item {
         property alias cx: board.cx
         property alias cy: board.cy
     }
-    // The phone keyboard's languages (plasmakeyboardrc, its settings page).
-    Settings {
-        id: phoneKeyboard
-        category: "General"
-        location: StandardPaths.writableLocation(StandardPaths.ConfigLocation) + "/plasmakeyboardrc"
-        property var enabledLocales: []
-    }
+    // The phone keyboard's languages (plasmakeyboardrc, its settings page), read by the window
+    // (phonekeyboard.h): only read, as QML's Settings would rewrite that KConfig file.
+    property var phoneLocales: []
     function locales() {
-        const list = [].concat(phoneKeyboard.enabledLocales || []).filter(l => !!l)
+        const list = [].concat(phoneLocales || []).filter(l => !!l)
         return list.length ? list : ["zh_CN", "en_US"]
     }
     function choose(index) {

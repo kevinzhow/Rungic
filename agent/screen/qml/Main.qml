@@ -1146,6 +1146,7 @@ Window {
         active: root.typing
         sourceComponent: FloatingKeyboard {
             area: stage
+            phoneLocales: phoneKeyboardLocales
             place: root.screen && root.screen.workspace === 0 ? "desktop" : "screens"
             composing: (root.telling ? tellField : keyboardField).preeditText
             onKeyWanted: (code) => root.telling ? root.tellKey(code) : root.sendKey(code)

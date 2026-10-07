@@ -253,6 +253,26 @@ def test_a_keyboard_and_languages_the_user_chose_stay(home):
     assert config(home, 'plasmakeyboardrc')['General']['enabledLocales'] == 'en_US'
 
 
+# covers: desktop.settings-migration/E5
+def test_a_keyboard_config_the_floating_keyboard_rewrote_gets_its_languages_back(home):
+    # What QML's Settings (QSettings) left: the list with spaces (KConfig reads " en_US") and a
+    # [%General] group of its own.
+    write(home, 'plasmakeyboardrc', '[General]\nenabledLocales=zh_CN, en_US\n\n[%General]\nenabledLocales=@Invalid()\n')
+    migrate(home, 'rungic-keyboard-repair.sh')
+    c = config(home, 'plasmakeyboardrc')
+    assert c['General']['enabledLocales'] == 'zh_CN,en_US'
+    assert not c.has_option('%General', 'enabledLocales')
+
+
+# covers: desktop.settings-migration/E5
+def test_the_keyboard_repair_keeps_a_clean_or_missing_config(home):
+    migrate(home, 'rungic-keyboard-repair.sh')
+    assert not (home / '.config/plasmakeyboardrc').exists(), 'no file is created'
+    write(home, 'plasmakeyboardrc', '[General]\nenabledLocales=en_US,ja_JP\n')
+    migrate(home, 'rungic-keyboard-repair.sh')
+    assert (home / '.config/plasmakeyboardrc').read_text() == '[General]\nenabledLocales=en_US,ja_JP\n'
+
+
 def upd_entries():
     entries, current = [], None
     for line in (UPDATE / 'rungic.upd').read_text().splitlines():
