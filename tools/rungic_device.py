@@ -6,6 +6,7 @@ Machine-specific values stay outside the repository:
 
   RUNGIC_ADB        adb executable (default: PATH, then common SDK locations)
   RUNGIC_SERIAL     hardware serial, ro.serialno (default ZY32MVJS25)
+  RUNGIC_ADB_PORT   optional explicit local adb server port (core acceptance uses 5037)
   RUNGIC_TRANSPORT  adb transport id to use as-is, e.g. 10.77.0.16:44995
 
 The same keys may be written as KEY=VALUE lines in .work/device.env; the
@@ -74,7 +75,7 @@ def config():
             if line and not line.startswith('#') and '=' in line:
                 key, value = line.split('=', 1)
                 values[key.strip()] = value.strip().strip('"\'')
-    for key in ('RUNGIC_ADB', 'RUNGIC_SERIAL', 'RUNGIC_TRANSPORT'):
+    for key in ('RUNGIC_ADB', 'RUNGIC_ADB_PORT', 'RUNGIC_SERIAL', 'RUNGIC_TRANSPORT'):
         former = 'MOTO_' + key[len('RUNGIC_'):]
         if key not in values and former in values:
             values[key] = values.pop(former)
@@ -107,6 +108,14 @@ def adb_path():
     raise DeviceError('adb not found; set RUNGIC_ADB')
 
 
+def adb_server():
+    """A selected server is explicit; ordinary callers retain their existing adb configuration."""
+    port = config().get('RUNGIC_ADB_PORT')
+    if port is not None and (not port.isdigit() or not 1 <= int(port) <= 65535):
+        raise DeviceError('RUNGIC_ADB_PORT must be 1..65535')
+    return [adb_path(), *(['-P', port] if port is not None else [])]
+
+
 def serial():
     return config().get('RUNGIC_SERIAL', DEFAULT_SERIAL)
 
@@ -117,7 +126,7 @@ def transport():
     if config().get('RUNGIC_TRANSPORT'):
         return config()['RUNGIC_TRANSPORT']
     # stdin=DEVNULL: adb shell otherwise consumes the caller's stdin (e.g. an MCP stdio stream).
-    out = subprocess.run([adb_path(), 'devices'], capture_output=True, text=True, timeout=15,
+    out = subprocess.run([*adb_server(), 'devices'], capture_output=True, text=True, timeout=15,
                          stdin=subprocess.DEVNULL).stdout
     devices = [line.split()[0] for line in out.splitlines()[1:]
                if line.strip() and line.split()[-1] == 'device']
@@ -125,7 +134,7 @@ def transport():
         return serial()
     for device in devices:
         try:
-            found = subprocess.run([adb_path(), '-s', device, 'shell', 'getprop', 'ro.serialno'],
+            found = subprocess.run([*adb_server(), '-s', device, 'shell', 'getprop', 'ro.serialno'],
                                    capture_output=True, text=True, timeout=10,
                                    stdin=subprocess.DEVNULL).stdout.strip()
         except subprocess.TimeoutExpired:
@@ -139,7 +148,7 @@ def transport():
 def devices():
     """The connected adb devices: [(transport, state, model)] from `adb devices -l` (state 'device' when
     usable; 'offline', 'unauthorized' otherwise)."""
-    out = subprocess.run([adb_path(), 'devices', '-l'], capture_output=True, text=True, timeout=15,
+    out = subprocess.run([*adb_server(), 'devices', '-l'], capture_output=True, text=True, timeout=15,
                          stdin=subprocess.DEVNULL).stdout
     result = []
     for line in out.splitlines()[1:]:
@@ -151,11 +160,14 @@ def devices():
 
 
 @contextlib.contextmanager
-def selected(serial=None, transport=None):
+def selected(serial=None, transport=None, port=None):
     """Commands go to this phone until the block ends: RUNGIC_SERIAL and RUNGIC_TRANSPORT for this
     process and the tools it starts (rungic_plasma.py restarts the session), with the cached lookups of
     the previous phone (its transport, APK name, transfer directory) cleared before and after."""
-    saved = {key: os.environ.get(key) for key in ('RUNGIC_SERIAL', 'RUNGIC_TRANSPORT', 'MOTO_SERIAL', 'MOTO_TRANSPORT')}
+    keys = ('RUNGIC_SERIAL', 'RUNGIC_TRANSPORT', 'MOTO_SERIAL', 'MOTO_TRANSPORT')
+    if port is not None:
+        keys += ('RUNGIC_ADB_PORT', 'MOTO_ADB_PORT')
+    saved = {key: os.environ.get(key) for key in keys}
 
     def clear():
         for cached in (config, globals()['transport'], apk, container_transfer):   # the argument hides transport()
@@ -166,6 +178,8 @@ def selected(serial=None, transport=None):
         os.environ['RUNGIC_SERIAL'] = serial
     if transport:
         os.environ['RUNGIC_TRANSPORT'] = transport
+    if port is not None:
+        os.environ['RUNGIC_ADB_PORT'] = str(port)
     clear()
     try:
         yield
@@ -180,7 +194,7 @@ def selected(serial=None, transport=None):
 
 def adb(*args):
     """adb argv prefix bound to the phone."""
-    return [adb_path(), '-s', transport(), *args]
+    return [*adb_server(), '-s', transport(), *args]
 
 
 def _run(argv, script, timeout, check):
