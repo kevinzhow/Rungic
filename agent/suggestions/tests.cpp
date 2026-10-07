@@ -220,6 +220,22 @@ private Q_SLOTS:
         u.snapshot("b", {{"accountKey", "k"}}, 103);
         QVERIFY(!shown(u.view(104), "b")["stale"].toBool()); QCOMPARE(shown(u.view(104), "b")["status"].toString(), "ready");
     }
+    // covers: agent.usage-widget/E5
+    void usageInstallationIsIndependentAndUnknownAfterTransportFailure() {
+        Care::Usage u(""); u.setProviders({provider("a")});
+        QVERIFY(shown(u.view(99), "a")["installed"].isNull());
+        u.snapshot("a", {{"installed", false}, {"status", "not-installed"}}, 100);
+        auto p = shown(u.view(101), "a");
+        QCOMPARE(p["status"].toString(), "not-installed");
+        QVERIFY(p["installed"].isBool() && !p["installed"].toBool());
+        QVERIFY(p["tokens"].toObject()["device"].isNull());
+        u.failure("a", {}, true);
+        QVERIFY(shown(u.view(102), "a")["installed"].isNull());
+        QCOMPARE(shown(u.view(102), "a")["status"].toString(), "offline");
+        u.snapshot("a", {{"installed", true}, {"status", "signed-out"}}, 103);
+        QCOMPARE(shown(u.view(104), "a")["status"].toString(), "signed-out");
+        QVERIFY(shown(u.view(104), "a")["installed"].toBool());
+    }
     // covers: agent.usage-widget/E3
     void usageDropsUnknownFields() {
         Care::Usage u(""); u.setProviders({provider("a")});
@@ -232,7 +248,7 @@ private Q_SLOTS:
         const auto text = QJsonDocument(p).toJson();
         for (const auto *leak : {"secret", "someone", "Spoofed", "cost", "dancing", "tokenEvents"}) QVERIFY2(!text.contains(leak), leak);
         const auto keys = p.keys();
-        QCOMPARE(QSet<QString>(keys.begin(), keys.end()), (QSet<QString>{"id", "name", "vendor", "icon", "status", "account", "model", "tokens", "limits", "updatedAt", "stale", "error"}));
+        QCOMPARE(QSet<QString>(keys.begin(), keys.end()), (QSet<QString>{"id", "name", "vendor", "icon", "status", "account", "model", "tokens", "limits", "updatedAt", "stale", "error", "installed"}));
         QCOMPARE(p["name"].toString(), "A"); QCOMPARE(p["status"].toString(), "ready");
         QCOMPARE(p["account"].toObject().keys(), (QStringList{"kind", "label", "plan"}));
         QCOMPARE(p["tokens"].toObject()["account"].toInteger(), 12); QVERIFY(p["tokens"].toObject()["device"].isNull());

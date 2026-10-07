@@ -11,6 +11,7 @@ the user starts the update, which is the command `codex update` runs for a stand
 import json
 import os
 import re
+import stat
 import time
 import urllib.request
 from pathlib import Path
@@ -25,10 +26,25 @@ def codex_home():
     return Path(os.environ.get('CODEX_HOME') or Path.home() / '.codex')
 
 
+def binary():
+    return codex_home() / 'packages/standalone/current/bin/codex'
+
+
 def standalone():
     """The installed standalone Codex (its `current` release), or None."""
-    path = codex_home() / 'packages/standalone/current/bin/codex'
+    path = binary()
     return path if os.access(path, os.X_OK) else None
+
+
+def installed():
+    """Check the same standalone binary independently of RPC; unreadable state stays unknown."""
+    path = binary()
+    try:
+        return True if stat.S_ISREG(path.stat().st_mode) else None
+    except FileNotFoundError:
+        return False
+    except OSError:
+        return None
 
 
 def command():

@@ -999,3 +999,46 @@ msgstr "暂时连不上 Codex，这些建议尚未整理。"
 msgid "%1 crash report saved. The cause and impact still need checking."
 msgid_plural "%1 crash reports saved. The cause and impact still need checking."
 msgstr[0] "最近保存了 %1 份退出记录。原因和实际影响仍需确认。"
+
+#: task98 Codex installation state
+msgid "Not installed"
+msgstr "未安装"
+
+#: task98 Codex installation state
+msgctxt "@info agent status"
+msgid "Not installed"
+msgstr "未安装"
+
+#: task98 Codex installation state
+msgid "%1 isn’t installed yet"
+msgstr "尚未安装 %1"
+
+#: task98 Codex installation state
+msgid "Install from Agent → Settings → Codex."
+msgstr "在 Agent → 设置 → Codex 中安装。"
+
+#: task98 Codex installation state
+msgctxt "@action"
+msgid "Install Codex ›"
+msgstr "安装 Codex ›"
+
+#: task98 Codex installation state
+msgctxt "@info"
+msgid "Get started with Agent"
+msgstr "开始使用 Agent"
+
+#: task98 Codex installation state
+msgid "Codex isn’t installed yet. Install it from Agent → Settings → Codex, then sign in to get help with your tasks."
+msgstr "尚未安装 Codex。请在 Agent → 设置 → Codex 中安装，再登录，让它协助你的任务。"
+
+#: task98 Codex installation state
+msgid "Sign in to Codex from Agent → Settings → Sign-in to get help with your tasks."
+msgstr "请在 Agent → 设置 → 登录方式中登录 Codex，让它协助你的任务。"
+
+#: task98 Codex installation state
+msgid "Once Codex is installed, signed in and connected, it can help with your tasks. Local records remain available."
+msgstr "安装 Codex 并登录、连接成功后，它就能协助你的任务。本地记录仍可查看。"
+
+#: task98 Codex installation state
+msgid "Local records remain available. Once Codex is installed, signed in and connected, it can help investigate them."
+msgstr "本地记录仍可查看。安装 Codex 并登录、连接成功后，它就能协助调查。"

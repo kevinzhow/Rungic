@@ -42,6 +42,10 @@ qt_add_executable(care-tests tests.cpp)
 target_link_libraries(care-tests PRIVATE caremodel Qt6::Test)
 target_compile_definitions(care-tests PRIVATE CARE_TESTDATA="${CMAKE_CURRENT_SOURCE_DIR}/testdata")
 add_test(NAME care-model COMMAND care-tests)
+qt_add_executable(care-client-tests client-tests.cpp client.cpp client.h)
+target_link_libraries(care-client-tests PRIVATE Qt6::Test Qt6::DBus Qt6::Gui Qt6::Qml Qt6::Quick
+    KF6::WindowSystem KF6::I18n)
+add_test(NAME care-client COMMAND dbus-run-session -- $<TARGET_FILE:care-client-tests>)
 # The widgets in every state (docs/87's gallery, for the home screen): offscreen screenshots with
 # QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software rungic-suggestions-gallery --shot FILE.
 qt_add_executable(rungic-suggestions-gallery gallery.cpp)

@@ -118,7 +118,7 @@ int main(int argc, char *argv[])
     const QString conversation = at >= 0 && at + 1 < args.size() ? args.at(at + 1) : QString();
     const qsizetype suggestionAt = args.indexOf(QStringLiteral("--suggestion"));
     const bool suggestions = suggestionAt >= 0;
-    const QString page = args.contains("--sign-in") ? "sign-in" : args.contains("--usage") ? "usage" : args.contains("--agent") ? "agent" : "";
+    const QString page = args.contains("--codex") ? "codex" : args.contains("--sign-in") ? "sign-in" : args.contains("--usage") ? "usage" : args.contains("--agent") ? "agent" : "";
     const QString suggestion = suggestions ? args.value(suggestionAt + 1) : QString();
     auto bus = QDBusConnection::sessionBus();
 

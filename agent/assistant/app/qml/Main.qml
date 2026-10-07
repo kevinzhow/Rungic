@@ -50,7 +50,8 @@ QQC2.ApplicationWindow {
     function back() { if (stack.depth > 1) stack.pop() }
     function openAgentPage(page) {
         while (stack.depth > 1) stack.pop(null)
-        if (page === "usage") stack.push(Qt.resolvedUrl("UsagePage.qml"))
+        if (page === "codex") stack.push(Qt.resolvedUrl("CodexPage.qml"))
+        else if (page === "usage") stack.push(Qt.resolvedUrl("UsagePage.qml"))
         else if (page === "sign-in") stack.push(Qt.resolvedUrl("AccountPage.qml"))
     }
     function openSuggestions(id) {

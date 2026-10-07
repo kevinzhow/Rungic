@@ -23,7 +23,8 @@ SettingsFrame {
     readonly property string kind: Account.kind(account)
     readonly property string visualState: forcedState !== "" ? forcedState
         : setup.codex === undefined ? "loading"
-        : setup.accountStatus === "offline" ? "unreachable"
+        : setup.codex.installed === false ? "notInstalled"
+        : setup.accountStatus !== "ready" && setup.accountStatus !== "signed-out" ? "unreachable"
         : login && !login.error ? "signingIn"
         : confirming ? "confirming"
         : kind === "chatgpt" ? "chatgpt" : kind === "apiKey" ? "apiKey" : "signedOut"
@@ -33,6 +34,7 @@ SettingsFrame {
     property bool confirmShown: false
     states: [
         State { name: "loading"; PropertyChanges { page.choicesShown: false; page.codeShown: false; page.confirmShown: false } },
+        State { name: "notInstalled"; PropertyChanges { page.choicesShown: false; page.codeShown: false; page.confirmShown: false } },
         State { name: "unreachable"; PropertyChanges { page.choicesShown: false; page.codeShown: false; page.confirmShown: false } },
         State { name: "signedOut"; PropertyChanges { page.choicesShown: true; page.codeShown: false; page.confirmShown: false } },
         State { name: "chatgpt"; PropertyChanges { page.choicesShown: true; page.codeShown: false; page.confirmShown: false } },
@@ -77,9 +79,9 @@ SettingsFrame {
         Layout.leftMargin: Theme.groupMargin
         Layout.rightMargin: Theme.groupMargin
         ListRow {
-            text: page.visualState === "unreachable" ? i18nc("@info", "Cannot confirm the sign-in right now") : page.visualState === "loading" ? "" : Account.label(page.tr, page.account)
+            text: page.visualState === "unreachable" ? i18nc("@info", "Cannot confirm the sign-in right now") : page.visualState === "loading" ? "" : Account.label(page.tr, page.account, page.setup.accountStatus || "unknown")
             subtitle: page.kind === "chatgpt" ? (page.account.email || "") : ""
-            dot: page.visualState === "loading" ? "" : page.kind === "none" ? "negative" : "positive"
+            dot: ["loading", "unreachable", "notInstalled"].includes(page.visualState) ? "" : page.kind === "none" ? "negative" : "positive"
         }
     }
     Note {
@@ -87,7 +89,7 @@ SettingsFrame {
         Layout.leftMargin: Theme.gutter
         Layout.rightMargin: Theme.gutter
         Layout.topMargin: Theme.spaceM
-        visible: !["loading", "unreachable"].includes(page.visualState)
+        visible: !["loading", "unreachable", "notInstalled"].includes(page.visualState)
         text: Account.billing(page.tr, page.account)
     }
     Note {
@@ -109,6 +111,17 @@ SettingsFrame {
         visible: page.visualState === "unreachable"
         text: i18nc("@action:button", "Check again")
         onClicked: AgentClient.request("Setup")
+    }
+
+    Note {
+        Layout.fillWidth: true
+        visible: page.visualState === "notInstalled"
+        text: i18nc("@info", "Codex isn’t installed yet. Install it from Agent → Settings → Codex, then sign in to get help with your tasks.")
+    }
+    PillButton {
+        visible: page.visualState === "notInstalled"
+        text: i18nc("@action:button", "Install Codex")
+        onClicked: page.Window.window.openSettings("CodexPage.qml")
     }
 
     // ---- the ways to sign in ----------------------------------------------------------------

@@ -10,7 +10,7 @@
 #include <utility>
 namespace Care {
 namespace {
-const QStringList Statuses{"working", "ready", "offline", "connecting", "signed-out", "error"};
+const QStringList Statuses{"working", "ready", "offline", "connecting", "signed-out", "not-installed", "error"};
 const QStringList Kinds{"subscription", "api-key", "none"};
 // A non-negative whole number, or null: providers report counts they don't know as null, never 0.
 QJsonValue count(const QJsonValue &v) {
@@ -29,6 +29,7 @@ QJsonObject sanitized(const QJsonObject &in) {
     QJsonObject out;
     const auto status = in["status"].toString();
     out["status"] = Statuses.contains(status) ? status : QStringLiteral("ready");
+    out["installed"] = in["installed"].isBool() ? in["installed"] : QJsonValue(QJsonValue::Null);
     const auto a = in["account"].toObject();
     const auto kind = a["kind"].toString();
     out["account"] = QJsonObject{{"kind", Kinds.contains(kind) ? kind : QStringLiteral("none")},
@@ -179,6 +180,7 @@ void Usage::failure(const QString &provider, const QString &message, bool offlin
     auto &s = states[provider];
     s.status = offline ? QStringLiteral("offline") : QStringLiteral("error");
     s.problem = message; s.failed = true;
+    s.current["installed"] = QJsonValue::Null; // transport failure cannot recheck the binary
 }
 bool Usage::record(const QString &provider, const QJsonObject &event, qint64 now) {
     if (!declares(provider)) return false;
@@ -230,6 +232,7 @@ QJsonObject Usage::provider(const UsageProvider &p, const State &s, qint64 now) 
         mark = paths;
     }
     return {{"id", p.id}, {"name", p.name}, {"vendor", p.vendor}, {"icon", mark}, {"status", s.status},
+            {"installed", !s.current["installed"].isBool() ? QJsonValue(QJsonValue::Null) : s.current["installed"]},
             {"account", s.current.contains("account") ? s.current["account"] : QJsonObject{{"kind", "none"}, {"label", ""}, {"plan", ""}}},
             {"model", s.current["model"].toString()}, {"tokens", tokens}, {"limits", limits}, {"updatedAt", s.refreshed},
             {"stale", !s.refreshed || now - s.refreshed > 180 || s.failed}, {"error", s.problem.isEmpty() ? saveProblem : s.problem}};

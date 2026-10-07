@@ -75,9 +75,12 @@ SettingsFrame {
                 }
             }
             Text {
-                Layout.alignment: Qt.AlignHCenter
-                text: page.codex.installed ? (page.codex.runs === false ? i18nc("@title", "Codex can't run") : i18nc("@title", "Codex is ready"))
-                    : i18nc("@title", "Codex isn't installed yet")
+                Layout.fillWidth: true
+                horizontalAlignment: Text.AlignHCenter
+                wrapMode: Text.Wrap
+                text: page.codex.installed === true ? (page.codex.runs === false ? i18nc("@title", "Codex can't run") : i18nc("@title", "Codex is installed"))
+                    : page.codex.installed === false ? i18nc("@title", "Codex isn't installed yet")
+                    : i18nc("@title", "Codex installation not confirmed")
                 font.family: Theme.fontFamily
                 font.pixelSize: Theme.heroSize
                 font.weight: Font.DemiBold
@@ -86,8 +89,9 @@ SettingsFrame {
             Text {
                 Layout.fillWidth: true
                 horizontalAlignment: Text.AlignHCenter
-                text: page.codex.installed ? i18nc("@info", "The Agent uses it to run commands and use apps on the phone.")
-                    : i18nc("@info", "The Agent relies on Codex to run commands and use apps on the phone. Install it, and the Agent can get things done for you.")
+                text: page.codex.installed === true ? i18nc("@info", "The Agent uses it to run commands and use apps on the phone.")
+                    : page.codex.installed === false ? i18nc("@info", "The Agent relies on Codex to run commands and use apps on the phone. Install it, and the Agent can get things done for you.")
+                    : i18nc("@info", "The installation check is unavailable. Check again before installing or signing in.")
                 wrapMode: Text.Wrap
                 font.family: Theme.fontFamily
                 font.pixelSize: Theme.metaSize
@@ -101,6 +105,12 @@ SettingsFrame {
             }
         }
         Item { implicitHeight: 20 }
+
+        PillButton {
+            visible: page.codex.installed !== true && page.codex.installed !== false
+            text: i18nc("@action:button", "Check again")
+            onClicked: AgentClient.request("Setup")
+        }
 
         // Installed.
         ListGroup {
@@ -117,8 +127,8 @@ SettingsFrame {
             }
             ListRow {
                 text: i18nc("@label how Codex is signed in", "Sign-in")
-                value: Account.label(page.tr, page.setup.account || null)
-                subtitle: Account.billing(page.tr, page.setup.account || null)
+                value: Account.label(page.tr, page.setup.account || null, page.setup.accountStatus || "unknown")
+                subtitle: page.setup.accountStatus === "ready" ? Account.billing(page.tr, page.setup.account || null) : ""
                 accessory: "chevron"
                 onClicked: page.push("AccountPage.qml")
             }

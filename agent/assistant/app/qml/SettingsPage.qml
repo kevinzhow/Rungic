@@ -55,8 +55,9 @@ SettingsFrame {
         Layout.rightMargin: Theme.groupMargin
         ListRow {
             text: "Codex"
-            dot: page.setup.codex ? (page.codex.installed ? "positive" : "negative") : ""
-            value: !page.setup.codex ? "" : !page.codex.installed ? i18nc("@info Codex", "Not installed")
+            dot: page.setup.codex ? (page.codex.installed === true ? "positive" : "") : ""
+            value: !page.setup.codex ? "" : page.codex.installed === false ? i18nc("@info Codex", "Not installed")
+                : page.codex.installed !== true ? i18nc("@info Codex", "Installation not confirmed")
                 : page.codex.update && page.codex.update.available ? i18nc("@info Codex; %1 is a version", "Update to %1", page.codex.update.latest)
                 : i18nc("@info Codex", "Installed")
             accessory: "chevron"
@@ -73,8 +74,8 @@ SettingsFrame {
         // How Codex signs in, and so who pays for the Agent's tasks (docs/101).
         ListRow {
             text: i18nc("@label how Codex is signed in", "Sign-in")
-            value: page.setup.codex === undefined ? "" : Account.label(page.tr, page.setup.account || null)
-            dot: page.setup.codex !== undefined && page.codex.installed && !page.setup.account ? "negative" : ""
+            value: page.setup.codex === undefined ? "" : Account.label(page.tr, page.setup.account || null, page.setup.accountStatus || "unknown")
+            dot: page.setup.codex !== undefined && page.setup.accountStatus === "signed-out" ? "negative" : ""
             enabled: page.codex.installed !== false
             accessory: "chevron"
             onClicked: page.push("AccountPage.qml")

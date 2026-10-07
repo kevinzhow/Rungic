@@ -297,6 +297,7 @@ class Service:
         self.agent = None
 
     def make(self, key=True, codex=True):
+        self.mp.setattr(v.codex_install, 'installed', lambda: codex)
         if key:
             keys.store('openai-api-key', 'sk-test-key-0123456789')
         if codex:
@@ -665,6 +666,9 @@ def test_without_codex_the_service_stays_and_says_install(service):
     with pytest.raises(RuntimeError):
         agent.open_conversation('')                 # a new one needs Codex: it says so, the service goes on
     assert agent.setup()['codex']['installed'] is False
+    assert s.dbus('Setup')['accountStatus'] == 'not-installed'
+    usage = s.dbus('Usage')
+    assert usage['installed'] is False and usage['status'] == 'not-installed'
 
 
 # ---- hands-free after a quick press (agent.home-hold/E2) -----------------------------------------

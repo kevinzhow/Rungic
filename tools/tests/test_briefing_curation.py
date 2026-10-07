@@ -23,7 +23,7 @@ agent_class.body = [n for n in agent_class.body if isinstance(n, ast.FunctionDef
 body.append(agent_class)
 namespace = {'json': json, 're': re, 'threading': threading, 'time': time, 'Path': Path, '_': lambda text: text,
              'language_note': lambda: '\n\nlanguage: English', 'log': lambda *a: None,
-             'openai_key': lambda: ''}
+             'openai_key': lambda: '', 'codex_install': types.SimpleNamespace(installed=lambda: True)}
 exec(compile(ast.Module(body=body, type_ignores=[]), str(source), 'exec'), namespace)
 VoiceAgent = namespace['VoiceAgent']
 CARDS = {'cards': [{'title': 'Crashes to go through', 'body': 'Three apps quit.', 'kind': 'issues', 'priority': 60,
@@ -131,7 +131,7 @@ class CurationTests(unittest.TestCase):
     # covers: agent.briefing/E4
     def test_unavailable_signed_out_busy_and_bad_input(self):
         self.agent.server = None
-        with self.assertRaisesRegex(RuntimeError, '^unavailable:'): self.agent.curate(self.input)
+        with self.assertRaisesRegex(RuntimeError, '^connection-failed:'): self.agent.curate(self.input)
         self.agent.server = FakeServer(self.agent, account={})
         with self.assertRaisesRegex(RuntimeError, '^signed-out:'): self.agent.curate(self.input)
         self.agent.server = server = FakeServer(self.agent)
@@ -140,6 +140,14 @@ class CurationTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, '^invalid:'): self.agent.curate('[]')
         with self.assertRaisesRegex(ValueError, '^invalid:'): self.agent.curate('{"items": []}' + ' ' * namespace['CURATE_INPUT_MAX'])
         self.assertNotIn('thread/start', [m for m, _ in server.calls])
+
+    def test_missing_installation_never_starts_curation(self):
+        self.agent.server = FakeServer(self.agent)
+        from unittest.mock import patch
+        with patch.object(namespace['codex_install'], 'installed', return_value=False):
+            with self.assertRaisesRegex(RuntimeError, '^not-installed:'):
+                self.agent.curate(self.input)
+        self.assertEqual(self.agent.server.calls, [])
 
     # covers: agent.briefing/E4
     def test_connection_failure_is_distinct_from_signed_out_and_recovers(self):

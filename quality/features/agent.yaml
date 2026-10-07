@@ -449,7 +449,7 @@ features:
     summary: 系统不自带 Codex。设置里用官方脚本一键安装到用户目录，有新的正式版时提示更新。
     experience:
       - id: E1
-        text: 设置里显示 Codex 已安装、未安装或正在安装。未安装时一键用官方脚本装到 ~/.codex，期间语音服务不退出，对话里提示“还差一步：安装 Codex”。
+        text: 默认不自动安装 Codex。首页明确提示未安装并打开设置中的原有安装入口，设置分别显示已安装、未安装、无法确认或正在安装；未安装时由用户点击，用官方脚本装到 ~/.codex。安装检查和账户连接分开，读取失败不能推断未安装或未登录。
         evidence:
           - {doc: docs/99-codex-standalone.md, date: 2026-10-01, note: "Setup 报告已安装、能运行；一键安装本身未重跑"}
       - id: E2
@@ -474,6 +474,8 @@ features:
       - packaging/rungic-codex/
       - agent/assistant/codex_install.py
       - agent/assistant/app/qml/CodexPage.qml
+      - agent/suggestions/qml/AgentWidget.qml
+      - tools/tests/test_assistant_app.py
       - tools/tests/test_codex_install.py
     docs: [docs/99-codex-standalone.md]
 
@@ -1462,7 +1464,7 @@ features:
       - id: E4
         text: Claude Code 的 token 来自其会话记录，每条消息只算一次。额度只取文档化的 statusline 数据，不用未文档化的接口。
       - id: E5
-        text: 读取失败、离线、未登录各自显示，不编造额度。账户切换期间读到的旧响应被丢弃，别的账户的 token 不会算进来。
+        text: 未安装、读取失败、离线、未登录各自显示，不编造安装状态或额度。连接断开时安装状态保持未知；账户切换期间读到的旧响应被丢弃，别的账户的 token 不会算进来。
       - id: E6
         text: 额度的重置时间到了只标记“待刷新”，不在本地把已用额度清零。
       - id: E7
@@ -1476,6 +1478,7 @@ features:
         docs: [docs/research/95-agent-usage-providers.md]
     code:
       - agent/suggestions/usage.cpp
+      - agent/suggestions/client-tests.cpp
       - agent/suggestions/usage.h
       - agent/suggestions/claude_code.cpp
       - agent/suggestions/claude_code.h

@@ -17,6 +17,7 @@ Rectangle {
     property string agentName: "Codex"
     property var agentIcon: ({})
     property string meta: ""
+    property string agentStatus: ""
     property bool canAskAgent: true
     property bool busy: false            // the Agent is sorting the cards again
     property bool opening: false         // Open was tapped; waiting for the conversation
@@ -56,11 +57,16 @@ Rectangle {
                 face.secondaryText: l10n.i18nc("@action:button", "Later") } },
         State { name: "empty"; PropertyChanges { face.kindText: l10n.i18nc("@info", "All clear"); face.quiet: true
                 face.titleText: l10n.i18n("Nothing needs your attention")
-                face.bodyText: l10n.i18nc("@info %1 the agent's name", "%1 keeps an eye on this phone in the background and puts anything worth your time here.", face.agentName)
+                face.bodyText: face.canAskAgent ? l10n.i18nc("@info %1 the agent's name", "%1 keeps an eye on this phone in the background and puts anything worth your time here.", face.agentName)
+                    : l10n.i18n("Local records remain available. Once Codex is installed, signed in and connected, it can help investigate them.")
                 face.primaryText: l10n.i18nc("@action:button", "See all records"); face.secondaryText: "" } },
         State { name: "firstrun"; PropertyChanges { face.kindText: l10n.i18nc("@info", "Getting started"); face.quiet: true
-                face.titleText: l10n.i18nc("@info %1 the agent's name", "%1 is getting to know this phone", face.agentName)
-                face.bodyText: l10n.i18n("It looks at crashes, services and apps in the background. Anything worth your time will show up here.")
+                face.titleText: face.canAskAgent ? l10n.i18nc("@info %1 the agent's name", "%1 is getting to know this phone", face.agentName)
+                    : l10n.i18nc("@info", "Get started with Agent")
+                face.bodyText: face.canAskAgent ? l10n.i18n("It looks at crashes, services and apps in the background. Anything worth your time will show up here.")
+                    : face.agentStatus === "not-installed" ? l10n.i18n("Codex isn’t installed yet. Install it from Agent → Settings → Codex, then sign in to get help with your tasks.")
+                    : face.agentStatus === "signed-out" ? l10n.i18n("Sign in to Codex from Agent → Settings → Sign-in to get help with your tasks.")
+                    : l10n.i18n("Once Codex is installed, signed in and connected, it can help with your tasks. Local records remain available.")
                 face.primaryText: ""; face.secondaryText: "" } },
         State { name: "offline"; PropertyChanges { face.kindText: l10n.i18nc("@info", "Reconnecting…"); face.kindBusy: true; face.quiet: true
                 face.titleText: l10n.i18n("Can’t reach Agent Suggestions")

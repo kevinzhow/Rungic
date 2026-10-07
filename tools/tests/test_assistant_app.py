@@ -461,7 +461,7 @@ class AppTest(unittest.TestCase):
                  ({'account': None, 'key': {'set': False}}, 'Not signed in', 'Not set')]
         for setup, sign_in, key in cases:
             with self.subTest(sign_in):
-                q.send(self.engine, 'replied', 'Setup', {**base, **setup})
+                q.send(self.engine, 'replied', 'Setup', {**base, **setup, 'accountStatus': 'ready' if setup.get('account') else 'signed-out'})
                 q.spin(0.2)
                 texts = self.texts()
                 self.assertIn('Sign-in', texts)
@@ -476,7 +476,7 @@ class AppTest(unittest.TestCase):
         q.js(self.engine, self.root, 'openSettings("AccountPage.qml")')
         q.spin(0.5)
         for setup, sign_in, _key in cases[:2]:
-            q.send(self.engine, 'replied', 'Setup', {**base, **setup})
+            q.send(self.engine, 'replied', 'Setup', {**base, **setup, 'accountStatus': 'ready' if setup.get('account') else 'signed-out'})
             q.spin(0.2)
             self.assertIn(bills[sign_in], self.texts())
         q.js(self.engine, self.root, 'openSettings("KeyPage.qml")')
@@ -528,6 +528,29 @@ class AppTest(unittest.TestCase):
         q.spin(0.2)
         self.assertEqual(page.property('visualState'), 'signedOut')
         self.assertTrue(page.property('choicesShown'))
+
+    def test_missing_codex_opens_existing_installer_and_unknown_only_rechecks(self):
+        q.js(self.engine, self.root, 'openAgentPage("sign-in")')
+        q.spin(0.2)
+        page = q.of_type(self.content, 'AccountPage')[0]
+        q.send(self.engine, 'replied', 'Setup', {'codex': {'installed': False}, 'accountStatus': 'not-installed'})
+        q.spin(0.2)
+        self.assertEqual(page.property('visualState'), 'notInstalled')
+        self.assertFalse(page.property('choicesShown'))
+        q.click(next(b for b in q.of_type(page, 'PillButton') if b.property('text') == 'Install Codex'))
+        q.spin(0.2)
+        installer = q.of_type(self.content, 'CodexPage')[0]
+        q.send(self.engine, 'replied', 'Setup', {'codex': {'installed': False}, 'accountStatus': 'not-installed'})
+        q.spin(0.2)
+        self.assertIn("Codex isn't installed yet", self.texts())
+        self.assertFalse(any(c[:2] == ['request', 'InstallCodex'] for c in q.calls(self.engine)), 'opening never auto-installs')
+        q.send(self.engine, 'replied', 'Setup', {'codex': {'installed': None}, 'accountStatus': 'offline'})
+        q.spin(0.2)
+        self.assertIn('Codex installation not confirmed', self.texts())
+        buttons = [b for b in q.of_type(installer, 'PillButton') if b.isVisible()]
+        self.assertNotIn('Install Codex', [b.property('text') for b in buttons])
+        q.click(next(b for b in buttons if b.property('text') == 'Check again'))
+        self.assertEqual(q.calls(self.engine)[-1], ['request', 'Setup'])
 
 
 if __name__ == '__main__':

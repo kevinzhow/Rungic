@@ -65,6 +65,7 @@ QtObject {
     function open(id) { Recorder.add("open") }
     function openAgent(usage) { Recorder.add(usage ? "app: usage page" : "app: agent conversation") }
     function signIn() { Recorder.add("app: sign-in page") }
+    function openCodex() { Recorder.add("app: Codex install page") }
     function conversation(id) { Recorder.add("conversation " + id) }
 }
 '''
@@ -342,3 +343,33 @@ class AgentAvailabilityCopyTest(WidgetTest):
         self.assertIn('Cannot reach Codex right now', texts())
         self.assertNotIn('Not signed in to Codex', texts())
         self.assertNotIn('Last read', ' '.join(texts()))
+
+
+class MissingCodexTest(WidgetTest):
+    # covers: agent.usage-widget/E5 agent.usage-widget/E7
+    def test_missing_codex_opens_existing_install_page_without_retry_claim(self):
+        self.show(USAGE_HOME, providers=[{**CODEX, 'installed': False, 'status': 'not-installed', 'limits': []}])
+        self.assertEqual(self.item('usage').property('body'), 'install')
+        self.tap(260, 120)
+        self.assertEqual(self.calls(), ['app: Codex install page'])
+
+    # covers: agent.briefing/E9
+    def test_first_desktop_intro_is_conditional_until_agent_is_usable(self):
+        self.show('Window { width: 360; height: 500; SuggestionsWidget { objectName: "suggestions"; width: 340; height: 330; forcedState: "firstrun" } }',
+                  providers=[{**CODEX, 'installed': False, 'status': 'not-installed'}])
+        def face():
+            pending = [self.item('suggestions')]
+            while pending:
+                item = pending.pop()
+                if item.property('titleText') is not None and item.property('visible'):
+                    return item
+                pending.extend(item.childItems())
+            raise AssertionError('no visible briefing face')
+        self.assertEqual(face().property('titleText'), 'Get started with Agent')
+        self.assertIn('isn’t installed yet', face().property('bodyText'))
+        self.recorder.setProperty('providers', [{**CODEX, 'installed': True, 'status': 'signed-out'}]); self.wait(.05)
+        self.assertIn('Sign in to Codex', face().property('bodyText'))
+        self.recorder.setProperty('providers', [{**CODEX, 'installed': None, 'status': 'offline'}]); self.wait(.05)
+        self.assertIn('Once Codex is installed, signed in and connected', face().property('bodyText'))
+        self.recorder.setProperty('providers', [{**CODEX, 'installed': True, 'status': 'ready', 'stale': False}]); self.wait(.05)
+        self.assertEqual(face().property('titleText'), 'Codex is getting to know this phone')

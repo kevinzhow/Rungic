@@ -27,7 +27,9 @@ function kind(account) {
 }
 
 // "ChatGPT plan (Team)", "API key", "Not signed in"
-function label(tr, account) {
+function label(tr, account, status) {
+    if (status === "not-installed") return tr("@info how Codex is signed in", "Not installed")
+    if (status === "offline" || status === "unknown") return tr("@info", "Cannot confirm the sign-in right now")
     switch (kind(account)) {
     case "chatgpt": {
         const name = plan(tr, account.planType)

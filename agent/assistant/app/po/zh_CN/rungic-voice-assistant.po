@@ -1669,3 +1669,33 @@ msgstr "暂时连不上 Codex。你的登录没有变化。"
 msgctxt "@action:button"
 msgid "Check again"
 msgstr "重新检查"
+
+#: task98 Codex installation state
+msgctxt "@info how Codex is signed in"
+msgid "Not installed"
+msgstr "未安装"
+
+#: task98 Codex installation state
+msgctxt "@info Codex"
+msgid "Installation not confirmed"
+msgstr "尚未确认安装状态"
+
+#: task98 Codex installation state
+msgctxt "@title"
+msgid "Codex is installed"
+msgstr "Codex 已安装"
+
+#: task98 Codex installation state
+msgctxt "@title"
+msgid "Codex installation not confirmed"
+msgstr "尚未确认 Codex 安装状态"
+
+#: task98 Codex installation state
+msgctxt "@info"
+msgid "The installation check is unavailable. Check again before installing or signing in."
+msgstr "暂时无法检查安装状态。请重新检查后再安装或登录。"
+
+#: task98 Codex installation state
+msgctxt "@info"
+msgid "Codex isn’t installed yet. Install it from Agent → Settings → Codex, then sign in to get help with your tasks."
+msgstr "尚未安装 Codex。请在 Agent → 设置 → Codex 中安装，再登录，让它协助你的任务。"

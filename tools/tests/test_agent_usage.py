@@ -10,14 +10,15 @@ source = root / 'agent/assistant/rungic_voice_agent.py'
 tree = ast.parse(source.read_text())
 node = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == 'VoiceAgent')
 node.body = [n for n in node.body if isinstance(n, ast.FunctionDef) and n.name in {'codex_account', 'usage', 'usage_limits', 'on_notification'}]
-namespace = {'_': lambda text: text, 'json': json, 'threading': types.SimpleNamespace(Thread=Mock()), 'log': Mock()}
+namespace = {'_': lambda text: text, 'json': json, 'threading': types.SimpleNamespace(Thread=Mock()), 'log': Mock(), 'codex_install': types.SimpleNamespace(installed=Mock(return_value=True))}
 exec(compile(ast.Module(body=[node], type_ignores=[]), str(source), 'exec'), namespace)
 # Keys every provider object may carry (the rest is dropped by the service anyway).
-PROVIDER_KEYS = {'accountKey', 'status', 'account', 'model', 'tokens', 'limits', 'error', 'tokenEvents'}
+PROVIDER_KEYS = {'accountKey', 'status', 'account', 'model', 'tokens', 'limits', 'error', 'tokenEvents', 'installed'}
 
 
 class UsageBridgeTests(unittest.TestCase):
     def setUp(self):
+        namespace['codex_install'].installed.return_value = True
         self.agent = namespace['VoiceAgent']()
         self.agent.agent_busy = False
         self.agent.usage_identity = Mock(return_value='opaque-a')
@@ -34,6 +35,26 @@ class UsageBridgeTests(unittest.TestCase):
 
     def pushed(self, method):
         return [c.args[1:] for c in self.agent.usage_push.call_args_list if c.args[0] == method]
+
+    # covers: agent.usage-widget/E5
+    def test_missing_installation_is_not_connection_failure_or_signed_out(self):
+        namespace['codex_install'].installed.return_value = False
+        self.agent.server = None
+        data = self.agent.usage()
+        self.assertEqual(data['status'], 'not-installed')
+        self.assertIs(data['installed'], False)
+        self.assertNotIn('error', data)
+        self.agent.agent_model.assert_not_called()
+        self.agent.usage_identity.assert_not_called()
+
+    # covers: agent.usage-widget/E5
+    def test_unknown_installation_and_unreachable_account_stay_unknown(self):
+        namespace['codex_install'].installed.return_value = None
+        self.agent.server = None
+        data = self.agent.usage()
+        self.assertEqual(data['status'], 'offline')
+        self.assertIsNone(data['installed'])
+        self.assertNotIn('tokens', data)
 
     # covers: agent.usage-widget/E1
     def test_api_key_never_requests_subscription_quota(self):

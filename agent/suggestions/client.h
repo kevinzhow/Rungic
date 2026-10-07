@@ -45,6 +45,7 @@ public:
     Q_INVOKABLE void open(const QString &id = {});
     Q_INVOKABLE void openAgent(bool usage = false);
     Q_INVOKABLE void signIn();
+    Q_INVOKABLE void openCodex();
     Q_INVOKABLE void conversation(const QString &id);
     Q_INVOKABLE void watching(bool visible);
     Q_INVOKABLE void present(const QVariantList &receipts, bool opened);

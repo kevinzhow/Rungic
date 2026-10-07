@@ -131,3 +131,16 @@ class InstallationTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+# covers: agent.codex-install/E1
+def test_installation_check_uses_binary_and_keeps_unreadable_state_unknown(tmp_path):
+    with patch.dict(os.environ, {'CODEX_HOME': str(tmp_path)}):
+        assert codex_install.installed() is False
+        binary = tmp_path / 'packages/standalone/current/bin/codex'
+        binary.parent.mkdir(parents=True)
+        binary.write_text('not executable yet')
+        assert codex_install.installed() is True
+        assert codex_install.standalone() is None
+        with patch.object(Path, 'stat', side_effect=PermissionError('unreadable')):
+            assert codex_install.installed() is None

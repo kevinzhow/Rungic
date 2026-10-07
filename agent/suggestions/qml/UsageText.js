@@ -4,12 +4,12 @@
 function number(l10n, value) { return value === undefined || value === null ? l10n.i18n("no records yet") : Number(value).toLocaleString(Qt.locale(), "f", 0) }
 function mode(l10n, p) {
     const a = p.account || {}
-    if (p.status === "offline" || p.status === "error") return status(l10n, p)
+    if (p.status === "offline" || p.status === "error" || p.status === "not-installed") return status(l10n, p)
     if (!p.id || p.status === "connecting") return l10n.i18n("Connecting")
     return ({"api-key": a.label || "API Key", subscription: a.label || l10n.i18n("Subscription"), none: l10n.i18n("Not signed in")})[a.kind] || l10n.i18n("Not signed in")
 }
 function status(l10n, p) {
-    return ({working: l10n.i18n("Working"), ready: l10n.i18n("Ready"), offline: l10n.i18n("Not connected"), "signed-out": l10n.i18n("Not signed in"), error: l10n.i18n("Unavailable")})[p.status] || l10n.i18n("Connecting")
+    return ({working: l10n.i18n("Working"), ready: l10n.i18n("Ready"), offline: l10n.i18n("Not connected"), "signed-out": l10n.i18n("Not signed in"), "not-installed": l10n.i18n("Not installed"), error: l10n.i18n("Unavailable")})[p.status] || l10n.i18n("Connecting")
 }
 function windowName(l10n, w) {
     const m = w.windowMinutes

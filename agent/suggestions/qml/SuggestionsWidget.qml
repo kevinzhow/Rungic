@@ -61,7 +61,8 @@ Item {
     KI18nContext { id: l10n; translationDomain: "rungic-suggestions" }
     SuggestionsClient { id: client }
     UsageClient { id: usage }
-    readonly property bool canAskAgent: UsageText.canAsk(usage.providers.find(p => p.id === "codex"))
+    readonly property var agentProvider: usage.providers.find(p => p.id === "codex") || ({})
+    readonly property bool canAskAgent: UsageText.canAsk(agentProvider)
     Timer { interval: 60000; repeat: true; running: widget.activeView && widget.live; onTriggered: usage.refresh() }
     Connections {
         target: client
@@ -160,6 +161,7 @@ Item {
             position: widget.neighbour + 1; count: widget.cards.length
             agentName: widget.agentName; agentIcon: widget.agentIcon
             canAskAgent: widget.canAskAgent
+            agentStatus: widget.agentProvider.status || ""
             meta: widget.meta; busy: widget.briefing.curating === true
             workingText: widget.workingText(card)
             bodyLines: widget.bodyLines
@@ -174,6 +176,7 @@ Item {
             position: widget.current + 1; count: widget.cards.length
             agentName: widget.agentName; agentIcon: widget.agentIcon
             canAskAgent: widget.canAskAgent
+            agentStatus: widget.agentProvider.status || ""
             meta: widget.meta; busy: widget.briefing.curating === true
             opening: widget.openingId !== "" && widget.openingId === widget.currentCard.id
             workingText: widget.deckState === "cards" ? widget.workingText(widget.currentCard) : ""

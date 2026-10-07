@@ -14,7 +14,8 @@
   {"id": "codex", "name": "Codex", "vendor": "OpenAI",
    "icon": {"light": "/usr/share/rungic/agent-usage/icons/codex-light.svg",
             "dark": "/usr/share/rungic/agent-usage/icons/codex-dark.svg"},
-   "status": "working|ready|offline|connecting|signed-out|error",
+   "status": "working|ready|offline|connecting|not-installed|signed-out|error",
+   "installed": true,
    "account": {"kind": "subscription|api-key|none", "label": "ChatGPT", "plan": "plus"},
    "model": "gpt-…",
    "tokens": {"device": 700, "today": 700, "account": null},
@@ -24,13 +25,14 @@
 ```
 
 - `id/name/vendor/icon` 来自描述文件，适配器返回的同名字段会被忽略。`icon` 是该 Agent 自己的标志文件路径（只传路径，不传内容）：`light` 必需、`dark` 可选；文件须为绝对路径、存在、可读、不超过 1 MiB 的 SVG 或 PNG，否则整个 `icon` 为 `null`（只有 `dark` 无效时只去掉 `dark`），Agent 本身照常显示，组件退回字母图块。`updatedAt/stale/expired` 和本机账本由服务计算。
+- `installed`：独立安装检查的布尔值；无法确认时为 `null`。Codex 缺少用户目录中的独立二进制时是 `false`，状态为 `not-installed`；系统启动脚本存在不代表 Codex 已安装。用量传输失败时清为 `null`，不能根据连接失败猜测未安装或未登录。其他提供方未报告此字段时输出 `null`。
 - `tokens.device/today`：本机为该提供方**当前账户**记录的累计值与当日值。账本以“提供方 + 不可逆账户指纹”分区，沿用原高水位逻辑：会话累计值只计增长，首次见到的恢复会话只计最后一次请求（`last`）。自带账本的适配器（Claude Code 读取器）可以直接给出这两个值，服务原样使用。账户未经本次会话确认前显示 `null`。
 - `tokens.account`：提供方报告的账户总量（Codex `account/usage/read` 的 `summary.lifetimeTokens`），未知为 `null`。
 - `primary`：正在 `working` 的提供方；否则最近活跃的（本机账本最后记账时间、最近一次 `working` 或适配器的 `lastActive` 提示）；否则排序第一个；没有提供方时为空字符串。
 - 排序：描述文件的 `order`（默认 100），再按 `id`。
 - 不在契约里的字段一律丢弃（包括 `accountKey`、邮箱、未知状态值、额度窗口里的附加键）；字符串有长度上限，额度最多 16 个窗口。
 - 部分读取（适配器返回 `error` 且缺少 `limits` 或 `tokens.account`）保留上次完整读取的值，并标记 `stale`。
-- 客户端 `UsageClient` 增加 `providers` 与 `primary` 两个属性，`data` 仍是完整回复。服务断开时保留上次的提供方并全部标记 `stale`，另设 `data.error`。
+- 客户端 `UsageClient` 增加 `providers` 与 `primary` 两个属性，`data` 仍是完整回复。服务断开时保留上次的提供方及用量，并全部标记 `stale`，将状态改为 `offline`、安装状态清为 `null`，另设 `data.error`。旧的“未安装”结果不能当作本次确认。
 
 ### 适配器可额外提供的输入字段（不会出现在输出里）
 
@@ -81,7 +83,7 @@
 ## Codex 的接法（已实现）
 
 - 描述文件 `plasma/voice-agent/agent-usage/codex.json` 由 `rungic-voice-agent` 安装到 `/usr/share/rungic/agent-usage/providers/`。
-- VoiceAgent 的 `Usage` 方法直接返回提供方对象：`chatgpt` → `account.kind: subscription`、`label: ChatGPT`；`apiKey` → `api-key`、`API Key`；未登录 → `none` 且 `status: signed-out`；未连接 Codex → `offline`；`agent_busy` → `working`。额度只对订阅账户读取，`rateLimitsByLimitId`（或单一 `rateLimits`）的 primary/secondary 窗口映射为 `limits`（`id = <limitId>.<primary|secondary>`，`label = limitName`），`windowDurationMins → windowMinutes`。读取失败时返回已本地化的 `error`（原 gettext 条目“Account usage has not updated yet”），不伪造额度。
+- VoiceAgent 的 `Usage` 方法直接返回提供方对象：`chatgpt` → `account.kind: subscription`、`label: ChatGPT`；`apiKey` → `api-key`、`API Key`；未登录 → `none` 且 `status: signed-out`；独立二进制缺失 → `installed: false` 且 `not-installed`，不读取账户或模型；二进制存在但未连接 → `installed: true` 且 `offline`；安装检查不可读 → `installed: null`；`agent_busy` → `working`。额度只对订阅账户读取，`rateLimitsByLimitId`（或单一 `rateLimits`）的 primary/secondary 窗口映射为 `limits`（`id = <limitId>.<primary|secondary>`，`label = limitName`），`windowDurationMins → windowMinutes`。读取失败时返回已本地化的 `error`（原 gettext 条目“Account usage has not updated yet”），不伪造额度。
 - Token：`thread/tokenUsage/updated` 转换为 `{accountKey, session: threadId, turn: turnId, total, last}`，通过 `RecordTokens("codex", …)` 推送，并缓存在 `tokenEvents` 中供服务重启后补回。账户仍以回合开始时的账户为准。
 - `turn/started`、`turn/completed`、`account/updated`、`account/rateLimits/updated`、`account/login/completed` 调用 `ProviderChanged("codex")`。
 - 兼容：服务仍把旧 VoiceAgent 的 `token-usage`、`usage-changed`、`agent-started/finished/restarted`、`account` 事件转换为 `codex` 的记账或重读，**保留一个发布周期**（代码注释写明 2026-10 后删除）。新 VoiceAgent 一旦通过 D-Bus 调用过 `RecordTokens`/`ProviderChanged`，服务就不再转换它的旧事件，避免每个回合重复读取；即使重复送达，计数是高水位，也不会多记。旧 VoiceAgent 的 `Usage` 回复格式不再解析：`rungic-voice-agent` 的依赖提高到 `rungic-suggestions (>= 0.473)`，新 VoiceAgent 只和新服务搭配；旧 VoiceAgent 搭配新服务时只保留记账，状态显示不完整，升级两包即可恢复。

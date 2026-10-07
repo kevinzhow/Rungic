@@ -44,6 +44,7 @@ Item {
     }
     readonly property var tokens: provider.tokens || ({})
     readonly property string body: !provider.id ? "none"
+        : provider.status === "not-installed" ? "install"
         : provider.status === "signed-out" ? "signin"
         : ["offline", "error"].includes(provider.status) && (!provider.updatedAt || !limits.length && tokens.device == null) ? "unreachable"
         : provider.status === "connecting" || (!provider.updatedAt && !limits.length && tokens.device == null) ? "skeleton"
@@ -62,6 +63,7 @@ Item {
     readonly property string statusText: ({
         working: l10n.i18nc("@info agent status", "Working"), ready: l10n.i18nc("@info agent status", "Ready"),
         offline: l10n.i18nc("@info agent status", "Connection failed"), connecting: l10n.i18nc("@info agent status", "Connecting…"),
+        "not-installed": l10n.i18nc("@info agent status", "Not installed"),
         "signed-out": l10n.i18nc("@info agent status", "Not signed in"), error: l10n.i18nc("@info agent status", "Couldn’t update")
     })[provider.status] || ""
     readonly property string rightText: {
@@ -98,19 +100,23 @@ Item {
                 AgentMark {
                     name: widget.provider.name || "Agent"
                     icon: widget.provider.icon || ({})
-                    muted: !widget.provider.id || widget.provider.status === "signed-out" || widget.provider.status === "offline"
+                    muted: !widget.provider.id || widget.provider.status === "signed-out" || widget.provider.status === "not-installed" || widget.provider.status === "offline"
                     // The agent's own mark goes back to its conversation; the rest of the card to its usage.
                     MouseArea {
                         anchors.fill: parent; anchors.margins: -10
                         enabled: widget.live
-                        onClicked: widget.body === "signin" ? navigation.signIn() : navigation.openAgent()
+                        onClicked: widget.body === "install" ? navigation.openCodex() : widget.body === "signin" ? navigation.signIn() : navigation.openAgent()
                         Accessible.role: Accessible.Button
                         Accessible.name: widget.provider.name || "Agent"
-                        Accessible.onPressAction: widget.body === "signin" ? navigation.signIn() : navigation.openAgent()
+                        Accessible.onPressAction: widget.body === "install" ? navigation.openCodex() : widget.body === "signin" ? navigation.signIn() : navigation.openAgent()
                     }
                 }
                 Text {
-                    text: widget.provider.status === "signed-out" ? l10n.i18n("Not signed in to %1", widget.provider.name || "Codex")
+                    Layout.fillWidth: true
+                    Layout.minimumWidth: 0
+                    elide: Text.ElideRight
+                    text: widget.provider.status === "not-installed" ? l10n.i18n("%1 isn’t installed yet", widget.provider.name || "Codex")
+                        : widget.provider.status === "signed-out" ? l10n.i18n("Not signed in to %1", widget.provider.name || "Codex")
                         : ["offline", "error"].includes(widget.provider.status) ? l10n.i18n("Cannot reach %1 right now", widget.provider.name || "Codex")
                         : widget.compact && widget.provider.name === "Claude Code" ? "Claude" : (widget.provider.name || "Agent")
                     font.family: Theme.fontFamily; font.pixelSize: 15; font.weight: Font.DemiBold
@@ -118,7 +124,7 @@ Item {
                 }
                 BusyRing { visible: widget.provider.status === "working" || widget.provider.status === "connecting"; implicitWidth: 12; implicitHeight: 12 }
                 Text {
-                    visible: !widget.compact && !widget.flat && widget.statusText !== "" && !["signed-out", "offline", "error"].includes(widget.provider.status)
+                    visible: !widget.compact && !widget.flat && widget.statusText !== "" && !["not-installed", "signed-out", "offline", "error"].includes(widget.provider.status)
                     text: widget.statusText
                     font.family: Theme.fontFamily; font.pixelSize: 13
                     color: widget.provider.status === "working" ? Theme.text : Theme.dim
@@ -170,7 +176,7 @@ Item {
                     Layout.maximumWidth: card.width * 0.55
                     text: widget.body === "stats"
                           ? l10n.i18nc("@info tokens used: %1 a compact number", "Today %1", UsageText.compact(l10n, widget.tokens.today != null ? widget.tokens.today : widget.tokens.device))
-                          : ({ none: l10n.i18n("No agent is connected yet."), signin: l10n.i18n("Sign in so Agent can help with your tasks."),
+                          : ({ install: l10n.i18n("Install from Agent → Settings → Codex."), none: l10n.i18n("No agent is connected yet."), signin: l10n.i18n("Sign in so Agent can help with your tasks."),
                                unreachable: l10n.i18n("Will retry automatically."),
                                norecords: l10n.i18n("No usage recorded yet.") })[widget.body] || ""
                     font.family: Theme.fontFamily; font.pixelSize: 13
@@ -285,13 +291,13 @@ Item {
                 }
             }
             ColumnLayout {
-                visible: ["none", "signin", "unreachable", "norecords"].includes(widget.body) && !widget.flat
+                visible: ["install", "none", "signin", "unreachable", "norecords"].includes(widget.body) && !widget.flat
                 Layout.fillWidth: true
                 spacing: 2
                 Text {
                     Layout.fillWidth: true
                     text: ({
-                        none: l10n.i18n("No agent is connected yet."),
+                        install: l10n.i18n("Install from Agent → Settings → Codex."), none: l10n.i18n("No agent is connected yet."),
                         signin: l10n.i18n("Sign in so Agent can help with your tasks."),
                         unreachable: l10n.i18n("Will retry automatically."),
                         norecords: l10n.i18n("No usage recorded yet.")
@@ -302,7 +308,7 @@ Item {
                 }
                 Text {
                     visible: text !== ""
-                    text: widget.body === "none" ? l10n.i18nc("@action", "Set one up in Agent ›") : widget.body === "signin" ? l10n.i18nc("@action", "Sign in ›") : ""
+                    text: widget.body === "install" ? l10n.i18nc("@action", "Install Codex ›") : widget.body === "none" ? l10n.i18nc("@action", "Set one up in Agent ›") : widget.body === "signin" ? l10n.i18nc("@action", "Sign in ›") : ""
                     font.family: Theme.fontFamily; font.pixelSize: 13; font.weight: Font.Medium
                     color: Theme.link
                 }
@@ -330,7 +336,7 @@ Item {
             anchors.fill: parent
             z: -1
             enabled: widget.live
-            onClicked: widget.body === "signin" ? navigation.signIn() : widget.body === "none" ? navigation.openAgent() : navigation.openAgent(true)
+            onClicked: widget.body === "install" ? navigation.openCodex() : widget.body === "signin" ? navigation.signIn() : widget.body === "none" ? navigation.openAgent() : navigation.openAgent(true)
         }
     }
 }

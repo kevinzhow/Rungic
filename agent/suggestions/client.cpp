@@ -87,6 +87,7 @@ void SuggestionsClient::launch(const QStringList &arguments) {
 void SuggestionsClient::open(const QString &id) { launch({"--suggestion", id}); }
 void SuggestionsClient::openAgent(bool usage) { launch({usage ? "--usage" : "--agent"}); }
 void SuggestionsClient::signIn() { launch({"--sign-in"}); }
+void SuggestionsClient::openCodex() { launch({"--codex"}); }
 void SuggestionsClient::conversation(const QString &id) { if (!id.isEmpty()) launch({"--conversation", id}); }
 void SuggestionsClient::watching(bool visible) {
     m_watching = visible;
@@ -115,7 +116,11 @@ void UsageClient::refresh() {
         QDBusPendingReply<QString> reply = *w; w->deleteLater(); m_pending = false;
         if (reply.isError()) {
             QVariantList stale;
-            for (auto provider : providers()) { auto p = provider.toMap(); p["stale"] = true; stale.append(p); }
+            for (auto provider : providers()) {
+                auto p = provider.toMap();
+                p["stale"] = true; p["status"] = "offline"; p["installed"] = QVariant();
+                stale.append(p);
+            }
             m_data["providers"] = stale;
             m_data["error"] = i18n("The usage service isn't connected yet");
         } else m_data = QJsonDocument::fromJson(reply.value().toUtf8()).object().toVariantMap();

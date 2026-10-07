@@ -2156,9 +2156,13 @@ class VoiceAgent:
         Read-only: the account kind, subscription windows and account total come from Codex's own
         RPCs; tokens seen on this device are pushed as they happen (RecordTokens) and repeated here
         for a usage service that restarted. Never a key, token or email."""
+        installed = codex_install.installed()
+        if installed is False:
+            return {'installed': False, 'status': 'not-installed',
+                    'account': {'kind': 'none', 'label': '', 'plan': ''}}
         identity = self.usage_identity()
         effective = self.agent_model()
-        result = {'accountKey': identity, 'model': effective.get('name') or effective.get('model') or '', 'status': 'working' if self.agent_busy else 'ready',
+        result = {'installed': installed, 'accountKey': identity, 'model': effective.get('name') or effective.get('model') or '', 'status': 'working' if self.agent_busy else 'ready',
                   'account': {'kind': 'none', 'label': '', 'plan': ''}}
         server = self.server
         authentication = self.codex_account()
@@ -2896,8 +2900,10 @@ class VoiceAgent:
         if not isinstance(data, dict) or not isinstance(data.get('items'), list):
             raise ValueError('invalid: input')
         server = self.server
+        if codex_install.installed() is False:
+            raise RuntimeError('not-installed: Codex is not installed')
         if not server:
-            raise RuntimeError('unavailable: Codex is not installed or not running')
+            raise RuntimeError('connection-failed: Codex is not running')
         authentication = self.codex_account()
         if authentication['status'] == 'offline':
             raise RuntimeError('connection-failed: account state could not be read')
@@ -3106,7 +3112,8 @@ class VoiceAgent:
     def setup(self):
         from rungic_cua import keys, mode
         path = codex_install.standalone()
-        version, runs = '', None
+        installed = codex_install.installed()
+        version, runs = '', False if installed is True else None
         if path:
             parts = self.codex_version()
             version, runs = codex_install.version_text(parts), bool(parts)
@@ -3125,9 +3132,9 @@ class VoiceAgent:
                                          capture_output=True, text=True, timeout=5).stdout.strip()
         except (OSError, subprocess.SubprocessError):
             app_version = ''
-        return {'codex': {'installed': bool(path), 'version': version, 'path': str(path or ''), 'runs': runs,
+        return {'codex': {'installed': installed, 'version': version, 'path': str(path or ''), 'runs': runs,
                           'running': self.server is not None, 'update': self.codex_update.check()},
-                'account': account, 'accountStatus': authentication['status'], 'credentials': 'keyring' if store in ('keyring', 'auto') else 'file',
+                'account': account, 'accountStatus': 'not-installed' if installed is False else authentication['status'], 'credentials': 'keyring' if store in ('keyring', 'auto') else 'file',
                 'key': {'set': bool(key), 'masked': (key[:3] + '…' + key[-4:]) if len(key) > 10 else (_('Set') if key else ''),
                         'store': keys.where('openai-api-key'), 'working': self.key_working},
                 'preferences': self.prefs, 'desktop': {'mode': mode.plan()},
