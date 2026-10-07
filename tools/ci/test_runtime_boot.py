@@ -120,6 +120,26 @@ esac''')
         self.assertIn('container-running', (self.state / 'host.log').read_text())
         self.assertTrue((self.root / 'running').exists(), 'stopping supervision must not destroy the desktop')
 
+    # covers: desktop.network/E9
+    def test_each_boot_allowlists_the_app_so_linux_has_its_network_without_it(self):
+        # Linux's own network goes out as the app's uid; Android cuts a stopped app's network
+        # (APP_BACKGROUND) unless it is on the power-save allowlist (docs/121 2026-10-08).
+        executable(self.bin / 'dumpsys', 'echo "dumpsys $*" >> "$TEST_ROOT/calls"')
+        result = self.run_action(TEST_TICKS='3')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual([line for line in self.lines() if line.startswith('dumpsys')],
+                         ['dumpsys deviceidle whitelist +com.rungic.plasma'], 'once per boot, not per tick')
+        self.assertIn('background-network-allowed', (self.state / 'host.log').read_text())
+        self.assertLess(self.lines().index('dumpsys deviceidle whitelist +com.rungic.plasma'), self.lines().index('start'))
+
+    # covers: desktop.network/E9
+    def test_a_refused_allowlist_still_starts_linux(self):
+        executable(self.bin / 'dumpsys', 'exit 1')
+        result = self.run_action(TEST_TICKS='3')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.lines().count('start'), 1)
+        self.assertIn('background-network-allowlist-refused', (self.state / 'host.log').read_text())
+
     # covers: install.independent-runtime/E2
     def test_failures_are_bounded_and_diagnostics_survive(self):
         result = self.run_action(TEST_MODE='fail')

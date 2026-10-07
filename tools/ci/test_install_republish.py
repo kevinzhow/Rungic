@@ -87,27 +87,6 @@ class InstallRepublishTest(unittest.TestCase):
         # The app names the provider when su is refused (RootAccess, install.desktop-entry/E7).
         self.assertEqual(status["root"], "magisk")
 
-    def test_every_boot_puts_the_app_on_the_power_save_allowlist(self):
-        # Linux's own network goes out as the app's uid; Android cuts a stopped app's network
-        # (APP_BACKGROUND) unless it is allowlisted (docs/121 2026-10-08).
-        calls = self.root / "dumpsys.calls"
-        dumpsys = self.root / "bin/dumpsys"
-        dumpsys.write_text(f'#!/bin/sh\necho "$*" >> {calls}\n')
-        dumpsys.chmod(0o755)
-        self.standalone("standalone-new")
-        result = self.publish_action()
-        self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(calls.read_text(), "deviceidle whitelist +com.rungic.plasma\n")
-
-    def test_a_refused_allowlist_does_not_stop_the_boot(self):
-        dumpsys = self.root / "bin/dumpsys"
-        dumpsys.write_text("#!/bin/sh\nexit 1\n")
-        dumpsys.chmod(0o755)
-        self.standalone("standalone-new")
-        result = self.publish_action()
-        self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(self.status()["state"], "ready")
-
     def test_status_names_kernelsu_when_it_is_the_active_provider(self):
         (self.root / "debug_ramdisk/magisk").unlink()
         ksud = self.root / "data/adb/ksud"
