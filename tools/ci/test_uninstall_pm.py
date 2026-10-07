@@ -29,8 +29,10 @@ class PackageReadback(unittest.TestCase):
             if command.startswith('dumpsys package'):
                 if invalid_info:return 'Failure [Binder transaction]'
                 flag=('SYSTEM UPDATED_SYSTEM_APP' if updated else 'SYSTEM HAS_CODE') if kind=='system' else 'HAS_CODE'
-                return f'Packages:\n  Package [{standalone.APP}] (abc):\n    versionCode=54\n    flags=[ {flag} ]\nHidden system packages:\n'
+                return f'Packages:\n  Package [{standalone.APP}] (abc):\n    versionCode=54\n    codePath=/product/app/Rungic\n    flags=[ {flag} ]\n    pkgFlags=[ {flag} ]\n        android.permission.CAMERA: granted=true, flags=[ GRANTED_BY_DEFAULT ]\nHidden system packages:\n'
             if command.startswith('pm path '):
+                if not present and command.startswith('pm path --user 0 '):
+                    raise subprocess.CalledProcessError(1, ['adb', '-P', '5037', 'shell', 'sh'], output='')
                 return 'package:/data/app/update/base.apk' if updated or kind=='ordinary' else 'package:/product/app/Rungic/Rungic.apk'
             if command.startswith('pm list packages --user 0'):
                 return 'package:'+standalone.APP if present else ''
@@ -59,6 +61,17 @@ class PackageReadback(unittest.TestCase):
                 except ValueError:pass
             result=json.loads((args.report/'report.json').read_text());markdown=(args.report/'report.md').read_text()
         return result,markdown,calls
+    def test_final_system_base_survives_user_zero_uninstall(self):
+        # covers: install.standalone-uninstall/E7
+        result, markdown, calls = self.run_case(command_rc=0)
+        self.assertTrue(result['complete'], result.get('error'))
+        final = result['after']['package_validation']
+        self.assertTrue(final['user_absent'])
+        self.assertTrue(final['system_base'])
+        self.assertEqual(final['system_state']['code_path'], '/product/app/Rungic')
+        self.assertFalse(any('pm path --user 0' in item['command'] for item in final['observations']))
+        self.assertIn('范围内卸载完成', markdown)
+
     def test_nonzero_commands_with_verified_effect_complete_and_keep_evidence(self):
         # covers: install.standalone-uninstall/E7
         result,_,_=self.run_case(resume=True)
@@ -107,9 +120,10 @@ class PackageReadback(unittest.TestCase):
                 self.assertIn('读回',markdown)
     def test_unknown_readback_keeps_marker_and_stops_after_clear(self):
         # covers: install.standalone-uninstall/E7
-        result,_,calls=self.run_case(unknown=True)
+        result,markdown,calls=self.run_case(unknown=True)
         self.assertFalse(result['complete']);self.assertEqual(result['phase'],'clear-app-data')
         self.assertNotIn('remove-apk-update',[x['name'] for x in result['steps']]);self.assertIn('未知',result['error'])
+        self.assertNotIn('returned non-zero exit status', markdown)
         observation=result['steps'][-1]['observations'][-1]
         self.assertIn('Permission denied',observation['output']);self.assertEqual(observation['returncode'],1)
     def test_unknown_update_status_cannot_be_treated_as_no_update(self):
@@ -171,6 +185,24 @@ class ActualReadbacks(unittest.TestCase):
             with self.subTest(info=info):
                 device=mock.Mock();device.shell.side_effect=['package:/product/app/Rungic/Rungic.apk',info]
                 with self.assertRaises(ValueError):standalone.package_readback(device,'remove-apk-update')
+
+    def test_final_base_requires_active_product_system_package(self):
+        # covers: install.standalone-uninstall/E7
+        for path, flags, known in [('/product/app/Rungic', 'SYSTEM HAS_CODE', True),
+                                   ('/data/app/update', 'SYSTEM UPDATED_SYSTEM_APP', False),
+                                   ('/product/app/Rungic', 'HAS_CODE', False)]:
+            with self.subTest(path=path, flags=flags):
+                device = mock.Mock()
+                device.shell.return_value = f'Packages:\n  Package [{standalone.APP}] (abc):\n    codePath={path}\n    versionCode=54\n    flags=[ {flags} ]\n'
+                self.assertEqual(standalone.package_readback(device, 'verify-system-base')[1], known)
+        for body in ('', '    versionCode=54\n    flags=[ SYSTEM ]',
+                     '    codePath=/product/app/Rungic\n    codePath=/data/app/update\n    versionCode=54\n    flags=[ SYSTEM ]',
+                     '    codePath=/product/app/Rungic\n    versionCode=54\n    flags=[ SYSTEM ]\n    pkgFlags=[ SYSTEM UPDATED_SYSTEM_APP ]'):
+            with self.subTest(body=body):
+                device = mock.Mock()
+                device.shell.return_value = f'Packages:\n  Package [{standalone.APP}] (abc):\n{body}\nHidden system packages:\n  Package [{standalone.APP}] (old):\n    codePath=/product/app/Rungic\n    versionCode=54\n    flags=[ SYSTEM ]\n'
+                with self.assertRaisesRegex(ValueError, '读回未知'):
+                    standalone.package_readback(device, 'verify-system-base')
 
     def test_user_list_unknown_is_not_absence_and_other_package_is_not_rungic(self):
         # covers: install.standalone-uninstall/E7

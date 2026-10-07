@@ -111,10 +111,10 @@ def write_removal_report(path, result):
         else:
             lines += ['APK 版本（旧报告未区分来源）：' + ('。'.join(before.get('apk_versions', [])) or '未读到'), '']
     def readable_error(error):
-        command = re.fullmatch(r"Command '([^']+)' returned non-zero exit status (\d+)\.", error)
+        command = re.search(r"Command '(.*)' returned non-zero exit status (\d+)\.", error)
         if command:
             phase = '读取最终现场' if result.get('phase') == 'finish-snapshot' else '当前步骤'
-            return phase + '的命令失败（' + command[1] + '，退出码 ' + command[2] + '）。'
+            return error[:command.start()] + phase + '的命令失败（退出码 ' + command[2] + '）。原始命令见 report.json。'
         return error
     if result.get('error'):
         lines += ['失败原因（程序报告）：' + readable_error(result['error']), '']
@@ -519,11 +519,16 @@ def removal_apk_versions(info):
         result = {}
         for key, expression in (('version_code', r'\bversionCode=(\d+)'),
                                 ('version_name', r'^\s*versionName=([^\n]+)'),
-                                ('path', r'^\s*codePath=([^\n]+)'),
-                                ('flags', r'\b(?:pkgFlags|flags)=\[([^\]]*)\]')):
+                                ('path', r'^\s*codePath=([^\n]+)')):
             values = re.findall(expression, body, re.M)
             if len(values) == 1:
                 result[key] = values[0].strip()
+        # Android prints both aliases. Permission flags inside user records are
+        # unrelated; require package-level aliases to be unique and agree.
+        flags = re.findall(r'^\s*(pkgFlags|flags)=\[([^\]]*)\]', body, re.M)
+        if flags and len({name for name, _ in flags}) == len(flags) and len(
+                {tuple(sorted(value.split())) for _, value in flags}) == 1:
+            result['flags'] = flags[0][1].strip()
         return result or None
     active = package(active_text)
     system = package(system_text)
@@ -1013,6 +1018,16 @@ done' ''', root=True)
                 except subprocess.SubprocessError as error:
                     observed.setdefault('entries_error', {})[kind] = str(error)
         return observed, verified
+    if name == 'verify-system-base':
+        # After uninstall --user 0, pm path --user 0 returns 1 even when the
+        # global system package remains. Read its active package record instead.
+        source = removal_apk_versions(observe(f'dumpsys package {APP}'))['active']
+        if not source or not all(key in source for key in ('path', 'flags', 'version_code')):
+            raise ValueError('最终系统底座的路径或包属性读回未知。')
+        observed = {'code_path': source['path'], 'flags': source['flags'].split(),
+                    'versionCode': int(source['version_code'])}
+        flags = observed['flags']
+        return observed, source['path'].startswith('/product/') and 'SYSTEM' in flags and 'UPDATED_SYSTEM_APP' not in flags
     if name == 'remove-apk-update':
         paths = observe(f'pm path --user 0 {APP}').splitlines()
         info = observe(f'dumpsys package {APP}')
@@ -1349,7 +1364,7 @@ def _uninstall(args):
             state, validation['data_empty'] = package_readback(device, 'clear-app-data', validation['observations'])
             validation['data_state'] = state
             if kind == 'system':
-                state, validation['system_base'] = package_readback(device, 'remove-apk-update', validation['observations'])
+                state, validation['system_base'] = package_readback(device, 'verify-system-base', validation['observations'])
                 validation['system_state'] = state
             validation['persisted'] = False
             if validation['user_absent'] and validation['data_empty'] and (kind != 'system' or validation['system_base']):

@@ -144,3 +144,23 @@ Termux 安装路径保持一致，以及对应 APK 类型的用户卸载、数�
 异常读回 UNKNOWN、缺路径行、重复冲突值、实际目录再现、用户包再现及拦截记录消失均有回归。没有执行真机卸载或改动冻结候选。
 
 Termux 保留检查允许卸载前后都未安装。路径查询只容许 AOSP 的正常返回 0，以及表示未安装的返回 1／空输出；其他退出状态或非 package 路径诊断视为未知，不能用 `|| true` 掩盖。卸载前后读取均成功且一致才满足保持条件。参照 [AOSP PackageManagerShellCommand](https://android.googlesource.com/platform/frameworks/base/+/main/services/core/java/com/android/server/pm/PackageManagerShellCommand.java) 的 displayPackageFilePath。
+
+## 2026-10-07：用户 0 已卸载后的系统底座核验
+
+第二轮 A00 在最后快照误报未完成：系统底座仍在 `/product/app/Rungic`，
+但用户 0 已卸载，`pm path --user 0` 返回空且退出码为 1。最终核验改为
+读取 `dumpsys package` 的当前包记录，要求 `codePath` 在 `/product/`、
+`flags` 含 `SYSTEM` 且不含 `UPDATED_SYSTEM_APP`。隐藏的旧底座记录不能
+代替当前包；缺字段、重复字段或未知读回仍不能判为完成。真机同时输出的
+`flags` 与 `pkgFlags` 必须一致；用户权限记录里的 flags 不作为包标志。
+
+卸载 APK 更新的阶段仍使用用户 0 的路径读回；该阶段尚未卸载用户 0。
+最终阶段另用全局包记录，同时重新检查用户卸载、CE/DE 数据、持久记录与
+全部删除及保留路径。命令异常的可读报告写中文步骤和退出码，原始命令、
+输出和 Python 异常留在 JSON 中。
+
+回归运行完整 Python 卸载入口和实际 BusyBox ash 删除脚本，包管理器是替身：
+用户 0 卸载后其路径查询返回空和退出码 1，但全局底座仍在，此时最终报告
+应完成。还检查更新包、非系统包、缺失或重复底座字段不会误通过。
+这些宿主回归不代替真机验收；原 A00 失败记录保留，后续真机使用修复工具
+时必须明确记录工具提交号与冻结候选的差异。

@@ -33,10 +33,12 @@ for mode in ['normal','normal_no_termux','termux_readback_failure','package_fail
    if script.startswith('pm path com.termux'):
     if mode=='termux_readback_failure' and self.marker_cleared:raise subprocess.CalledProcessError(255,'pm-path',output='Remote exception')
     return '' if mode=='normal_no_termux' else 'package:/data/app/termux/base.apk'
+   if script.startswith('pm path --user 0 ') and not self.installed:
+    raise subprocess.CalledProcessError(1,['adb','-P','5037','shell','sh'],output='')
    if script.startswith('pm path '):return 'package:/product/app/Rungic/Rungic.apk'
    if script.startswith('dumpsys '):
     if 'grep' in script:return 'versionCode=26 versionName=2.6'
-    return f'Packages:\n  Package [{product.APP}] (abc):\n    versionCode=54\n    flags=[ SYSTEM ' + ('UPDATED_SYSTEM_APP' if self.updated else '') + ' ]\n'
+    return f'Packages:\n  Package [{product.APP}] (abc):\n    versionCode=54\n    codePath=/product/app/Rungic\n    flags=[ SYSTEM ' + ('UPDATED_SYSTEM_APP' if self.updated else '') + ' ]\n    pkgFlags=[ SYSTEM ' + ('UPDATED_SYSTEM_APP' if self.updated else '') + ' ]\n        android.permission.CAMERA: granted=true, flags=[ GRANTED_BY_DEFAULT ]\n'
    if script.startswith('am force-stop'):return ''
    if script.startswith('pm clear'):
     subprocess.run(['rm','-rf','--',str(appdata)],check=True);return 'Success'
@@ -48,7 +50,7 @@ for mode in ['normal','normal_no_termux','termux_readback_failure','package_fail
     raise subprocess.CalledProcessError(1,'path-readback',output='Injected final readback failure\n')
    if script.startswith('rm -f '+product.PENDING) and mode=='finish_readback_marker':return '' # Command says success, marker actually remains.
    if root and self.marker_cleared and mode=='final_snapshot_failure' and 'printf' in script and 'if [ -e' in script:
-    raise subprocess.CalledProcessError(1,'final-snapshot',output='Injected snapshot failure after marker clear\n')
+    raise subprocess.CalledProcessError(1,['adb','-P','5037','shell','sh'],output='Injected snapshot failure after marker clear\n')
    if root and self.marker_cleared and mode=='final_snapshot_marker' and 'printf' in script and 'if [ -e' in script:
     (adb/'rungic-uninstalling').write_text('unexpected-marker:1:-')
    if root and self.marker_cleared and 'printf' in script and 'if [ -e' in script:
@@ -84,7 +86,7 @@ for mode in ['normal','normal_no_termux','termux_readback_failure','package_fail
  elif mode=='termux_readback_failure':checks.update(rejected=error is not None,incomplete=not report['complete'],readback_unknown=bool(report.get('readback_error')))
  elif mode=='package_failure':checks.update(rejected=error is not None,incomplete=not report['complete'],marker_kept=pending,raw_failure_retained='Failure [busy]' in json.dumps(report))
  elif mode=='readback_failure':checks.update(rejected=error is not None,incomplete=not report['complete'],marker_kept=pending,readback_failure_recorded='readback_error' in report,no_false_verified_rows=not any(token in line for line in markdown.splitlines() if line.startswith('| `') for token in ('已删除并读回','已删除并确认','确认不存在')))
- elif mode=='final_snapshot_failure':checks.update(rejected=error is not None,incomplete=not report['complete'],failure_recorded=bool(report.get('readback_error')),prior_snapshot_kept=bool(report.get('before_finish')),marker_clear_evidence=report.get('marker_cleared') is True)
+ elif mode=='final_snapshot_failure':checks.update(rejected=error is not None,incomplete=not report['complete'],failure_recorded=bool(report.get('readback_error')),prior_snapshot_kept=bool(report.get('before_finish')),marker_clear_evidence=report.get('marker_cleared') is True,readable_failure='读取最终现场的命令失败' in markdown,no_python_exception_text='returned non-zero exit status' not in markdown)
  elif mode in ('final_snapshot_unknown','final_snapshot_missing','final_snapshot_duplicate','final_snapshot_runtime_reappears','final_snapshot_package_reappears','final_snapshot_retained_gone'):
   checks.update(rejected=error is not None,incomplete=not report['complete'],no_false_completed_heading='范围内卸载完成' not in markdown)
  elif mode=='final_snapshot_marker':checks.update(rejected=error is not None,incomplete=not report['complete'],marker_present=pending,final_snapshot_preserved=report.get('after',{}).get('paths',{}).get(product.PENDING) is True,retained_marker=product.PENDING in report['expected_retained'])
