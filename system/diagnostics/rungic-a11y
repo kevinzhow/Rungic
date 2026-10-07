@@ -43,7 +43,7 @@ def enabled():
     return out.strip() == 'b true'
 
 
-KWIN_SCRIPT = '''const list = workspace.windowList().map(w => ({caption: w.caption, pid: w.pid,
+KWIN_SCRIPT = '''const list = workspace.windowList().map(w => ({id: String(w.internalId), caption: w.caption, pid: w.pid,
   resource_class: w.resourceClass, normal: w.normalWindow, active: w.active, minimized: w.minimized,
   x: w.frameGeometry.x, y: w.frameGeometry.y, w: w.frameGeometry.width, h: w.frameGeometry.height}));
 print("TOKEN " + JSON.stringify(list));

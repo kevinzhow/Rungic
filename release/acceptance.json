@@ -211,11 +211,9 @@
       "level": "smoke",
       "check": "input_text",
       "params": {
-        "text": "Calcul",
-        "expect": "Calculator",
-        "absent": "Clock"
+        "text": "rungic42"
       },
-      "title": "用安卓模拟按键（`input text`）向应用抽屉的搜索框输入“Calcul”。屏幕文字识别看到输入的文字和 Calculator，没有看到 Clock。不检查输入法和屏幕键盘。",
+      "title": "用安卓模拟按键（`input text`）向应用抽屉搜索框输入“rungic42”。按实际窗口位置与缩放裁定搜索框范围，屏幕文字识别读回完整测试文本，不依赖应用显示名或界面语言。不检查输入法和屏幕键盘。",
       "covers": [
         "iface:host-input"
       ]
@@ -274,11 +272,11 @@
       "level": "full",
       "check": "app_launch",
       "params": {
-        "app": "Calculator",
+        "app": "org.kde.kalk",
         "process": "kalk",
         "rounds": 2
       },
-      "title": "通过启动器按无障碍名称打开计算器，再关闭，重复 2 次。每一轮都确认三件事：进程启动，应用出现在无障碍接口里，进程退出。",
+      "title": "按已安装的 org.kde.kalk 桌面文件与当前会话翻译定位抽屉图标，启动、关闭两轮。逐轮核对同一用户的 kalk 进程、同 PID 的无障碍注册、桌面文件类名匹配的 KWin 窗口，以及该窗口和进程均退出；不以显示名或标题判定应用身份。",
       "covers": [
         "agent.dev-diagnostics/E3"
       ]

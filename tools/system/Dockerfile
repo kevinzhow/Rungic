@@ -49,3 +49,6 @@ RUN apt-get update -q && DEBIAN_FRONTEND=noninteractive apt-get install -y -q --
         librime-dev rime-data-luna-pinyin rime-prelude rime-essay qt6-virtualkeyboard-dev \
         qml6-module-qttest qt6-declarative-dev-tools ninja-build \
     && rm -rf /var/lib/apt/lists/*
+
+# Real localized Plasma Mobile/Kalk drawer checks use the base image's applications and CJK fonts.
+RUN localedef -i zh_CN -f UTF-8 zh_CN.UTF-8

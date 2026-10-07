@@ -137,5 +137,138 @@ def re_escape(text):
     return ''.join('\\' + c if c in '+=.*?()[]{}|^$\\' else c for c in text)
 
 
+
+def launch_language(language):
+    """Real Plasma Mobile and Kalk, using source modules and native input instead of Android.
+
+    Native field text readback does not replace phone screenshots or Android input proof.
+    """
+    import importlib.machinery
+    import shlex
+    import types
+    from types import SimpleNamespace
+
+    import ui_launch_check as ui
+    import rungic_agent as agent
+
+    label = '计算器' if language == 'zh_CN' else 'Calculator'
+    locale = 'zh_CN.UTF-8' if language == 'zh_CN' else 'C.UTF-8'
+    # covers[system]: agent.dev-diagnostics/E3
+    with harness.Session(540, 960, 'launch-' + language) as session:
+        os.environ.update(LANG=locale, LC_ALL=locale, LANGUAGE=language,
+                          XDG_MENU_PREFIX='plasma-', PLASMA_PLATFORM='phone',
+                          QT_QUICK_CONTROLS_MOBILE='1')
+        subprocess.run(['kbuildsycoca6', '--noincremental'], check=True, capture_output=True)
+        session.start(['/usr/lib/aarch64-linux-gnu/libexec/kactivitymanagerd'])
+        time.sleep(2)
+        session.start(['plasmashell', '-p', 'org.kde.plasma.mobileshell'])
+
+        def query_a11y(*args):
+            reply = subprocess.run([*A11Y, *map(str, args)], capture_output=True,
+                                   text=True, timeout=60)
+            if reply.returncode:
+                shell_log = Path('/tmp/org.kde.plasma.mobileshell.err').read_text(errors='replace')
+                raise harness.Failed(f'a11y {args}: {reply.stderr[-2000:]}\nPlasma: {shell_log[-2000:]}')
+            return json.loads(reply.stdout)
+
+        def windows():
+            # The diagnostic's exact KWin query, returned over the existing Cua callback:
+            # this container has no user journal.
+            loader = importlib.machinery.SourceFileLoader('native_diagnostic', A11Y[1])
+            module = types.ModuleType(loader.name)
+            loader.exec_module(module)
+            source = module.KWIN_SCRIPT.replace(
+                'print("TOKEN " + JSON.stringify(list));',
+                'callDBus("SERVICE", "/com/rungic/Cua", "com.rungic.Cua", "Report", JSON.stringify(list));')
+            return session.kwin_api._script(source)
+
+        def run(command, level='user', check=True, **kwargs):
+            if level != 'shell':
+                # The system runner loads Python modules directly from this source snapshot;
+                # the phone installs this same package under /usr/lib/rungic-cua.
+                command = command.replace('PYTHONPATH=/usr/lib/rungic-cua ',
+                                          'LANG=C.UTF-8 LC_ALL=C.UTF-8 LANGUAGE=en PYTHONPATH=/src/agent/computer-use ')
+                reply = subprocess.run(command, shell=True, capture_output=True, text=True, timeout=60)
+                if check and reply.returncode:
+                    raise harness.Failed(f'{command}: {reply.stderr[-2000:]}')
+                return reply
+            args = shlex.split(command)
+            if args[:2] == ['wm', 'size']:
+                return SimpleNamespace(stdout='Physical size: 540x960', returncode=0)
+            if args[:2] == ['input', 'swipe']:
+                x, y, target_x, target_y = map(int, args[2:6])
+                pointer = session.pointer()
+                pointer.press(x, y)
+                for step in range(1, 21):
+                    pointer._send(f'move {x + (target_x - x) * step / 20} {y + (target_y - y) * step / 20}')
+                    time.sleep(.02)
+                pointer.release()
+                time.sleep(.8)
+            elif args[:2] == ['input', 'tap']:
+                session.tap(*map(int, args[2:4]))
+            elif args[:2] == ['input', 'text']:
+                session.pointer().type_text(args[2])
+                time.sleep(.5)
+            else:
+                raise AssertionError(command)
+            return SimpleNamespace(stdout='', returncode=0)
+
+        agent.a11y = query_a11y
+        agent.ui_windows = windows
+        agent.run = run
+        agent.host_request = lambda *args, **kwargs: {'physicalWidth': 540}
+        ui.run = run
+        agent.ui_enable(True)
+        session.wait_for(lambda: any(app['name'] == 'plasmashell' and app['windows']
+                                     for app in query_a11y('apps')), 20, 'mobile shell accessible')
+        entry = ui.desktop_entry('org.kde.kalk')
+        session.check(entry['name'] == 'Calculator', 'acceptance subprocess locale is English')
+        session.check(label.casefold() in entry['labels'], language + ' desktop file includes actual drawer translation')
+        for _ in range(2):
+            launch = ui.launch('org.kde.kalk', 'kalk', False)
+            session.steps.append('native launch ' + json.dumps(launch, ensure_ascii=False))
+            session.check(launch['label'] == label, language + ' actual drawer label independent of subprocess locale')
+            session.check(all(launch[key] for key in ('started', 'registered', 'window')),
+                          language + ' actual drawer tap starts same Kalk PID/AT-SPI/KWin window')
+            closed = ui.close('kalk')
+            session.steps.append('native close ' + json.dumps(closed, ensure_ascii=False))
+            session.check(closed['exited'], language + ' verified window and process exit')
+        ui.home()
+        ui.open_drawer()
+        field = ui.drawer_search_fields()[0]
+        agent.ui_tap('plasmashell', field['path'])
+        run('input text rungic42', 'shell')
+        fields = ui.drawer_search_fields()
+        session.steps.append('native input ' + json.dumps(fields, ensure_ascii=False))
+        session.check(any(field.get('text') == 'rungic42' for field in fields),
+                      language + ' actual drawer field reads full ASCII input (native keys; no Android/OCR proof)')
+        agent.ui_enable(False)
+        return session.steps
+
+
+def launch_languages():
+    import tempfile
+
+    steps = []
+    for language in ('en', 'zh_CN'):
+        # A separate session bus/process also avoids sharing Gio's exported Cua object.
+        # Activated desktop daemons inherit stderr; a pipe would wait for those unrelated
+        # processes after the test exits. Keep the evidence in a file owned by this run.
+        with tempfile.TemporaryFile(mode='w+') as log:
+            reply = subprocess.run(['dbus-run-session', '--', 'python3', __file__, '--launch-language', language],
+                                   stdout=log, stderr=log, text=True, timeout=180)
+            log.seek(0)
+            output = log.read()
+        rows = [json.loads(line) for line in output.splitlines() if line.startswith('{')]
+        if reply.returncode or not rows or not rows[-1].get('passed'):
+            raise harness.Failed(output[-4000:])
+        steps.extend(rows[-1]['steps'])
+    return steps
+
+
 if __name__ == '__main__':
-    harness.run('ui_automation_atspi', test)
+    import sys
+    if len(sys.argv) == 3 and sys.argv[1] == '--launch-language':
+        harness.run('ui_launch_' + sys.argv[2], lambda: launch_language(sys.argv[2]))
+    else:
+        harness.run('ui_automation_atspi', lambda: test() + launch_languages())

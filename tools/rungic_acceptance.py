@@ -267,7 +267,7 @@ def _home():
         if any(w['active'] and w['resource_class'] == 'plasmashell' for w in rungic_agent.ui_windows()) \
                 and not ui.drawer_search_fields():
             break
-        ui.press('Home')
+        ui.home()
         time.sleep(0.8)
 
 
@@ -308,7 +308,7 @@ def ocr_screen():
 
 
 @check
-def input_text(ctx, text='Calcul', expect='Calculator', absent='Clock'):
+def input_text(ctx, text='rungic42'):
     """Android text input into the drawer search, read back from the screen by OCR: right after a
     session restart the results never reach the AT-SPI tree, and the search field exposes no text."""
     import ui_launch_check as ui
@@ -320,7 +320,7 @@ def input_text(ctx, text='Calcul', expect='Calculator', absent='Clock'):
         field = _drawer_search()
         taps = 0
         for taps in range(1, 4):
-            rungic_agent.ui_tap('plasmashell', field['path'])
+            tap = rungic_agent.ui_tap('plasmashell', field['path'])
             focused = wait_for(lambda: any('focused' in f.get('states', []) for f in
                                            ui.drawer_search_fields()),
                                timeout=3, interval=0.3)
@@ -331,13 +331,15 @@ def input_text(ctx, text='Calcul', expect='Calculator', absent='Clock'):
         run(f'input text {shlex.quote(text)}', 'shell')
         time.sleep(1.5)
         words, _ = ocr_screen()
-        top = field['extents'][1] * 3 + 400          # logical → pixels, generous: field and results
-        seen = [w for w, score, (x, y) in words if y < top + 600]
-        # Case-insensitive: right after a container start the first Android key input sometimes
-        # arrives with the wrong case ("CaICUL"); that is recorded, text delivery is what is checked.
-        typed = [w for w in seen if w.lower().startswith(text.lower()) and not w.lower().startswith(expect.lower())]
-        return result(bool(typed) and expect in seen and absent not in seen, {'taps': taps}, sent=text,
-                      case_exact=any(w.startswith(text) for w in typed), seen=seen[:20])
+        # Convert the field's window-relative logical rectangle using the actual tap geometry.
+        # Result labels elsewhere on screen cannot substitute for text delivered to the field.
+        scale, window = tap['scale'], tap['window']
+        x, y, width, height = field['extents']
+        left, top = (window['x'] + x) * scale, (window['y'] + y) * scale
+        seen = [word for word, score, (px, py) in words
+                if left - 10 <= px < left + width * scale and top - 10 <= py < top + height * scale]
+        typed = [word for word in seen if word.casefold() == text.casefold()]
+        return result(bool(typed), {'taps': taps}, sent=text, case_exact=text in typed, seen=seen[:20])
     finally:
         try:
             _home()
@@ -543,7 +545,7 @@ def desktop_mode(ctx, timeout=90):
 
 
 @check
-def app_launch(ctx, app='Calculator', process='kalk', rounds=2):
+def app_launch(ctx, app='org.kde.kalk', process='kalk', rounds=2):
     """Launch and close through the launcher by accessible names (tools/ui_launch_check.py)."""
     import ui_launch_check as ui
     enabled = rungic_agent.a11y('state')['enabled']
@@ -552,15 +554,15 @@ def app_launch(ctx, app='Calculator', process='kalk', rounds=2):
         time.sleep(2)
     try:
         if ui.running(process):
-            ui.close(process)
+            ui.close(process, app)
         steps = []
         for _ in range(rounds):
             began = time.monotonic()
             step = ui.launch(app, process, False)
             step['launch_s'] = round(time.monotonic() - began, 1)
-            step |= ui.close(process)
+            step |= ui.close(process, app)
             steps.append(step)
-        ok = all(s['started'] and s['registered'] and s['exited'] for s in steps)
+        ok = all(s['started'] and s['registered'] and s['window'] and s['exited'] for s in steps)
         return result(ok, {'launch_s': max(s['launch_s'] for s in steps)}, rounds=steps)
     finally:
         try:

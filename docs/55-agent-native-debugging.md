@@ -142,3 +142,10 @@ Claude Code原生支持MCP工具，Agent可以直接获得带参数模式的工�
 开发启动工具和验收输入检查共用 ui_launch_check.drawer_search_fields：查询 Plasma shell 的 text 节点，要求 showing、visible、enabled、editable 状态及屏幕内非零范围；不按翻译名称匹配。唯一候选才操作，多候选报歧义。若抽屉已打开，不再滑动；打开后要求节点路径和范围连续两次一致，之后再聚焦、输入并读屏验证。
 
 USB G100 的只读 AT-SPI 记录显示中文字段名为搜索，role=text，状态 showing/visible/enabled/editable，范围 [26,56,301,43]。开发回归重放同一语义、分别使用 Search／搜索名称，覆盖打开、聚焦、文字注入和 OCR 结果边界，以及隐藏、不可用和多候选拒绝。这里 OCR 和设备命令为替身，中文及英文手机真实输入流程仍须下一轮验收，不能把工具回归当成产品输入通过。
+
+
+## 2026-10-07：界面语言与应用身份
+
+`ui_launch_check.py --app org.kde.kalk --process kalk` 以桌面文件 ID 为输入，复用 Cua 的应用解析器与桌面文件全部 Name／GenericName 翻译，要求抽屉中恰好一个标签匹配并记录该实际标签；不依赖测试进程的 LANG／LANGUAGE／LC_MESSAGES。显示名仅用于找到入口；启动成功还必须读到同一用户的进程 PID、同 PID 的 AT-SPI 注册，以及桌面文件类名匹配的正常 KWin 窗口。报告保存窗口 ID；关闭通过已有 KWin 窗口操作，确认该 ID 消失且进程退出。返回首页使用 Plasma Mobile 的公开 D-Bus 方法，不依赖 Home／Close app 等按钮翻译。桌面 ID 不存在、标签重名或窗口身份不符均拒绝操作或判失败。
+
+`input.text` 保留 Android `input text` 的检查范围，输入固定 ASCII 文本 `rungic42`，只接受搜索框实际屏幕范围内的完整文字读回。范围由点击返回的窗口原点与实际缩放计算，结果列表中的应用显示名不参与判定。大小写差异仍记录 `case_exact`。这项检查不证明屏幕键盘或中文输入法；真实键盘输入属于另行定义的端到端场景。

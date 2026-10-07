@@ -613,7 +613,7 @@ features:
       - id: E2
         text: 多个 ADB 服务器、多台手机同时在线时，按配置的端口和序列号操作那一台，不沿用工具的历史默认设备。
       - id: E3
-        text: 按无障碍名称在启动器里打开和关闭应用（ui_launch_check），每一步对照进程表和 AT-SPI 核对，点错就失败，不悄悄测错对象。抽屉搜索按 text 角色、可编辑／可见／启用状态和有效屏幕范围定位，不依赖 Search 或搜索等翻译名称；多个候选拒绝操作，位置连续两次稳定才放行。
+        text: 按桌面文件 ID 解析当前会话的应用显示名，在启动器里定位并启动（ui_launch_check）；以用户进程 PID、同 PID 的 AT-SPI 注册、桌面类名及 KWin 窗口 ID 核对身份，按该窗口 ID 关闭并确认窗口、进程退出，不依赖英文显示名、标题或导航按钮名。抽屉搜索按 text 角色、可编辑／可见／启用状态和有效屏幕范围定位，不依赖 Search 或搜索等翻译名称；多个候选拒绝操作，位置连续两次稳定才放行。
       - id: E4
         text: 合并日志把 Android、容器和内核日志按同一时钟排成一条时间线。
     pitfalls:
@@ -697,6 +697,7 @@ features:
       - agent/computer-use/rungic_cua/__init__.py
       - agent/computer-use/rungic_cua/__main__.py
       - agent/computer-use/rungic_cua/server.py
+      - agent/computer-use/rungic_cua/applications.py
       - agent/computer-use/rungic_cua/i18n.py
       - agent/computer-use/rungic_cua/kwin.py
       - agent/computer-use/rungic_cua/portal.py

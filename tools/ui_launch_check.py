@@ -1,18 +1,19 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
-"""Launch and close an app through the Plasma Mobile UI by accessible names only.
+"""Launch from the Plasma Mobile drawer by desktop ID and its actual localized label.
 
 Replaces the fixed-coordinate taps of the doc 51 launch scenario. Each step is
 checked against the process table and AT-SPI registration, so a missed tap
 fails the run instead of silently measuring the wrong thing. `--search` types
-the name into the drawer search first, which moves the icon: the same code
+the localized name into the drawer search first, which moves the icon: the same code
 must still find it.
 
-  ui_launch_check.py [--app Calculator] [--process kalk] [--rounds 2] [--search]
+  ui_launch_check.py [--app org.kde.kalk] [--process kalk] [--rounds 2] [--search]
 """
 import argparse
 import json
 import re
+import shlex
 import sys
 import time
 from pathlib import Path
@@ -22,8 +23,52 @@ import rungic_agent  # noqa: E402
 from rungic_device import run  # noqa: E402
 
 
+def process_ids(process):
+    reply = run(f'pgrep -x -u "$(id -u)" {shlex.quote(process)}', 'user', check=False)
+    if reply.returncode not in (0, 1):
+        raise RuntimeError('process table unavailable')
+    return {int(pid) for pid in reply.stdout.split()}
+
+
 def running(process):
-    return run(f'pgrep -x {process}', 'container', check=False).returncode == 0
+    return bool(process_ids(process))
+
+
+def desktop_entry(app):
+    """Resolve the desktop ID and collect every translated Name/GenericName from its file."""
+    code = ('import json,sys; from gi.repository import Gio; '
+            'from rungic_cua.applications import find_application,localized_names; '
+            'entry=find_application(sys.argv[1]); '
+            'entry and entry.update(labels=sorted(localized_names(Gio.DesktopAppInfo.new(entry["id"]+".desktop")))); '
+            'print(json.dumps(entry,ensure_ascii=False))')
+    reply = run(f'PYTHONPATH=/usr/lib/rungic-cua python3 -c {shlex.quote(code)} {shlex.quote(app)}', 'user')
+    entry = json.loads(reply.stdout)
+    if not entry or entry['id'] != app.removesuffix('.desktop'):
+        raise RuntimeError(f'installed desktop ID {app!r} not found exactly')
+    if not entry.get('labels'):
+        raise RuntimeError(f'installed desktop ID {app!r} has no label candidates')
+    return entry
+
+
+def application_windows(entry, process):
+    pids = process_ids(process)
+    return [w for w in rungic_agent.ui_windows() if w.get('normal') and w.get('id')
+            and w['pid'] in pids and w['resource_class'].casefold() in entry['classes']]
+
+
+def window_action(window_id, action):
+    code = ('import json,sys; from rungic_cua.kwin import KWin; '
+            'print(json.dumps(KWin().window_action(sys.argv[1],sys.argv[2])))')
+    command = f'PYTHONPATH=/usr/lib/rungic-cua python3 -c {shlex.quote(code)} {shlex.quote(window_id)} {shlex.quote(action)}'
+    reply = json.loads(run(command, 'user').stdout)
+    if not reply.get('found'):
+        raise RuntimeError(f'window {window_id!r} disappeared before {action}')
+    return reply
+
+
+def home():
+    # The same public shell action used by Android navigation, independent of button labels.
+    return run('qdbus6 org.kde.plasmashell /Mobile org.kde.plasmashell.openHomeScreen', 'user')
 
 
 def wait_for(condition, timeout=10):
@@ -33,13 +78,6 @@ def wait_for(condition, timeout=10):
             return True
         time.sleep(0.3)
     return False
-
-
-def press(name):
-    buttons = [b for b in rungic_agent.ui_find('plasmashell', role='button', name=f'^{name}$')]
-    if not buttons:
-        raise RuntimeError(f'no plasmashell button named {name!r}')
-    return rungic_agent.ui_press('plasmashell', buttons[0]['path'])
 
 
 # One AT-SPI query through adb takes about 3 s (two container round trips): a position counts as
@@ -86,12 +124,30 @@ def open_drawer(timeout=SETTLE_TIMEOUT):
     raise RuntimeError('app drawer did not open')
 
 
+def launcher_label(entry, timeout=SETTLE_TIMEOUT):
+    """Find the actual drawer label among all translations, regardless of our locale."""
+    candidates = set(entry['labels'])
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        labels = [node for node in rungic_agent.ui_find('plasmashell', role='label')
+                  if node.get('name', '').casefold() in candidates
+                  and node.get('extents', [0, 0, 0, 0])[2] > 0]
+        if len(labels) > 1:
+            raise RuntimeError(f'ambiguous launcher labels for {entry["id"]!r}')
+        if labels:
+            return labels[0]['name']
+        time.sleep(0.3)
+    raise RuntimeError(f'launcher labels for {entry["id"]!r} not visible')
+
+
 def icon_for(app, timeout=SETTLE_TIMEOUT):
     """The launcher delegate of `app`, once its position stops changing (drawer animations)."""
     previous, deadline = None, time.monotonic() + timeout
     while time.monotonic() < deadline:
-        labels = [n for n in rungic_agent.ui_find('plasmashell', role='label', name=f'^{app}$')
+        labels = [n for n in rungic_agent.ui_find('plasmashell', role='label', name=f'^{re.escape(app)}$')
                   if n.get('extents', [0, 0, 0, 0])[2] > 0]
+        if len(labels) > 1:
+            raise RuntimeError(f'ambiguous launcher label {app!r}')
         current = (labels[0]['path'], tuple(labels[0]['extents'])) if labels else None
         if current and current == previous:
             return current[0].rsplit('/', 1)[0]  # the icon delegate that owns the label
@@ -105,7 +161,7 @@ def scroll_drawer_to_top(app, attempts=3):
     under the search field still reports extents, and a tap there hits the field."""
     for _ in range(attempts):
         fields = drawer_search_fields()
-        labels = [n for n in rungic_agent.ui_find('plasmashell', role='label', name=f'^{app}$')
+        labels = [n for n in rungic_agent.ui_find('plasmashell', role='label', name=f'^{re.escape(app)}$')
                   if n.get('extents', [0, 0, 0, 0])[2] > 0]
         if not fields or not labels:
             return
@@ -117,36 +173,51 @@ def scroll_drawer_to_top(app, attempts=3):
 
 
 def launch(app, process, search):
-    press('Home')
+    entry = desktop_entry(app)
+    home()
     time.sleep(0.8)
     open_drawer()
+    label = launcher_label(entry)
     if not search:
-        scroll_drawer_to_top(app)
+        scroll_drawer_to_top(label)
     if search:
-        # Kirigami's search field exposes no EditableText interface: focus it, type through Android input.
+        # Localized search uses the existing KWin text-commit path, including non-ASCII labels.
         field = [f for f in drawer_search_fields()]
         if not field:
             raise RuntimeError('drawer search field not showing')
         rungic_agent.ui_press('plasmashell', field[0]['path'], 'SetFocus')
-        run(f'input text {app[:4]}', 'shell')
+        code = 'import sys; from rungic_cua.kwin import KWin; KWin().commit_text(sys.argv[1])'
+        run(f'PYTHONPATH=/usr/lib/rungic-cua python3 -c {shlex.quote(code)} {shlex.quote(label[:4])}', 'user')
         time.sleep(1.0)
-    tap = rungic_agent.ui_tap('plasmashell', icon_for(app))
+    tap = rungic_agent.ui_tap('plasmashell', icon_for(label))
     started = wait_for(lambda: running(process), 10)
-    registered = wait_for(lambda: any(a['name'] == process for a in rungic_agent.a11y('apps')), 10)
-    step = {'tap': tap['tap'], 'started': started, 'registered': registered}
-    if not started:
+    visible = wait_for(lambda: bool(application_windows(entry, process)), 10)
+    registered = wait_for(lambda: any(a['pid'] == w['pid'] for a in rungic_agent.a11y('apps')
+                                     for w in application_windows(entry, process)), 10)
+    windows = application_windows(entry, process) if visible else []
+    registered_pids = {a['pid'] for a in rungic_agent.a11y('apps')}
+    registered = registered and any(w['pid'] in registered_pids for w in windows)
+    step = {'desktop_id': entry['id'], 'label': label, 'tap': tap['tap'], 'started': started,
+            'registered': registered, 'window': bool(windows), 'windows': windows}
+    if not (started and registered and windows):
         step['screenshot'] = rungic_agent.screenshot()  # evidence of what the tap hit
     return step
 
 
-def close(process):
-    press('Close app')
-    return {'exited': wait_for(lambda: not running(process), 10)}
+def close(process, app='org.kde.kalk'):
+    windows = application_windows(desktop_entry(app), process)
+    if len(windows) != 1:
+        raise RuntimeError(f'expected one {app} window to close, found {len(windows)}')
+    window_id = windows[0]['id']
+    window_action(window_id, 'close')
+    exited = wait_for(lambda: not running(process), 10)
+    gone = wait_for(lambda: not any(w.get('id') == window_id for w in rungic_agent.ui_windows()), 10)
+    return {'exited': exited and gone, 'closed_window': window_id}
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument('--app', default='Calculator')
+    parser.add_argument('--app', default='org.kde.kalk')
     parser.add_argument('--process', default='kalk')
     parser.add_argument('--rounds', type=int, default=2)
     parser.add_argument('--search', action='store_true')
@@ -154,13 +225,13 @@ def main():
     rungic_agent.ui_enable(True)
     time.sleep(2)
     if running(args.process):
-        close(args.process)
+        close(args.process, args.app)
     results = []
     for i in range(args.rounds):
-        step = launch(args.app, args.process, args.search) | close(args.process)
+        step = launch(args.app, args.process, args.search) | close(args.process, args.app)
         results.append(step)
         print(json.dumps(step), flush=True)
-    ok = all(r['started'] and r['registered'] and r['exited'] for r in results)
+    ok = all(r['started'] and r['registered'] and r['window'] and r['exited'] for r in results)
     print(json.dumps({'ok': ok, 'rounds': len(results)}))
     return 0 if ok else 1
 

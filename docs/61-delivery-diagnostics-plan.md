@@ -388,3 +388,8 @@ python3 tools/rungic_acceptance.py render .work/deploy/RUN/acceptance-retry/repo
 即使只跑 smoke 或 selected，选择该场景就带入 `manual.session.ready.1`。审阅者查看同次截图或手机画面，记录版本、启动标识、时间与完整主屏实际可见的观察；运行单照常结束，不停下来等人；该项先显示“待人工”，未填写时总判定为未完成。补填必须提供确认人和带时区的实际观察时间，报告在该行显示两项。使用既有 `manual REPORT --manual manual.session.ready.1=pass:实际观察 --reviewer James --observed-at 2026-10-07T07:10:00+09:00` 生成独立关联报告，保留原始未验项。黑屏、启动画面或无法判断应记录失败，不以 PNG 文件存在代替观察。重启验收分别保留三轮结果，本检查不自动执行或证明整机重启恢复。
 
 该自动项的 `covers` 仍为空：完整主屏体验必须由单独的审阅观察提供证据，不把进程／截图采集宣称成自动功能通过。历史报告按本计划的关联展示也不能因此获得一条当时没有执行的桌面体验覆盖。
+
+
+### 2026-10-07：验收不依赖英文显示名
+
+当前 `release/acceptance.json` 的 `app.launch` 使用 `org.kde.kalk` 桌面 ID；入口标签在已安装桌面文件的全部翻译候选中匹配，要求唯一，并记录抽屉实际显示的名称，成功依据为进程、同 PID 的无障碍注册和 KWin 窗口身份。关闭按窗口 ID 操作并确认窗口与进程退出。`input.text` 在搜索框实际范围内读回固定测试文本，不再要求 Calculator 出现或 Clock 消失。它仍只检查 Android 模拟按键送入文本，不代替真实屏幕键盘／输入法验收。工具机制见 [55 篇](55-agent-native-debugging.md)。历史候选及历史报告不修改。
