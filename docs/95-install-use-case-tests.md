@@ -101,7 +101,7 @@
 
 第二轮原始通知记录确认：账户提醒使用前台服务的 id=1，同时带 `FOREGROUND_SERVICE`、`ONGOING_EVENT`、`ONLY_ALERT_ONCE`；账户完成后的过滤记录还出现同一 id 在两个频道中的条目，但过滤件没有保存它们所属的 dumpsys 分区，不能据此断言两项同时处于活动列表。`mIsInterruptive=false` 是观测状态，不足以确定 OEM 锁屏不呈现的具体原因。原始锁屏失败保留。
 
-通知继续由同一个 DesktopService 和现有 `install-action` 频道发布。前台服务固定 id=1、低重要性；CaptureService 使用 id=2。账户行动项使用 id=3，失败行动项使用 id=4，不带 ongoing 或 only-alert-once，不自动因点击而取消。后台重复状态不重复提醒；打开账户表单不撤回，确认账户成功才撤回；失败撤回旧账户项并发布失败项。失败原因实际显示且应用在前台后撤回；后台已生成的界面还不代表用户已看见。服务重建时读回系统仍在展示的行动通知，避免丢失撤回依据。提交结果先通知服务，再处理 Activity 回调，因此 Activity 已关闭也不会让旧账户提醒冒充当前结果。
+通知继续由同一个 DesktopService 和现有 `install-action` 频道发布。前台服务固定 id=1、低重要性；CaptureService 使用 id=2。账户行动项使用 id=3，失败行动项使用 id=4，不带 ongoing 或 only-alert-once，不自动因点击而取消。后台重复状态不重复提醒；打开账户表单不撤回，确认账户成功才撤回；失败撤回旧账户项并发布失败项。失败原因实际显示且应用在前台后撤回；后台已生成的界面还不代表用户已看见。服务重建时读回系统仍在展示的行动通知，避免丢失撤回依据。提交结果先交接给服务，再处理 Activity 回调；成功路径会先直接取消行动项，因此 Activity 已关闭或服务启动被拒绝也不会保留旧账户提醒。
 
 依据 Android 官方的 [Notification.Builder 接口](https://developer.android.com/reference/android/app/Notification.Builder)及[通知创建与取消契约](https://developer.android.com/develop/ui/compose/notifications/create-notification)，复用通知 ID 更新与取消，不复制一套安装检查。频道重要性和公开可见性不能保证实际锁屏呈现，用户设置与系统策略仍有影响。
 
@@ -109,4 +109,6 @@
 
 本机检查：实际 Java 服务在通知 API 替身上验证独立 ID／属性、状态去重、打开保留、成功撤回、失败替换、查看撤回、后台未查看及服务重建；实际 AccountSetup 回调在 View 替身上使用中英文资源验证无须字段聚焦的消息绑定、密码清空、重试和 Activity 销毁后的结果交接。真实 Android 36 SDK 的全部 Java、资源与 DEX 编译通过。这些证据不代表 Android 系统通知、EditText 气泡或原手机锁屏已验收。
 
-第三轮由手机执行者覆盖：锁屏收到新行动项、点击进账户表单但保留提醒、账户成功后撤回、失败取代旧项、查看原因后撤回；两个拒绝原因的消息区、密码清空与成功重试同时验证。没有获准的新手机候选前，不改第二轮载荷或把实机待验记为通过。
+已知限制：账户提交结果在工作线程中调用 `startForegroundService`。应用 targetSdk=35；若提交完成时 Activity 已关闭、应用已在后台，根据 Android 官方的[后台启动前台服务限制](https://developer.android.com/develop/background-work/services/fgs/restrictions-bg-start)，Android 12 及以后可能以 `ForegroundServiceStartNotAllowedException` 拒绝启动。当前没有证明此路径符合后台启动豁免。异常只记日志，不把已提交成功的账户改报失败；成功仍直接撤回行动项，但失败提醒可能无法送达。
+
+第三轮由手机执行者覆盖：灭屏并锁屏时实际收到新行动项；保留 dumpsys 分区标签，确认本应用 id=3 或 4 位于 `install-action` 频道且不带 ongoing；点击进账户表单但保留提醒、账户成功后撤回、失败取代旧项、查看原因后撤回；两个拒绝原因直接显示在表单消息区，密码清空与成功重试同时验证。另覆盖提交期间关闭 Activity／退到后台，查 logcat 是否出现 `Could not deliver account reminder result`，同时核对账户真实结果和提醒。只有原机完成检查后才能判断 B02 的具体原因。没有获准的新手机候选前，不改第二轮载荷或把实机待验记为通过。

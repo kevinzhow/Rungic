@@ -7,7 +7,8 @@ import java.io.IOException;
  * Plain Java (tests/ControlExceptionTest runs without Android). */
 final class ControlException extends IOException {
     /** system/account/setup.py SetupError texts that mean "choose another username". */
-    private static final String[] USERNAME_TAKEN={"这个用户名已被使用","这个用户名的主目录已存在"};
+    private static final String HOME_EXISTS="这个用户名的主目录已存在";
+    private static final String[] USERNAME_TAKEN={"这个用户名已被使用",HOME_EXISTS};
     final String action, output;
     final int exitCode;
     ControlException(String action, int exitCode, String output) {
@@ -28,7 +29,7 @@ final class ControlException extends IOException {
     }
     static boolean usernameHomeExists(Throwable failure) {
         return failure instanceof ControlException &&
-            ((ControlException)failure).lastLine().equals(USERNAME_TAKEN[1]);
+            ((ControlException)failure).lastLine().equals(HOME_EXISTS);
     }
     /** What a Toast may show: the controller's text, never the diagnostic wrapper. */
     static String userText(Throwable failure) {
