@@ -118,6 +118,31 @@ class RootfsInstallTests(unittest.TestCase):
         self.assertFalse(any('build_rootfs_image.py' in str(command) for command in calls))
 
     # covers: install.rungicos-image/E3
+    @unittest.skipUnless(__import__('shutil').which('apt-get'), 'APT parser unavailable')
+    def test_bootstrap_source_format_is_accepted_by_real_apt(self):
+        repo = self.root / 'repo'
+        repo.mkdir()
+        (repo / 'release.json').write_text('{"version":"test.1","packages":{"rungic-plasma-config":"1"}}')
+        def stop_at_guest(*command):
+            if command[0] == 'mmdebstrap':
+                (Path(command[7]) / 'var/lib').mkdir(parents=True)
+            else:
+                raise subprocess.CalledProcessError(42, command)
+        args = SimpleNamespace(output=self.root/'attempt', packages=repo, source_commit=SOURCE,
+                               firefox_version='1', suite='test', mirror='http://mirror.invalid',
+                               qemu=None, size_gib=16, prepare_only=False)
+        with patch('prepare_rootfs.platform.machine', return_value='aarch64'), patch('prepare_rootfs.run', side_effect=stop_at_guest):
+            with self.assertRaises(subprocess.CalledProcessError):
+                prepare_rootfs.prepare(args)
+        state = args.output/'prepared-root/var/lib/rungic-apt'
+        sources = list(state.glob('bootstrap.*'))
+        self.assertEqual(len(sources), 1)
+        result = subprocess.run(['apt-get', '-o', f'Dir::Etc::sourcelist={sources[0]}',
+                                 '-o', 'Dir::Etc::sourceparts=-', 'indextargets'],
+                                capture_output=True, text=True, stdin=subprocess.DEVNULL)
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    # covers: install.rungicos-image/E3
     def test_configuration_is_package_owned(self):
         script = (HERE/'install_rootfs.sh').read_text()
         orchestration = (HERE/'prepare_rootfs.py').read_text()

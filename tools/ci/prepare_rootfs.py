@@ -45,7 +45,7 @@ def prepare(args):
     state = root / 'var/lib/rungic-apt'
     shutil.copytree(args.packages, state)
     # The temporary index selection does not hand-write package-owned /etc files.
-    (state / 'bootstrap.sources').write_text('\n'.join([*sources,
+    (state / 'bootstrap.list').write_text('\n'.join([*sources,
         'deb [trusted=yes] file:/var/lib/rungic-apt ./']) + '\n')
     exact = {**manifest['packages'], 'rungic-release': manifest['version']}
     (state / 'exact-packages.txt').write_text(''.join(f'{name}={version}\n' for name, version in sorted(exact.items())))

@@ -10,8 +10,8 @@ mapfile -t runtime_packages < "$state/runtime-packages.txt"
 config=$(grep '^rungic-plasma-config=' "$state/exact-packages.txt")
 # Bootstrap source selection stays under /var. The owning package supplies all
 # persistent APT configuration, including the Mozilla source, key and pin.
-apt-get -o Dir::Etc::sourcelist="$state/bootstrap.sources" -o Dir::Etc::sourceparts=- update </dev/null
-apt-get -o Dir::Etc::sourcelist="$state/bootstrap.sources" -o Dir::Etc::sourceparts=- install -y --no-install-recommends "$config" </dev/null
+apt-get -o Dir::Etc::sourcelist="$state/bootstrap.list" -o Dir::Etc::sourceparts=- update </dev/null
+apt-get -o Dir::Etc::sourcelist="$state/bootstrap.list" -o Dir::Etc::sourceparts=- install -y --no-install-recommends "$config" </dev/null
 apt-get update </dev/null
 apt-get install -y --no-install-recommends "${release_packages[@]}" "firefox=$firefox_version" "${runtime_packages[@]}" </dev/null
 useradd --create-home --uid 1000 --user-group --shell /bin/bash rungic
