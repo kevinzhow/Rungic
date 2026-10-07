@@ -100,6 +100,8 @@ features:
         text: 设置里指向旧 /usr/local 路径的输入法、门户覆盖、Codex 配置和 Firefox 启动器改到新路径。用户自己改过的值不动。
       - id: E4
         text: 迁移在 KWin 启动前运行，KWin 第一次就读到新的输入法路径。每个迁移只运行一次。旧的固定 3 倍显示迁移已退役，不凭 scale=3 猜测用户选择。
+      - id: E5
+        text: 新账户第一次进桌面就用 Rime 拼音键盘，键盘语言是简体中文和美式英文，可以用语言键切换。用户自己选过的输入法和语言不动。
     pitfalls:
       - text: 家目录不随 rootfs 快照回滚，失败部署期间写进 ~/.config 的内容会留下。排查部署后异常时要看部署时段改过的用户配置。
         docs: [docs/61-delivery-diagnostics-plan.md]
@@ -357,6 +359,8 @@ features:
         device: 耗时取决于手机的 CPU 和存储（LevelDB 每次打开都写 MANIFEST 并 fsync）。离线在 tmpfs 与 NVMe 上就相差十倍，只有手机上量的数字能说明。
       - id: E6
         text: 密码字段不交给 Rime，敏感字段不学习词频。用户词频和定制在 ~/.local/share/plasma-rime（0700），default.custom.yaml 只首次创建。
+      - id: E7
+        text: 在把预编辑算进光标周围文字的编辑器里（KWrite、Kate），拼音留在预编辑区直到选词；只有光标被移开或文字在别处被改动才提交组合。
     pitfalls:
       - text: librime 打开词库失败会安排 userdb_recovery_task，LevelDB RepairDB 不取 LOCK，会改写另一进程正在用的词库。所以在确认能独占词库之前，任何会话都不能尝试打开它。
         docs: [docs/41-plasma-rime-input.md]

@@ -137,3 +137,10 @@ enabledLocales=zh_CN,en_US
   2. 语言列表是 Qt Quick 弹出层，AT-SPI 给它的内容以弹出层自己为原点（对话框节点在 0,0）。`LanguagePopup.show()` 把列表左下角放在语言键左上角，所以按这个锚定换算位置，并以语言确实切换作为验证。2026-10-07 无头测试中按报告坐标或面板偏移去点都不中，按锚定换算后切换成功。
 - **中文句号**：中文字母页右下角的键是全角点“．”（U+FF0E），句号“。”（U+3002）在符号页的第 2 页，长按“．”的备选里也有。验收清单的 `你好，中国。` 用的是“。”。
 - **验证**：2026-10-07 在 Mac mini 无头 KWin 上，两个键盘都逐键真实触摸输入 `Rungic E2E AbC123\n你好，中国。\n`，读回全文 37 字节与预期一致（当时的无头测试工具未合入）。实机由验收清单 E2E-02、E2E-08 覆盖（docs/121）。
+
+## 2026-10-07：新账户没有 Rime、KWrite 里拼音逐键上屏（G100 实机，已修）
+
+发版验收清单（docs/121）第一次在 G100 上跑时发现两处，均已在实机复核。
+
+- **新账户用的不是 Rime 键盘，也没有英文**：plasma-mobile 在自己的 `~/.config/plasma-mobile/kwinrc`（XDG_CONFIG_DIRS）里写 `InputMethod=…/org.kde.plasma.keyboard.desktop`，我们只在迁移旧路径时（`rungic-usr-paths.sh`）改输入法；`plasmakeyboardrc` 没有 `enabledLocales` 时 plasma-keyboard 只开系统语言，语言键是灰的，设置页的语言列表里也没有 Rime 中文。新的 kconf_update `rungic-keyboard-defaults.sh` 在 KWin 启动前，用户自己的 kwinrc 没写输入法时设成 `rungic-plasma-rime.desktop`，没写语言时设成 `zh_CN,en_US`（与浮动键盘的默认一致）；只读用户自己的文件（绝对路径，不级联），用户选过的不动。改了用户 kwinrc 之后，正在运行的 KWin 要到下次会话才换输入法进程（`kwriteconfig6 --notify` 和开关虚拟键盘都不行）。
+- **KWrite 里每个拼音字母都上屏成首候选**（“nihao”→“你i和啊哦”）：KTextEditor 把预编辑算进光标周围的文字，经 Wayland 到键盘就成了“周围文字变了”，Qt VK 调输入法的 `update()`，插件在那里提交组合。而且回报比下一个键晚一步（显示 “ni h” 时才收到含 “ni” 的回报）。设置页那种普通 Qt 输入框不这样，所以无头测试没发现。修复：组合开始时记下周围文字和光标，`update()` 里如果只是本次组合显示过的某个预编辑被原样算进了光标处，就不提交；光标移开或文字在别处被改才提交（`desktop/rime/echo.h`，`rungic-rime-check` 的 10 条检查）。实机：KWrite 里 “ni hao” 留在预编辑区，首候选“你好”，屏幕键盘逐键打出整段夹具并保存为 37 字节、SHA256 与预期一致。
