@@ -73,6 +73,9 @@ KeyboardStyle {
 
     keyPanel: KeyPanel {
         id: key
+        Accessible.role: Accessible.Button
+        Accessible.id: key.control && key.control.text ? "key:" + key.control.text : "key"
+        Accessible.name: key.control ? (key.control.uppercased ? key.control.displayText.toUpperCase() : key.control.displayText) : ""
         Face { id: face; control: key.control }
         Label {
             control: key.control
@@ -90,11 +93,17 @@ KeyboardStyle {
     }
     backspaceKeyPanel: KeyPanel {
         id: back
+        Accessible.role: Accessible.Button
+        Accessible.id: "backspace"
+        Accessible.name: qsTr("Backspace")
         Face { control: back.control; function_: true }
         Glyph { source: "edit-clear-symbolic"; share: 0.48 }
     }
     enterKeyPanel: KeyPanel {
         id: enter
+        Accessible.role: Accessible.Button
+        Accessible.id: "enter"
+        Accessible.name: enter.control && enter.control.displayText ? enter.control.displayText : qsTr("Enter")
         Face { control: enter.control; accented: true }
         // A word for the field's action (Go, Search, Done...), else the return arrow.
         Label {
@@ -111,6 +120,9 @@ KeyboardStyle {
     }
     shiftKeyPanel: KeyPanel {
         id: shift
+        Accessible.role: Accessible.Button
+        Accessible.id: "shift"
+        Accessible.name: qsTr("Shift")
         Face {
             control: shift.control
             function_: true
@@ -126,6 +138,9 @@ KeyboardStyle {
     }
     spaceKeyPanel: KeyPanel {
         id: space
+        Accessible.role: Accessible.Button
+        Accessible.id: "space"
+        Accessible.name: qsTr("Space")
         Face { control: space.control }
         // The language it types, faint.
         Label {
@@ -137,11 +152,17 @@ KeyboardStyle {
     }
     symbolKeyPanel: KeyPanel {
         id: symbol
+        Accessible.role: Accessible.Button
+        Accessible.id: "symbol"
+        Accessible.name: symbol.control ? symbol.control.displayText : ""
         Face { control: symbol.control; function_: true }
         Label { control: symbol.control; share: 0.36; text: symbol.control.displayText }
     }
     modeKeyPanel: KeyPanel {
         id: modeKey
+        Accessible.role: Accessible.Button
+        Accessible.id: "mode"
+        Accessible.name: modeKey.control ? modeKey.control.displayText : ""
         Face { control: modeKey.control; function_: true }
         Label {
             control: modeKey.control
@@ -152,16 +173,25 @@ KeyboardStyle {
     }
     languageKeyPanel: KeyPanel {
         id: language
+        Accessible.role: Accessible.Button
+        Accessible.id: "language"
+        Accessible.name: qsTr("Switch language")
         Face { control: language.control; function_: true }
         Glyph { source: "globe"; fallback: "preferences-desktop-locale"; share: 0.48 }
     }
     hideKeyPanel: KeyPanel {
         id: hide
+        Accessible.role: Accessible.Button
+        Accessible.id: "hide"
+        Accessible.name: qsTr("Hide keyboard")
         Face { control: hide.control; function_: true }
         Glyph { source: "input-keyboard-virtual-hide-symbolic"; fallback: "arrow-down"; share: 0.5 }
     }
     handwritingKeyPanel: KeyPanel {
         id: handwriting
+        Accessible.role: Accessible.Button
+        Accessible.id: "handwriting"
+        Accessible.name: qsTr("Handwriting")
         Face { control: handwriting.control; function_: true }
         Glyph { source: "draw-freehand"; share: 0.48 }
     }
@@ -192,6 +222,9 @@ KeyboardStyle {
     alternateKeysListItemHeight: 44
     alternateKeysListDelegate: Item {
         id: alternate
+        Accessible.role: Accessible.Button
+        Accessible.id: "alternate"
+        Accessible.name: model.text
         width: theme.alternateKeysListItemWidth
         height: theme.alternateKeysListItemHeight
         Text {
@@ -214,6 +247,9 @@ KeyboardStyle {
     selectionListBackground: Item {}
     popupListDelegate: SelectionListItem {
         id: popupItem
+        Accessible.role: Accessible.Button
+        Accessible.id: "candidate"
+        Accessible.name: display
         width: popupText.implicitWidth + 24
         height: 36
         Text {

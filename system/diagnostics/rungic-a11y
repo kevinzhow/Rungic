@@ -90,6 +90,12 @@ def node(acc, path):
     if acc.get_description():
         info['description'] = acc.get_description()
     try:
+        # A control's identifier (Qt: Accessible.id) stays the same in every interface language.
+        if acc.get_accessible_id():
+            info['id'] = acc.get_accessible_id()
+    except Exception:
+        pass
+    try:
         box = acc.get_extents(Atspi.CoordType.WINDOW)
         info['extents'] = [box.x, box.y, box.width, box.height]
     except Exception:

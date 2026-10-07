@@ -155,6 +155,11 @@ Item {
         property string icon: ""
         property string label: ""
         property bool checked: false
+        property string accessibleName: label
+        property string accessibleId: ""
+        Accessible.role: Accessible.Button
+        Accessible.name: accessibleName
+        Accessible.id: accessibleId
         signal tapped()
         width: label ? Math.max(36, caption.implicitWidth + 16) : 36
         height: board.barHeight - 6
@@ -219,23 +224,25 @@ Item {
             id: desktopKeys
             visible: board.barState === "keys"
             anchors { left: parent.left; verticalCenter: parent.verticalCenter; verticalCenterOffset: 1 }
-            BarKey { label: "Esc"; onTapped: board.keyWanted(1) }
-            BarKey { label: "Tab"; onTapped: board.keyWanted(15) }
-            BarKey { label: "Ctrl"; checked: board.ctrl; onTapped: board.ctrl = !board.ctrl }
-            BarKey { label: "Alt"; checked: board.alt; onTapped: board.alt = !board.alt }
-            BarKey { icon: "go-previous"; onTapped: board.keyWanted(105) }
-            BarKey { icon: "go-up"; onTapped: board.keyWanted(103) }
-            BarKey { icon: "go-down"; onTapped: board.keyWanted(108) }
-            BarKey { icon: "go-next"; onTapped: board.keyWanted(106) }
+            BarKey { label: "Esc"; accessibleId: "esc"; onTapped: board.keyWanted(1) }
+            BarKey { label: "Tab"; accessibleId: "tab"; onTapped: board.keyWanted(15) }
+            BarKey { label: "Ctrl"; accessibleId: "ctrl"; checked: board.ctrl; onTapped: board.ctrl = !board.ctrl }
+            BarKey { label: "Alt"; accessibleId: "alt"; checked: board.alt; onTapped: board.alt = !board.alt }
+            BarKey { icon: "go-previous"; accessibleName: qsTr("Left"); accessibleId: "left"; onTapped: board.keyWanted(105) }
+            BarKey { icon: "go-up"; accessibleName: qsTr("Up"); accessibleId: "up"; onTapped: board.keyWanted(103) }
+            BarKey { icon: "go-down"; accessibleName: qsTr("Down"); accessibleId: "down"; onTapped: board.keyWanted(108) }
+            BarKey { icon: "go-next"; accessibleName: qsTr("Right"); accessibleId: "right"; onTapped: board.keyWanted(106) }
         }
         Row {
             visible: board.barState === "keys"
             anchors { right: parent.right; verticalCenter: parent.verticalCenter; verticalCenterOffset: 1 }
             BarKey {
                 icon: board.docked ? "window-restore" : "view-fullscreen"
+                accessibleName: board.docked ? qsTr("Float keyboard") : qsTr("Dock keyboard")
+                accessibleId: "dock"
                 onTapped: { board.docked = !board.docked; if (!board.docked) { board.floatWidth = board.standard; board.settle() } }
             }
-            BarKey { icon: "arrow-down"; onTapped: board.hideWanted() }
+            BarKey { icon: "arrow-down"; accessibleName: qsTr("Hide keyboard"); accessibleId: "hide"; onTapped: board.hideWanted() }
         }
 
         // composing: what is typed, the candidates in a row, the arrow to all of them
@@ -258,6 +265,9 @@ Item {
             delegate: Item {
                 required property int index
                 required property string display
+                Accessible.role: Accessible.Button
+                Accessible.name: display
+                Accessible.id: "candidate"
                 width: word.implicitWidth + 22
                 height: row.height
                 Rectangle {
@@ -287,6 +297,8 @@ Item {
             visible: board.barState !== "keys"
             anchors { right: parent.right; verticalCenter: parent.verticalCenter }
             icon: board.barState === "expanded" ? "go-up" : "go-down"
+            accessibleName: board.barState === "expanded" ? qsTr("Collapse candidates") : qsTr("Expand candidates")
+            accessibleId: "candidates"
             onTapped: board.expanded = !board.expanded
         }
     }
@@ -336,6 +348,9 @@ Item {
                     delegate: Rectangle {
                         required property int index
                         required property string display
+                        Accessible.role: Accessible.Button
+                        Accessible.name: display
+                        Accessible.id: "candidate"
                         width: Math.max(52, cell.implicitWidth + 22)
                         height: 42
                         radius: 6

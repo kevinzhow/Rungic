@@ -1,3 +1,11 @@
+plasma-keyboard (6.6.6-0ubuntu0.1+rungic2) resolute; urgency=medium
+
+  * Keys and candidates are accessible buttons with stable identifiers
+    (debian/patches/rungic/accessible-keys.patch): screen readers and agents
+    driving the phone find every key, including the icon-only ones.
+
+ -- range-dev <noreply@localhost>  Wed, 07 Oct 2026 10:00:00 +0000
+
 plasma-keyboard (6.6.6-0ubuntu0.1+rungic1) resolute; urgency=medium
 
   * Patch queue (docs/71, docs/73): the language popup and text-input
