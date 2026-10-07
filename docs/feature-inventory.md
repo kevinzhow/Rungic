@@ -1272,7 +1272,7 @@ Linux 应用用手机的相机拍照录像，用手机的扬声器和麦克风�
 - **E4** 发布记录的 Android 侧源文件在构建发布之后被改动时，部署在建快照之前就中止。（单元测试）
 - **E5** 部署后改动自动生效：变化的系统服务（service_restart）、正在运行的桌面用户服务（user_restart，plasmashell 最后）按规则重启，需要时重启整个会话。没在运行的单元不启动。（单元测试、人工）
 - **E6** status 给出手机上的发布、它的 git 提交、与仓库是否一致、rootfs 快照状态和开发覆盖。每次部署在 .work/deploy/<时间>-<版本>/ 留下逐步记录和 result。（单元测试）
-- **E7** 增量发布装到 Android 侧的文件，与完整镜像的 host seed 路径和权限一致。（单元测试）
+- **E7** 增量发布装到 Android 侧的文件，与完整镜像的 host seed 路径和权限一致；反过来，首装放下的每个 Android 侧文件（投屏的 rungic-wfd 除外，它有自己的安装器）也都在发布里，早先装的手机同样拿得到。（单元测试）
 - **E8** Ubuntu 发布了我们重建或耦合的包的更高版本时，apt 升级（Discover 的更新）和 unattended-upgrades 都保留已装发布的版本：每个发布包按精确版本 pin 在 1001，与耦合包同源的已装兄弟包（plasma-workspace 的私有库）按已装版本 pin，unattended-upgrades 另有按发布生成的精确名单。元包被卸掉后 pin 照样有效。（单元测试、人工）
 
 注意：
@@ -1284,6 +1284,7 @@ Linux 应用用手机的相机拍照录像，用手机的扬声器和麦克风�
 - unattended-upgrades 认 pin（被 pin 的已装版本不算可升级），pin 不在时只剩名单。rungic-plasma-config 带的静态名单漏了后来加入的组件（powerdevil、kwayland、xwayland、flatpak、gst-plugins-base 等）和 plasma-workspace 的私有库，部署因此按发布另写 52rungic-release。 [docs/109-dev-release-channel.md](../docs/109-dev-release-channel.md)
 - 耦合包（plasma-workspace）的版本取自出发布时那台手机上装的版本。Ubuntu 的 -updates 索引只留最新版，别的手机要装回这个旧版本时可能已经下载不到，部署会在安装一步失败。 [docs/109-dev-release-channel.md](../docs/109-dev-release-channel.md)
 - 仓库保留历史版本供回滚。只靠仓库整体 pin 时，旧版本同样可能成为候选，所以按包写 pin。 [docs/61-delivery-diagnostics-plan.md](../docs/61-delivery-diagnostics-plan.md)
+- Android 侧文件曾有两份清单各自维护：#57 只把 system/root-provider 加进首装，发布更新 rungic-runtime（它要读 root-provider）后，#57 之前装的手机 Linux 会起不来。现在测试两个方向都对比。firstboot 本身不在发布里，每次开机都要生效的设置放进 rungic-runtime（docs/121 2026-10-08）。 [docs/121-acceptance-checklist.md](../docs/121-acceptance-checklist.md)
 - 按包回滚到较早的发布需要它的提交：Android 侧文件从发布记录的提交中读取并按 sha256 核对。 [docs/70-rungic-rebrand.md](../docs/70-rungic-rebrand.md)
 
 文档：[docs/61-delivery-diagnostics-plan.md](../docs/61-delivery-diagnostics-plan.md)、[docs/96-desktop-recovery-after-apk-restart.md](../docs/96-desktop-recovery-after-apk-restart.md)、[docs/109-dev-release-channel.md](../docs/109-dev-release-channel.md)
@@ -2435,7 +2436,7 @@ Agent 不靠点界面就能拿到合并日志、崩溃回溯、追踪、截图�
 
 注意：
 - 镜像只带一行占位注释的 /etc/resolv.conf，原先没有任何机制写入 DNS，新装设备的 Linux 程序解析不了域名（issue [docs/research/32-network-integration.md](../docs/research/32-network-integration.md)
-- 独立网络以 Rungic 应用的 uid 联网，所以也受安卓按应用的网络限制：应用没在运行（开机后、强行停止后）时 netpolicy 以 APP_BACKGROUND 断网。firstboot 每次开机把应用加进电池优化（deviceidle）白名单来豁免（2026-10-08，G100）。 [docs/121-acceptance-checklist.md](../docs/121-acceptance-checklist.md)
+- 独立网络以 Rungic 应用的 uid 联网，所以也受安卓按应用的网络限制：应用没在运行（开机后、强行停止后）时 netpolicy 以 APP_BACKGROUND 断网。rungic-runtime 每次开机把应用加进电池优化（deviceidle）白名单来豁免（2026-10-08，G100）；放在 rungic-runtime 而不是 firstboot，因为发布会更新前者、不会更新后者。 [docs/121-acceptance-checklist.md](../docs/121-acceptance-checklist.md)
 - 共用安卓的网络时，Linux 的连接带着 uid 0、1000 进入安卓网络栈，安卓和 VPN 应用按系统身份处理。用户手机开 Clash 全局 VPN 时 root 的 TLS 失败而应用正常（2026-10-06）。独立网络让 Linux 以 Rungic 应用的身份联网；抽象 socket 属于网络命名空间，要中转。 [docs/116-own-network.md](../docs/116-own-network.md)
 - 没有 Linux NetworkManager 守护进程、wpa_supplicant 或 DHCP。安卓独占网卡、路由、DNS 与凭据。在服务页打开 NetworkManager 等服务可能抢走网卡、断开无线调试。 [docs/research/32-network-integration.md](../docs/research/32-network-integration.md) [docs/83-service-policy.md](../docs/83-service-policy.md)
 - 普通安卓 API 会脱敏 SSID/BSSID，靠白名单 root cmd wifi 补齐。固定安卓 16 的输出格式，换 ROM 要重验。 [docs/research/32-network-integration.md](../docs/research/32-network-integration.md)

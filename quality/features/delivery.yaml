@@ -276,7 +276,7 @@ features:
       - id: E6
         text: status 给出手机上的发布、它的 git 提交、与仓库是否一致、rootfs 快照状态和开发覆盖。每次部署在 .work/deploy/<时间>-<版本>/ 留下逐步记录和 result。
       - id: E7
-        text: 增量发布装到 Android 侧的文件，与完整镜像的 host seed 路径和权限一致。
+        text: 增量发布装到 Android 侧的文件，与完整镜像的 host seed 路径和权限一致；反过来，首装放下的每个 Android 侧文件（投屏的 rungic-wfd 除外，它有自己的安装器）也都在发布里，早先装的手机同样拿得到。
       - id: E8
         text: Ubuntu 发布了我们重建或耦合的包的更高版本时，apt 升级（Discover 的更新）和 unattended-upgrades 都保留已装发布的版本：每个发布包按精确版本 pin 在 1001，与耦合包同源的已装兄弟包（plasma-workspace 的私有库）按已装版本 pin，unattended-upgrades 另有按发布生成的精确名单。元包被卸掉后 pin 照样有效。
         evidence:
@@ -298,6 +298,8 @@ features:
         docs: [docs/109-dev-release-channel.md]
       - text: 仓库保留历史版本供回滚。只靠仓库整体 pin 时，旧版本同样可能成为候选，所以按包写 pin。
         docs: [docs/61-delivery-diagnostics-plan.md]
+      - text: Android 侧文件曾有两份清单各自维护：#57 只把 system/root-provider 加进首装，发布更新 rungic-runtime（它要读 root-provider）后，#57 之前装的手机 Linux 会起不来。现在测试两个方向都对比。firstboot 本身不在发布里，每次开机都要生效的设置放进 rungic-runtime（docs/121 2026-10-08）。
+        docs: [docs/121-acceptance-checklist.md]
       - text: 按包回滚到较早的发布需要它的提交：Android 侧文件从发布记录的提交中读取并按 sha256 核对。
         docs: [docs/70-rungic-rebrand.md]
     code:

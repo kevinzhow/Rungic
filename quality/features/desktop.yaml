@@ -767,7 +767,7 @@ features:
     pitfalls:
       - text: 镜像只带一行占位注释的 /etc/resolv.conf，原先没有任何机制写入 DNS，新装设备的 Linux 程序解析不了域名（issue #7）。容器与安卓共用网络命名空间（lxc.net.0.type = none），可以直接用安卓默认网络的 DNS。严格模式的私人 DNS（DoT）不在此列：容器仍按普通 53 端口查询。
         docs: [docs/research/32-network-integration.md]
-      - text: 独立网络以 Rungic 应用的 uid 联网，所以也受安卓按应用的网络限制：应用没在运行（开机后、强行停止后）时 netpolicy 以 APP_BACKGROUND 断网。firstboot 每次开机把应用加进电池优化（deviceidle）白名单来豁免（2026-10-08，G100）。
+      - text: 独立网络以 Rungic 应用的 uid 联网，所以也受安卓按应用的网络限制：应用没在运行（开机后、强行停止后）时 netpolicy 以 APP_BACKGROUND 断网。rungic-runtime 每次开机把应用加进电池优化（deviceidle）白名单来豁免（2026-10-08，G100）；放在 rungic-runtime 而不是 firstboot，因为发布会更新前者、不会更新后者。
         docs: [docs/121-acceptance-checklist.md]
       - text: 共用安卓的网络时，Linux 的连接带着 uid 0、1000 进入安卓网络栈，安卓和 VPN 应用按系统身份处理。用户手机开 Clash 全局 VPN 时 root 的 TLS 失败而应用正常（2026-10-06）。独立网络让 Linux 以 Rungic 应用的身份联网；抽象 socket 属于网络命名空间，要中转。
         docs: [docs/116-own-network.md]
@@ -787,7 +787,7 @@ features:
       - desktop/rungic-plasma-network.service
       - shared/platform/own-network.py
       - tools/tests/test_own_network.py
-      - tools/ci/test_install_republish.py
+      - tools/ci/test_runtime_boot.py
       - desktop/rungic-own-network.service
       - desktop/rungic-network-mode.service
       - desktop/rungic-network-mode.path

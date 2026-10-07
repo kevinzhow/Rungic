@@ -183,3 +183,5 @@ KernelSU 特有的只有一处：没授权时 App 只显示笼统的“暂时无
 - 网络：重启后 `/run/rungic-own-network` 是 0755，pasta 一直在跑，默认路由是 10.0.2.2。但在**打开 Rungic 之前连不上网**：Android 的后台网络限制拦住了 Rungic 的 uid（`blocked=APP_BACKGROUND`，进程状态 CACHED）。打开 App 后，或者 DesktopService 前台服务在跑时，局域网和 kernel.org 都通。所以开机后、强行停止 App 后，Linux 在“自己的网络”模式下都是断网的，要另外处理（见下）。另外，上一次开机失败时写下了 network-mode.failed，这次开机先按设计回到共享网络跑一次，再下一次开机才用回自己的网络。
 
 后续（同日）：firstboot 每次开机用 root 把 Rungic 加进电池优化白名单（`dumpsys deviceidle whitelist +com.rungic.plasma`），这样 Android 不再按“App 没在运行”断它的网（白名单使 netpolicy 对它放行，`UID=10220: true`）。G100 验证：先撤掉白名单再重启，不打开 App（没有 Rungic 进程），firstboot 日志里有 “background network allowed”，Linux 访问局域网和 kernel.org 都返回 200。
+
+再后续：出 dev release 前发现，发布的 Android 侧文件清单（release/packages.json）缺了 #57 加进首装清单的 `system/root-provider`。新的 rungic-runtime 要读它，#57 之前装的手机（G100 S）一升级 Linux 就起不来。已补上，测试改成两个方向都对比。白名单也从 firstboot 挪进了 rungic-runtime：firstboot 只在重装时更新，发布送不到；rungic-runtime 在发布清单里。
