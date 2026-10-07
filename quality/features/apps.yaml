@@ -930,7 +930,13 @@ features:
           - {doc: docs/48-plasma-media-pipelines.md, date: 2026-09-24, note: "容器重启后 xdg-user-dir VIDEOS 为 ~/Videos"}
       - id: E6
         text: 安卓一侧改过的文件，Linux 下次打开时就能看到。bindfs 意外退出留下的断开挂载在服务重启时被清掉，不会无限重启。
+      - id: E7
+        text: Linux 一侧新建、改名、删除的文件，安卓的媒体库（相册、播放器、文件选择）跟着更新：bindfs 以 shell uid（2000）访问安卓存储，而不是 root。
+        evidence:
+          - {doc: docs/121-acceptance-checklist.md, date: 2026-10-08, note: "G100：uid 2000 的 bindfs 下新建、改名进媒体库，删除后行消失，SQLite WAL 正常"}
     pitfalls:
+      - text: MediaProvider 的 FUSE 对 root（uid 0）的操作直接放行，但不更新媒体库。bindfs 以 root 运行时，Linux 新建的文件进不了媒体库，删掉的留下旧行（docs/121 E2E-04）。Rungic 应用自己的 uid 没有存储权限，写不了 Plasma 目录，所以用 shell uid。
+        docs: [docs/121-acceptance-checklist.md]
       - text: bindfs 不能带 --direct-io：FUSE 对 direct-io 拒绝可写共享映射，SQLite WAL、LMDB、MMKV 都会 I/O error。
         docs: [docs/69-filesystem-capabilities.md]
       - text: 共享存储不支持符号链接、硬链接、区分大小写、执行、chmod、xattr、Unix 套接字和 FIFO。应用私有数据、数据库、源码仓库和可执行程序放本地目录。

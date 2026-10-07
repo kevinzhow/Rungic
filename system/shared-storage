@@ -16,8 +16,18 @@ chmod 0755 "$shared"
 # the kernel page cache is used; FUSE still drops a file's cached pages when
 # it is opened again and attr_timeout=0 keeps sizes and times current, so
 # changes made on the Android side are seen on the next open.
-exec /usr/bin/bindfs -f --force-user=1000 --force-group=1000 --perms=a+rwX \
+# bindfs reaches Android's storage as the shell uid (2000), not root: MediaProvider's FUSE lets root
+# through without updating the media database, so files Linux created never showed in Android's
+# gallery or player and the ones it deleted stayed listed (E2E-04, docs/121 2026-10-08). The shell
+# uid may write anywhere in shared storage and its creates, renames and deletes are recorded; the
+# app's own uid has no storage permission. The desktop account's group (the home is 0750) lets it
+# reach the mount point; mounting keeps CAP_SYS_ADMIN only; allow_other, which bindfs adds itself
+# as root, is explicit.
+group=$(getent passwd 1000 | cut -d: -f4)
+exec setpriv --reuid=2000 --regid=2000 --groups="$group" \
+    --inh-caps=+sys_admin --ambient-caps=+sys_admin \
+    /usr/bin/bindfs -f --force-user=1000 --force-group=1000 --perms=a+rwX \
     --create-as-mounter --create-with-perms=a+rwX \
     --chmod-ignore --chown-ignore --chgrp-ignore --xattr-none \
-    -o nosuid,nodev,noexec,attr_timeout=0,entry_timeout=0 \
+    -o allow_other,nosuid,nodev,noexec,attr_timeout=0,entry_timeout=0 \
     /mnt/android-shared "$shared"

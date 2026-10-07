@@ -32,6 +32,8 @@ def run(tmp_path, disconnected, fusermount_works=True):
     stub(bin_dir, 'umount', 'exit 0')
     stub(bin_dir, 'chown', 'exit 0')
     stub(bin_dir, 'bindfs', 'exit 0')
+    # setpriv OPTIONS... COMMAND: records itself, then runs the command.
+    stub(bin_dir, 'setpriv', 'while [ "${1#--}" != "$1" ]; do shift; done\nexec "$@"')
     script = SCRIPT.read_text()
     assert script.count('/usr/bin/bindfs') == 1
     copy = tmp_path / 'shared-storage'
@@ -63,3 +65,18 @@ def test_a_healthy_mount_point_is_left_and_android_changes_show_on_next_open(tmp
     assert 'attr_timeout=0' in options and 'entry_timeout=0' in options
     assert not any('direct' in arg for arg in bindfs)      # direct-io breaks shared writable mmap (docs/69)
     assert os.stat(shared).st_mode & 0o777 == 0o755
+
+
+# covers: apps.shared-storage/E7
+def test_bindfs_reaches_android_as_the_shell_uid_so_the_media_library_follows(tmp_path):
+    result, calls, shared = run(tmp_path, disconnected=False)
+    assert result.returncode == 0, result.stderr
+    setpriv = next(c for c in calls if c.startswith('setpriv')).split()
+    # MediaProvider records the shell uid's creates, renames and deletes, not root's.
+    assert '--reuid=2000' in setpriv and '--regid=2000' in setpriv
+    assert '--groups=1000' in setpriv                       # the account's group: the home is 0750
+    assert '--ambient-caps=+sys_admin' in setpriv           # only what mounting needs
+    assert calls.index(next(c for c in calls if c.startswith('setpriv'))) < \
+        calls.index(next(c for c in calls if c.startswith('bindfs')))
+    bindfs = next(c for c in calls if c.startswith('bindfs')).split()
+    assert 'allow_other' in bindfs[bindfs.index('-o') + 1].split(',')   # bindfs adds it only as root
