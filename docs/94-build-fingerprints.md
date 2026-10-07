@@ -123,8 +123,8 @@ venv 导入、最后完成凭据、封镜和独立读回。实际安装 1501 个
 
 | 产物 | SHA-256 |
 | --- | --- |
-| 16 GiB ext4 | `2f6d0ed59c501ac17570a0282513b777f33617ee5cc76710b3a44025636312a1` |
-| gzip（1,773,837,848 字节） | `381d31ead2924621c84dc5ef55d6d55fd166b4380279add7a0f92e84053fd7be` |
+| 16 GiB ext4 | `f439d5885c7d9831609084a8cb3ee6cffaaf2fe4f792d82ea6f45a31635e9a61` |
+| gzip（1,773,844,883 字节） | `9d7971ab93bb7d64c18d0fddf854a7630a4c5e323ea62a28ca8f1ade0a891a66` |
 | 安装及镜像包锁 | `e9a027650103cc7e17a82f9aa2a2964217fe3589cb5e832b60e98bdd32074aa3` |
 
 反例也经同一原生入口：配置 DEB 的维护脚本遇到 EOF 返回 42，完整首装
@@ -143,3 +143,16 @@ venv 导入、最后完成凭据、封镜和独立读回。实际安装 1501 个
 `--unverified-root` 封镜；原基线和原凭据不改，也不补造完成证明。镜像报告
 保留 `install_receipt: null`，该路径的来源由现有 baseline／build-manifest
 记录承担。其 chroot 调用也关闭 stdin。
+
+上述安装代码对应 `a31509a`，根据预审改为显式模式并记录凭据的镜像代码
+对应 `c68c0af`；安装脚本内容不变，以原完成凭据生成新的镜像，报告绑定
+原安装源码 `a31509a` 和凭据摘要 `99a6f1147fa212ff68096335ac709da9424d0f9cd3cbdc710e9175dfb732439a`。
+
+完整 `/etc/apt` 读回比较了首装准备树、最终镜像树及第二轮 clean2 根树。
+最终两个树的 26 项目录／文件／链接、内容摘要和权限属主全部一致。
+Ubuntu 源仍是 `/etc/apt/sources.list` 的普通 `deb` 行，镜像为
+`http://ports.ubuntu.com/ubuntu-ports`，suite 为 resolute、resolute-updates、
+resolute-security，components 为 main、universe、multiverse、restricted。
+Mozilla 和 Rungic 源、源代码索引、密钥、pin 位置和内容也没有变化。
+首装准备树少的唯一一项是 `preferences.d/rungic-release`，由原有封镜器
+在镜像副本中生成；最终 pin 与第二轮一致，未改变用户安装后 APT 的源配置。
