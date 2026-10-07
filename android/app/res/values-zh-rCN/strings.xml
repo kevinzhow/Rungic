@@ -67,7 +67,8 @@
     <string name="account_password_mismatch">两次密码不一致</string>
     <string name="account_prepare_failed">无法准备账户信息</string>
     <string name="account_setting_up">正在设置账户…</string>
-    <string name="account_username_taken">这个用户名无法使用，请换一个用户名</string>
+    <string name="account_username_taken">这个用户名已被使用，请换一个用户名</string>
+    <string name="account_home_exists">这个用户名的主目录已存在，请换一个用户名。</string>
     <string name="account_not_created">账户尚未创建，请修改用户名并重新输入密码。</string>
 
     <string name="menu_continue">继续使用</string>

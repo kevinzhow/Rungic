@@ -223,7 +223,7 @@ features:
         evidence:
           - {doc: docs/95-install-use-case-tests.md, date: 2026-09-30, note: "UC-app-data-cleared，G100 S 两个场景"}
       - id: E7
-        text: 首装时离开前台后，通知按真实准备阶段更新；就绪但尚未配置账户时提示回来设置，失败时提示查看原因。状态读不清不覆盖已有通知。已有账户、失败或前台接手时停止后台检查，控制器调用不并发。
+        text: 首装时离开前台后，通知按真实准备阶段更新；就绪但尚未配置账户时提示回来设置，失败时提示查看原因。状态读不清不覆盖已有通知。已有账户、失败或前台接手时停止后台检查，控制器调用不并发。行动提醒独立于前台服务；打开账户表单保留，账户成功撤回，失败替换旧提醒，原因已展示后撤回失败项。
         gap: 宿主 JVM 用 Android 通知和控制器替身运行实际服务；通知权限、锁屏可见性、点击后的账户或失败页面需要下一轮真机连续验证。
     pitfalls:
       - text: 只看 Android `sys.boot_completed=1` 证明不了 rootfs 已展开、共享目录已挂载或容器已就绪。按原子状态和真实条件放行，不靠固定延时。
@@ -264,9 +264,10 @@ features:
       - id: E2
         text: 用户名必须以小写字母开头，最多 32 位，且不能是已有系统账户。密码至少 8 个字符，UTF-8 最多 256 字节，不含换行或空字符，两次输入必须一致。表单在不合规字段旁提示，root 侧账户助手再次校验。
       - id: E3
-        text: 用户名已被使用或主目录已存在时表单保留、提示换一个名字。其他失败关闭表单、显示“账户设置尚未完成”，不自动重复提交密码。
+        text: 用户名已被使用或主目录已存在时表单保留，字段旁和表单下方同时显示具体原因及修改用户名／重输密码提示。其他失败关闭表单、显示“账户设置尚未完成”，不自动重复提交密码。
         evidence:
           - {doc: docs/95-install-use-case-tests.md, date: 2026-09-30, note: "UC-account-taken，G100 S 真实输出交给修复后的判断"}
+        gap: 新增消息区和提醒撤回已完成宿主回归及 Android SDK 编译，当前 G100 候选的原生表单与锁屏通知需要第三轮验收。
       - id: E4
         text: 密码只通过 root 进程的 stdin 传递，不写入命令行、日志或持久状态。表单禁止截屏和自动填充。两个密码框默认掩码显示，用户可以切换显示。
         evidence:
@@ -298,6 +299,7 @@ features:
         docs: [docs/44-plasma-user-account.md]
     code:
       - android/app/src/com/rungic/plasma/AccountSetup.java
+      - tools/tests/test_account_form.py
       - android/app/src/com/rungic/plasma/ControlException.java
       - android/app/tests/ControlExceptionTest.java
       - system/account/

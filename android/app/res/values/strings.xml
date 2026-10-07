@@ -74,7 +74,8 @@
     <string name="account_password_mismatch">The passwords don\'t match</string>
     <string name="account_prepare_failed">Couldn\'t prepare the account details</string>
     <string name="account_setting_up">Setting up your account…</string>
-    <string name="account_username_taken">This username can\'t be used. Please choose another one.</string>
+    <string name="account_username_taken">This username is already in use. Please choose another one.</string>
+    <string name="account_home_exists">A home directory already exists for this username. Choose another username.</string>
     <string name="account_not_created">Your account hasn\'t been created yet. Change the username and enter the password again.</string>
 
     <!-- The host menu (Back) -->

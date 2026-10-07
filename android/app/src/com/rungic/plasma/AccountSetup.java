@@ -66,12 +66,12 @@ final class AccountSetup {
             dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
                 String name=username.getText().toString().trim();
                 String secret=password.getText().toString();
-                if(!name.matches("[a-z][a-z0-9_-]{0,31}")) {username.setError(activity.getString(R.string.account_username_invalid));return;}
+                if(!name.matches("[a-z][a-z0-9_-]{0,31}")) {username.setError(activity.getString(R.string.account_username_invalid));message.setText(R.string.account_username_invalid);return;}
                 if(secret.codePointCount(0,secret.length())<8 || secret.getBytes(java.nio.charset.StandardCharsets.UTF_8).length>256
                         || secret.indexOf('\n')>=0 || secret.indexOf('\r')>=0 || secret.indexOf('\0')>=0) {
-                    password.setError(activity.getString(R.string.account_password_invalid));return;
+                    password.setError(activity.getString(R.string.account_password_invalid));message.setText(R.string.account_password_invalid);return;
                 }
-                if(!secret.equals(confirmation.getText().toString())) {confirmation.setError(activity.getString(R.string.account_password_mismatch));return;}
+                if(!secret.equals(confirmation.getText().toString())) {confirmation.setError(activity.getString(R.string.account_password_mismatch));message.setText(R.string.account_password_mismatch);return;}
                 final String payload;
                 try {payload=new JSONObject().put("username",name).put("password",secret).toString();}
                 catch(Exception e) {message.setText(R.string.account_prepare_failed);return;}
@@ -84,14 +84,19 @@ final class AccountSetup {
                 worker.execute(() -> {
                     try {
                         submit.apply(payload);
+                        DesktopService.accountResult(activity,true);
                         activity.runOnUiThread(() -> {if(activity.isDestroyed())return; dialog.dismiss();done.run();});
                     } catch(Exception e) {
+                        DesktopService.accountResult(activity,false);
                         activity.runOnUiThread(() -> {
                             if(activity.isDestroyed())return;
                             // system/account/setup.py's SetupError texts: matched, never shown.
                             if(ControlException.usernameTaken(e)) {
-                                username.setError(activity.getString(R.string.account_username_taken));
-                                message.setText(R.string.account_not_created);
+                                String reason=activity.getString(ControlException.usernameHomeExists(e)?
+                                    R.string.account_home_exists:R.string.account_username_taken);
+                                username.setError(reason);
+                                message.setText(reason+"\n"+activity.getString(R.string.account_not_created));
+                                DesktopService.failureViewed(activity);
                                 username.setEnabled(true);password.setEnabled(true);confirmation.setEnabled(true);
                                 dialog.getButton(AlertDialog.BUTTON_POSITIVE).setEnabled(true);
                                 dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setEnabled(true);

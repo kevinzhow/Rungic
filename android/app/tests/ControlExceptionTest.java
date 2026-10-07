@@ -23,6 +23,7 @@ public final class ControlExceptionTest {
             for(String output:new String[]{text+"\n","lxc-attach: warning\n"+text+"\n\n"}) {
                 ControlException failure=new ControlException("account-setup",1,output);
                 require(ControlException.usernameTaken(failure)==taken.contains(text),"classification of "+text);
+                require(ControlException.usernameHomeExists(failure)==text.equals("这个用户名的主目录已存在"),"home-directory reason of "+text);
                 require(ControlException.userText(failure).equals(text),"toast text of "+text);
                 require(failure.getMessage().contains("account-setup") && failure.getMessage().contains(text),"diagnostic of "+text);
             }

@@ -26,6 +26,10 @@ final class ControlException extends IOException {
         for(String text:USERNAME_TAKEN) if(line.equals(text)) return true;
         return false;
     }
+    static boolean usernameHomeExists(Throwable failure) {
+        return failure instanceof ControlException &&
+            ((ControlException)failure).lastLine().equals(USERNAME_TAKEN[1]);
+    }
     /** What a Toast may show: the controller's text, never the diagnostic wrapper. */
     static String userText(Throwable failure) {
         if(failure instanceof ControlException) {

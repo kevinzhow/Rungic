@@ -350,6 +350,7 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
                             StartupScreen.message(this,install),!install.failed && !install.attention,true,
                             StartupScreen.details(this,install));
                         notifyState(getString(install.failed?R.string.state_setup_attention:R.string.state_preparing));
+                        if(install.failed)DesktopService.failureViewed(this);
                         display.removeCallbacks(installPoll);
                         if(started)display.postDelayed(installPoll,2000);
                     });
@@ -368,6 +369,7 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
                         }); return;
                     }
                     accountReady=account.optBoolean("configured",false);
+                    if(accountReady)DesktopService.accountResult(this,true);
                     if (!accountReady) {
                         runOnUiThread(() -> showLoading(getString(R.string.account_preparing)));
                         control("account-prepare");
@@ -388,6 +390,7 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
                             },failure -> {
                                 accountPromptShowing=false;
                                 showProblem(getString(R.string.account_incomplete), getString(R.string.account_incomplete_details), true);
+                                DesktopService.failureViewed(this);
                             });
                         });
                         return;
