@@ -806,7 +806,7 @@ features:
         evidence:
           - {doc: docs/83-x70-air-pro-onboarding.md, date: 2026-09-28, note: "受影响的 root 树被新检查拒绝"}
       - id: E2
-        text: 预装集合按清单：被排除的独立应用（Angelfish、Haruna、Journald Browser、KleverNotes、Marknote）不在镜像里，Emoji Selector 入口被 dpkg 排除，桌面与 Emoji 字体保留。旧树有残留时拒绝。
+        text: 预装集合按清单：KWrite 文本编辑器、可执行文件与桌面入口必须存在；被排除的独立应用（Angelfish、Haruna、Journald Browser、KleverNotes、Marknote）不在镜像里，Emoji Selector 与 Kate 入口被 dpkg 排除（保留 KWrite 硬依赖的 Kate 程序），桌面与 Emoji 字体保留。旧树有残留时拒绝。
         evidence:
           - {doc: docs/92-x70-android-base-end-to-end.md, date: 2026-09-30, note: "五个独立包未安装"}
       - id: E3

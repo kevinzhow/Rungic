@@ -52,3 +52,14 @@ RUN apt-get update -q && DEBIAN_FRONTEND=noninteractive apt-get install -y -q --
 
 # Real localized Plasma Mobile/Kalk drawer checks use the base image's applications and CJK fonts.
 RUN localedef -i zh_CN -f UTF-8 zh_CN.UTF-8
+
+# Ubuntu's slim Docker image excludes gettext .mo files. Restore the actual Chinese
+# catalogs for localized editor/menu checks; this override belongs only to the test image.
+RUN printf 'path-include=/usr/share/locale/zh_CN/LC_MESSAGES/*.mo\n' > /etc/dpkg/dpkg.cfg.d/zzzz-rungic-system-locales
+
+# Apply the release's exact launcher policy before unpacking the editor dependency.
+COPY rungic-apps /etc/dpkg/dpkg.cfg.d/zz-rungic-apps
+# The release's preinstalled text editor is exercised through the actual mobile drawer.
+RUN apt-get update && apt-get install -y --no-install-recommends kwrite=4:25.12.3-0ubuntu1 \
+    && apt-get install -y --reinstall kate-data libkf6xmlgui-data libkf6texteditor-data \
+    && rm -rf /var/lib/apt/lists/*

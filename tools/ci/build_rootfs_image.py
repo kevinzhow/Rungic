@@ -77,6 +77,12 @@ def check_preinstalled_apps(root, installed):
     if remaining:
         raise ValueError('excluded app files remain; reconfigure rungic-plasma-config: ' +
                          ', '.join(remaining))
+    if 'kwrite' not in {name.split(':')[0] for name in installed}:
+        raise ValueError('preinstalled editor kwrite missing from build root')
+    binary = root / 'usr/bin/kwrite'
+    entry = root / 'usr/share/applications/org.kde.kwrite.desktop'
+    if not entry.is_file() or not binary.is_file() or not os.access(binary, os.X_OK):
+        raise ValueError('preinstalled editor kwrite binary or desktop entry missing')
 
 
 def check_home_layout(root, home_path):

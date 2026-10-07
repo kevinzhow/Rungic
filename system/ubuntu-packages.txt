@@ -9,6 +9,7 @@ qmlkonsole
 dolphin
 koko
 okular
+kwrite
 dbus-user-session
 libpam-systemd
 systemd-sysv

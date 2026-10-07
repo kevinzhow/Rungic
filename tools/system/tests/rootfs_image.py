@@ -36,13 +36,15 @@ def tree(root, release):
         path.chmod(mode)
 
     installed = {**release['packages'], 'firefox': '140.0', 'rungic-release': release['version'],
-                 'base-files': '14ubuntu1'}
+                 'base-files': '14ubuntu1', 'kwrite': '4:25.12.3-0ubuntu1'}
     write('var/lib/dpkg/status', '\n'.join(
         f'Package: {name}\nStatus: install ok installed\nVersion: {version}\nArchitecture: arm64\n'
         for name, version in installed.items()))
     write('etc/passwd', 'root:x:0:0::/root:/bin/sh\nrungic:x:1000:1000::/home/rungic:/bin/sh\n')
     write('etc/shadow', 'root:*:0::::::\nrungic:!:0::::::\n', 0o640)
     write('usr/share/rungic/account-protocol', '2\n')
+    write('usr/bin/kwrite', '#!/bin/sh\n', 0o755)
+    write('usr/share/applications/org.kde.kwrite.desktop', '[Desktop Entry]\nName=KWrite\nExec=kwrite\n')
     config = 'etc/dpkg/dpkg.cfg.d/zz-rungic-apps'
     write(config, (SRC / 'system/config' / config).read_text())
     (root / 'home/rungic').mkdir(parents=True)

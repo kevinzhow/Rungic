@@ -166,6 +166,13 @@
       "packages": [
         "polkit-kde-agent-1"
       ]
+    },
+    "kwrite-ubuntu": {
+      "source": "ubuntu",
+      "packages": [
+        "kwrite"
+      ],
+      "version": "4:25.12.3-0ubuntu1"
     }
   },
   "project": {

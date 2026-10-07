@@ -50,6 +50,7 @@ class SystemTestRunTests(unittest.TestCase):
         self.addCleanup(temp.cleanup)
         self.root = Path(temp.name) / 'repo'
         for name, text in {'tools/system/run-in-container.sh': 'exit 0\n', 'tools/system/Dockerfile': 'FROM x\n',
+                           'system/config/etc/dpkg/dpkg.cfg.d/zz-rungic-apps': 'path-exclude=/kate.desktop\n',
                            'tools/system/tests/one.py': '', 'tools/system/tests/two.py': '', 'agent/screen/a.cpp': '',
                            'benchmarks/big.json': '{}', '.gitignore': '/.work/\n*.o\n'}.items():
             path = self.root / name
@@ -105,6 +106,12 @@ class SystemTestRunTests(unittest.TestCase):
         [build] = [c for c in mac.commands if ' build -q ' in c]
         self.assertIn('--build-arg BASE=rungic-arm64-host:0123456789ab ', build)
         self.assertIn('--build-arg http_proxy=http://host.docker.internal:6152 ', build)
+        with tarfile.open(fileobj=io.BytesIO(mac.uploads[build])) as tar:
+            self.assertEqual(tar.extractfile('rungic-apps').read(), b'path-exclude=/kate.desktop\n')
+        # A changed product policy must not reuse an image carrying the previous launchers.
+        first = system_test.image(FakeMac([], have_image=True))
+        (self.root / 'system/config/etc/dpkg/dpkg.cfg.d/zz-rungic-apps').write_text('path-exclude=/another.desktop\n')
+        self.assertNotEqual(first, system_test.image(FakeMac([], have_image=True)))
 
 
 if __name__ == '__main__':

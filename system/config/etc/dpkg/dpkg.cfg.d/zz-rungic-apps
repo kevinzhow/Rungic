@@ -3,3 +3,7 @@
 path-exclude=/usr/bin/plasma-emojier
 path-exclude=/usr/share/applications/org.kde.plasma.emojier.desktop
 path-exclude=/usr/share/kglobalaccel/org.kde.plasma.emojier.desktop
+
+# Ubuntu KWrite depends on the Kate package. Keep its executable/shared editor,
+# but expose only KWrite as the preinstalled text-editor launcher.
+path-exclude=/usr/share/applications/org.kde.kate.desktop

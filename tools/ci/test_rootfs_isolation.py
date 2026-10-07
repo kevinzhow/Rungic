@@ -24,11 +24,50 @@ class RootfsIsolationTests(unittest.TestCase):
         path.parent.mkdir(parents=True)
         source = Path(__file__).resolve().parents[2] / 'system/config' / config
         path.write_text(source.read_text())
+        binary = self.root / 'usr/bin/kwrite'
+        binary.parent.mkdir(parents=True)
+        binary.write_text('#!/bin/sh\n')
+        binary.chmod(0o755)
+        entry = self.root / 'usr/share/applications/org.kde.kwrite.desktop'
+        entry.parent.mkdir(parents=True)
+        entry.write_text('[Desktop Entry]\nName=KWrite\nExec=kwrite\n')
 
     # covers: install.rungicos-image/E2
     def test_preinstalled_apps_keeps_desktop_and_emoji_fonts(self):
         self.seed_app_policy()
-        check_preinstalled_apps(self.root, {'plasma-desktop': (), 'fonts-noto-color-emoji': ()})
+        check_preinstalled_apps(self.root, {'plasma-desktop': (), 'fonts-noto-color-emoji': (), 'kwrite:arm64': ()})
+
+    # covers: install.rungicos-image/E2
+    def test_image_without_editor_rejected(self):
+        self.seed_app_policy()
+        with self.assertRaisesRegex(ValueError, 'editor kwrite missing'):
+            check_preinstalled_apps(self.root, {})
+
+    # covers: install.rungicos-image/E2
+    def test_editor_without_executable_or_desktop_entry_rejected(self):
+        self.seed_app_policy()
+        for name in ('usr/bin/kwrite', 'usr/share/applications/org.kde.kwrite.desktop'):
+            path = self.root / name
+            original = path.read_bytes()
+            path.unlink()
+            with self.subTest(path=name), self.assertRaisesRegex(ValueError, 'binary or desktop entry missing'):
+                check_preinstalled_apps(self.root, {'kwrite': ()})
+            path.write_bytes(original)
+            path.chmod(0o755)
+
+    # covers: install.rungicos-image/E2
+    def test_editor_not_executable_rejected(self):
+        self.seed_app_policy()
+        (self.root / 'usr/bin/kwrite').chmod(0o644)
+        with self.assertRaisesRegex(ValueError, 'binary or desktop entry missing'):
+            check_preinstalled_apps(self.root, {'kwrite': ()})
+
+    # covers: install.rungicos-image/E2
+    def test_leftover_kate_launcher_rejected(self):
+        self.seed_app_policy()
+        (self.root / 'usr/share/applications/org.kde.kate.desktop').write_text('[Desktop Entry]\nName=Kate\n')
+        with self.assertRaisesRegex(ValueError, 'excluded app files remain'):
+            check_preinstalled_apps(self.root, {'kwrite': (), 'kate': ()})
 
     # covers: install.rungicos-image/E2
     def test_reused_root_with_removed_apps_rejected(self):

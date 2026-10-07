@@ -2974,7 +2974,7 @@ Agent 不靠点界面就能拿到合并日志、崩溃回溯、追踪、截图�
 `install.rungicos-image` · Linux 系统功能 — 构建器使用干净的 ARM64 root 树和固定包集合，生成 ext4 rootfs、压缩载荷、包锁和报告。镜像不含个人数据，预装集合遵循清单。
 
 - **E1** 镜像不带个人账户、密码、凭据或构建机痕迹：只有一个口令锁定的 UID 1000 模板账户，没有账户完成标记，home 里没有别的条目。违反时拒绝出镜像，报错里不出现口令哈希。（单元测试、人工）
-- **E2** 预装集合按清单：被排除的独立应用（Angelfish、Haruna、Journald Browser、KleverNotes、Marknote）不在镜像里，Emoji Selector 入口被 dpkg 排除，桌面与 Emoji 字体保留。旧树有残留时拒绝。（单元测试、人工）
+- **E2** 预装集合按清单：KWrite 文本编辑器、可执行文件与桌面入口必须存在；被排除的独立应用（Angelfish、Haruna、Journald Browser、KleverNotes、Marknote）不在镜像里，Emoji Selector 与 Kate 入口被 dpkg 排除（保留 KWrite 硬依赖的 Kate 程序），桌面与 Emoji 字体保留。旧树有残留时拒绝。（单元测试、系统测试、人工）
 - **E3** 镜像里的包安装干净：dpkg --audit、apt-get check、ext4 检查通过。APT pin 按本次 manifest 重新生成，不留旧 release 的 pin。完整首装以新目录执行，包不能读取编排输入；最终完成凭据绑定源码、release 与包状态，缺失或不符时拒绝出镜像。（单元测试、系统测试、人工）
 - **E4** 按输入指纹复用产物：安装包里组件被替换、缺少构建绑定、输入被改或依赖未解析时 verify 拒绝。（单元测试、人工）
 - **E5** 在 x86 主机上构建 ARM64 root 树时，chroot 不继承宿主的 Python 设置和 HOME，但保留代理。（单元测试）

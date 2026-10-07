@@ -138,3 +138,11 @@ apt-get purge -y haruna marknote klevernotes kjournaldbrowser angelfish
 同时构建并安装新版本 `rungic-plasma-config`，更新 release 锁定的版本后再生成 rootfs。`build_rootfs_image.py` 会拒绝仍包含被排除软件包、缺少排除规则或留有 Emoji Selector 入口的输入树。它不会在镜像生成时偷偷卸包，也不会改写旧发行镜像。
 
 离线验证：18 项测试及 204 项子检查通过；基于现有 ARM64 root 树的 APT 模拟仅移除指定五包；配置 DEB 构建通过。一次性无网络容器验证真实 postinst 清除旧 Emoji Selector 入口，随后 fixture 包解包遵守排除规则且保留其他文件；测试容器缺 KDE 配置依赖，因此该项仅验证维护脚本与 dpkg 文件过滤，不等于完整依赖/桌面验收。日志在 `.work/preinstalled-apps-20260930/`。现有 `20260928.7` 镜像和实机未更新，新预装集合将在下一次重建镜像时生效。
+
+## 2026-10-07：预装文本编辑器
+
+用户要求预装一个文本编辑器。预装清单增加 KWrite，release 使用 Ubuntu ARM64 的 `kwrite=4:25.12.3-0ubuntu1` 精确版本；配置包随源码重新构建。Marknote、KleverNotes 等原有五个独立包仍在排除集合中。
+
+当前 Ubuntu KWrite 的硬依赖包含完整 `kate` 包及 `libkf6texteditor-katepart`，不能卸载 Kate 来保留 KWrite。沿用现有 dpkg 路径排除机制，增加 `/usr/share/applications/org.kde.kate.desktop`：保留依赖程序和共享资源，只留下 KWrite 的应用入口。配置包现有 postinst 同样清除复用根文件系统中的旧 Kate 入口。封镜检查同时要求 KWrite 已安装、程序可执行、桌面文件存在，并拒绝遗留 Kate 入口；不会在封镜时修补输入树。
+
+无头 ARM64 系统测试使用实际 Ubuntu KWrite 与 Plasma Mobile，从中英文抽屉启动，编辑中英文正文，经真实文件对话框保存至普通桌面用户的 `Shared` 目录，关闭后重新启动并打开、修改、再次保存，核对文件正文和属主。KTextEditor 6.24.0 的 [Enable Accessibility 配置默认打开](https://invent.kde.org/frameworks/ktexteditor/-/blob/v6.24.0/src/utils/kateconfig.cpp)，[正文实现 Text 和 EditableText](https://invent.kde.org/frameworks/ktexteditor/-/blob/v6.24.0/src/view/kateviewaccessible.h)。测试在启动应用前启用无障碍，从欢迎页新建正文后使用实际 AT-SPI 接口编辑和读回，不采集剪贴板。正文和文件名均通过真实 AT-SPI 文本框设置并读回，保存和打开仍使用实际对话框。原生键码输入共用产品的 WorkspaceInput，缺少 Shift 处理的问题另由 task #104 修复；正常 CUA 使用 KWin commitText，旧接口回退也受该缺陷影响。本测试拒绝通过键码替身输入大写或符号，避免悄悄变形。该检查只验证 Linux 编辑器流程；手机屏幕键盘、Android 输入和 Android Shared 挂载的双向写入仍由第三轮实机检查证明。已有冻结候选未修改；下一轮必须从合入后的源码重新构建发行包和镜像。

@@ -39,7 +39,8 @@ def image(host):
     """The system test image's tag, built on the Mac mini when missing."""
     base = host.image()
     dockerfile = (ROOT / 'tools/system/Dockerfile').read_bytes()
-    tag = 'rungic-system:' + hashlib.sha256(base.encode() + b'\0' + dockerfile).hexdigest()[:12]
+    policy = ROOT / 'system/config/etc/dpkg/dpkg.cfg.d/zz-rungic-apps'
+    tag = 'rungic-system:' + hashlib.sha256(base.encode() + b'\0' + dockerfile + b'\0' + policy.read_bytes()).hexdigest()[:12]
     have = host.ssh(f'{host.DOCKER} image inspect {tag} >/dev/null 2>&1 && echo yes || true', 60).stdout.decode().strip()
     if have != 'yes':
         if host.ssh(f'{host.DOCKER} image inspect {base} >/dev/null 2>&1 && echo yes || true', 60).stdout.decode().strip() != 'yes':
@@ -48,6 +49,7 @@ def image(host):
         context = io.BytesIO()
         with tarfile.open(fileobj=context, mode='w', format=tarfile.USTAR_FORMAT) as tar:
             tar.add(ROOT / 'tools/system/Dockerfile', arcname='Dockerfile')
+            tar.add(policy, arcname='rungic-apps')
         args = f'--build-arg BASE={base} ' + ''.join(f'--build-arg {k}={v} ' for k, v in host.proxy().items())
         host.ssh(f'{host.DOCKER} build -q {args}-t {tag} -', 3600, data=context.getvalue())
     return tag
