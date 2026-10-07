@@ -3,6 +3,7 @@
 only the capabilities it needs, the relays pass on only Linux's root and user, the status reads
 pasta's route, and the switch is written where the Android side reads it."""
 import importlib.machinery
+import os
 import importlib.util
 import socket
 import struct
@@ -86,6 +87,23 @@ def test_the_switch_is_written_for_the_next_start(monkeypatch, tmp_path):
     assert (tmp_path / 'host' / 'network-mode').read_text() == 'own\n'
     module.mode(False)
     assert (tmp_path / 'host' / 'network-mode').read_text() == 'shared\n'
+
+
+# covers: desktop.network/E9
+def test_the_netns_path_is_reachable_for_the_app_uid_under_a_private_umask(monkeypatch, tmp_path):
+    module = load()
+    monkeypatch.setattr(module, 'RUN', str(tmp_path / 'run'))
+    monkeypatch.setattr(module, 'NETNS', str(tmp_path / 'run/netns'))
+    mounted = []
+    monkeypatch.setattr(module.subprocess, 'run', lambda argv, check=False: mounted.append(argv) or
+                        type('Result', (), {'returncode': 1 if argv[0] == 'mountpoint' else 0})())
+    previous = os.umask(0o077)   # rungic-runtime's, which starts Linux at boot
+    try:
+        module.bind_netns()
+    finally:
+        os.umask(previous)
+    assert (tmp_path / 'run').stat().st_mode & 0o777 == 0o755
+    assert mounted[-1] == ['mount', '--bind', '/proc/1/ns/net', str(tmp_path / 'run/netns')]
 
 
 def test_the_host_daemon_needs_an_app_uid():

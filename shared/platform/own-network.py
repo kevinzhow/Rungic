@@ -150,8 +150,11 @@ def serve_relay(server, name):
 
 def bind_netns():
     """Linux's namespace (that of its PID 1) as a path pasta can open: pasta runs as the app's uid,
-    which may not open another user's /proc/PID/ns, and closes the files it inherits."""
+    which may not open another user's /proc/PID/ns, and closes the files it inherits. The directory
+    is searchable whatever umask started us: Android's side starts Linux at boot from rungic-runtime
+    with umask 077, and a 0700 directory left pasta unable to open the path (2026-10-08, docs/121)."""
     os.makedirs(RUN, exist_ok=True)
+    os.chmod(RUN, 0o755)
     if not os.path.exists(NETNS):
         open(NETNS, 'w').close()
     if subprocess.run(['mountpoint', '-q', NETNS]).returncode != 0:
