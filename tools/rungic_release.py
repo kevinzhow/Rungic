@@ -26,7 +26,7 @@ reinstalled. The Android-side files listed under "android" are part of a release
 The dev channel (docs/109): releases cut from origin/main only, one publishing point instead of a
 pool and a numbering per machine, the APK part of the release.
 
-  rungic_release.py dev [--host H] [--out DIR] [--apk FILE|--no-apk] [--publish [--yes]]
+  rungic_release.py dev [--host H] [--out DIR] [--apk FILE|--no-apk] [--no-cast] [--publish [--yes]]
                                       on a clean origin/main: build the stale project packages and
                                       upstream components, the APK, release YYYYMMDD.N (channel dev),
                                       and a bundle (repository, APK, manifest) in DIR
@@ -84,6 +84,8 @@ HISTORY = DEPLOY / 'history.json'
 RELEASE_HISTORY = WORKSPACE / 'release/history.json'
 APKS = APT / 'apk'                    # the releases' APKs (docs/109)
 ANDROID_STORE = APT / 'android'       # Android-side files of imported bundles, by SHA-256
+CASTS = APT / 'cast'                  # the releases' casting payloads (docs/122)
+CAST_DIR = '/data/adb/rungic-wfd'      # casting on the phone (shared/android/rungic-cast/install.sh)
 COMPONENT_BUILDS = APT / 'component-builds.json'   # tree of packages/<name> each component build had
 BUNDLES = WORKSPACE / '.work/release-bundles'      # dev and export write bundles here (--out, RUNGIC_RELEASE_OUT)
 GITHUB = 'kevinzhow/Rungic'
@@ -333,7 +335,7 @@ def index(pool=None, label='rungic'):
     (POOL / 'Release').write_bytes(release)
 
 
-def build(version=None, allow_dirty=False, note='', coupled_override=None, channel='release', apk=None):
+def build(version=None, allow_dirty=False, note='', coupled_override=None, channel='release', apk=None, cast=None):
     """channel: 'release' (a formal release) or 'dev' (rungic_release.py dev, docs/109); apk: the
     release's APK (release_apk()), installed by deploy where the phone's is older."""
     commit, dirty = git_state()
@@ -381,7 +383,7 @@ def build(version=None, allow_dirty=False, note='', coupled_override=None, chann
         raise SystemExit(f'release {version} exists already')
     info = {'version': version, 'channel': channel, 'commit': commit, 'dirty': dirty,
         'built': datetime.datetime.now().isoformat(timespec='seconds'), 'note': note, 'packages': deps,
-        'coupled': sorted(coupled), 'apk': apk,
+        'coupled': sorted(coupled), 'apk': apk, 'cast': cast,
         'android': android_manifest(s), 'session_restart': s.get('session_restart', []),
         'service_restart': s.get('service_restart', {}), 'user_restart': s.get('user_restart', {})}
     meta = build_meta(version, deps, info)
@@ -812,6 +814,47 @@ def install_apk(info, restart='auto'):
             'file': apk['file']}
 
 
+def install_cast(info, restart='auto'):
+    """The release's casting payload where casting is installed (docs/122), by casting's own install.sh:
+    each file replaced atomically, its SHA256SUMS last; the same manifest and healthy is left alone. A
+    phone without casting stays without it (optional, docs/75). Starting the watcher again ends a cast
+    under way, so --restart never leaves it (recorded). Casting is optional: a failure is recorded, not
+    a failed deploy. None when the release has no payload."""
+    cast = info.get('cast')
+    if not cast:
+        return None
+    have = (run(f'[ -d {CAST_DIR} ] || exit 0; echo installed; sha256sum {CAST_DIR}/SHA256SUMS 2>/dev/null | cut -d" " -f1; '
+                f'/system/bin/sh {CAST_DIR}/install.sh --check && echo healthy', 'root', check=False).stdout or '').split()
+    if 'installed' not in have:
+        return {'result': 'skipped: casting is not installed'}
+    if cast['manifest'] in have and 'healthy' in have:
+        return {'result': 'current', 'manifest': cast['manifest'][:12]}
+    if restart == 'never':
+        return {'result': 'skipped: --restart never', 'manifest': cast['manifest'][:12]}
+    path = CASTS / cast['file']
+    if not path.exists() or sha256_file(path) != cast['sha256']:
+        raise SystemExit(f"the casting payload {cast['file']} of release {info['version']} is not in {CASTS} (or "
+                         "differs): deploy --from the release's bundle")
+    remote, stage = push(path, 'rungic-cast-payload.tar'), '/data/local/tmp/rungic-cast-payload'
+    done = run(f'''set -e
+. /data/adb/rungic-plasma/root-provider
+rm -rf {stage}; mkdir -p {stage}; tar -xf {remote} -C {stage}; rm -f {remote}
+"$RUNGIC_BUSYBOX" flock /data/adb/rungic-cast-install.lock /system/bin/sh {stage}/install.sh {stage}
+rm -rf {stage}
+# The watcher runs the old program until it starts again (as tools/deploy_cast.py).
+p=$(cat {CAST_DIR}/watch.pid 2>/dev/null || true)
+case "$p" in ""|*[!0-9]*) ;; *)
+  if [ "$(tr "\\000" " " < /proc/$p/cmdline 2>/dev/null)" = "app_process /system/bin com.rungic.cast.Main watch " ]; then kill "$p"; fi ;;
+esac
+/system/bin/sh /data/adb/service.d/rungic-wfd-sepolicy.sh
+"$RUNGIC_BUSYBOX" setsid /system/bin/sh /data/adb/service.d/rungic-cast-watch.sh </dev/null >/dev/null 2>&1 &
+{CAST_DIR}/rungic-cast capabilities >/dev/null''', 'root', timeout=300, check=False)
+    if done.returncode:
+        return {'result': 'failed', 'manifest': cast['manifest'][:12],
+                'output': ((done.stdout or '') + (done.stderr or ''))[-400:]}
+    return {'result': 'installed', 'manifest': cast['manifest'][:12]}
+
+
 def needs_restart(before, after, patterns):
     changed = [n for n in set(before) | set(after) if before.get(n) != after.get(n)]
     hit = sorted(n for n in changed if any(fnmatch.fnmatch(n, p) for p in patterns))
@@ -1132,6 +1175,10 @@ def deploy_release(version=None, restart='auto', acceptance='smoke', record_labe
                 import rungic_acceptance
                 step('apk-session', ok=rungic_acceptance.session_ready({'out_dir': str(record)})['passed'])
                 installed_at = time.time()
+        # 5c casting (docs/122): its own installer, where the phone has casting.
+        cast = None if keep_android else install_cast(info, restart)
+        if cast is not None:
+            step('cast', **cast)
         # 6 verify
         integrity_after = integrity_summary()
         (record / 'integrity-after.json').write_text(json.dumps(integrity_after, indent=1, ensure_ascii=False) + '\n')
@@ -1423,6 +1470,34 @@ def release_apk(given=None):
             'version_code': int(manifest['versionCode']), 'sha256': digest, 'size': path.stat().st_size}
 
 
+def release_cast():
+    """The casting payload of a release (docs/122): rungic-cast.jar built from this commit
+    (shared/android/rungic-cast/build.sh) staged with its scripts and SHA256SUMS (tools/cast_payload.py),
+    one tar kept in CASTS. A release could not update casting before: its JAR is built, and its installer
+    checks the whole manifest. -> {'file', 'sha256', 'manifest'} (manifest: SHA256SUMS's SHA-256)"""
+    import cast_payload
+    out = WORKSPACE / '.work/cache/release-cast'
+    shutil.rmtree(out, ignore_errors=True)
+    out.mkdir(parents=True)
+    built = subprocess.run(['bash', str(WORKSPACE / 'shared/android/rungic-cast/build.sh')], cwd=WORKSPACE,
+                           env=dict(os.environ, RUNGIC_CAST_OUT=str(out / 'build')), capture_output=True, text=True)
+    jar = out / 'build/rungic-cast.jar'
+    if built.returncode or not jar.exists():
+        raise SystemExit(f'shared/android/rungic-cast/build.sh failed: {built.stderr[-400:]}; or --no-cast')
+    payload = out / 'payload'
+    cast_payload.stage(payload, jar)
+    manifest = sha256_file(payload / 'SHA256SUMS')
+    name = f'rungic-cast-{manifest[:12]}.tar'
+    CASTS.mkdir(parents=True, exist_ok=True)
+    if not (CASTS / name).exists():
+        partial = CASTS / (name + '.part')
+        with tarfile.open(partial, 'w') as tar:
+            for path in sorted(payload.rglob('*')):
+                tar.add(path, arcname=str(path.relative_to(payload)), recursive=False)
+        partial.replace(CASTS / name)
+    return {'file': name, 'sha256': sha256_file(CASTS / name), 'manifest': manifest}
+
+
 def taken_elsewhere():
     """Release numbers used beyond this pool: the dev tags on origin (published from any machine) and
     the committed deployment history."""
@@ -1435,7 +1510,7 @@ def taken_elsewhere():
 
 
 def dev(host='macmini', out=None, apk=None, no_apk=False, note='', publish_release=False, confirm=False,
-        coupled_override=None):
+        coupled_override=None, no_cast=False):
     """A dev release (docs/109): only from a clean origin/main, so every machine that cuts one cuts the
     same thing and nothing merged lives only in overlays on phones. Builds what the pool lacks for this
     commit (project packages, upstream components), the APK, the release (channel dev) and its bundle;
@@ -1447,15 +1522,17 @@ def dev(host='macmini', out=None, apk=None, no_apk=False, note='', publish_relea
     project = build_project()
     components = [build_component(name) for name in stale_components()]
     apk_info = None if no_apk else release_apk(apk)
+    cast_info = None if no_cast else release_cast()
     last = next((r for r in reversed(releases()) if r.get('apk')), None)
     if apk_info and last and last['apk']['version_code'] == apk_info['version_code'] \
             and last['apk']['sha256'] != apk_info['sha256']:
         print(f"note: the APK differs from release {last['version']}'s at the same versionCode "
               f"{apk_info['version_code']}: phones that have that versionCode keep their APK", flush=True)
     result = build(next_version(taken_elsewhere()), note=note, coupled_override=coupled_override, channel='dev',
-                   apk=apk_info)
+                   apk=apk_info, cast=cast_info)
     result.update(channel='dev', project_built=project, components_built=components,
-                  apk=apk_info and f"{apk_info['version_name']}/{apk_info['version_code']}")
+                  apk=apk_info and f"{apk_info['version_name']}/{apk_info['version_code']}",
+                  cast=cast_info and cast_info['manifest'][:12])
     result['bundle'] = str(export_bundle(result['version'], out))
     if publish_release:
         result['publish'] = publish(result['version'], result['bundle'], confirm)
@@ -1500,6 +1577,12 @@ def export_bundle(version, out=None):
                 raise SystemExit(f"the APK {info['apk']['file']} of release {version} is not in {APKS} (or differs)")
             (stage / 'apk').mkdir()
             link(source, stage / 'apk' / source.name)
+        if info.get('cast'):
+            source = CASTS / info['cast']['file']
+            if not source.exists() or sha256_file(source) != info['cast']['sha256']:
+                raise SystemExit(f"the casting payload {info['cast']['file']} of release {version} is not in {CASTS} (or differs)")
+            (stage / 'cast').mkdir()
+            link(source, stage / 'cast' / source.name)
         for item in (info.get('android') or {}).values():
             data = android_content(info, item)
             if data is None:
@@ -1540,7 +1623,7 @@ def import_bundle(path):
                              f"from {info.get('commit', '')[:12]}: not the same release")
         import_debs(sorted((stage / 'repo').glob('*.deb')))
         for name in manifest['files']:
-            folder = APKS if name.startswith('apk/') else ANDROID_STORE if name.startswith('android/') else None
+            folder = {'apk': APKS, 'android': ANDROID_STORE, 'cast': CASTS}.get(name.split('/', 1)[0]) if '/' in name else None
             if folder:
                 folder.mkdir(parents=True, exist_ok=True)
                 if not (folder / Path(name).name).exists():
@@ -1732,7 +1815,8 @@ def drift_parts(info, apk_code, android, against='origin/main', settings=None):
         have = android.get(path)
         if have != want and not (have is None and path not in release_paths):
             state = 'missing on the phone' if have is None else 'not on main' if want is None else 'differs from main'
-            found.append({'part': path, 'state': state + ('' if path in release_paths else ' (host seed only: a release does not update it)')})
+            updated = path in release_paths or path.startswith(CAST_DIR + '/')    # casting: install_cast
+            found.append({'part': path, 'state': state + ('' if updated else ' (host seed only: a release does not update it)')})
     # Android settings (docs/122): rungic-converge check on the phone; what is left to the user
     # (report) is listed by phone_drift, not counted here.
     for item in settings or []:
@@ -1952,6 +2036,7 @@ def main():
     p.add_argument('--out', type=Path, help='where the bundle goes (default $RUNGIC_RELEASE_OUT, else .work/release-bundles)')
     p.add_argument('--apk', type=Path, help='this APK instead of building one')
     p.add_argument('--no-apk', action='store_true', help='a release without an APK')
+    p.add_argument('--no-cast', action='store_true', help='a release without the casting payload')
     p.add_argument('--note', default='')
     p.add_argument('--coupled-json', type=Path, help='exact coupled package versions; avoids a phone query')
     p.add_argument('--publish', action='store_true', help='the GitHub pre-release: the command and notes, run with --yes')
@@ -1984,7 +2069,7 @@ def main():
         if a.apk and a.no_apk:
             parser.error('--apk or --no-apk')
         result = dev(a.host, a.out, a.apk, a.no_apk, a.note, a.publish, a.yes,
-                     json.loads(a.coupled_json.read_text()) if a.coupled_json else None)
+                     json.loads(a.coupled_json.read_text()) if a.coupled_json else None, a.no_cast)
     elif a.cmd == 'export':
         result = {'bundle': str(export_bundle(a.version, a.out))}
     elif a.cmd == 'publish':

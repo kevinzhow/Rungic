@@ -36,8 +36,9 @@ Use the overlay tool so changes remain visible and reversible.
 
 Development overlays cover container deb packages only.
 The APK, `rungic-plasma` controller, and release manifest's `android` files need separate installation and documentation.
-Dev releases include the APK.
-Deployment installs it only when the phone has a lower versionCode.
+Dev releases include the APK and the casting payload (docs/122).
+Deployment installs the APK only when the phone has a lower versionCode, and casting only where the phone
+has casting and its manifest differs (`--no-cast` builds a release without it).
 
 ## Before each operation
 

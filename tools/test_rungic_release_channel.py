@@ -33,7 +33,7 @@ class Workspace(unittest.TestCase):
         (base / '.work/cache').mkdir(parents=True, exist_ok=True)
         apt = base / '.work/apt'
         self.stub(WORKSPACE=base, APT=apt, POOL=apt / 'repo', RELEASES=apt / 'releases', APKS=apt / 'apk',
-                  ANDROID_STORE=apt / 'android', COMPONENT_BUILDS=apt / 'component-builds.json',
+                  ANDROID_STORE=apt / 'android', CASTS=apt / 'cast', COMPONENT_BUILDS=apt / 'component-builds.json',
                   BUNDLES=base / '.work/release-bundles', DEPLOY=base / '.work/deploy',
                   HISTORY=base / '.work/deploy/history.json', RELEASE_HISTORY=base / 'release/history.json')
         return base
@@ -50,6 +50,7 @@ SPEC = {'rebuilt': {'kwin': {'source': 'packages/kwin', 'version': '4:6.6.6-0ubu
         'project': {}, 'coupled': ['plasma-workspace'], 'android': []}
 APK = {'file': 'Rungic-2.32-80-0123456789ab.apk', 'package': 'com.rungic.plasma', 'version_name': '2.32',
        'version_code': 80, 'sha256': None, 'size': 3}
+CAST = {'file': 'rungic-cast-abcdef012345.tar', 'sha256': '2' * 64, 'manifest': 'abcdef012345' + '3' * 52}
 
 
 class DevReleaseTests(Workspace):
@@ -171,13 +172,16 @@ class DevReleaseTests(Workspace):
                   stale_components=lambda: ['kwin'],
                   build_component=lambda name: order.append(('component', name)) or {'component': name},
                   release_apk=lambda given: order.append('apk') or apk,
-                  build=lambda version, **kw: order.append(('build', kw['channel'], kw['apk']['version_code']))
-                  or {'version': version},
+                  release_cast=lambda: order.append('cast') or CAST,
+                  build=lambda version, **kw: order.append(('build', kw['channel'], kw['apk']['version_code'],
+                                                            kw['cast']['file'])) or {'version': version},
                   export_bundle=lambda version, out: order.append('bundle') or Path(f'/b/rungic-{version}.tar'),
                   publish=lambda *a: self.fail('published without --publish'))
         result = rungic_release.dev(host='macmini')
-        self.assertEqual(order, [('use', 'macmini'), 'project', ('component', 'kwin'), 'apk', ('build', 'dev', 80), 'bundle'])
-        self.assertEqual((result['channel'], result['apk'], result['project_built']), ('dev', '2.32/80', ['rungic-demo']))
+        self.assertEqual(order, [('use', 'macmini'), 'project', ('component', 'kwin'), 'apk', 'cast',
+                                 ('build', 'dev', 80, CAST['file']), 'bundle'])
+        self.assertEqual((result['channel'], result['apk'], result['project_built'], result['cast']),
+                         ('dev', '2.32/80', ['rungic-demo'], CAST['manifest'][:12]))
 
     # covers: delivery.dev-channel/E2
     def test_the_apk_record_comes_from_its_manifest(self):
@@ -209,12 +213,16 @@ class BundleTests(Workspace):
         apks = self.root / 'one/.work/apt/apk'
         apks.mkdir(parents=True)
         (apks / APK['file']).write_bytes(b'apk')
+        casts = self.root / 'one/.work/apt/cast'
+        casts.mkdir(parents=True)
+        (casts / CAST['file']).write_bytes(b'cast')
+        cast = dict(CAST, sha256=hashlib.sha256(b'cast').hexdigest())
         spec = dict(SPEC, android=[{'source': 'system/rungic-plasma', 'path': '/data/adb/rungic-plasma/rungic-plasma',
                                     'mode': '755'}])
         self.stub(spec=lambda: json.loads(json.dumps(spec)), git_state=lambda: ('c0ffee' * 7, False))
         apk = dict(APK, sha256=hashlib.sha256(b'apk').hexdigest())
         result = rungic_release.build('20261004.1', coupled_override={'plasma-workspace': '4:6.6.6-0ubuntu0.1'},
-                                      channel='dev', apk=apk)
+                                      channel='dev', apk=apk, cast=cast)
         return result, apk
 
     # covers: delivery.dev-channel/E2
@@ -239,6 +247,7 @@ class BundleTests(Workspace):
         self.assertIn('repo/rungic-release_20261004.1_all.deb', names)
         self.assertIn('repo/Packages', names)
         self.assertIn(f"apk/{APK['file']}", names)
+        self.assertIn(f"cast/{CAST['file']}", names)
         self.assertIn('android/' + hashlib.sha256(b'controller').hexdigest(), names)
         self.assertEqual(manifest['from_archive'], ['plasma-workspace=4:6.6.6-0ubuntu0.1'])   # Ubuntu's, not ours
         self.assertEqual(manifest['release']['version'], '20261004.1')
@@ -251,6 +260,8 @@ class BundleTests(Workspace):
         self.assertTrue((other / '.work/apt/repo/rungic-release_20261004.1_all.deb').exists())
         self.assertIn('Package: kwin-wayland', (other / '.work/apt/repo/Packages').read_text())
         self.assertEqual((other / '.work/apt/apk' / APK['file']).read_bytes(), b'apk')
+        self.assertEqual((other / '.work/apt/cast' / CAST['file']).read_bytes(), b'cast')
+        self.assertEqual(info['cast']['file'], CAST['file'])
         item = info['android']['/data/adb/rungic-plasma/rungic-plasma']
         self.assertEqual(rungic_release.android_content(info, item), b'controller')
         self.assertEqual(rungic_release.android_source_changes(info), [])
@@ -286,6 +297,75 @@ class BundleTests(Workspace):
         with self.assertRaisesRegex(SystemExit, 'missing or changed'):
             rungic_release.import_bundle(damaged)
         self.assertFalse((self.root / 'four/.work/apt/repo').exists())
+
+
+class CastTests(Workspace):
+    """Casting in a release (docs/122): built with the release, installed by its own installer where the
+    phone has casting."""
+
+    def phone(self, installed=True, manifest='old', healthy=True, install_ok=True):
+        def probe(script):
+            if not installed:
+                return Result('')
+            return Result('installed\n' + (CAST['manifest'] if manifest == 'same' else 'f' * 64) + '\n'
+                          + ('healthy\n' if healthy else ''))
+        self.device = Phone(**{'SHA256SUMS 2>/dev/null': probe,
+                               'install.sh {}'.format('/data/local/tmp/rungic-cast-payload'):
+                               lambda script: Result('', 0 if install_ok else 1)})
+        self.pushed = []
+        self.stub(run=self.device.run, push=lambda path, name: self.pushed.append(path.name) or f'/data/local/tmp/{name}')
+        casts = self.root / 'one/.work/apt/cast'
+        casts.mkdir(parents=True, exist_ok=True)
+        (casts / CAST['file']).write_bytes(b'cast')
+        return {'version': '20261008.2', 'cast': dict(CAST, sha256=hashlib.sha256(b'cast').hexdigest())}
+
+    # covers: install.independent-runtime/E7
+    def test_a_phone_without_casting_stays_without_it(self):
+        self.assertEqual(rungic_release.install_cast(self.phone(installed=False)),
+                         {'result': 'skipped: casting is not installed'})
+        self.assertEqual(self.pushed, [])
+
+    # covers: install.independent-runtime/E7
+    def test_the_same_healthy_casting_is_left_alone_and_a_broken_one_is_installed(self):
+        self.assertEqual(rungic_release.install_cast(self.phone(manifest='same'))['result'], 'current')
+        self.assertEqual(rungic_release.install_cast(self.phone(manifest='same', healthy=False))['result'], 'installed')
+
+    # covers: install.independent-runtime/E7
+    def test_an_older_casting_is_installed_by_its_installer_under_the_active_provider(self):
+        result = rungic_release.install_cast(self.phone())
+        self.assertEqual(result, {'result': 'installed', 'manifest': CAST['manifest'][:12]})
+        self.assertEqual(self.pushed, [CAST['file']])
+        script = self.device.find('install.sh /data/local/tmp/rungic-cast-payload')[0]
+        self.assertIn('. /data/adb/rungic-plasma/root-provider', script)
+        self.assertIn('"$RUNGIC_BUSYBOX" flock', script)
+        self.assertNotIn('/data/adb/magisk', script)
+        self.assertIn('rungic-cast capabilities', script)
+
+    # covers: install.independent-runtime/E7
+    def test_restart_never_and_a_failed_install_do_not_fail_the_deploy(self):
+        self.assertEqual(rungic_release.install_cast(self.phone(), restart='never')['result'], 'skipped: --restart never')
+        self.assertEqual(rungic_release.install_cast(self.phone(install_ok=False))['result'], 'failed')
+
+    # covers: install.independent-runtime/E7
+    def test_the_release_builds_the_payload_with_its_manifest(self):
+        import cast_payload
+
+        def build(command, **kw):
+            out = Path(kw['env']['RUNGIC_CAST_OUT'])
+            out.mkdir(parents=True)
+            (out / 'rungic-cast.jar').write_bytes(b'dex')
+            (out / 'inputs.json').write_text(json.dumps(cast_payload.build_inputs()))
+            cast_payload.attest_build(out / 'rungic-cast.jar', out / 'inputs.json')
+            return Result()
+        with patch.object(rungic_release.subprocess, 'run', side_effect=build):
+            cast = rungic_release.release_cast()
+        path = self.root / 'one/.work/apt/cast' / cast['file']
+        with tarfile.open(path) as tar:
+            names = set(tar.getnames())
+            sums = tar.extractfile('SHA256SUMS').read()
+        self.assertTrue({'install.sh', 'rungic-cast.jar', 'service.d/rungic-wfd-sepolicy.sh', 'SHA256SUMS'} <= names)
+        self.assertEqual(cast['manifest'], hashlib.sha256(sums).hexdigest())
+        self.assertEqual(cast['sha256'], hashlib.sha256(path.read_bytes()).hexdigest())
 
 
 class ApkTests(Workspace):
