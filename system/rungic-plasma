@@ -7,7 +7,7 @@ ROOT=$LXC/rootfs
 HOST_STATE=$LXC/state/host
 # Outside the runtime: toybox losetup takes paths under 64 bytes (rootfs-image).
 IMAGES=/data/adb/rungic-lxc/images
-[ "$(id -u)" = 0 ] || { echo 'Magisk root required' >&2; exit 1; }
+[ "$(id -u)" = 0 ] || { echo 'root required (Magisk or KernelSU)' >&2; exit 1; }
 action=${1:-status}
 case "$action" in
     start|boot-start|restart-session|account-prepare|account-setup)

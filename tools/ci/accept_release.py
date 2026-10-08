@@ -65,19 +65,28 @@ def main():
     rootfs_report = json.loads((args.release / "reports/rootfs.json").read_text())
     check("seed.rootfs", lambda: command("cat /data/adb/rungic-lxc/images/rootfs.seeded", True),
           rootfs_report["rootfs_sha256"])
-    check("magisk.environment", lambda: command(
-        "MAGISKBIN=/data/adb/magisk; MAGISKTMP=$(/debug_ramdisk/magisk --path); "
-        ". $MAGISKBIN/app_functions.sh; env_check 31.0 31000 && echo ready", True), "ready")
+    # The root provider CI1 chose for the device (profiles/devices/*.json "root"; Magisk before it had one).
+    provider = spec.get("root", {}).get("provider", "magisk")
     system_packages = set(command("pm list packages -s").splitlines())
     user_packages = set(command("pm list packages -3").splitlines())
-    check("magisk.ordinary-app", lambda: "package:com.topjohnwu.magisk" in user_packages and
-          "package:com.topjohnwu.magisk" not in system_packages, True)
-    def manager_matches():
-        path = command("pm path com.topjohnwu.magisk").removeprefix("package:")
-        hashes = command("sha256sum " + shlex.quote(path) + " /product/etc/magisk/Magisk.apk", True)
-        values = [line.split()[0] for line in hashes.splitlines()]
-        return len(values) == 2 and values[0] == values[1]
-    check("magisk.full-apk", manager_matches, True)
+    if provider == "magisk":
+        check("magisk.environment", lambda: command(
+            "MAGISKBIN=/data/adb/magisk; MAGISKTMP=$(/debug_ramdisk/magisk --path); "
+            ". $MAGISKBIN/app_functions.sh; env_check 31.0 31000 && echo ready", True), "ready")
+        check("magisk.ordinary-app", lambda: "package:com.topjohnwu.magisk" in user_packages and
+              "package:com.topjohnwu.magisk" not in system_packages, True)
+        def manager_matches():
+            path = command("pm path com.topjohnwu.magisk").removeprefix("package:")
+            hashes = command("sha256sum " + shlex.quote(path) + " /product/etc/magisk/Magisk.apk", True)
+            values = [line.split()[0] for line in hashes.splitlines()]
+            return len(values) == 2 and values[0] == values[1]
+        check("magisk.full-apk", manager_matches, True)
+    else:
+        # KernelSU (LKM, docs/121): its userspace at the spec's release, and its manager an ordinary app.
+        check("kernelsu.version", lambda: command("/data/adb/ksud --version", True),
+              predicate=lambda s: s.split()[:2] == ["ksud", spec["root"]["release"].lstrip("v")])
+        check("kernelsu.manager", lambda: "package:me.weishu.kernelsu" in user_packages and
+              "package:me.weishu.kernelsu" not in system_packages, True)
     for package in ("com.rungic.plasma", "com.termux"):
         check("preinstall." + package, lambda p=package: command("pm path " + shlex.quote(p)),
               predicate=lambda s: s.startswith("package:/product/app/"))

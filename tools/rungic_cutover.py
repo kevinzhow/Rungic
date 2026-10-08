@@ -180,8 +180,13 @@ chcon "$label" {data}/shared_prefs {data}/shared_prefs/MainActivity.xml''')
                        'android.permission.BLUETOOTH_SCAN', 'android.permission.BLUETOOTH_CONNECT'):
         root(f'pm grant {NEW_APK} {permission}')
     root(f'appops set {NEW_APK} SYSTEM_ALERT_WINDOW allow')
-    root(f'magisk --sqlite "INSERT OR REPLACE INTO policies (uid,policy,until,logging,notification) '
-         f'VALUES({uid},2,0,1,1)"')
+    # Magisk keeps grants in its SQLite policies; KernelSU has no such store (the user grants the app
+    # in its manager), system/root-provider tells which is active.
+    granted = root(f'. /data/adb/rungic-plasma/root-provider; [ "$RUNGIC_ROOT" = magisk ] || {{ echo kernelsu; exit 0; }}; '
+                   f'"$RUNGIC_MAGISK" --sqlite "INSERT OR REPLACE INTO policies (uid,policy,until,logging,notification) '
+                   f'VALUES({uid},2,0,1,1)"')
+    if 'kernelsu' in (getattr(granted, 'stdout', '') or ''):
+        print(f'KernelSU: grant {NEW_APK} root in the KernelSU manager', flush=True)
     recorder.step('grant', uid=uid, prefs=bool(prefs_from))
 
 

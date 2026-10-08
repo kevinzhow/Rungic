@@ -113,8 +113,36 @@ def test_installer_and_first_boot_refuse_without_a_provider(tmp_path):
         assert result.returncode != 0 and 'No active root provider' in result.stderr
 
 
-def test_no_helper_hardcodes_magisk_busybox():
-    for path in ('system/rungic-runtime', 'system/rootfs-image', 'system/android-device', 'system/android-calls',
-                 'system/android-clipboard', 'shared/android/rungic-wfd-sepolicy.sh'):
-        text = (ROOT / path).read_text()
-        assert not re.search(r'/data/adb/magisk/(busybox|magiskpolicy)|magisk --live', text), path
+# covers: install.first-run-progress/E6
+def test_nothing_hardcodes_magisk_where_kernelsu_runs_too():
+    # Kevin 2026-10-08: every Magisk-only path, tool or grant outside the places that decide between
+    # the providers (or that only make and check the Magisk-embedded offline image) is a KernelSU bug.
+    magisk = re.compile(r'/data/adb/magisk/|/debug_ramdisk/magisk|magisk --sqlite|magisk --live|\bmagisk su\b')
+    deciding = {'system/root-provider', 'system/rungic-converge', 'tools/ci/rungic-firstboot.sh', 'tools/ci/standalone.py',
+                'shared/android/rungic-cast/src/com/rungic/cast/RootProvider.java', 'tools/ci/accept_release.py',
+                'tools/rungic_cutover.py',
+                # a test fixture standing in for a Magisk phone
+                'tools/ci/uninstall_host_flow_cases.py',
+                # what uninstall keeps, not uses
+                'tools/ci/install_paths.py',
+                # the Magisk-embedded offline image: made and checked as such
+                'tools/verify_offline_device.py', 'tools/build_offline_magisk.py', 'tools/rungic-magisk-bootstrap.sh',
+                'tools/ci/inject_magisk_seed.py', 'tools/ci/assemble_product.py'}
+    listed = subprocess.run(['git', 'ls-files', 'system', 'shared', 'tools', 'android/app/src', 'desktop', 'agent'],
+                            cwd=ROOT, capture_output=True, text=True, check=True).stdout.split()
+    found = []
+    for name in listed:
+        path = ROOT / name
+        if name in deciding or '/test_' in name or name.startswith('tools/tests/') or not path.is_file() \
+                or path.suffix not in ('', '.sh', '.py', '.java', '.kt', '.service'):
+            continue
+        for number, line in enumerate(path.read_text(errors='replace').splitlines(), 1):
+            if magisk.search(line) and not line.lstrip().startswith(('#', '//', '*')):
+                found.append(f'{name}:{number}')
+    assert found == []
+
+
+# covers: install.first-run-progress/E6
+def test_casting_picks_busybox_by_the_same_rule():
+    text = (ROOT / 'shared/android/rungic-cast/src/com/rungic/cast/RootProvider.java').read_text()
+    assert text.index('"/debug_ramdisk/magisk"') < text.index('"/data/adb/ksud"') < text.index('/nonexistent/')

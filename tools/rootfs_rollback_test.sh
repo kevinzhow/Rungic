@@ -1,7 +1,7 @@
 #!/system/bin/sh
 # The rootfs snapshot rollback (system/rootfs-image) on a small test image, never the system's: dataset A,
 # a snapshot, rounds that replace A (reusing its blocks) and leave without unmounting, a rollback;
-# then fsck and A's checksums. Android side, Magisk root (docs/70, the 2026-09-27 incident).
+# then fsck and A's checksums. Android side, as root under Magisk or KernelSU (docs/70, the 2026-09-27 incident).
 #   rollback-test.sh SCRIPT ROUNDS [MERGE_ROUNDS] [BIG_MB]
 # MERGE_ROUNDS (default 0): after the rollback, rounds that mount the merging device at once, write
 # dataset C and detach before the merge has finished, as a container started on it does.
@@ -10,6 +10,9 @@
 # SCRIPT: a copy of system/rootfs-image. The copy is rewritten to use a test directory and test
 # device-mapper names, with the "container running" check disabled.
 set -eu
+# The root provider's BusyBox (system/root-provider): Magisk and KernelSU install it at different paths.
+. /data/adb/rungic-plasma/root-provider
+BB=$RUNGIC_BUSYBOX
 SRC=$1; ROUNDS=${2:-3}; MERGE_ROUNDS=${3:-0}; BIG_MB=${4:-0}
 BIG_FILES=$((BIG_MB / 100))
 IMG_MB=$((768 + BIG_MB * 2)); COW_MB=$((1024 + BIG_MB * 2))
@@ -31,7 +34,7 @@ M=$T/mnt; mkdir -p "$M"
 
 # Dataset A: many small files in many directories; its checksums are the reference.
 dev=$($R attach)
-unshare -m sh -c "/data/adb/magisk/busybox mount --make-rprivate / && mount -t ext4 $dev $M
+unshare -m sh -c "$BB mount --make-rprivate / && mount -t ext4 $dev $M
 for d in \$(seq 1 60); do mkdir -p $M/a/\$d; for f in \$(seq 1 40); do head -c \$((\$f*37+500)) /dev/urandom > $M/a/\$d/\$f; done; done
 for i in \$(seq 1 $BIG_FILES); do dd if=/dev/urandom of=$M/a/big\$i bs=1048576 count=100 2>/dev/null; done
 (cd $M && find a -type f | sort | xargs md5sum) > $T/a.md5
@@ -43,7 +46,7 @@ $R snapshot >/dev/null
 # namespace goes with the process, and the next step detaches at once, as moto-plasma stop does.
 for round in $(seq 1 "$ROUNDS"); do
     dev=$($R attach)
-    unshare -m sh -c "/data/adb/magisk/busybox mount --make-rprivate / && mount -t ext4 $dev $M
+    unshare -m sh -c "$BB mount --make-rprivate / && mount -t ext4 $dev $M
     rm -rf $M/a $M/b*
     for d in \$(seq 1 60); do mkdir -p $M/b$round/\$d; for f in \$(seq 1 40); do head -c \$((\$f*41+300)) /dev/urandom > $M/b$round/\$d/\$f; done; done
     for i in \$(seq 1 $BIG_FILES); do dd if=/dev/urandom of=$M/b$round/big\$i bs=1048576 count=100 2>/dev/null; done
@@ -58,7 +61,7 @@ $R rollback >/dev/null
 # stop detaches it whether or not the merge has finished (the merge resumes from the COW).
 for round in $(seq 1 "$MERGE_ROUNDS"); do
     dev=$($R attach)
-    unshare -m sh -c "/data/adb/magisk/busybox mount --make-rprivate / && mount -t ext4 $dev $M
+    unshare -m sh -c "$BB mount --make-rprivate / && mount -t ext4 $dev $M
     echo \"  merge before C$round: \$(dmctl status rungic-test-root | tail -n1)\"
     # The previous round's data goes first, so each round fits and reuses its blocks.
     rm -rf $M/c\$(($round-1)) $M/c\$(($round-1))-big*
@@ -79,6 +82,6 @@ $R detach
 echo "state after merge: $(cat $T/lxc/images/state)"
 if e2fsck -fn "$IMG" > "$T/fsck.txt" 2>&1; then echo "fsck: clean"; else echo "fsck: ERRORS ($(grep -c '' $T/fsck.txt) lines)"; fi
 dev=$($R attach)
-unshare -m sh -c "/data/adb/magisk/busybox mount --make-rprivate / && mount -t ext4 -o ro $dev $M && (cd $M && md5sum -c $T/a.md5 2>/dev/null | grep -vc ': OK\$'); umount $M" > "$T/bad.txt" || true
+unshare -m sh -c "$BB mount --make-rprivate / && mount -t ext4 -o ro $dev $M && (cd $M && md5sum -c $T/a.md5 2>/dev/null | grep -vc ': OK\$'); umount $M" > "$T/bad.txt" || true
 echo "dataset A files not intact: $(cat $T/bad.txt) of $(grep -c '' $T/a.md5)"
 $R detach

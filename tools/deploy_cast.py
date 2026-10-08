@@ -35,14 +35,16 @@ def main():
     subprocess.run(adb + ['push', str(payload), remote + '/payload'], check=True, capture_output=True)
     script = 'set -e\n/system/bin/sh ' + remote + '/payload/install.sh ' + remote + '/payload\n'
     # Dedicated lock prevents concurrent boot/manual upgrades. No lock is inherited by the watcher.
-    result = root('printf %s ' + shlex.quote(script) + ' > ' + remote + '/install.sh\n'
-                  '/data/adb/magisk/busybox flock /data/adb/rungic-cast-install.lock sh ' + remote + '/install.sh\n')
+    # The root provider's BusyBox (Magisk or KernelSU, system/root-provider).
+    provider = '. /data/adb/rungic-plasma/root-provider\n'
+    result = root('printf %s ' + shlex.quote(script) + ' > ' + remote + '/install.sh\n' + provider +
+                  '"$RUNGIC_BUSYBOX" flock /data/adb/rungic-cast-install.lock sh ' + remote + '/install.sh\n')
     result += root('if [ -f /data/adb/rungic-wfd/watch.pid ]; then\n'
                    'p=$(cat /data/adb/rungic-wfd/watch.pid)\n'
                    'case "$p" in ""|*[!0-9]*) ;; *) '
                    'if [ "$(tr "\\000" " " < /proc/$p/cmdline 2>/dev/null)" = "app_process /system/bin com.rungic.cast.Main watch " ]; then kill "$p"; fi ;; esac\nfi\n')
-    result += root('/system/bin/sh /data/adb/service.d/rungic-wfd-sepolicy.sh\n'
-                   '/data/adb/magisk/busybox setsid /system/bin/sh /data/adb/service.d/rungic-cast-watch.sh </dev/null >/dev/null 2>&1 &\n')
+    result += root(provider + '/system/bin/sh /data/adb/service.d/rungic-wfd-sepolicy.sh\n'
+                   '"$RUNGIC_BUSYBOX" setsid /system/bin/sh /data/adb/service.d/rungic-cast-watch.sh </dev/null >/dev/null 2>&1 &\n')
     result += root('/data/adb/rungic-wfd/rungic-cast capabilities\n')
     (args.output / 'install.log').write_text(result)
     root('rm -rf ' + shlex.quote(remote))
