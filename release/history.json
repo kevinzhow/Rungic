@@ -131,5 +131,25 @@
   "serial": "ZY32MVJS25",
   "result": "ok",
   "flaky": []
+ },
+ {
+  "time": "2026-10-08T15:48:21+09:00",
+  "version": "20261008.2",
+  "commit": "95c89eee14b0d367b0a1ffd64286f02650e2be4b",
+  "channel": "dev",
+  "serial": "ZY32M9MRVP",
+  "result": "ok",
+  "flaky": [
+   "display.geometry"
+  ]
+ },
+ {
+  "time": "2026-10-08T16:01:13+09:00",
+  "version": "20261008.2",
+  "commit": "95c89eee14b0d367b0a1ffd64286f02650e2be4b",
+  "channel": "dev",
+  "serial": "ZY32MVJS25",
+  "result": "ok",
+  "flaky": []
  }
 ]
