@@ -151,5 +151,59 @@
   "serial": "ZY32MVJS25",
   "result": "ok",
   "flaky": []
+ },
+ {
+  "time": "2026-10-08T17:38:27+09:00",
+  "version": "20261008.2",
+  "commit": "95c89eee14b0d367b0a1ffd64286f02650e2be4b",
+  "channel": "dev",
+  "serial": "ZY22MHZKFT",
+  "result": "install-failed, rolled back to the snapshot",
+  "flaky": []
+ },
+ {
+  "time": "2026-10-08T17:54:36+09:00",
+  "version": "20261008.2",
+  "commit": "95c89eee14b0d367b0a1ffd64286f02650e2be4b",
+  "channel": "dev",
+  "serial": "ZY22MHZKFT",
+  "result": "verify-failed, rolled back to the snapshot",
+  "flaky": []
+ },
+ {
+  "time": "2026-10-08T18:20:20+09:00",
+  "version": "20261008.2",
+  "commit": "95c89eee14b0d367b0a1ffd64286f02650e2be4b",
+  "channel": "dev",
+  "serial": "ZY22MHZKFT",
+  "result": "verify-failed, rolled back to the snapshot",
+  "flaky": []
+ },
+ {
+  "time": "2026-10-08T19:21:04+09:00",
+  "version": "20261008.3",
+  "commit": "08d97348fc1d84ca4d98e61ae90daf5a80518fda",
+  "channel": "dev",
+  "serial": "ZY22MHZKFT",
+  "result": "ok",
+  "flaky": []
+ },
+ {
+  "time": "2026-10-08T19:44:02+09:00",
+  "version": "20261008.4",
+  "commit": "06f3c3d205bfe72aed642a2f46f8b474381cf2aa",
+  "channel": "dev",
+  "serial": "ZY22MHZKFT",
+  "result": "ok",
+  "flaky": []
+ },
+ {
+  "time": "2026-10-08T19:55:50+09:00",
+  "version": "20261008.4",
+  "commit": "06f3c3d205bfe72aed642a2f46f8b474381cf2aa",
+  "channel": "dev",
+  "serial": "ZY32M9MRVP",
+  "result": "ok",
+  "flaky": []
  }
 ]
