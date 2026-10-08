@@ -199,7 +199,8 @@ class DeployTests(Workspace):
                       'packages': {'rungic-demo': '0.4', 'kwin-wayland': '1', 'rungic-other': '7'}}
         import rungic_acceptance
         import rungic_dev
-        for obj, name, value in ((rungic_acceptance, 'session_ready', lambda ctx: {'passed': True}),
+        # session_ready saves its picture in ctx['out_dir'] (69a3219); a stub ignoring ctx hid a deploy that passed {}
+        for obj, name, value in ((rungic_acceptance, 'session_ready', lambda ctx: {'passed': Path(ctx['out_dir']).is_dir()}),
                                  (rungic_dev, 'clear_device', lambda run: None)):
             p = patch.object(obj, name, value)
             p.start()

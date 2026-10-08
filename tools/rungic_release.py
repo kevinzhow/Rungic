@@ -999,7 +999,7 @@ def deploy_release(version=None, restart='auto', acceptance='smoke', record_labe
             return log
         # A freshly started session has its own start-up flakiness; install into a settled one.
         import rungic_acceptance
-        settled = rungic_acceptance.session_ready({})
+        settled = rungic_acceptance.session_ready({'out_dir': str(record)})
         step('settled', ok=settled['passed'])
     # 2 record
     previous, _ = device_release()
@@ -1097,7 +1097,7 @@ def deploy_release(version=None, restart='auto', acceptance='smoke', record_labe
             step('apk', **apk)
             if apk['result'] == 'installed':
                 import rungic_acceptance
-                step('apk-session', ok=rungic_acceptance.session_ready({})['passed'])
+                step('apk-session', ok=rungic_acceptance.session_ready({'out_dir': str(record)})['passed'])
                 installed_at = time.time()
         # 6 verify
         integrity_after = integrity_summary()
