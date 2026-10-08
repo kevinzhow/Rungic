@@ -8,13 +8,13 @@ from unittest import mock
 p=argparse.ArgumentParser();p.add_argument('repository',type=Path);p.add_argument('output',type=Path);a=p.parse_args()
 sys.path.insert(0,str(a.repository.resolve()/'tools/ci'));product=importlib.import_module('standalone')
 a.output.mkdir(parents=True,exist_ok=True);results=[]
-for mode in ['normal','normal_no_termux','termux_readback_failure','package_failure','readback_failure','finish_readback_marker','final_snapshot_failure','final_snapshot_marker','final_snapshot_unknown','final_snapshot_missing','final_snapshot_duplicate','final_snapshot_runtime_reappears','final_snapshot_package_reappears','final_snapshot_retained_gone','preview_healthy','preview_mount']:
+for mode in ['normal','normal_no_termux','normal_no_seed','termux_readback_failure','package_failure','readback_failure','finish_readback_marker','final_snapshot_failure','final_snapshot_marker','final_snapshot_unknown','final_snapshot_missing','final_snapshot_duplicate','final_snapshot_runtime_reappears','final_snapshot_package_reappears','final_snapshot_retained_gone','preview_healthy','preview_mount']:
  case=a.output.resolve()/mode;root=case/'root';adb=root/'data/adb'
  home=adb/'rungic-lxc/runtime/var/lib/lxc/plasma/state/home';home.mkdir(parents=True);(home/'private').write_text('old home')
  appdata=root/'data/user/0'/product.APP;appdata.mkdir(parents=True);(appdata/'private').write_text('app private')
  for d in ['proc/self','proc/1','sys/block','product/etc/rungic','data/local/tmp','data/user_de/0','data/system/users/0']:(root/d).mkdir(parents=True,exist_ok=True)
  (root/'proc/mounts').write_text(f'none {home}/Shared none rw 0 0\n' if mode=='preview_mount' else '')
- (root/'proc/1/cmdline').write_bytes(b'init\x00');(root/'proc/1/mountinfo').write_text('1 0 0:1 / / rw - rootfs rootfs rw\n');(root/'proc/self/mountinfo').write_text('1 0 0:1 / / rw - rootfs rootfs rw\n');(root/'product/etc/rungic/firstboot.sh').write_text('old seed')
+ (root/'proc/1/cmdline').write_bytes(b'init\x00');(root/'proc/1/mountinfo').write_text('1 0 0:1 / / rw - rootfs rootfs rw\n');(root/'proc/self/mountinfo').write_text('1 0 0:1 / / rw - rootfs rootfs rw\n');(mode=='normal_no_seed' or (root/'product/etc/rungic/firstboot.sh').write_text('old seed'))
  def snapshot():
   return {str(x.relative_to(root)):('link:'+os.readlink(x) if x.is_symlink() else 'dir' if x.is_dir() else hashlib.sha256(x.read_bytes()).hexdigest()) for x in root.rglob('*')}
  restrictions=root/'data/system/users/0/package-restrictions.xml'
@@ -82,7 +82,7 @@ for mode in ['normal','normal_no_termux','termux_readback_failure','package_fail
  report=json.loads((args.report/'report.json').read_text());markdown=(args.report/'report.md').read_text()
  checks={'report_survives':(args.report/'report.md').is_file()}
  pending=(adb/'rungic-uninstalling').exists()
- if mode in ('normal','normal_no_termux'):checks.update(completed=report['complete'],marker_removed=not pending,runtime_removed=not (adb/'rungic-lxc').exists(),package_removed=not device.installed,final_snapshot_marker_absent=report.get('after',{}).get('paths',{}).get(product.PENDING) is False,final_snapshot_record_empty=report.get('after',{}).get('pending')=='',previous_snapshot_preserved=report.get('before_finish',{}).get('paths',{}).get(product.PENDING) is True)
+ if mode in ('normal','normal_no_termux','normal_no_seed'):checks.update(guard_only_with_seed=(adb/'modules/rungic-install-compat').exists()==(mode!='normal_no_seed'),completed=report['complete'],marker_removed=not pending,runtime_removed=not (adb/'rungic-lxc').exists(),package_removed=not device.installed,final_snapshot_marker_absent=report.get('after',{}).get('paths',{}).get(product.PENDING) is False,final_snapshot_record_empty=report.get('after',{}).get('pending')=='',previous_snapshot_preserved=report.get('before_finish',{}).get('paths',{}).get(product.PENDING) is True)
  elif mode=='termux_readback_failure':checks.update(rejected=error is not None,incomplete=not report['complete'],readback_unknown=bool(report.get('readback_error')))
  elif mode=='package_failure':checks.update(rejected=error is not None,incomplete=not report['complete'],marker_kept=pending,raw_failure_retained='Failure [busy]' in json.dumps(report))
  elif mode=='readback_failure':checks.update(rejected=error is not None,incomplete=not report['complete'],marker_kept=pending,readback_failure_recorded='readback_error' in report,no_false_verified_rows=not any(token in line for line in markdown.splitlines() if line.startswith('| `') for token in ('已删除并读回','已删除并确认','确认不存在')))

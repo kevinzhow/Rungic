@@ -1095,10 +1095,14 @@ test -f "$file" && test ! -L "$file" && test -r "$file" || exit 1
 first=$("$BB" sha256sum "$file") || exit 1
 first=${first%% *}
 magic=$("$BB" od -An -tx1 -N4 "$file" | "$BB" tr -d ' \n') || exit 1
+# The XML goes through a file, never an argument: an ordinary app's packages.xml is too long for
+# printf (X70, 2026-10-08: "Argument list too long", the removal unconfirmed).
+xml=/data/local/tmp/rungic-package-persistence.$$.xml
+trap '"$BB" rm -f "$xml"' EXIT
 if [ "$magic" = 41425800 ]; then
-    xml=$(/system/bin/abx2xml "$file" -) || exit 1
+    /system/bin/abx2xml "$file" "$xml" || exit 1
 else
-    xml=$("$BB" cat "$file") || exit 1
+    "$BB" cat "$file" > "$xml" || exit 1
 fi
 # Flush what was observed, then reject a concurrent/unfinished PM write.
 sync || exit 1
@@ -1107,7 +1111,8 @@ last=${last%% *}
 if [ "$first" != "$last" ] || [ -e "$backup" ] || [ -L "$backup" ]; then
     printf 'PENDING\tchanged\n'; exit 0
 fi
-printf 'STABLE\t%s\n%s\n' "$last" "$xml"
+printf 'STABLE\t%s\n' "$last"
+"$BB" cat "$xml" || exit 1
 '''
 
 
@@ -1389,7 +1394,10 @@ def _uninstall(args):
             preserved = [line.split('\t', 1)[1] for entry in result['steps']
                          for line in entry.get('output', '').splitlines() if line.startswith('preserved\t')]
             retained = [path for path in RETAINED if path != PENDING and before.get('paths', {}).get(path) is True]
-            retained = list(dict.fromkeys(retained + [COMPAT, UNINSTALLED] + preserved))
+            # The guard module exists only where a product seed could reinstall the old release: the
+            # removal script writes it only then (X70, 2026-10-08: no seed, removal never "complete").
+            seed = device.shell('if [ -f /product/etc/rungic/firstboot.sh ]; then echo seed; fi', root=True).strip() == 'seed'
+            retained = list(dict.fromkeys(retained + ([COMPAT] if seed else []) + [UNINSTALLED] + preserved))
             result['final_retained_checks'] = retained
             result['after'] = uninstall_state(device, extra_paths=targets + retained)
             result['after_phase'] = 'after-marker-clear'

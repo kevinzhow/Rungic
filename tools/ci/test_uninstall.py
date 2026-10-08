@@ -773,7 +773,7 @@ class HostFlow(unittest.TestCase):
                                      str(source.parents[1]), root], capture_output=True, text=True, timeout=60)
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
             cases = json.loads((Path(root) / 'results.json').read_text())
-            self.assertEqual(len(cases), 16)
+            self.assertEqual(len(cases), 17)
             for case in cases:
                 self.assertTrue(all(case['checks'].values()), case)
             failed = Path(root) / 'readback_failure'

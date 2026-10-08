@@ -271,11 +271,13 @@ class PersistentPackageState(unittest.TestCase):
         import os
         import shutil
         for shell in (['/bin/sh'],['/usr/bin/busybox','ash']):
-            for variant in ('text','binary','backup','changed','missing','symlink','conversion_error','backup_during_sync','ordinary_text','ordinary_binary','ordinary_backup'):
+            for variant in ('text','binary','backup','changed','missing','symlink','conversion_error','backup_during_sync','ordinary_text','ordinary_binary','ordinary_backup','ordinary_large'):
                 mode=variant.removeprefix('ordinary_');kind='ordinary' if variant.startswith('ordinary_') else 'system'
                 with self.subTest(shell=shell,mode=variant),tempfile.TemporaryDirectory() as temp:
                     root=Path(temp);parent=root/'users/0';parent.mkdir(parents=True)
                     xml=f'<package-restrictions><pkg name="{standalone.APP}" inst="false" /></package-restrictions>'
+                    # An ordinary app's packages.xml is longer than one argument may be (X70, 2026-10-08).
+                    if mode=='large':xml=f'<packages>{"<package name=\"x\" />"*20000}</packages>'
                     target=parent/('packages.xml' if kind=='ordinary' else 'package-restrictions.xml')
                     backup=parent/('packages-backup.xml' if kind=='ordinary' else 'package-restrictions-backup.xml')
                     target.write_bytes((b'ABX\0' if mode in ('binary','conversion_error') else b'')+xml.encode())
@@ -283,12 +285,12 @@ class PersistentPackageState(unittest.TestCase):
                     if mode=='backup':backup.write_text('old')
                     if mode=='missing':target.unlink()
                     if mode=='symlink':target.unlink();target.symlink_to(root/'outside');(root/'outside').write_text(xml)
-                    converter=root/'abx2xml';converter.write_text("#!/usr/bin/python3\nimport sys\nfrom pathlib import Path\nassert sys.argv[2]=='-'\ndata=Path(sys.argv[1]).read_bytes()\nassert data[:4]==b'ABX\\0'\n"+("sys.exit(1)\n" if mode=='conversion_error' else "sys.stdout.write(data[4:].decode())\n"));converter.chmod(0o755)
-                    script=standalone.package_persistence_script(kind).replace(standalone.ROOT_PROVIDER_SH,'BB=/usr/bin/busybox; RUNGIC_ROOT=magisk').replace('/data/adb/magisk/busybox','/usr/bin/busybox').replace('/data/system/users/0' if kind=='system' else '/data/system',str(parent)).replace('/system/bin/abx2xml',str(converter))
+                    converter=root/'abx2xml';converter.write_text("#!/usr/bin/python3\nimport sys\nfrom pathlib import Path\ndata=Path(sys.argv[1]).read_bytes()\nassert data[:4]==b'ABX\\0'\n"+("sys.exit(1)\n" if mode=='conversion_error' else "Path(sys.argv[2]).write_text(data[4:].decode())\n"));converter.chmod(0o755)
+                    script=standalone.package_persistence_script(kind).replace(standalone.ROOT_PROVIDER_SH,'BB=/usr/bin/busybox; RUNGIC_ROOT=magisk').replace('/data/adb/magisk/busybox','/usr/bin/busybox').replace('/data/system/users/0' if kind=='system' else '/data/system',str(parent)).replace('/system/bin/abx2xml',str(converter)).replace('/data/local/tmp',str(root))
                     sync=':'
                     if mode=='changed':sync=f"printf x >> {target}"
                     if mode=='backup_during_sync':sync=f"printf old > {backup}"
-                    run=subprocess.run([*shell,'-c','set -eu\nid() { echo 0; }\nsync() { '+sync+'; }\n'+script],capture_output=True,text=True,timeout=5)
+                    run=subprocess.run([*shell,'-c','set -eu\nid() { echo 0; }\nprintf() { /usr/bin/printf "$@"; }\nsync() { '+sync+'; }\n'+script],capture_output=True,text=True,timeout=5)
                     if mode in ('missing','symlink','conversion_error'):self.assertNotEqual(run.returncode,0)
                     elif mode in ('backup','changed','backup_during_sync'):
                         self.assertEqual(run.returncode,0,run.stderr);self.assertTrue(run.stdout.startswith('PENDING\t'))
