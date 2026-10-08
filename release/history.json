@@ -104,5 +104,32 @@
   "channel": "dev",
   "serial": "ZY32MVJS25",
   "result": "ok"
+ },
+ {
+  "time": "2026-10-08T12:40:39+09:00",
+  "version": "20261008.1",
+  "commit": "5e4fdebe4aecf3de53b911fc36b25761c00c9ab0",
+  "channel": "dev",
+  "serial": "ZY32M9MRVP",
+  "result": "verify-failed, rolled back to the snapshot",
+  "flaky": []
+ },
+ {
+  "time": "2026-10-08T12:58:19+09:00",
+  "version": "20261008.1",
+  "commit": "5e4fdebe4aecf3de53b911fc36b25761c00c9ab0",
+  "channel": "dev",
+  "serial": "ZY32M9MRVP",
+  "result": "ok",
+  "flaky": []
+ },
+ {
+  "time": "2026-10-08T14:04:37+09:00",
+  "version": "20261008.1",
+  "commit": "5e4fdebe4aecf3de53b911fc36b25761c00c9ab0",
+  "channel": "dev",
+  "serial": "ZY32MVJS25",
+  "result": "ok",
+  "flaky": []
  }
 ]
