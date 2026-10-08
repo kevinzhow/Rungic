@@ -677,6 +677,10 @@ features:
         text: 非法倍率（例如 6 倍、NaN、0）被拒绝，不写入配置。宿主拒绝或超时时恢复旧模式和刷新策略并返回失败。
         evidence:
           - {doc: docs/85-phone-display-size-policy.md, date: 2026-09-28, note: "非法 6 倍请求未写入"}
+      - id: E7
+        text: 文字用灰度抗锯齿和轻度 hinting，和安卓一样：手机的 OLED 面板没有 LCD 那种红绿蓝竖条，Ubuntu 默认的 RGB 子像素抗锯齿会在每个字的边上画出橙蓝彩边，看起来发虚。用户在“设置 > 字体”里的选择仍然优先。
+        evidence:
+          - {doc: docs/85-phone-display-size-policy.md, date: 2026-10-08, note: "X70 截图放大键盘字母：RGB 子像素时同一区域 694 个彩色像素，灰度后 0"}
     pitfalls:
       - text: 安卓 density 是逻辑 dp 倍率，不是面板 PPI。480/160=3 不能保证 Plasma 控件与安卓控件等大。默认的 1.25 系数是待跨设备校准的产品参数。
         docs: [docs/85-phone-display-size-policy.md, docs/50-plasma-display-settings.md]
@@ -687,6 +691,9 @@ features:
       - text: 新账户、整包清数据首装、第二台设备和 API 30–33 回退路径还没有实机验收。当前账户移开配置的测试不等于首装。
         docs: [docs/85-phone-display-size-policy.md]
     code:
+      - system/config/etc/xdg/kdeglobals
+      - system/config/etc/fonts/conf.d/11-rungic-grayscale.conf
+      - tools/tests/test_font_rendering.py
       - shared/display-policy/
       - packages/kscreen/
       - packages/kwin/debian/patches/rungic/handset-display-size.patch

@@ -1,0 +1,8 @@
+# Text on the phone: grayscale antialiasing with slight hinting (Kevin 2026-10-08). Ubuntu's default
+# RGB subpixel antialiasing assumes an LCD's red-green-blue stripe; on the phones' OLED panels it
+# drew orange and blue fringes on every glyph (X70 screenshot), which read as blurry edges. Android
+# draws its text grayscale. A user's choice in Settings > Fonts still wins.
+[General]
+XftAntialias=true
+XftHintStyle=hintslight
+XftSubPixel=none
