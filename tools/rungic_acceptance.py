@@ -428,29 +428,53 @@ def _pactl_short(kind):
 
 @check
 def audio_playback(ctx):
-    default = user('pactl get-default-sink').stdout.strip()
-    sinks = {row[1]: row for row in _pactl_short('sinks')}
-    # 1 s of a quiet 440 Hz tone at 5 % stream volume: enough to route, barely audible.
-    user('''python3 - <<'PY'
-import math, struct, wave
-with wave.open('/tmp/rungic-acceptance-tone.wav', 'wb') as w:
+    # One script on the phone plays the tone and watches for its stream. Polled from here, each pactl
+    # took about 2.5 s through a remote adb, as long as the tone: 20261008.1 on the G100 missed the
+    # stream twice and passed on the next try, the same build. paplay's exit code and error are kept.
+    out = user('''python3 - <<'PY'
+import json, math, struct, subprocess, time, wave
+path = '/tmp/rungic-acceptance-tone.wav'
+# 2 s of a quiet 440 Hz tone at 5 % stream volume: enough to route, barely audible.
+with wave.open(path, 'wb') as w:
     w.setnchannels(2); w.setsampwidth(2); w.setframerate(48000)
     w.writeframes(b''.join(struct.pack('<hh', v, v) for v in
                   (int(800 * math.sin(2 * math.pi * 440 * i / 48000)) for i in range(48000 * 2))))
-PY''')
-    import threading
-    player = threading.Thread(target=user, args=('paplay --volume=3277 --client-name=rungic-acceptance '
-                                                 '/tmp/rungic-acceptance-tone.wav',), daemon=True)
-    player.start()
-    stream = wait_for(lambda: [r for r in _pactl_short('sink-inputs')], timeout=4, interval=0.2)
-    sink_index = stream[0][1] if stream else None
-    sink_name = next((name for name, row in sinks.items() if row[0] == sink_index), None)
-    player.join(15)
-    user('rm -f /tmp/rungic-acceptance-tone.wav')
+def listing(kind):
+    r = subprocess.run(['pactl', '-f', 'json', 'list', kind], capture_output=True, text=True)
+    try:
+        return json.loads(r.stdout) if r.returncode == 0 else []
+    except ValueError:
+        return []
+default = subprocess.run(['pactl', 'get-default-sink'], capture_output=True, text=True).stdout.strip()
+sinks = {s.get('index'): s.get('name') for s in listing('sinks')}
+player = subprocess.Popen(['paplay', '--volume=3277', '--client-name=rungic-acceptance', path],
+                          stderr=subprocess.PIPE, text=True)
+sink, began = None, time.monotonic()
+while sink is None and player.poll() is None:
+    for stream in listing('sink-inputs'):
+        if stream.get('properties', {}).get('application.name') == 'rungic-acceptance':
+            sink = sinks.get(stream.get('sink'), str(stream.get('sink')))
+    time.sleep(0.05)
+seen = round(time.monotonic() - began, 2) if sink else None
+try:
+    error = player.communicate(timeout=15)[1]
+except subprocess.TimeoutExpired:
+    player.kill(); error = 'paplay did not finish within 15 s'
+subprocess.run(['rm', '-f', path])
+print(json.dumps({'default': default, 'sink': sink, 'seen_s': seen, 'rc': player.returncode,
+                  'error': (error or '').strip()[-300:]}))
+PY''', timeout=60).stdout
+    try:
+        played = json.loads(out.strip().splitlines()[-1])
+    except (ValueError, IndexError):
+        return result(False, error=f'no result from the phone: {out[-300:]!r}')
+    default = played['default']
     suspended = wait_for(lambda: dict((r[1], r[-1]) for r in _pactl_short('sinks')).get(default) in
                          ('SUSPENDED', 'IDLE'), timeout=12)
-    return result(bool(stream) and sink_name == default and suspended, default_sink=default,
-                  stream_sink=sink_name, state_after=dict((r[1], r[-1]) for r in _pactl_short('sinks')).get(default))
+    passed = played['sink'] == default and played['rc'] == 0 and bool(suspended)
+    return result(passed, {'stream_seen_s': played['seen_s']}, default_sink=default, stream_sink=played['sink'],
+                  paplay_exit=played['rc'], paplay_error=played['error'] or None,
+                  state_after=dict((r[1], r[-1]) for r in _pactl_short('sinks')).get(default))
 
 
 @check
