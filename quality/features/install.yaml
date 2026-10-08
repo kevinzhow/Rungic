@@ -46,7 +46,7 @@ features:
       - id: E6
         text: 只提高 KWin 包装器及其直接合成器子进程、Plasma 和 Agent 主进程的内存回收优先级，不降低已有更强保护；其余应用仍受原有容器内存预算约束。
       - id: E7
-        text: 每次开机在启动 Linux 之前把应当一直成立的安卓设置收敛一遍（电池优化白名单、悬浮窗、Magisk 的 root 授权、App 与 Termux 的目录属主和标签、共享文件夹），随发版更新；每项记 ok、changed、refused 或 report，失败不挡 Linux 启动。运行时权限与 KernelSU 的授权只报告，不替用户改。
+        text: 每次开机在启动 Linux 之前把应当一直成立的安卓设置收敛一遍（电池优化白名单、悬浮窗、Magisk 的 root 授权、App 与 Termux 的目录属主和标签、共享文件夹），随发版更新；用户停止了 Linux 时也照样收敛（App 要靠 root 授权才能再启动它）；每项记 ok、changed、refused 或 report，失败不挡 Linux 启动。首装不再自己写这些。运行时权限与 KernelSU 的授权只报告，不替用户改。
     code:
       - system/rungic-runtime
       - system/rungic-converge

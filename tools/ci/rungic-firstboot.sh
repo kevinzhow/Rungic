@@ -263,24 +263,10 @@ chcon "$label" "$rungic_files" "$rungic_files/tmp"
 /data/adb/rungic-plasma/rungic-plasma-enter /bin/true || die 'shared mount preflight'
 phase=finish; publish installing "$phase"
 install_runtime_boot
-# Casting shows the Linux desktop on the TV in an overlay window (docs/58), which needs this
-# app op; default-permissions cannot grant it. Some first boots refused appops from Magisk's
-# root context (docs/79), so the shell identity is the fallback, and the app asks again
-# itself when a TV appears. Optional (docs/75): a refusal does not stop the install.
-overlay='appops set com.rungic.plasma SYSTEM_ALERT_WINDOW allow'
-if sh -c "$overlay" || { [ -n "$RUNGIC_MAGISK" ] && "$RUNGIC_MAGISK" su 2000 -c "$overlay"; }; then
-    echo 'overlay allowed'
-else
-    echo 'overlay not allowed; the app asks when casting (optional)'
-fi
-if [ -n "$RUNGIC_MAGISK" ]; then
-    # Fixed Magisk 31.0 schema; INSERT returns no SQL NULL (docs/39, docs/70).
-    "$RUNGIC_MAGISK" --sqlite "INSERT OR REPLACE INTO policies (uid,policy,until,logging,notification) VALUES($rungic_uid,2,0,1,1)" || die 'Magisk policy'
-else
-    # KernelSU keeps its own allowlist; there is no equivalent SQLite write. The install does
-    # not depend on it: the user grants com.rungic.plasma root in the KernelSU manager.
-    echo 'KernelSU root provider: grant com.rungic.plasma root in its manager'
-fi
+# The overlay app op (casting, docs/58), Magisk's root grant and the other Android settings that
+# should always hold are rungic-converge's, which rungic-runtime runs at every boot before Linux,
+# including right below (docs/122): first boot runs once per release and a release never reaches
+# it. Neither is required to finish the install: KernelSU's grant was never written here either.
 echo "$RELEASE_ID" > "$marker.tmp"
 mv "$marker.tmp" "$marker"
 sync

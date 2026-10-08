@@ -171,5 +171,18 @@ esac''')
         self.assertEqual(result['termux-home'][0], 'changed')
 
 
+class OneDeclaration(unittest.TestCase):
+    # covers: install.independent-runtime/E7
+    def test_only_rungic_converge_sets_these_on_the_phone(self):
+        # First boot set the overlay and Magisk's grant once and a release never reached them
+        # (docs/122): a second copy on the phone would drift from this one again.
+        settings = re.compile(r'SYSTEM_ALERT_WINDOW allow|INTO policies|deviceidle whitelist \+')
+        scripts = [p for p in (ROOT / 'system').iterdir() if p.is_file()]
+        scripts += list((ROOT / 'tools/ci').glob('*.sh')) + list((ROOT / 'shared/android').rglob('*.sh'))
+        found = sorted(str(p.relative_to(ROOT)) for p in scripts
+                       if p.name != 'rungic-converge' and settings.search(p.read_text(errors='replace')))
+        self.assertEqual(found, [])
+
+
 if __name__ == '__main__':
     unittest.main()

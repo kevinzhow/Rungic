@@ -176,6 +176,19 @@ esac''')
         self.assertEqual(self.run_action('start').returncode, 0)
         self.assertFalse((self.base / 'runtime.disabled').exists())
 
+    # covers: install.independent-runtime/E3 install.independent-runtime/E7
+    def test_a_stopped_linux_still_converges_android_settings(self):
+        # The app needs its root grant to start Linux again (docs/122).
+        executable(self.base / 'rungic-converge', 'echo "converge $*" >> "$TEST_ROOT/calls"')
+        self.assertEqual(self.run_action('stop').returncode, 0)
+        # Not before Android's services and the user's storage are up (first boot of the G100).
+        (self.root / 'storage/emulated/0/Android').rmdir()
+        executable(self.bin / 'getprop', '[ -f "$TEST_ROOT/ticks" ] && echo 1 || echo 0')
+        executable(self.bin / 'sleep', '''echo "sleep $*" >> "$TEST_ROOT/calls"; touch "$TEST_ROOT/ticks"
+[ "$(wc -l < "$TEST_ROOT/calls")" -lt 2 ] || mkdir -p "$TEST_ROOT/storage/emulated/0/Android"''')
+        self.assertEqual(self.run_action('boot').returncode, 0)
+        self.assertEqual(self.lines(), ['sleep 30', 'sleep 30', 'converge apply'])
+
     def test_start_handshake_with_high_file_descriptors(self):
         files = [open(os.devnull) for _ in range(20)]
         try:

@@ -33,7 +33,15 @@ case "${1:-status}" in
     ;;
  boot)
     # An explicit user stop remains stopped across boots; installing/upgrading does not undo it.
-    [ ! -f "$BASE/runtime.disabled" ] || exit 0
+    # The Android settings still converge (docs/122): the app needs its root grant to start Linux again.
+    # Like the watcher, only once Android's services and the user's storage are up: run at the root
+    # provider's service stage, every item was refused (no deviceidle or appops service yet, app data
+    # still locked; G100 2026-10-08). The provider runs service.d scripts without waiting for them.
+    if [ -f "$BASE/runtime.disabled" ]; then
+        while [ "$(getprop sys.boot_completed)" != 1 ] || [ ! -d /storage/emulated/0/Android ]; do sleep 30; done
+        "$BB" timeout 120 "$BASE/rungic-converge" apply >/dev/null 2>&1 || log converge-failed
+        exit 0
+    fi
     exec "$BASE/rungic-runtime" start
     ;;
  stop)

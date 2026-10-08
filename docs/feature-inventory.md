@@ -2795,7 +2795,7 @@ Agent 不靠点界面就能拿到合并日志、崩溃回溯、追踪、截图�
 - **E4** 退出状态与启动故障持久保存并轮转，记录启动标识、服务、退出码和内存计数，不保存任务、短信、音频或凭据。（单元测试）
 - **E5** 首次启动没有宿主时桌面仍有有效输出；宿主首次出现后接入同一个 KWin 和窗口，不重启会话。（系统测试；只能在手机上看：手机 GPU 分配、显示恢复和输入需要整机验收，Linux 无头检查验证初始化与连接生命周期。）
 - **E6** 只提高 KWin 包装器及其直接合成器子进程、Plasma 和 Agent 主进程的内存回收优先级，不降低已有更强保护；其余应用仍受原有容器内存预算约束。（单元测试）
-- **E7** 每次开机在启动 Linux 之前把应当一直成立的安卓设置收敛一遍（电池优化白名单、悬浮窗、Magisk 的 root 授权、App 与 Termux 的目录属主和标签、共享文件夹），随发版更新；每项记 ok、changed、refused 或 report，失败不挡 Linux 启动。运行时权限与 KernelSU 的授权只报告，不替用户改。（单元测试）
+- **E7** 每次开机在启动 Linux 之前把应当一直成立的安卓设置收敛一遍（电池优化白名单、悬浮窗、Magisk 的 root 授权、App 与 Termux 的目录属主和标签、共享文件夹），随发版更新；用户停止了 Linux 时也照样收敛（App 要靠 root 授权才能再启动它）；每项记 ok、changed、refused 或 report，失败不挡 Linux 启动。首装不再自己写这些。运行时权限与 KernelSU 的授权只报告，不替用户改。（单元测试）
 
 文档：[docs/113-independent-linux-services.md](../docs/113-independent-linux-services.md)、[docs/122-converge-and-migrations.md](../docs/122-converge-and-migrations.md)
 
