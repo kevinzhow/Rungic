@@ -170,6 +170,9 @@ class ReleasePinsTests(Workspace):
         self.assertIn('--allow-downgrades', command)            # a rollback goes down to exact versions
         words = [w for w in shlex.split(command.split(' install ', 1)[1]) if w != '2>&1']
         self.assertEqual(sorted(words), ['kwin-wayland=6.6.5-0+rungic7', 'rungic-demo=0.4', 'rungic-release=20261001.1'])
+        # Every source's lists before the install, not only ours: a fresh rootfs has none (X70 2026-10-08).
+        before = script.split('systemd-run', 1)[0]
+        self.assertRegex(before, r'(?m)^(\S+=\S+ )*apt-get -q update >/dev/null')
 
 
 class DeployTests(Workspace):

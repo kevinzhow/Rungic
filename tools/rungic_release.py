@@ -657,6 +657,11 @@ def apt_install(info, record):
 # Our repository's Origin/Label changed with the Rungic rename (moto -> rungic, docs/70); apt refuses
 # such a change unless allowed. The source is this project's own, local and trusted.
 apt-get -q update --allow-releaseinfo-change {APT_OURS} >/dev/null
+# Every source too: a rootfs image ships without package lists, so on a fresh install every new
+# Ubuntu dependency of a release was "not installable" (X70, 2026-10-08: kwrite needs kate). A failed
+# refresh is reported in the log; the install then says what it could not find.
+http_proxy=http://192.168.5.45:6152 https_proxy=http://192.168.5.45:6152 apt-get -q update >/dev/null 2>&1 ||
+  echo 'apt-get update of every source failed: the install may miss new dependencies from Ubuntu'
 systemd-run --unit={unit} --wait --pipe --collect --quiet -p TimeoutStartSec=3600 \\
   --setenv=http_proxy=http://192.168.5.45:6152 --setenv=https_proxy=http://192.168.5.45:6152 \\
   --setenv=DEBIAN_FRONTEND=noninteractive \\

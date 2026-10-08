@@ -1,0 +1,20 @@
+# The package lists of a system installed without them (docs/122). A rootfs image ships no lists, so
+# apt and Discover found no package from Ubuntu on a fresh install until apt-daily ran hours later
+# (X70, 2026-10-08). Runs once Ubuntu's lists are missing and the network is up; afterwards the
+# condition is false and apt-daily keeps them fresh.
+[Unit]
+Description=Fetch package lists missing on a fresh install
+ConditionPathExistsGlob=!/var/lib/apt/lists/*ubuntu*_InRelease
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/apt-get -q update
+# Offline at the first boot: again until it succeeds.
+Restart=on-failure
+RestartSec=2min
+TimeoutStartSec=15min
+
+[Install]
+WantedBy=multi-user.target

@@ -231,6 +231,10 @@ features:
         text: 设备包带 dpkg-shlibdeps 生成的库依赖，并按 build-id 拆出 -dbgsym，供崩溃符号化使用。
         evidence:
           - {doc: docs/61-delivery-diagnostics-plan.md, date: 2026-09-26, note: "-g1 成本：plasma-mobile dbgsym 3.7 MB"}
+      - id: E6
+        text: 新装的系统联网后自动取一次 Ubuntu 的软件包索引（rootfs 镜像里没有索引），有了就不再取，之后交给 apt-daily；部署发布前也先更新所有源的索引，发布需要的 Ubuntu 新依赖不会“无法安装”。
+        evidence:
+          - {doc: docs/122-converge-and-migrations.md, date: 2026-10-08, note: "X70：删掉 Ubuntu 索引后单元取回 81 个索引文件，再启动时条件为假不执行"}
     pitfalls:
       - text: 旧的生成器把单元启用链接列为 obsolete，每次升级都删一遍。运行中的会话掩盖了问题，直到容器重启后会话起不来（发布 20260926.7）。
         docs: [docs/61-delivery-diagnostics-plan.md]
@@ -243,6 +247,7 @@ features:
       - packaging/
       - tools/test_source_layout.py
       - tools/test_rungic_package.py
+      - tools/tests/test_apt_lists.py
       - tools/system/tests/package_unit_state.py
     docs: [docs/61-delivery-diagnostics-plan.md]
 
