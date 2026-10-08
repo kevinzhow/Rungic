@@ -60,6 +60,9 @@ Deployment installs it only when the phone has a lower versionCode.
 5. To learn how far a phone is from main, read `python3 tools/rungic_release.py drift --all`.
    The "commits behind main" count of `status --all` covers only the base release.
    `drift` compares every part with origin/main: each package at its overlay's or release's commit, the APK, and each Android-side file.
+   It also runs `rungic-converge check` on the phone (docs/122): an Android setting that does not hold
+   (allowlist, overlay, Magisk grant, directories) is a part that differs; what is left to the user
+   (runtime permissions, KernelSU's grant) is printed as "reported, not changed" and is not drift.
    It prints "in sync" or the parts that differ, and first the main commit it compares with.
    If GitHub cannot be reached, the fetch stops after 60 s and drift uses the local origin/main, and says so.
    Use `--against COMMIT` to compare with a fixed commit, without a fetch.
@@ -200,7 +203,8 @@ After deployment, check the APT column in `status --all`.
 5. Run `python3 tools/rungic_release.py deploy <version>` in the background without a client timeout.
    Wi-Fi deployment can exceed 10 minutes.
    A 590-second timeout stopped a deployment on 2026-09-30, as docs/96 records.
-   The sequence is snapshot, installation, pins, overlay removal, Android files, restart, integrity check, then smoke acceptance.
+   The sequence is snapshot, installation, pins, overlay removal, Android files, Android settings (`converge`), restart, integrity check, then smoke acceptance.
+   A refused setting is recorded in the `converge` step, not a failed deploy.
    The log identifies overlay removal as `dev-overlay`.
    Failed acceptance automatically restores the snapshot.
 6. Check `result` in `.work/deploy/<time>-<version>/deploy.json` and `rungic_dev.py status`.

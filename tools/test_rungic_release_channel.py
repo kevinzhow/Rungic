@@ -517,7 +517,7 @@ if __name__ == '__main__':
 class Drift(unittest.TestCase):
     """drift: what of a phone differs from origin/main, part by part."""
 
-    def parts(self, info, apk, android, differ, main=None):
+    def parts(self, info, apk, android, differ, main=None, settings=None):
         main = main or {
             'release/packages.json': json.dumps({'project': {'rungic-a': {}, 'rungic-b': {}},
                                                  'rebuilt': {'kwin': {'source': 'packages/kwin'}},
@@ -532,12 +532,21 @@ class Drift(unittest.TestCase):
              patch.object(rungic_release, 'differing', lambda commit, paths, against='origin/main': differ(commit, paths)), \
              patch.object(rungic_package, 'definitions', lambda: definitions), \
              patch.object(pq, 'overlay', lambda name: {}):
-            return rungic_release.drift_parts(info, apk, android)
+            return rungic_release.drift_parts(info, apk, android, settings=settings)
 
     # covers: delivery.dev-channel/E9
     def test_a_phone_like_main_is_in_sync(self):
         sha = hashlib.sha256(b'new').hexdigest()
         self.assertEqual(self.parts({'commit': 'base'}, 91, {'/data/adb/x': sha}, lambda c, p: []), [])
+
+    # covers: delivery.dev-channel/E9 install.independent-runtime/E7
+    def test_android_settings_that_do_not_hold_are_drift_and_user_choices_are_not(self):
+        sha = hashlib.sha256(b'new').hexdigest()
+        settings = [{'id': 'overlay', 'state': 'differs', 'detail': ''},
+                    {'id': 'permissions', 'state': 'report', 'detail': 'not-granted:CAMERA'},
+                    {'id': 'app-files', 'state': 'ok', 'detail': ''}]
+        found = self.parts({'commit': 'base'}, 91, {'/data/adb/x': sha}, lambda c, p: [], settings=settings)
+        self.assertEqual(found, [{'part': 'android setting overlay', 'state': 'differs (rungic-converge check)'}])
 
     # covers: delivery.dev-channel/E9
     def test_each_part_is_compared_at_the_commit_it_came_from(self):

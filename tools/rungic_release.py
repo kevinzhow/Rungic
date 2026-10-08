@@ -734,6 +734,18 @@ def sync_android(info, record):
     return changed
 
 
+CONVERGE = '/data/adb/rungic-plasma/rungic-converge'
+
+
+def converge_android(mode):
+    """rungic-converge on the phone (docs/122): apply sets the Android settings that should always
+    hold, check only reads them. -> [{'id', 'state', 'detail'}], or None on a phone without it."""
+    text = run(f'[ -x {CONVERGE} ] || exit 0; {CONVERGE} {mode}', 'root', timeout=180, check=False).stdout or ''
+    items = [dict(zip(('id', 'state', 'detail'), (line.split(' ', 2) + [''])[:3]))
+             for line in text.splitlines() if len(line.split()) >= 2]
+    return items or None
+
+
 def restore_android(record):
     """Undo sync_android() of a deploy record: the Android side follows its rootfs back to the
     snapshot (an LXC configuration naming files the old rootfs lacks would not start, docs/70)."""
@@ -1067,6 +1079,12 @@ def deploy_release(version=None, restart='auto', acceptance='smoke', record_labe
         # so a failed one leaves both sides at the previous release.
         android = [] if keep_android else sync_android(info, record)
         step('android', changed=android, kept=keep_android)
+        # The release's Android settings now, not at the next boot (docs/122, Kevin 2026-10-08). A
+        # refusal is recorded, not a failed deploy: drift shows it until it holds.
+        if not keep_android:
+            settings = converge_android('apply') or []
+            step('converge', refused=','.join(i['id'] for i in settings if i['state'] == 'refused') or None,
+                 items=settings)
         after = installed_versions()
         (record / 'after.json').write_text(json.dumps({'release': version, 'packages': after}, indent=1) + '\n')
         # Protection is the release's pin and exact dependencies now; drop the holds they replace.
@@ -1658,7 +1676,7 @@ def android_files(against='origin/main'):
     return {path: source for path, source in files.items() if '/' in source}
 
 
-def drift_parts(info, apk_code, android, against='origin/main'):
+def drift_parts(info, apk_code, android, against='origin/main', settings=None):
     """The parts of a phone that differ from the explicit comparison ref. `info` is its release.json, `apk_code` its
     APK's versionCode, `android` {path: sha256 or None} of the Android-side files on it.
     Compare each project package and upstream component at its development overlay commit (docs/97), or else its release commit.
@@ -1715,6 +1733,12 @@ def drift_parts(info, apk_code, android, against='origin/main'):
         if have != want and not (have is None and path not in release_paths):
             state = 'missing on the phone' if have is None else 'not on main' if want is None else 'differs from main'
             found.append({'part': path, 'state': state + ('' if path in release_paths else ' (host seed only: a release does not update it)')})
+    # Android settings (docs/122): rungic-converge check on the phone; what is left to the user
+    # (report) is listed by phone_drift, not counted here.
+    for item in settings or []:
+        if item['state'] not in ('ok', 'report'):
+            found.append({'part': f"android setting {item['id']}",
+                          'state': f"{item['state']} (rungic-converge check)" + (f": {item['detail']}" if item['detail'] else '')})
     for path, source in BUILT_HOST_PROGRAMS.items():
         if base and differing(base, [source], against):
             found.append({'part': path, 'state': f'cannot compare a built program; {source} changed since the '
@@ -1734,7 +1758,8 @@ def phone_drift(against='origin/main'):
     text = run('for f in ' + ' '.join(shlex.quote(p) for p in paths) + '; do [ -f "$f" ] && sha256sum "$f"; done; true',
                'root', timeout=60, check=True).stdout or ''
     android = {line.split()[1]: line.split()[0] for line in text.splitlines() if len(line.split()) == 2}
-    parts = drift_parts(info, int(code) if code else None, android, against)
+    settings = converge_android('check')
+    parts = drift_parts(info, int(code) if code else None, android, against, settings)
     commit = info.get('commit')
     behind = git('rev-list', '--count', f'{commit}..{against}', check=False) if commit else ''
     return {'release': version, 'commit': commit[:12] if commit else None,
@@ -1742,7 +1767,8 @@ def phone_drift(against='origin/main'):
             'development': info.get('dev', {}),
             'release_behind_main': int(behind) if behind.isdigit() else None,
             'overlays': len(info.get('dev', {}).get('overrides', {})),
-            'in_sync': not parts, 'differs': parts}
+            'in_sync': not parts, 'differs': parts,
+            'reported': [f"{i['id']}: {i['detail']}" for i in settings or [] if i['state'] == 'report']}
 
 
 def drift(every=False, against=None):
@@ -1789,6 +1815,9 @@ def drift(every=False, against=None):
                 where = f" [{part['from']} {part.get('commit', '')}]".rstrip() + ']' if part.get('from') else ''
                 where = where.replace(']]', ']')
                 print(f"  {part['part']}{where}: {part['state']}", flush=True)
+        for reported in row.get('reported') or []:
+            # Left to the user (runtime permissions, KernelSU's grant): not drift (docs/122).
+            print(f"  reported, not changed: {reported}", flush=True)
     return {'result': 'ok' if all(r.get('in_sync') for r in rows) else 'drift', 'against': ref, 'against_time': when,
             'note': note, 'phones': rows, 'skipped': others}
 

@@ -398,6 +398,20 @@ class DeployTests(Workspace):
                           {'version': '20261001.2', 'commit': 'c0ffee', 'channel': 'dev', 'serial': 'ZY32MVJS25', 'result': 'aborted'}])
         self.assertTrue(all(e['time'] for e in history))
 
+    # covers: install.independent-runtime/E7
+    def test_the_android_settings_converge_right_after_the_android_files(self):
+        # docs/122: the release's settings now, not at the next boot.
+        self.phone.answers['rungic-converge apply'] = ('background-network refused Can_t_find_service\n'
+                                                       'overlay changed\npermissions report not-granted:CAMERA\n')
+        log = rungic_release.deploy('20261001.2', acceptance='none')
+        self.assertEqual(log['result'], 'ok', 'a refusal is recorded, not a failed deploy')
+        names = [s['step'] for s in log['steps']]
+        self.assertEqual(names[names.index('android') + 1], 'converge')
+        step = next(s for s in log['steps'] if s['step'] == 'converge')
+        self.assertEqual(step['refused'], 'background-network')
+        self.assertEqual(step['items'][1], {'id': 'overlay', 'state': 'changed', 'detail': ''})
+        self.assertEqual(step['items'][2]['detail'], 'not-granted:CAMERA')
+
     # covers: delivery.release-deploy/E2
     def test_rollback_goes_back_to_the_previous_release_by_exact_versions(self):
         rungic_release.deploy('20261001.2', acceptance='none')
