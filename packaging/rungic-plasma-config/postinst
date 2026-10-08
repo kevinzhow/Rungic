@@ -65,3 +65,9 @@ for g in json.load(open("/usr/share/rungic/service-policy.json"))["groups"]:
         done
     fi
 fi
+# One-time migrations of the container's system (docs/122), after the defaults above. A failure is
+# logged and retried at the next configure; it does not fail the upgrade.
+if [ "$1" = configure ]; then
+    /usr/libexec/rungic-migrate /usr/lib/rungic/migrations/system /var/lib/rungic/migrations ||
+        echo 'rungic-migrate: a migration failed; it runs again at the next upgrade' >&2
+fi

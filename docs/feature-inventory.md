@@ -4,7 +4,7 @@
 
 以产品功能和用户场景为骨架：每条功能是用户能感知的一件事；“体验”是它必须做到的，每条都标明由什么检查（自动测试、实机验收、人工验证或已登记的缺口）。数据在 `quality/`，规则见 [quality/README.md](../quality/README.md)。
 
-共 167 条功能、746 条体验，其中 697 条有检查。
+共 167 条功能、747 条体验，其中 698 条有检查。
 
 ## Agent 能力
 
@@ -2796,6 +2796,7 @@ Agent 不靠点界面就能拿到合并日志、崩溃回溯、追踪、截图�
 - **E5** 首次启动没有宿主时桌面仍有有效输出；宿主首次出现后接入同一个 KWin 和窗口，不重启会话。（系统测试；只能在手机上看：手机 GPU 分配、显示恢复和输入需要整机验收，Linux 无头检查验证初始化与连接生命周期。）
 - **E6** 只提高 KWin 包装器及其直接合成器子进程、Plasma 和 Agent 主进程的内存回收优先级，不降低已有更强保护；其余应用仍受原有容器内存预算约束。（单元测试）
 - **E7** 每次开机在启动 Linux 之前把应当一直成立的安卓设置收敛一遍（电池优化白名单、悬浮窗、Magisk 的 root 授权、App 与 Termux 的目录属主和标签、共享文件夹），随发版更新；用户停止了 Linux 时也照样收敛（App 要靠 root 授权才能再启动它）；每项记 ok、changed、refused 或 report，失败不挡 Linux 启动。首装不再自己写这些。运行时权限与 KernelSU 的授权只报告，不替用户改。（单元测试）
+- **E8** 只能做一次的改动按名字（YYYYMMDD-说明）排序各执行一次，做完记进账本，与合并顺序无关；安卓一侧在开机收敛的第一步执行，容器系统一侧由 rungic-plasma-config 配置时执行；失败不记账、后面的等下次，不挡 Linux 启动。用户配置仍用 kconf_update。（单元测试）
 
 文档：[docs/113-independent-linux-services.md](../docs/113-independent-linux-services.md)、[docs/122-converge-and-migrations.md](../docs/122-converge-and-migrations.md)
 

@@ -15,7 +15,9 @@
     "desktop/gpu-env",
     "system/pulse.pa",
     "system/policy-rc.d",
-    "desktop/services/policy.json"
+    "desktop/services/policy.json",
+    "system/rungic-migrate",
+    "system/migrations/system"
   ],
   "depends": "libkf6config-bin, python3",
   "description": "Plasma Mobile on Android: system configuration\nAPT sources, pins and the unattended-upgrades blacklist of the release repository;\nthe default state of services the container keeps off (service-policy.json, applied once);\nsshd settings for the optional SSH login; journald, PipeWire, WirePlumber, D-Bus and GPU environment\nsettings; system defaults in /etc/xdg; Blender renders on the CPU with half the cores by default (docs/90); one-time per-user migrations (kconf_update). Removes the /usr/local copies of rebuilt\nUbuntu programs (plasma-settings, the KDE portal) that shadowed the packaged ones.\nSee docs/61-delivery-diagnostics-plan.md.",

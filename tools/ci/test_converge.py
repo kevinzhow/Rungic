@@ -171,6 +171,25 @@ esac''')
         self.assertEqual(result['termux-home'][0], 'changed')
 
 
+    # covers: install.independent-runtime/E8
+    def test_android_migrations_run_first_once_and_a_failure_does_not_stop_the_settings(self):
+        runner = self.base / 'rungic-migrate'
+        runner.write_text((ROOT / 'system/rungic-migrate').read_text())
+        migrations = self.base / 'migrations'
+        migrations.mkdir()
+        (migrations / '20261008-move.sh').write_text(f'echo moved >> "{self.root}/calls"\n')
+        self.assertEqual(self.run_mode('check')['migrations'], ('differs', 'pending:20261008-move'))
+        self.assertEqual(self.calls(), [])
+        result = self.run_mode('apply')
+        self.assertEqual(result['migrations'], ('changed', '20261008-move'))
+        self.assertEqual(self.calls()[0], 'moved', 'before the settings')
+        self.assertEqual(self.run_mode('apply')['migrations'], ('ok', ''))
+        (migrations / '20261009-broken.sh').write_text('exit 1\n')
+        result = self.run_mode('apply')
+        self.assertEqual(result['migrations'][0], 'refused')
+        self.assertEqual(result['background-network'][0], 'ok')
+        self.assertEqual((self.base / 'migrations.done').read_text().split(), ['20261008-move'])
+
 class OneDeclaration(unittest.TestCase):
     # covers: install.independent-runtime/E7
     def test_only_rungic_converge_sets_these_on_the_phone(self):

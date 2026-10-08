@@ -37,6 +37,27 @@ converge() {
     if "$2"; then result "$1" changed; else result "$1" refused "${why:-unchanged}"; fi
 }
 
+# One-time migrations of the Android side (docs/122) come first: settings below may depend on them.
+# A release lists each as /data/adb/rungic-plasma/migrations/YYYYMMDD-what.sh; the ledger is
+# migrations.done. check names the ones still to run.
+migrations=/data/adb/rungic-plasma/migrations
+ledger=/data/adb/rungic-plasma/migrations.done
+pending=
+for migration in "$migrations"/*.sh; do
+    [ -f "$migration" ] || continue
+    name=$(basename "$migration" .sh)
+    grep -qxF "$name" "$ledger" 2>/dev/null || pending="$pending${pending:+,}$name"
+done
+if [ -z "$pending" ]; then
+    result migrations ok
+elif [ "$mode" = check ]; then
+    result migrations differs "pending:$pending"
+elif done=$(/system/bin/sh /data/adb/rungic-plasma/rungic-migrate "$migrations" "$ledger" 2>/dev/null); then
+    result migrations changed "$(printf '%s' "$done" | tr '\n' ',' | sed 's/,$//')"
+else
+    result migrations refused "stopped-after:$(printf '%s' "$done" | tr '\n' ',' | sed 's/,$//')"
+fi
+
 uid=$(stat -c %u "/data/user/0/$APP" 2>/dev/null) || uid=
 case "$uid" in ''|*[!0-9]*) uid= ;; esac
 label=$(ls -dZ "/data/user/0/$APP" 2>/dev/null | cut -d ' ' -f1)

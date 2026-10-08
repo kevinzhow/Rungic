@@ -143,7 +143,7 @@ P1 完成后，`rungic_release.py drift` 增加一个类别“Android 设置”�
 2. firstboot 改为调用 `rungic-converge`，删掉自己的那几行。用一个干净安装验证首装仍然正常。
 3. 部署后执行收敛；drift 增加“Android 设置”类别。
 4. 投屏文件进发版清单（只更新已安装的）。实现时改为整包：投屏有编译出来的 `rungic-cast.jar` 和一份覆盖全部文件的 SHA256SUMS，只换脚本会让安装器判它损坏；所以 `dev` 编出 jar、和脚本一起打成投屏包随发布走，部署时用投屏自己的 `install.sh` 安装。
-5. `rungic-migrate` + 两个账本 + 规则测试；把 #78 的键盘修复迁移作为第一个例子（它已经是 kconf_update，只需改名对齐规则）。
+5. `rungic-migrate` + 两个账本 + 规则测试。实现时：#78 的键盘修复没有改名，改名会让 kconf_update 在每台手机上再跑一遍；现有的 kconf_update Id 本来就是唯一的名字，符合规则。安卓和容器系统两个范围暂时还没有迁移，第一条等实际需要时再加（`system/migrations/system/README.md` 写了规则）。
 
 P3（宿主程序 `rungic-plasma-enter`、`rungic-lxc-enter` 带 sha256 进发布清单）和 P4 的后半部分（每个发布自动列出各类变更）不在本设计里。
 

@@ -19,3 +19,10 @@ ln -s /dev/null "$DESTDIR/etc/sysctl.d/50-coredump.conf"
 # Services kept off by default (docs/83): postinst applies each unit's default once, so the
 # package does not own the masks and a change made in Settings survives upgrades.
 install -Dm644 "$SRC/desktop/services/policy.json" "$DESTDIR/usr/share/rungic/service-policy.json"
+# One-time migrations of the container's system (docs/122): run by postinst, recorded in
+# /var/lib/rungic/migrations. Named YYYYMMDD-what.sh under system/migrations/system.
+install -Dm755 "$SRC/system/rungic-migrate" "$DESTDIR/usr/libexec/rungic-migrate"
+install -d "$DESTDIR/usr/lib/rungic/migrations/system"
+for migration in "$SRC/system/migrations/system/"*; do
+    case "$migration" in *.sh) install -m755 "$migration" "$DESTDIR/usr/lib/rungic/migrations/system/" ;; esac
+done

@@ -1,0 +1,30 @@
+#!/bin/sh
+# One-time migrations (docs/122): the *.sh of DIR in name order, each once; LEDGER lists the names done.
+# Names are YYYYMMDD-what: the date only orders them, the ledger keeps whole names, so pull requests
+# merged in any order each get theirs. A migration must be safe to run again if it was interrupted;
+# it is written to the ledger only after it succeeded. A failure stops here: the later ones wait for
+# the next run. Prints the names done. Runs on Android (rungic-converge) and in the container
+# (rungic-plasma-config).
+#   rungic-migrate DIR LEDGER
+set -u
+dir=$1
+ledger=$2
+[ -d "$dir" ] || exit 0
+mkdir -p "$(dirname "$ledger")"
+touch "$ledger"
+for migration in "$dir"/*.sh; do
+    [ -f "$migration" ] || continue
+    name=$(basename "$migration" .sh)
+    case "$name" in
+        [0-9][0-9][0-9][0-9][0-1][0-9][0-3][0-9]-?*) ;;
+        *) echo "migration $name: not named YYYYMMDD-what, left alone" >&2; continue ;;
+    esac
+    ! grep -qxF "$name" "$ledger" || continue
+    if sh "$migration"; then
+        echo "$name" >> "$ledger"
+        echo "$name"
+    else
+        echo "migration $name failed; the later ones wait for the next run" >&2
+        exit 1
+    fi
+done

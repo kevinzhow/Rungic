@@ -347,6 +347,11 @@
       "mode": "755"
     },
     {
+      "source": "system/rungic-migrate",
+      "path": "/data/adb/rungic-plasma/rungic-migrate",
+      "mode": "755"
+    },
+    {
       "source": "system/rungic-converge",
       "path": "/data/adb/rungic-plasma/rungic-converge",
       "mode": "755"
