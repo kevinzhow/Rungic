@@ -455,6 +455,15 @@ def integrity_summary():
     return report
 
 
+def release_debs(info, version):
+    """The pool's .debs a release pins (its packages and metapackage); coupled packages missing from
+    the pool come from Ubuntu's archive."""
+    have = pool_debs()
+    found = (have.get(name, {}).get(wanted.split(':', 1)[-1])
+             for name, wanted in {**info['packages'], meta_of(version): version}.items())
+    return {deb.name for deb in found if deb is not None}
+
+
 def kept_files(pool):
     """name -> its record, for the .debs of `pool` kept on the build host (REMOTE)."""
     return {p.name[:-len(REMOTE)]: json.loads(p.read_text()) for p in pool.glob('*.deb' + REMOTE)}
@@ -512,15 +521,21 @@ NAMES'''
             for name, digest in wanted.items()}
 
 
-def sync_repo(pool=None, device_repo=None):
+def sync_repo(pool=None, device_repo=None, only=None):
     """Mirror .work/apt/repo to /var/lib/rungic-apt: push missing .debs, replace the index.
     pool and device_repo: the development overlay's repositories (tools/rungic_dev.py), where a
-    .deb may be kept on the build host (REMOTE): the phone takes it from there."""
+    .deb may be kept on the build host (REMOTE): the phone takes it from there.
+    only: the .debs to bring (a deploy: its release's, release_debs); others of the pool stay off the
+    phone. Mirroring the whole pool sent every old build: 20261008.1 on a phone whose repository was
+    another machine's started copying 829 .debs (3.2 GB) for a release of 89 packages."""
     POOL, DEVICE_REPO = pool or globals()['POOL'], device_repo or globals()['DEVICE_REPO']
     listing = run(f'mkdir -p {DEVICE_REPO} && cd {DEVICE_REPO} && ls -1', 'container').stdout.split()
     kept = kept_files(POOL)
     here = {p.name for p in POOL.iterdir() if p.is_file() and not p.name.endswith(REMOTE)}
     local = here | set(kept)
+    if only is not None:
+        here = {n for n in here if not n.endswith('.deb') or n in only}
+        kept = {n: k for n, k in kept.items() if n in only}
     fetch = {name: k for name, k in kept.items() if name not in listing}
     if fetch:
         fetch_kept(fetch, DEVICE_REPO)
@@ -1024,7 +1039,7 @@ def deploy_release(version=None, restart='auto', acceptance='smoke', record_labe
             step('rebrand-up', **rebrand)
         # 3 sync and install
         ensure_apt_source()
-        step('sync', **sync_repo())
+        step('sync', **sync_repo(only=release_debs(info, version)))
         ok, tail = apt_install(info, record)
         step('install', ok=ok)
         # New crashes are counted from here: the restart for the snapshot runs the previous release, and

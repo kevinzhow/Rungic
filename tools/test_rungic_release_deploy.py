@@ -193,7 +193,7 @@ class DeployTests(Workspace):
                   rootfs_state=lambda: ('image', 'none'), with_container_stopped=self.stopped,
                   device_release=lambda: ('20261001.1', None), android_layouts=lambda info: ('rungic', 'rungic'),
                   installed_versions=self.installed, integrity_summary=lambda: {'summary': {'state': 'clean'}},
-                  ensure_apt_source=lambda: None, sync_repo=lambda: {}, run=self.phone.run,
+                  ensure_apt_source=lambda: None, sync_repo=lambda **kw: {}, run=self.phone.run,
                   apt_install=self.install, restart_session=self.restart_session)
         self.older = {'version': '20261001.1', 'commit': 'beef', 'android': {},
                       'packages': {'rungic-demo': '0.4', 'kwin-wayland': '1', 'rungic-other': '7'}}

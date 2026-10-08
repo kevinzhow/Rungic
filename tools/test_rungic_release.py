@@ -2,6 +2,7 @@
 """rungic_release's Android-side file handling without a device: sync_android() records what it
 changes and restore_android() puts it back (the snapshot rollback path, docs/70)."""
 import hashlib
+import json
 from pathlib import Path
 import shlex
 import tempfile
@@ -118,7 +119,7 @@ class DeployFailureTests(unittest.TestCase):
             with_container_stopped=self.stopped, device_release=lambda: ('previous', None),
             android_layouts=lambda info: ('rungic', 'rungic'),
             installed_versions=lambda: {}, integrity_summary=lambda: {}, ensure_apt_source=lambda: None,
-            sync_repo=lambda: {}, apt_install=lambda info, record: (True, ''), run=lambda *a, **k: None)
+            sync_repo=lambda **kw: {}, apt_install=lambda info, record: (True, ''), run=lambda *a, **k: None)
         for name, value in stubs.items():
             p = patch.object(rungic_release, name, value)
             p.start()
@@ -233,6 +234,38 @@ class BuildHostDirectTests(unittest.TestCase):
                 self.assertEqual(taken, ['big_1_arm64.deb'])
                 self.assertNotIn('big_1_arm64.deb', sent)
             self.assertIn('local_1_arm64.deb', sent)
+
+    def test_a_deploy_brings_only_its_release_debs(self):
+        """20261008.1: mirroring the whole pool started copying 829 old builds for 89 packages."""
+        sent, staged = [], []
+
+        def extract(archive, dest):
+            import tarfile
+            with tarfile.open(archive) as tar:
+                sent.extend(tar.getnames())
+
+        for index in ('Packages', 'Packages.gz', 'Packages.xz', 'Release'):
+            (self.pool / index).write_bytes(b'')
+        (self.pool / ('old_0_arm64.deb' + rungic_release.REMOTE)).write_text(
+            json.dumps({'path': 'old/old_0_arm64.deb', 'size': 1, 'sha256': ''}))
+        with patch.object(rungic_release, 'run', return_value=type('R', (), {'stdout': ''})()), \
+                patch.object(rungic_release, 'stage_on_build_host',
+                             side_effect=lambda names, pool: staged.extend(names) or {}), \
+                patch.object(rungic_release, 'fetch_kept', side_effect=AssertionError('an old build fetched')), \
+                patch.object(rungic_release, 'DEPLOY', self.pool / 'deploy'), \
+                patch('rungic_device.extract_in_container', side_effect=extract):
+            rungic_release.sync_repo(pool=self.pool, device_repo='/var/lib/rungic-apt', only={'big_1_arm64.deb'})
+        self.assertEqual(staged, ['big_1_arm64.deb'])
+        self.assertEqual(sorted(n for n in sent if n.endswith('.deb')), ['big_1_arm64.deb'])
+        self.assertIn('Packages', sent)
+
+    def test_release_debs_are_the_pinned_versions_without_the_epoch(self):
+        info = {'packages': {'big': '1', 'kwrite': '4:25.1', 'coupled': '9'}}
+        for name in ('big_0_arm64.deb', 'kwrite_25.1_arm64.deb', 'rungic-release_20261008.1_all.deb'):
+            (self.pool / name).write_bytes(b'')
+        with patch.object(rungic_release, 'POOL', self.pool):
+            self.assertEqual(rungic_release.release_debs(info, '20261008.1'),
+                             {'big_1_arm64.deb', 'kwrite_25.1_arm64.deb', 'rungic-release_20261008.1_all.deb'})
 
 if __name__ == '__main__':
     unittest.main()
