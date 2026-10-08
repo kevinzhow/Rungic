@@ -144,4 +144,5 @@
 
 - {path: docs/119-app-removal-status.md, kind: journal, note: App 在控制器缺失时独立读取未完成卸载标记，包含失败与重试边界}
 - {path: docs/121-acceptance-checklist.md, kind: reference, note: 发版验收清单：Agent 在 G100 上按截图触摸操作的十项、判定与报告格式}
+- {path: docs/122-converge-and-migrations.md, kind: journal, note: 设计稿：Android 设置每次开机收敛（rungic-converge），一次性迁移用账本（三个范围）}
 - {path: docs/research/termux-prefix-build.md, kind: reference, note: 固定 APK 与认证仓库的 Termux 前缀构建及重放；Android 配置待验}

@@ -2796,7 +2796,7 @@ Agent 不靠点界面就能拿到合并日志、崩溃回溯、追踪、截图�
 - **E5** 首次启动没有宿主时桌面仍有有效输出；宿主首次出现后接入同一个 KWin 和窗口，不重启会话。（系统测试；只能在手机上看：手机 GPU 分配、显示恢复和输入需要整机验收，Linux 无头检查验证初始化与连接生命周期。）
 - **E6** 只提高 KWin 包装器及其直接合成器子进程、Plasma 和 Agent 主进程的内存回收优先级，不降低已有更强保护；其余应用仍受原有容器内存预算约束。（单元测试）
 
-文档：[docs/113-independent-linux-services.md](../docs/113-independent-linux-services.md)
+文档：[docs/113-independent-linux-services.md](../docs/113-independent-linux-services.md)、[docs/122-converge-and-migrations.md](../docs/122-converge-and-migrations.md)
 
 #### SSH 自动开启
 

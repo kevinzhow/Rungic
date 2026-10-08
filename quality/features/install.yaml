@@ -55,7 +55,7 @@ features:
       - system/critical-service.conf
       - tools/ci/test_runtime_boot.py
       - tools/system/desktop_without_host.py
-    docs: [docs/113-independent-linux-services.md]
+    docs: [docs/113-independent-linux-services.md, docs/122-converge-and-migrations.md]
 
   # ------------------------------------------------------------------ 首次安装进入桌面
   - id: install.standalone-install

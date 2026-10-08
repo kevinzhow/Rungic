@@ -251,5 +251,6 @@ Every feature, the experience it must give and the code, tests and documents beh
 - [118：独立卸载 Rungic](118-standalone-uninstall.md)：只读预览、默认保留家目录、purge 范围及失败报告。
 | [119-app-removal-status.md](119-app-removal-status.md) | 卸载中断后 App 提示与独立标记读取，真机体验待验 |
 | [121-acceptance-checklist.md](121-acceptance-checklist.md) | 发版验收清单：重装后 Agent 在真机上按截图操作一遍十项，截图报告 |
+| [122-converge-and-migrations.md](122-converge-and-migrations.md) | 设计稿：Android 设置每次开机收敛，发版能送到；一次性迁移统一成账本（P1、P2） |
 
 - [Termux prefix 构建说明](research/termux-prefix-build.md)：固定来源、可重复构建及 Android 运行验收边界。
