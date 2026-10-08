@@ -424,7 +424,17 @@ features:
         text: 用安卓输入法打的文字到达 Linux 里获得焦点的输入框（例如应用抽屉的搜索框，结果按输入过滤）。
       - id: E2
         text: 安卓输入法提交的中文经宿主 text-input 交给 KWin，直接进入焦点应用。键盘布局数据由 APK 安装，缺失时明确报错。
-        gap: 中文经安卓输入法提交只在 2026-09-24 投屏时实机试过（docs/58 第3步，进入电视上的 KRunner）。手机屏上的提交和布局数据缺失时的报错（KeyboardAssets.java）还没有检查。要一个实机场景：input.text 用 adb input text 直接发 ASCII 按键，不经输入法的提交通路。
+        gap: 布局数据缺失时的报错（KeyboardAssets.java）还没有检查。没有自动的实机场景：input.text 用 adb input text 直接发 ASCII 按键，不经输入法的提交通路。
+        evidence:
+          - {doc: docs/58-miracast-desktop-feasibility.md, date: 2026-09-24, note: "投屏时经安卓输入法提交中文进入电视上的 KRunner"}
+      - id: E3
+        text: 输入法结束组字的两种方式都把选好的字送到 Linux，且只送一次：直接提交（commitText），或先把字设为组字再定下（finishComposingText，连接关闭时也是这样）。组字中的拼音不送。
+        evidence:
+          - {doc: docs/121-acceptance-checklist.md, date: 2026-10-08, note: "X70 微信输入法：菜单“Android 键盘”，nihao 选“你好”，抽屉搜索框读回“你好”（直接提交这条路）"}
+      - id: E4
+        text: 只有菜单里的“Android 键盘”开着时，显示视图才向安卓提供输入连接；平时物理按键（蓝牙键盘、adb input text）直接到 Linux，不会被安卓输入法当成拼音截走。从任一边缘返回先收起 Android 键盘；它被收起时 App 也放开输入法，回到前台不会再自己弹出。
+        evidence:
+          - {doc: docs/121-acceptance-checklist.md, date: 2026-10-08, note: "X70 APK 2.46：微信输入法在 2.45 截走 input text 的 rungic42；2.46 下 input.text 通过，Android 键盘里 nihao→你好 仍通过，返回后不再弹出"}
     pitfalls:
       - text: 容器刚启动后的第一次安卓文字输入偶尔大小写错乱（Calcul 到达为 CaICUL），原因未确认。验收的读回不区分大小写并重试一次。
         docs: [docs/61-delivery-diagnostics-plan.md]
@@ -432,6 +442,8 @@ features:
         docs: [docs/research/97-headless-agent-work.md]
     code:
       - android/app/src/com/rungic/plasma/KeyboardAssets.java
+      - android/app/src/com/rungic/plasma/ComposingText.java
+      - android/app/tests/ComposingTextTest.java
       - android/app/assets/xkb.zip
       - android/app/assets/xkb-copyright.txt
       - packages/kwin/debian/patches/rungic/inputmethod-host-text.patch

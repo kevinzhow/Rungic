@@ -307,6 +307,21 @@ def ocr_screen():
     return json.loads(lines[-1]), shot
 
 
+def android_keyboard_shown():
+    state = getattr(run('dumpsys input_method', 'shell', check=False), 'stdout', '') or ''
+    focus = getattr(run('dumpsys window | grep -m1 mCurrentFocus', 'shell', check=False), 'stdout', '') or ''
+    return 'mInputShown=true' in state and f'{rungic_device.APK}/' in focus
+
+
+def android_keyboard_closed():
+    """Close an Android input method open over Rungic -> whether one was open."""
+    if not android_keyboard_shown():
+        return False
+    run('input keyevent 4', 'shell', check=False)
+    wait_for(lambda: not android_keyboard_shown(), timeout=5, interval=0.5)
+    return True
+
+
 @check
 def input_text(ctx, text='rungic42'):
     """Android text input into the drawer search, read back from the screen by OCR: right after a
@@ -316,6 +331,10 @@ def input_text(ctx, text='rungic42'):
     if not enabled:
         rungic_agent.ui_enable(True)
         time.sleep(2)
+    # Typed keys go to an Android input method that Rungic has open (its menu's "Android keyboard"),
+    # which composes them itself (X70 2026-10-08: "rungic42" sat in WeType's candidates). Back hides
+    # it the way a user does; the app then ends that keyboard.
+    hidden = android_keyboard_closed()
     try:
         field = _drawer_search()
         taps = 0
@@ -339,7 +358,8 @@ def input_text(ctx, text='rungic42'):
         seen = [word for word, score, (px, py) in words
                 if left - 10 <= px < left + width * scale and top - 10 <= py < top + height * scale]
         typed = [word for word in seen if word.casefold() == text.casefold()]
-        return result(bool(typed), {'taps': taps}, sent=text, case_exact=text in typed, seen=seen[:20])
+        return result(bool(typed), {'taps': taps}, sent=text, case_exact=text in typed, seen=seen[:20],
+                      android_keyboard_closed=hidden)
     finally:
         try:
             _home()

@@ -58,6 +58,7 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
     private volatile int bufferWidth = 720, bufferHeight = 1600;
     private FrameLayout frame;
     private boolean androidKeyboard;
+    private boolean androidImeShown;
     private volatile String displayMetrics;
     private String writtenDisplayMetrics;
     private volatile boolean accountReady;
@@ -125,7 +126,13 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
         registerEdgeBack();
         display.setOnApplyWindowInsetsListener((v, insets) -> {
             captureDisplayInsets(insets);
-            castControls.imeVisible(insets.isVisible(WindowInsets.Type.ime()));
+            boolean ime=insets.isVisible(WindowInsets.Type.ime());
+            // A docked Android keyboard dismissed in any way (its own button, the input method
+            // switching away) ends the menu's keyboard too: left on, it came back every time the app
+            // returned to the front (X70 2026-10-08). A floating one adds no insets: see closeAndroidKeyboard.
+            if(androidImeShown && !ime && androidKeyboard) endAndroidKeyboard();
+            androidImeShown=ime;
+            castControls.imeVisible(ime);
             return insets;
         });
         display.addOnLayoutChangeListener((v,l,t,r,b,ol,ot,or_,ob) ->
@@ -690,6 +697,26 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
         return castControls.status();
     }
 
+    /** Back first closes the menu's Android keyboard, from either edge. A floating input method
+     * (WeType's on the X70, 2026-10-08) adds no IME insets, so the right edge's inset check missed
+     * it and the left edge opened the menu over it: the keyboard stayed on. -> whether it was on. */
+    private boolean closeAndroidKeyboard() {
+        if(!androidKeyboard) return false;
+        endAndroidKeyboard();
+        return true;
+    }
+
+    /** The view stops being a text editor for Android, and the input method lets go of it: with only
+     * the flag cleared, the system put the input method back whenever the window took the focus
+     * again (X70 2026-10-08: WeType returned after the menu or the app came to the front). */
+    private void endAndroidKeyboard() {
+        androidKeyboard=false;
+        InputMethodManager im=(InputMethodManager)getSystemService(INPUT_METHOD_SERVICE);
+        im.hideSoftInputFromWindow(display.getWindowToken(),0);
+        getWindow().getInsetsController().hide(WindowInsets.Type.ime());
+        im.restartInput(display);
+    }
+
     /** Android keyboard on the phone; its keys and text go to the focused Linux window. */
     private void setAndroidKeyboard(boolean show) {
         InputMethodManager im=(InputMethodManager)getSystemService(INPUT_METHOD_SERVICE);
@@ -698,10 +725,7 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
             display.requestFocus();
             im.restartInput(display);
             im.showSoftInput(display, InputMethodManager.SHOW_IMPLICIT);
-        } else {
-            getWindow().getInsetsController().hide(WindowInsets.Type.ime());
-            androidKeyboard=false;
-        }
+        } else endAndroidKeyboard();
     }
 
     org.json.JSONObject displayInfo() throws org.json.JSONException {
@@ -828,9 +852,9 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
     @Override public void onBackPressed() {
         if(castControls!=null && castControls.dismissOverlay()) return;
         WindowInsets insets=display.getRootWindowInsets();
+        if(closeAndroidKeyboard()) return;
         if(insets!=null && insets.isVisible(WindowInsets.Type.ime())) {
             getWindow().getInsetsController().hide(WindowInsets.Type.ime());
-            androidKeyboard=false;
             return;
         }
         worker.execute(() -> {
@@ -853,6 +877,7 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
                 edge=android.window.BackEvent.EDGE_LEFT;
                 if(accountPromptShowing) return;
                 if(castControls!=null && castControls.dismissOverlay()) return;
+                if(closeAndroidKeyboard()) return;
                 if(right) backInLinux(); else showDesktopMenu();
             }
         };
@@ -862,9 +887,9 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
 
     private void backInLinux() {
         WindowInsets insets=display.getRootWindowInsets();
+        if(closeAndroidKeyboard()) return;
         if(insets!=null && insets.isVisible(WindowInsets.Type.ime())) {
             getWindow().getInsetsController().hide(WindowInsets.Type.ime());
-            androidKeyboard=false;
             return;
         }
         worker.execute(() -> {
@@ -932,9 +957,16 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
         }
         @Override public boolean onCheckIsTextEditor() { return androidKeyboard; }
         @Override public InputConnection onCreateInputConnection(EditorInfo info) {
+            // Only while the menu's Android keyboard is on. Otherwise an input method bound to this
+            // view took the keys of a hardware keyboard (adb input text too) for itself: WeType on
+            // the X70 composed them as pinyin in its own candidates and Linux got nothing (2026-10-08).
+            if(!androidKeyboard) return null;
             info.inputType=android.text.InputType.TYPE_CLASS_TEXT; info.imeOptions=EditorInfo.IME_FLAG_NO_EXTRACT_UI;
+            ComposingText text=new ComposingText(t -> { if(initialized)NativeBridge.sendTextInput(t); });
             return new BaseInputConnection(this,false) {
-                @Override public boolean commitText(CharSequence text,int cursor) { if(initialized)NativeBridge.sendTextInput(text.toString()); return true; }
+                @Override public boolean setComposingText(CharSequence t,int cursor) { text.compose(t); return true; }
+                @Override public boolean finishComposingText() { text.finish(); return true; }
+                @Override public boolean commitText(CharSequence t,int cursor) { text.commit(t); return true; }
                 @Override public boolean deleteSurroundingText(int before,int after) { for(int i=0;i<before;i++)key(KeyEvent.KEYCODE_DEL); return true; }
                 @Override public boolean sendKeyEvent(KeyEvent event) { if(initialized)NativeBridge.sendKeyEvent(event.getKeyCode(),event.getAction()==KeyEvent.ACTION_DOWN); return true; }
             };
