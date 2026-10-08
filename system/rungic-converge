@@ -1,0 +1,127 @@
+#!/system/bin/sh
+# Android settings that should always hold, declared once (docs/122). First boot runs only once per
+# release and a release never reaches it, so what lived there (the overlay app op, Magisk's grant,
+# the app's directories) stayed as the first install left it. This runs at every boot
+# (rungic-runtime), after every deploy (rungic_release.py) and, later, at the end of first boot.
+#
+#   apply   check each item, set what is wrong, check it again
+#   check   only look (drift, diagnostics): never writes
+#
+# Each item ends as ok, changed (set and checked), refused <why> (Android did not take it),
+# report <why> (left to the user or not readable), or under check differs. One line per item goes
+# to the runtime's host.log and to stdout; converge.json keeps the last run. Nothing here stops Linux.
+set -u
+umask 022
+mode=${1:-check}
+case "$mode" in apply|check) ;; *) echo 'Usage: rungic-converge apply|check' >&2; exit 2;; esac
+[ "$(id -u)" = 0 ] || exit 1
+. /data/adb/rungic-plasma/root-provider || exit 1
+STATE=/data/adb/rungic-lxc/runtime/var/lib/lxc/plasma/state/host/runtime
+APP=com.rungic.plasma
+mkdir -p "$STATE"
+boot=$(cat /proc/sys/kernel/random/boot_id)
+items=
+# An Android service that does not answer must not hold up the boot.
+bounded() { "$RUNGIC_BUSYBOX" timeout 15 "$@"; }
+result() {
+    # Details are short tokens (no quotes or spaces), so the JSON needs no escaping.
+    printf '%s boot=%s converge %s %s%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$boot" "$1" "$2" "${3:+ $3}" >> "$STATE/host.log"
+    printf '%s %s%s\n' "$1" "$2" "${3:+ $3}"
+    items="$items${items:+,}{\"id\":\"$1\",\"state\":\"$2\",\"detail\":\"${3:-}\"}"
+}
+# converge ID CHECK APPLY: CHECK and APPLY are functions; APPLY's output names why it failed.
+converge() {
+    if "$2"; then result "$1" ok; return; fi
+    if [ "$mode" = check ]; then result "$1" differs; return; fi
+    why=$("$3" 2>&1 | tr -c 'A-Za-z0-9._:/=+-' '_' | cut -c1-80)
+    if "$2"; then result "$1" changed; else result "$1" refused "${why:-unchanged}"; fi
+}
+
+uid=$(stat -c %u "/data/user/0/$APP" 2>/dev/null) || uid=
+case "$uid" in ''|*[!0-9]*) uid= ;; esac
+label=$(ls -dZ "/data/user/0/$APP" 2>/dev/null | cut -d ' ' -f1)
+
+# Linux's own network goes out as the app's uid, which Android cuts while the app is not running
+# (netpolicy APP_BACKGROUND): the power-save allowlist exempts it (docs/116, docs/121). Kevin
+# 2026-10-08: put back at every boot even if the user removed it.
+allowlisted() { bounded dumpsys deviceidle whitelist 2>/dev/null | grep -q ",$APP,"; }
+allowlist() { bounded dumpsys deviceidle whitelist +"$APP"; }
+converge background-network allowlisted allowlist
+
+# Casting shows the Linux desktop on the TV in an overlay window (docs/58). Magisk's root context
+# was refused once (docs/79): the shell identity is the fallback.
+overlay_allowed() { bounded appops get "$APP" SYSTEM_ALERT_WINDOW 2>/dev/null | grep -q ': allow'; }
+overlay() {
+    bounded appops set "$APP" SYSTEM_ALERT_WINDOW allow ||
+        { [ -n "$RUNGIC_MAGISK" ] && bounded "$RUNGIC_MAGISK" su 2000 -c "appops set $APP SYSTEM_ALERT_WINDOW allow"; }
+}
+converge overlay overlay_allowed overlay
+
+# The app's root: a row in Magisk's policies (fixed Magisk 31.0 schema, docs/39). KernelSU keeps its
+# allowlist to itself (ksud has no query); the user grants it in the manager and the app says so (#57).
+if [ "$RUNGIC_ROOT" = kernelsu ]; then
+    result root-grant report kernelsu-manager
+elif [ -z "$uid" ]; then
+    result root-grant refused app-missing
+else
+    granted() { bounded "$RUNGIC_MAGISK" --sqlite "SELECT policy FROM policies WHERE uid=$uid" 2>/dev/null | grep -qx 'policy=2'; }
+    grant() { bounded "$RUNGIC_MAGISK" --sqlite "INSERT OR REPLACE INTO policies (uid,policy,until,logging,notification) VALUES($uid,2,0,1,1)"; }
+    converge root-grant granted grant
+fi
+
+# The app's files and their tmp: the controller and the desktop exchange state there (owner and
+# label of the app's data, as first boot made them).
+if [ -z "$uid" ] || [ -z "$label" ]; then
+    result app-files refused app-missing
+else
+    files=/data/user/0/$APP/files
+    app_files_right() {
+        for dir in "$files" "$files/tmp"; do
+            [ -d "$dir" ] && [ "$(stat -c %u:%g "$dir")" = "$uid:$uid" ] &&
+                [ "$(ls -dZ "$dir" | cut -d ' ' -f1)" = "$label" ] || return 1
+        done
+    }
+    app_files() { mkdir -p "$files/tmp" && chown "$uid:$uid" "$files" "$files/tmp" && chcon "$label" "$files" "$files/tmp"; }
+    converge app-files app_files_right app_files
+fi
+
+# Linux's ~/Shared is this folder (docs/121). Shared storage exists only once the user unlocked.
+if [ ! -d /storage/emulated/0/Android ]; then
+    result shared-folder report storage-locked
+else
+    shared_present() { [ -d /storage/emulated/0/Plasma ]; }
+    shared() { mkdir -p /storage/emulated/0/Plasma; }
+    converge shared-folder shared_present shared
+fi
+
+# Termux's files and home, where its PulseAudio runs (first boot).
+tuid=$(stat -c %u /data/user/0/com.termux 2>/dev/null) || tuid=
+tlabel=$(ls -dZ /data/user/0/com.termux 2>/dev/null | cut -d ' ' -f1)
+case "$tuid" in ''|*[!0-9]*) tuid= ;; esac
+if [ -z "$tuid" ] || [ -z "$tlabel" ]; then
+    result termux-home report termux-missing
+else
+    tfiles=/data/user/0/com.termux/files
+    termux_right() {
+        for dir in "$tfiles" "$tfiles/home"; do
+            [ -d "$dir" ] && [ "$(stat -c %u:%g "$dir")" = "$tuid:$tuid" ] &&
+                [ "$(ls -dZ "$dir" | cut -d ' ' -f1)" = "$tlabel" ] || return 1
+        done
+    }
+    termux() { mkdir -p "$tfiles/home" && chown "$tuid:$tuid" "$tfiles" "$tfiles/home" && chcon "$tlabel" "$tfiles" "$tfiles/home"; }
+    converge termux-home termux_right termux
+fi
+
+# Runtime permissions are the user's to give and take back in Settings (docs/122): reported, never
+# granted here. The app asks for what it misses.
+missing=
+granted_list=$(bounded dumpsys package "$APP" 2>/dev/null | grep 'granted=true')
+for permission in RECORD_AUDIO CAMERA POST_NOTIFICATIONS BLUETOOTH_CONNECT BLUETOOTH_SCAN READ_PHONE_STATE; do
+    printf '%s\n' "$granted_list" | grep -q "android.permission.$permission: granted=true" ||
+        missing="$missing${missing:+,}$permission"
+done
+if [ -z "$missing" ]; then result permissions ok; else result permissions report "not-granted:$missing"; fi
+
+printf '{"mode":"%s","boot":"%s","time":"%s","items":[%s]}\n' "$mode" "$boot" \
+    "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$items" > "$STATE/converge.json.tmp"
+mv -f "$STATE/converge.json.tmp" "$STATE/converge.json"

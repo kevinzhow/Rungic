@@ -82,13 +82,13 @@ case "${1:-status}" in
             sleep 30
             continue
         fi
-        # Linux's own network (docs/116) goes out as the app's uid, which Android cuts while the app
-        # is not running (netpolicy APP_BACKGROUND): the power-save allowlist exempts it. Once per
-        # boot, here rather than in first boot, which a release does not update (docs/121).
-        if [ "${allowlisted:-0}" = 0 ]; then
-            if dumpsys deviceidle whitelist +com.rungic.plasma >/dev/null 2>&1; then log background-network-allowed
-            else log background-network-allowlist-refused; fi
-            allowlisted=1
+        # The Android settings that should always hold (power-save allowlist for Linux's own network,
+        # overlay, root grant, directories): once per boot, before Linux starts, here rather than in
+        # first boot, which a release does not update (docs/122). It logs each item itself; a
+        # refusal does not hold Linux back.
+        if [ "${converged:-0}" = 0 ]; then
+            "$BB" timeout 120 "$BASE/rungic-converge" apply >/dev/null 2>&1 || log converge-failed
+            converged=1
         fi
         # First-run account creation is interactive. Never invent an account or replay installation.
         if [ ! -f "${STATE%/runtime}/account.json" ] ||

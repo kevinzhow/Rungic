@@ -347,6 +347,11 @@
       "mode": "755"
     },
     {
+      "source": "system/rungic-converge",
+      "path": "/data/adb/rungic-plasma/rungic-converge",
+      "mode": "755"
+    },
+    {
       "source": "system/runtime-boot.sh",
       "path": "/data/adb/service.d/rungic-runtime.sh",
       "mode": "700"

@@ -45,8 +45,11 @@ features:
         device: 手机 GPU 分配、显示恢复和输入需要整机验收，Linux 无头检查验证初始化与连接生命周期。
       - id: E6
         text: 只提高 KWin 包装器及其直接合成器子进程、Plasma 和 Agent 主进程的内存回收优先级，不降低已有更强保护；其余应用仍受原有容器内存预算约束。
+      - id: E7
+        text: 每次开机在启动 Linux 之前把应当一直成立的安卓设置收敛一遍（电池优化白名单、悬浮窗、Magisk 的 root 授权、App 与 Termux 的目录属主和标签、共享文件夹），随发版更新；每项记 ok、changed、refused 或 report，失败不挡 Linux 启动。运行时权限与 KernelSU 的授权只报告，不替用户改。
     code:
       - system/rungic-runtime
+      - system/rungic-converge
       - system/runtime-boot.sh
       - system/runtime-health
       - system/rungic-runtime-health.service
@@ -54,6 +57,7 @@ features:
       - system/service-exit
       - system/critical-service.conf
       - tools/ci/test_runtime_boot.py
+      - tools/ci/test_converge.py
       - tools/system/desktop_without_host.py
     docs: [docs/113-independent-linux-services.md, docs/122-converge-and-migrations.md]
 
